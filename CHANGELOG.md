@@ -9,6 +9,8 @@ Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) t
 
 ### `Added`
 
+- Added LDAK local modules (addgrms, adjustgrm, calcgenotypeerrort2, calcinflation, calckins, createthinweights, filterrelatedness, he, kvikstep1, kvikstep2, pcgc, reml, thinpredictors) under `modules/local/ldak/`.
+
 ### `Fixed`
 
 ### `Dependencies`
