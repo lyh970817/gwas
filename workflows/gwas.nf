@@ -6,13 +6,13 @@
 // MODULE: Installed directly from nf-core/modules
 include { MULTIQC                  } from '../modules/nf-core/multiqc/main'
 
-// SUBWORKFLOW: Local to the pipeline
+// SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { PREPARE_COHORT_GENOTYPES } from '../subworkflows/local/prepare_cohort_genotypes'
+include { methodsDescriptionText   } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
 include { paramsSummaryMultiqc     } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText   } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // PLUGIN
 include { paramsSummaryMap         } from 'plugin/nf-schema'

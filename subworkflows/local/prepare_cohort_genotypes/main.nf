@@ -30,13 +30,16 @@ workflow PREPARE_COHORT_GENOTYPES {
     // samplesheet whose rows share a `cohort_id` while naming different genotype files, so every
     // discarded repeat is known to be identical to the one kept.
     //
+    // The cohort key is carried only so `unique` can collapse on it, so it is dropped again here,
+    // in one place, the moment it has served that purpose. [ cohort_meta, [ genotype_file, ... ] ]
     def ch_cohorts = ch_analyses
         .map { meta, genotype_files ->
             [meta.cohort, [id: meta.cohort, genotype_format: meta.genotype_format], genotype_files]
         }
         .unique { cohort_id, _cohort_meta, _genotype_files -> cohort_id }
+        .map { _cohort_id, cohort_meta, genotype_files -> [cohort_meta, genotype_files] }
 
-    def ch_by_format = ch_cohorts.branch { _cohort_id, cohort_meta, _genotype_files ->
+    def ch_by_format = ch_cohorts.branch { cohort_meta, _genotype_files ->
         plink2: cohort_meta.genotype_format == 'plink2'
         plink1: cohort_meta.genotype_format == 'plink1'
         vcf: cohort_meta.genotype_format == 'vcf'
@@ -48,7 +51,7 @@ workflow PREPARE_COHORT_GENOTYPES {
     // Nothing the pipeline built is therefore published for such a cohort under the save control —
     // the canonical bundle is the researcher's own input, already on disk where they put it.
     //
-    def ch_supplied = ch_by_format.plink2.map { _cohort_id, cohort_meta, genotype_files ->
+    def ch_supplied = ch_by_format.plink2.map { cohort_meta, genotype_files ->
         def (pgen, psam, pvar) = genotype_files
         [cohort_meta, pgen, psam, pvar]
     }
@@ -57,7 +60,7 @@ workflow PREPARE_COHORT_GENOTYPES {
     // MODULE: Convert a PLINK 1 cohort to the canonical PLINK 2 bundle
     //
     PLINK2_MAKEPGEN(
-        ch_by_format.plink1.map { _cohort_id, cohort_meta, genotype_files ->
+        ch_by_format.plink1.map { cohort_meta, genotype_files ->
             def (bed, bim, fam) = genotype_files
             [cohort_meta, bed, bim, fam]
         }
@@ -67,9 +70,7 @@ workflow PREPARE_COHORT_GENOTYPES {
     // MODULE: Convert a VCF cohort to the canonical PLINK 2 bundle
     //
     PLINK2_VCF(
-        ch_by_format.vcf.map { _cohort_id, cohort_meta, genotype_files ->
-            [cohort_meta, genotype_files.first()]
-        }
+        ch_by_format.vcf.map { cohort_meta, genotype_files -> [cohort_meta, genotype_files.first()] }
     )
 
     def ch_cohort_genotypes = ch_supplied
