@@ -172,9 +172,22 @@ marked "measured" were verified directly against the checked-out sources, not in
 
 - **[MUST]** `emit:` entries align their `=` signs, and `versions` is the last entry when present.
   _(all three; 5 sarek subworkflows put it first — the minority to avoid)_
-- **[MUST]** Every subworkflow that invokes a versioned process emits `versions`. All three pipelines have
-  subworkflows that silently skip this (rnaseq 2 of 4, sarek 4 of 65); treat it as a hard rule here rather
-  than inheriting the drift.
+- **[MUST]** Version reporting is a _process_ obligation, not a subworkflow one. Every local process declares
+  its tools on the `versions` topic (§9), and the pipeline collects them centrally from
+  `channel.topic("versions")` in `workflows/gwas.nf` — so a subworkflow composed only of topic-reporting
+  local modules has no version channel in scope, and must not invent one. Emitting `versions =
+  channel.empty()`, or accumulating a `ch_versions` variable purely to satisfy the letter of an emit
+  contract, is exactly the `.mix()` threading §9 forbids. A subworkflow emits `versions` only when it
+  genuinely composes something that produces a version channel — an installed nf-core module still on the
+  file-based `versions.yml` pattern, or a nested subworkflow that emits one — and then it is last in the
+  `emit:` block. A subworkflow that deliberately emits no `versions` says so in its header comment, as
+  `subworkflows/local/prepare_cohort_genotypes/main.nf` does.
+  _(1/3 — chosen. This amends an earlier rule that required every subworkflow to emit `versions`; that rule
+  contradicted §9 and its cited counts did not reproduce. Measured against the checked-out sources: rnaseq —
+  which §9 already names as the migration target — emits `versions` from 0 of its 5 local subworkflows; mag
+  emits from 23 of 23 and sarek from 54 of 65, but both are still on the classic per-module `versions.yml`
+  pattern, which is what makes those emits carry anything. This pipeline is fully on topic channels, so it
+  follows rnaseq. A deliberate decision for this pipeline, not a majority observation.)_
 - **[SHOULD]** One blank line before each step banner inside `main:`. Whether a blank line follows `main:`
   is split roughly 50/50 in all three — do not flag it.
 

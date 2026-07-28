@@ -195,6 +195,16 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 - **[MUST]** Row-uniqueness uses the nf-schema keyword `uniqueEntries: ["col1", "col2"]`, **not** the
   generic JSON-Schema `uniqueItems`. _(verified: `uniqueEntries` used in sarek and mag, `uniqueItems`
   appears zero times in all three — `uniqueItems` only expresses whole-row uniqueness and is the wrong tool)_
+  - **Exception — when an error message must name the row and column.** `uniqueEntries` is only honoured at
+    the top level of the schema, as a sibling of `items`; sarek places it _inside_ `items`, where nf-schema
+    discards it silently with no error and no warning, so that usage is a no-op rather than a precedent.
+    Placed correctly it does fire, but its message names neither a column nor a file row and renders the
+    offending pair as a Groovy map — measured against nf-schema 2.5.1:
+    `-> Entry 2: Detected duplicate entries: [analysis_id:dup_id]`. It also runs _before_ the Groovy
+    validation pass, so it preempts any repo-side duplicate check rather than complementing it. Where a
+    spec requires every validation error to name the offending row and field — as this pipeline's input
+    contract does — keep the duplicate check in the Groovy pass and do not add `uniqueEntries`. The spec
+    requirement wins over this rule; `uniqueItems` remains wrong in every case.
 - **[MUST]** Every property carries a specific, human-readable `errorMessage` quoting the allowed values or
   extensions. mag omits it on two columns and those are the ones that produce unhelpful failures.
 - **[MUST]** Every file-referencing column has `"format": "file-path"` and `"exists": true`. _(all three)_

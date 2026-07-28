@@ -79,7 +79,8 @@ The full rules and their rationale live in the topic files. This is the recall l
 - Assign channels (`ch_x = ...`); do not use `.set { }`.
 - Rebuild `meta` immutably (`def meta_new = meta + [...]`); never mutate it in a closure.
 - `take:` and `emit:` entries carry aligned `// channel: [ val(meta), path(x) ]` shape comments.
-- Every subworkflow emits `versions`, last in the `emit:` block.
+- Version reporting is a process obligation via `topic: versions`; a subworkflow emits `versions` only if it
+  composes something that actually produces one, and then last in the `emit:` block.
 - Version reporting uses topic channels with `eval()` — no `versions.yml` heredocs in new local modules.
 - `error("[nf-core/gwas] ERROR: …")` for fatal, `log.warn("[nf-core/gwas]: …")` for non-fatal. Never
   `throw`, never `exit()`.
@@ -96,7 +97,8 @@ The full rules and their rationale live in the topic files. This is the recall l
 - `$defs` not `definitions`; `allOf` order mirrors `$defs` order; every group has a `fa_icon`.
 - Every schema `description` is a capitalised sentence ending in a period.
 - `validation.defaultIgnoreParams`, never `validationSchemaIgnoreParams`.
-- Samplesheet uniqueness uses `uniqueEntries`, never `uniqueItems`; `meta` is always an array.
+- Samplesheet uniqueness uses `uniqueEntries`, never `uniqueItems` — except where an error must name the
+  offending row and column, which `uniqueEntries` cannot do; `meta` is always an array.
 - Keep `.nf-core.yml` exemptions in sync with the repo and justify every new one.
 
 **Testing and CI**
