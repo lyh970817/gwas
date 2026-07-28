@@ -63,7 +63,7 @@ nextflow_pipeline {
                 rows[0].association_methods = ''
                 rows[0].heritability_methods = ''
             },
-            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'association_methods'", "row selects no method"],
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), columns 'association_methods', 'heritability_methods'", "row selects no method"],
         ],
         [
             name: "duplicate analysis_id",
@@ -88,7 +88,7 @@ nextflow_pipeline {
                 rows[1].bim = rows[2].bim
                 rows[1].fam = rows[2].fam
             },
-            expect: ["row 3 (analysis_id 'example_pgen_bt'), column 'cohort_id'", "declare different genotype sources"],
+            expect: ["row 3 (analysis_id 'example_pgen_bt'), columns 'bed', 'bim', 'fam'", "declare different genotype sources"],
         ],
         [
             name: "method selector naming a method outside the accepted list",
@@ -116,6 +116,49 @@ nextflow_pipeline {
             sheet: "comma_delimited_maf_edges",
             mutate: { rows -> rows[2].gcta_ldms_maf_edges = '0.01,0.05,0.2,0.5' },
             expect: ["Entry 3: Error for field 'gcta_ldms_maf_edges'", "semicolon-delimited list of numbers"],
+        ],
+        [
+            // A single edge is read by nf-schema as a number rather than as the delimited string,
+            // so the column accepts both types. This case fixes the number arm's lower bound in
+            // place; without it the column would silently admit a negative frequency.
+            name: "single MAF edge below the frequency floor",
+            sheet: "negative_maf_edge",
+            mutate: { rows -> rows[2].gcta_ldms_maf_edges = '-0.5' },
+            expect: ["Entry 3: Error for field 'gcta_ldms_maf_edges'", "is less than 0"],
+        ],
+        [
+            // `0` is the commonest PLINK control code, and it reaches this pass as the number zero.
+            // Asking whether the cell is populated by its Groovy truth would read it as empty, so
+            // this rule would fall silent rather than fire. Rejecting it here is what proves a `0`
+            // is seen at all — and therefore that a binary row may declare one.
+            name: "zero as a case value on a quantitative row",
+            sheet: "zero_case_value_on_quantitative",
+            mutate: { rows -> rows[0].case_value = '0' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'case_value'", "no meaning on a quantitative trait"],
+        ],
+        [
+            name: "zero as a control value on a quantitative row",
+            sheet: "zero_control_value_on_quantitative",
+            mutate: { rows -> rows[0].control_value = '0' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'control_value'", "no meaning on a quantitative trait"],
+        ],
+        [
+            name: "LDAK relatedness filter without an LDAK heritability method",
+            sheet: "relatedness_filter_without_ldak",
+            mutate: { rows -> rows[0].ldak_relatedness_filter = 'true' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'ldak_relatedness_filter'", "consumed by the LDAK heritability methods only"],
+        ],
+        [
+            // Dropping 'ldak_pcgc' along with the population prevalence keeps this scenario down to
+            // the one error it is about: PCGC would otherwise demand a population prevalence of its
+            // own, and the row's other LDAK columns need an LDAK method to stay legal.
+            name: "sample prevalence without a population prevalence to correct against",
+            sheet: "sample_prevalence_without_population",
+            mutate: { rows ->
+                rows[1].population_prevalence = ''
+                rows[1].heritability_methods = 'ldak_reml'
+            },
+            expect: ["row 3 (analysis_id 'example_pgen_bt'), column 'sample_prevalence'", "corrects ascertainment against a population prevalence"],
         ],
     ]
 
@@ -185,7 +228,34 @@ nextflow_pipeline {
                 // one thing that scenario broke.
                 { assert snapshot(
                     removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
-                ).match() }
+                ).match('versions') }
+            )
+        }
+    }
+
+    test("edge-case cell spellings the schema must still accept") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Positive control for the two cell spellings nf-schema type-infers away from the
+                // delimited-string form the columns are otherwise written in. Like the test above it
+                // runs to completion, so it needs the real fixture bundle.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "edge_case_cell_spellings", { rows ->
+                    // A lone MAF edge arrives as a number, not as a one-element semicolon list.
+                    rows[2].gcta_ldms_maf_edges = '0.05'
+                    // PLINK's 0/1 coding, plus a leading-zero code. `0` is a populated cell even
+                    // though its Groovy truth is false, and '0010' must keep its literal spelling
+                    // rather than being normalised to '10'.
+                    rows[1].control_value = '0'
+                    rows[1].case_value = '0010'
+                })
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
             )
         }
     }

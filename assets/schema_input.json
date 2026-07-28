@@ -129,14 +129,14 @@
                 "meta": ["phenotype_column"]
             },
             "control_value": {
-                "anyOf": [{ "type": "string" }, { "type": "number" }],
+                "type": ["string", "number"],
                 "pattern": "^\\S+$",
                 "description": "Value used for controls in 'phenotype'. Carried as a string, so numeric conventions such as PLINK's 1 and textual ones such as 'Control' are both accepted. Required on binary rows, rejected on quantitative rows.",
                 "errorMessage": "Control value must be a single token without spaces, for example '1' or 'Control'",
                 "meta": ["control_value"]
             },
             "case_value": {
-                "anyOf": [{ "type": "string" }, { "type": "number" }],
+                "type": ["string", "number"],
                 "pattern": "^\\S+$",
                 "description": "Value used for cases in 'phenotype'. Carried as a string, so numeric conventions such as PLINK's 2 and textual ones such as 'Case' are both accepted. Required on binary rows, rejected on quantitative rows.",
                 "errorMessage": "Case value must be a single token without spaces, for example '2' or 'Case'",
@@ -235,9 +235,10 @@
                 "meta": ["gcta_grm_parts"]
             },
             "gcta_ldms_maf_edges": {
-                "type": "string",
+                "type": ["string", "number"],
                 "pattern": "^[0-9]*\\.?[0-9]+(;[0-9]*\\.?[0-9]+)*$",
-                "description": "Semicolon-delimited, strictly ordered minor allele frequency bin edges for GCTA GREML-LDMS. Semicolons are used because commas already delimit the method selector lists.",
+                "minimum": 0,
+                "description": "Semicolon-delimited, strictly ordered minor allele frequency bin edges for GCTA GREML-LDMS. Semicolons are used because commas already delimit the method selector lists. A lone edge is read as a number, so 'number' is accepted alongside the delimited string form.",
                 "errorMessage": "MAF edges must be a semicolon-delimited list of numbers, for example '0.01;0.05;0.2;0.5'",
                 "meta": ["gcta_ldms_maf_edges"]
             }

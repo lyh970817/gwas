@@ -17,21 +17,16 @@
 // demo samplesheet it reads.
 class SAMPLESHEET {
 
-    // The columns that carry files, and therefore the ones that need a placeholder on disk.
-    static final List<String> FILE_COLUMNS = [
-        'pgen',
-        'psam',
-        'pvar',
-        'bed',
-        'bim',
-        'fam',
-        'vcf',
-        'vcf_index',
-        'phenotype',
-        'quant_covariates',
-        'cat_covariates',
-        'ldak_kvik_step1_extract',
-    ]
+    // The columns that carry files, and therefore the ones that need a placeholder on disk. Read
+    // out of the input schema rather than restated here, so this cannot drift from the contract the
+    // pipeline validates against: a file column is exactly one declaring "format": "file-path".
+    static List<String> fileColumns(Object projectDir) {
+        def properties = new groovy.json.JsonSlurper()
+            .parseText(new File("${projectDir}/assets/schema_input.json").text)
+            .items
+            .properties
+        return properties.findAll { column, definition -> definition.format == 'file-path' }.keySet().toList()
+    }
 
     // Read the shipped demo samplesheet as an ordered header plus a list of column-keyed rows.
     static Map demo(Object projectDir) {
@@ -45,22 +40,23 @@ class SAMPLESHEET {
     // break it, with every file cell pointing at an empty placeholder. Returns the absolute path of
     // the written CSV.
     static String build(Object projectDir, Object outputDir, String name, Closure mutate) {
-        return materialise(outputDir, name, demo(projectDir), mutate, null)
+        return materialise(outputDir, name, demo(projectDir), mutate, null, fileColumns(projectDir))
     }
 
     // As `build`, but with every file cell pointing at the real fixture bundle, for tests that run a
     // programme rather than only exercising validation.
     static String fixtures(Object projectDir, Object outputDir, String name, Closure mutate) {
-        return materialise(outputDir, name, demo(projectDir), mutate, FIXTURES.base(projectDir))
+        return materialise(outputDir, name, demo(projectDir), mutate, FIXTURES.base(projectDir), fileColumns(projectDir))
     }
 
     // Materialise a samplesheet from an explicit header and rows, bypassing the demo sheet. Used for
-    // the superseded input format, which shares no columns with the current contract.
+    // the superseded input format, which shares no columns with the current contract and therefore
+    // needs no placeholders.
     static String buildRaw(Object outputDir, String name, List<String> header, List<Map> rows) {
-        return materialise(outputDir, name, [header: header, rows: rows], null, null)
+        return materialise(outputDir, name, [header: header, rows: rows], null, null, [])
     }
 
-    private static String materialise(Object outputDir, String name, Map sheet_source, Closure mutate, String fixture_base) {
+    private static String materialise(Object outputDir, String name, Map sheet_source, Closure mutate, String fixture_base, List<String> file_columns) {
         def header = sheet_source.header
         def rows = sheet_source.rows.collect { row -> new LinkedHashMap(row) }
         if (mutate) {
@@ -74,7 +70,7 @@ class SAMPLESHEET {
         data.mkdirs()
 
         rows.each { row ->
-            header.findAll { column -> column in FILE_COLUMNS }.each { column ->
+            header.findAll { column -> column in file_columns }.each { column ->
                 def value = row[column]
                 if (value) {
                     row[column] = fixture_base

@@ -1,5 +1,5 @@
 {
-    "case and control source values are accepted as text as well as numbers": {
+    "versions": {
         "content": [
             {
                 "PLINK2_MAKEPGEN": {
