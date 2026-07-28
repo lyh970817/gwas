@@ -66,10 +66,10 @@ nextflow_pipeline {
 
         then {
             def prepared = new File("${params.outdir}/genotypes")
-            // stable_path: All files + folders in ${params.outdir}/ with a stable path (including file name)
-            def stable_path = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            // stable_content: All files in ${params.outdir}/ with stable content
-            def stable_content = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            // stable_name: All files + folders in ${params.outdir}/ with a stable name
+            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            // stable_path: All files in ${params.outdir}/ with stable content
+            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
             assertAll(
                 { assert workflow.success },
                 // One directory per distinct cohort_id the pipeline prepared, whatever encoding it
@@ -88,8 +88,10 @@ nextflow_pipeline {
                 { assert snapshot(
                     // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
                     removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml"),
-                    stable_path,
-                    stable_content
+                    // All stable path names, with a relative path
+                    stable_name,
+                    // All files with stable contents
+                    stable_path
                 ).match('prepared_genotypes') },
             )
         }
