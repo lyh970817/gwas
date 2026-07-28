@@ -80,7 +80,8 @@ nextflow_process {
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe", checkIfExists: true),
                 1
                 ]
-                input[2] = [
+                input[2] = [[:], []]
+                input[3] = [
                     [ id: "covariates" ],
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_covariates.txt", checkIfExists: true)
                 ]
@@ -132,7 +133,8 @@ nextflow_process {
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe", checkIfExists: true),
                     []
                 ]
-                input[2] = [
+                input[2] = [[:], []]
+                input[3] = [
                     [ id: "covariates" ],
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_covariates.txt", checkIfExists: true)
                 ]
@@ -177,6 +179,62 @@ nextflow_process {
         }
     }
 
+    test("homo_sapiens popgen - keep restricts adjustment to sample subset") {
+
+        when {
+            process {
+                """
+                keepFile = file("${outputDir}/adjustgrm_keep.txt")
+                keepFile.text = file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated.fam", checkIfExists: true).readLines().take(120).collect { line ->
+                    fields = line.tokenize()
+                    fields[0] + " " + fields[1]
+                }.join("\\n") + "\\n"
+                input[0] = LDAK_ADDGRMS.out.combined_grm.map { meta, grm_bin, grm_id, grm_details, grm_adjust ->
+                    tuple([ id: "ldak_grm_Y1_adj_keep" ], grm_bin, grm_id, grm_details, grm_adjust)
+                }
+                input[1] = [
+                    [ id: "plink_simulated_quantitative_phenoname" ],
+                    file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe", checkIfExists: true),
+                    1
+                ]
+                input[2] = [
+                    [ id: "keep" ],
+                    keepFile
+                ]
+                input[3] = [
+                    [ id: "covariates" ],
+                    file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_covariates.txt", checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                {
+                    def adjustedTuple = process.out.adjusted_grm.get(0)
+                    def grmBin = path(adjustedTuple.get(2))
+                    assert grmBin.parent.resolve(".command.sh").text.contains("--keep adjustgrm_keep.txt")
+                    // The adjustment must run over the 120 kept samples rather than all 200 genotyped
+                    // samples: the emitted IDs list them and the binary is exactly the 120-sample lower
+                    // triangle of 4-byte floats.
+                    assert path(adjustedTuple.get(3)).readLines().size() == 120
+                    assert new File(adjustedTuple.get(2).toString()).length() == (120 * 121).intdiv(2) * 4
+                },
+                {
+                    def adjustedTuple = process.out.adjusted_grm.get(0)
+                    assert snapshot(
+                        sanitizeOutput(process.out, unstableKeys: ["adjusted_grm"]),
+                        path(adjustedTuple.get(3)).readLines(),
+                        path(adjustedTuple.get(5)).readLines(),
+                        path(adjustedTuple.get(6)).readLines()
+                    ).match()
+                }
+            )
+        }
+    }
+
     test("homo_sapiens popgen - stub") {
 
         options "-stub"
@@ -192,7 +250,8 @@ nextflow_process {
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe", checkIfExists: true),
                     1
                 ]
-                input[2] = [
+                input[2] = [[:], []]
+                input[3] = [
                     [ id: "covariates" ],
                     file(params.modules_testdata_base_path + "genomics/homo_sapiens/popgen/plink_simulated_covariates.txt", checkIfExists: true)
                 ]

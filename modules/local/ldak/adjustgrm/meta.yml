@@ -42,6 +42,12 @@ input:
         description: Optional phenotype column index passed to `--mpheno`; pass [] to use fallback `1`
   - - meta3:
         type: map
+        description: Metadata map paired with optional keep input.
+    - keep_file:
+        type: file
+        description: Optional keep file for sample filtering passed to `--keep`; supply the same subset that the downstream Haseman-Elston or PCGC analysis will use, or pass [] when absent
+  - - meta4:
+        type: map
         description: Metadata map paired with quantitative covariates input.
     - quant_covariates_file:
         type: file

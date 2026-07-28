@@ -9,7 +9,8 @@ process LDAK_ADJUSTGRM {
     input:
     tuple val(meta), path(combined_grm_bin), path(combined_grm_id), path(combined_grm_details), path(combined_grm_adjust)
     tuple val(meta2), path(phenotype_file), val(mpheno)
-    tuple val(meta3), path(quant_covariates_file)
+    tuple val(meta3), path(keep_file)
+    tuple val(meta4), path(quant_covariates_file)
 
     output:
     tuple val(meta), val(meta2), path("${prefix}.grm.bin"), path("${prefix}.grm.id"), path("${prefix}.grm.details"), path("${prefix}.grm.adjust"), path("${prefix}.grm.root"), emit: adjusted_grm
@@ -23,6 +24,7 @@ process LDAK_ADJUSTGRM {
     def grm_prefix = combined_grm_bin.name.replaceFirst(/\.grm\.bin$/, '')
     prefix = task.ext.prefix ?: "${meta.id}"
     def mpheno_arg = mpheno == null || (mpheno instanceof Collection && mpheno.isEmpty()) ? 1 : mpheno
+    def keep_arg = keep_file ? "--keep ${keep_file}" : ''
     def covar_arg = quant_covariates_file ? "--covar ${quant_covariates_file}" : ''
 
     """
@@ -32,6 +34,7 @@ process LDAK_ADJUSTGRM {
         --grm ${grm_prefix} \
         --pheno ${phenotype_file} \
         --mpheno ${mpheno_arg} \
+        ${keep_arg} \
         ${covar_arg} \
         --max-threads ${task.cpus} \
         ${args}
