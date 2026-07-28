@@ -12,6 +12,7 @@ null/
 # Local development environment — machine-specific, and .envrc carries secrets
 .envrc
 .direnv/
+.nf-test/
 .nf-test.log
 
 # Local agent and workspace files — not part of the nf-core pipeline

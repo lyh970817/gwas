@@ -1,0 +1,175 @@
+nextflow_pipeline {
+
+    name "Test input contract validation"
+    script "../main.nf"
+    tag "pipeline"
+    tag "validation"
+
+    // Each scenario takes the shipped demo samplesheet, breaks exactly one thing, and asserts the
+    // run is refused with a message naming the offending row and column. The demo sheet is the
+    // fixture: it is the committed statement of the 31-column contract, so a column renamed there
+    // shows up here rather than silently diverging.
+    //
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below:
+    //   index 0 -> samplesheet row 2, example_pgen_qt   quantitative, PLINK 2 genotypes
+    //   index 1 -> samplesheet row 3, example_pgen_bt   binary, PLINK 2 genotypes, same cohort as row 2
+    //   index 2 -> samplesheet row 4, example_bfile_qt  quantitative, PLINK 1 genotypes
+    //   index 3 -> samplesheet row 5, example_vcf_qt    quantitative, VCF genotypes, LDAK-KVIK
+    def scenarios = [
+        [
+            name: "two genotype groups populated on one row",
+            sheet: "two_genotype_groups",
+            mutate: { rows ->
+                rows[0].bed = rows[2].bed
+                rows[0].bim = rows[2].bim
+                rows[0].fam = rows[2].fam
+            },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'bed'", "a second genotype group is populated"],
+        ],
+        [
+            name: "partly populated genotype group",
+            sheet: "partial_genotype_group",
+            mutate: { rows -> rows[0].psam = '' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'psam'", "only partly populated"],
+        ],
+        [
+            name: "binary trait row missing its case value",
+            sheet: "binary_without_case_value",
+            mutate: { rows -> rows[1].case_value = '' },
+            expect: ["row 3 (analysis_id 'example_pgen_bt'), column 'case_value'", "must declare the value used for cases"],
+        ],
+        [
+            name: "binary trait row missing its control value",
+            sheet: "binary_without_control_value",
+            mutate: { rows -> rows[1].control_value = '' },
+            expect: ["row 3 (analysis_id 'example_pgen_bt'), column 'control_value'", "must declare the value used for controls"],
+        ],
+        [
+            name: "KVIK extract file with a non-provided subset control",
+            sheet: "kvik_extract_without_provided",
+            mutate: { rows -> rows[3].kvik_extract_file = 'example_all.predictors' },
+            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'kvik_extract_file'", "only accepted when kvik_subset is 'provided'"],
+        ],
+        [
+            name: "row selecting no method at all",
+            sheet: "no_method_selected",
+            mutate: { rows ->
+                rows[0].association_methods = ''
+                rows[0].heritability_methods = ''
+            },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'association_methods'", "row selects no method"],
+        ],
+        [
+            name: "duplicate analysis_id",
+            sheet: "duplicate_analysis_id",
+            mutate: { rows -> rows[1].analysis_id = rows[0].analysis_id },
+            expect: ["row 3 (analysis_id 'example_pgen_qt'), column 'analysis_id'", "duplicate analysis_id, already declared on row 2"],
+        ],
+        [
+            name: "quantitative trait row supplying prevalence",
+            sheet: "prevalence_on_quantitative",
+            mutate: { rows -> rows[0].population_prevalence = '0.3' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'population_prevalence'", "no meaning on a quantitative trait"],
+        ],
+        [
+            name: "rows sharing a cohort_id with differing genotype sources",
+            sheet: "cohort_genotype_mismatch",
+            mutate: { rows ->
+                rows[1].pgen = ''
+                rows[1].pvar = ''
+                rows[1].psam = ''
+                rows[1].bed = rows[2].bed
+                rows[1].bim = rows[2].bim
+                rows[1].fam = rows[2].fam
+            },
+            expect: ["row 3 (analysis_id 'example_pgen_bt'), column 'cohort_id'", "declare different genotype sources"],
+        ],
+        [
+            name: "method selector naming a method outside the accepted list",
+            sheet: "unknown_association_method",
+            mutate: { rows -> rows[0].association_methods = 'plink3' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'association_methods'", "unknown method 'plink3'"],
+        ],
+        [
+            name: "GCTA relatedness matrix part count without a GCTA method",
+            sheet: "grm_parts_without_gcta",
+            mutate: { rows -> rows[3].gcta_grm_parts = '4' },
+            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'gcta_grm_parts'", "only consumed by the GCTA methods"],
+        ],
+        [
+            name: "MAF edge list delimited with commas rather than semicolons",
+            sheet: "comma_delimited_maf_edges",
+            mutate: { rows -> rows[2].ldms_maf_edges = '0.01,0.05,0.2,0.5' },
+            expect: ["Entry 3: Error for field 'ldms_maf_edges'", "semicolon-delimited list of numbers"],
+        ],
+    ]
+
+    scenarios.each { scenario ->
+        test(scenario.name) {
+
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.build(projectDir, outputDir, scenario.sheet, scenario.mutate)
+                }
+            }
+
+            then {
+                def report = VALIDATION.report(outputDir, workflow.stdout)
+                assertAll(
+                    { assert !workflow.success },
+                    { assert scenario.expect.every { fragment -> report.contains(fragment) } },
+                )
+            }
+        }
+    }
+
+    test("the superseded sample,vcf,pheno,cov samplesheet is rejected outright") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.buildRaw(
+                    outputDir,
+                    "superseded_format",
+                    ["sample", "vcf", "pheno", "cov"],
+                    [[sample: "test", vcf: "example_all.vcf.gz", pheno: "example.pheno", cov: "example.covar"]],
+                )
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains("analysis_id") },
+                { assert report.contains("Entry 1") },
+            )
+        }
+    }
+
+    test("case and control source values are accepted as text as well as numbers") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.build(projectDir, outputDir, "textual_case_control", { rows ->
+                    rows[1].case_value = 'Affected'
+                    rows[1].control_value = 'Unaffected'
+                })
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // Doubles as the positive control for the whole suite: the sheet every negative case
+                // is derived from is itself accepted, so each failure above is attributable to the
+                // one thing that scenario broke.
+                { assert snapshot(
+                    removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+                ).match() }
+            )
+        }
+    }
+}

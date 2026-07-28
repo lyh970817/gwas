@@ -19,8 +19,8 @@
                     "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row. See [usage docs](https://nf-co.re/gwas/usage#samplesheet-input).",
+                    "description": "Path to a comma-separated samplesheet describing the analysis units to run.",
+                    "help_text": "One row is one analysis unit: a single cohort paired with a single trait. The samplesheet has 31 columns and a header row covering analysis, cohort and trait identity, trait type, genome build, ancestry, one of the three mutually exclusive genotype encodings (PLINK 2 `pgen`/`pvar`/`psam`, PLINK 1 `bed`/`bim`/`fam`, or `vcf`), the phenotype file and column, case and control source values, quantitative and categorical covariate files, the association and heritability method selector lists, population and sample prevalence, and the LDAK and GCTA method controls. See [usage docs](https://nf-co.re/gwas/usage#samplesheet-input).",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
@@ -170,7 +170,7 @@
                     "type": "string",
                     "fa_icon": "far fa-check-circle",
                     "description": "Base URL or local path to location of pipeline test dataset files",
-                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/",
+                    "default": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/",
                     "hidden": true
                 },
                 "trace_report_suffix": {
