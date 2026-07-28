@@ -11,8 +11,8 @@ process PLINK2_VCF {
     tuple val(meta), path(vcf)
 
     output:
-    tuple val(meta), path("${prefix}.pgen"), path("${prefix}.psam"), path("${prefix}.pvar"), emit: pgen
-    tuple val(meta), path("${prefix}.log"), emit: log
+    tuple val(meta), path("*.pgen"), path("*.psam"), path("*.pvar"), emit: pgen
+    tuple val(meta), path("*.log"), emit: log
     tuple val("${task.process}"), val("plink2"), eval("plink2 --version 2>&1 | sed 's/^PLINK v//; s/ 64.*\$//'"), emit: versions_plink2, topic: versions
 
     when:
@@ -20,24 +20,24 @@ process PLINK2_VCF {
 
     script:
     def args = task.ext.args ?: ''
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     def mem_mb = task.memory.toMega()
     """
     plink2 \\
-        --vcf ${vcf} \\
+        --vcf "${vcf}" \\
         ${args} \\
-        --threads ${task.cpus} \\
-        --memory ${mem_mb} \\
+        --threads "${task.cpus}" \\
+        --memory "${mem_mb}" \\
         --make-pgen \\
-        --out ${prefix}
+        --out "${prefix}"
     """
 
     stub:
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.pgen
-    touch ${prefix}.psam
-    touch ${prefix}.pvar
-    touch ${prefix}.log
+    touch "${prefix}.pgen"
+    touch "${prefix}.psam"
+    touch "${prefix}.pvar"
+    touch "${prefix}.log"
     """
 }

@@ -33,17 +33,17 @@ output:
           description: |
             Groovy map containing genotype metadata
             e.g. `[ id:'plink_simulated' ]`
-      - "${prefix}.pgen":
+      - "*.pgen":
           type: file
           description: PLINK 2 binary genotype file
           pattern: "*.pgen"
           ontologies: []
-      - "${prefix}.psam":
+      - "*.psam":
           type: file
           description: PLINK 2 sample information file
           pattern: "*.psam"
           ontologies: []
-      - "${prefix}.pvar":
+      - "*.pvar":
           type: file
           description: Uncompressed PLINK 2 variant information file
           pattern: "*.pvar"
@@ -54,7 +54,7 @@ output:
           description: |
             Groovy map containing genotype metadata
             e.g. `[ id:'plink_simulated' ]`
-      - "${prefix}.log":
+      - "*.log":
           type: file
           description: PLINK 2 VCF import log
           pattern: "*.log"
