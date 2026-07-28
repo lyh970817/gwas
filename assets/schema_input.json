@@ -2,36 +2,254 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/gwas/master/assets/schema_input.json",
     "title": "nf-core/gwas pipeline - params.input schema",
-    "description": "Schema for the file provided with params.input",
+    "description": "Schema for the file provided with params.input. One row is one analysis unit: a single cohort paired with a single trait.",
     "type": "array",
     "items": {
         "type": "object",
         "properties": {
-            "sample": {
+            "analysis_id": {
                 "type": "string",
                 "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
+                "description": "Unique identifier for this analysis unit. Used as the focal identifier in every output path and filename.",
+                "errorMessage": "Analysis ID must be provided, must be unique across the samplesheet and cannot contain spaces",
                 "meta": ["id"]
+            },
+            "cohort_id": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "description": "Identifier of the cohort these genotypes belong to. Rows sharing a cohort ID must declare the same genotype source.",
+                "errorMessage": "Cohort ID must be provided and cannot contain spaces",
+                "meta": ["cohort"]
+            },
+            "trait_id": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "description": "Identifier of the trait under analysis. Several traits may share one cohort ID.",
+                "errorMessage": "Trait ID must be provided and cannot contain spaces",
+                "meta": ["trait"]
+            },
+            "trait_type": {
+                "type": "string",
+                "enum": ["quantitative", "binary"],
+                "description": "Declared type of the trait. Never inferred from the phenotype values or from prevalence.",
+                "errorMessage": "Trait type must be one of 'quantitative' or 'binary'",
+                "meta": ["trait_type"]
+            },
+            "genome_build": {
+                "type": "string",
+                "enum": ["GRCh37", "GRCh38"],
+                "description": "Genome build the genotypes are on. Build-keyed reference resources are selected from this value; aliases are rejected.",
+                "errorMessage": "Genome build must be one of 'GRCh37' or 'GRCh38'",
+                "meta": ["build"]
+            },
+            "ancestry": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+                "description": "Case-sensitive ancestry label carried through to output provenance.",
+                "errorMessage": "Ancestry must start with a letter or digit and contain only letters, digits, underscores, dots and dashes",
+                "meta": ["ancestry"]
+            },
+            "pgen": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.pgen$",
+                "description": "PLINK 2 genotype file. Supply together with 'psam' and 'pvar', and leave the other two genotype groups empty.",
+                "errorMessage": "PLINK 2 genotype file cannot contain spaces, must exist and must have extension '.pgen'"
+            },
+            "psam": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.psam$",
+                "description": "PLINK 2 sample file accompanying 'pgen'.",
+                "errorMessage": "PLINK 2 sample file cannot contain spaces, must exist and must have extension '.psam'"
+            },
+            "pvar": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.pvar(\\.zst)?$",
+                "description": "PLINK 2 variant file accompanying 'pgen'.",
+                "errorMessage": "PLINK 2 variant file cannot contain spaces, must exist and must have extension '.pvar' or '.pvar.zst'"
+            },
+            "bed": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.bed$",
+                "description": "PLINK 1 genotype file. Supply together with 'bim' and 'fam', and leave the other two genotype groups empty.",
+                "errorMessage": "PLINK 1 genotype file cannot contain spaces, must exist and must have extension '.bed'"
+            },
+            "bim": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.bim$",
+                "description": "PLINK 1 variant file accompanying 'bed'.",
+                "errorMessage": "PLINK 1 variant file cannot contain spaces, must exist and must have extension '.bim'"
+            },
+            "fam": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.fam$",
+                "description": "PLINK 1 sample file accompanying 'bed'.",
+                "errorMessage": "PLINK 1 sample file cannot contain spaces, must exist and must have extension '.fam'"
             },
             "vcf": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+\\.vcf(\\.gz|\\.bgz)?$",
+                "description": "VCF genotype file, converted once per cohort to PLINK 2. Leave the two PLINK genotype groups empty when this is supplied.",
+                "errorMessage": "VCF file cannot contain spaces, must exist and must have extension '.vcf', '.vcf.gz' or '.vcf.bgz'"
             },
-            "pheno": {
+            "vcf_index": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+\\.(tbi|csi)$",
+                "description": "Optional index for 'vcf'. Declared for completeness; the VCF converter does not consume it, so it is not required to complete the VCF genotype group.",
+                "errorMessage": "VCF index cannot contain spaces, must exist and must have extension '.tbi' or '.csi'"
             },
-            "cov": {
+            "phenotype": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+$",
+                "description": "Headered phenotype file containing the trait column named by 'phenotype_column'.",
+                "errorMessage": "Phenotype file must be provided, cannot contain spaces and must exist"
+            },
+            "phenotype_column": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "description": "Name of the column in 'phenotype' holding this trait. Always named explicitly, even when the file has a single trait column.",
+                "errorMessage": "Phenotype column must be provided and cannot contain spaces",
+                "meta": ["phenotype_column"]
+            },
+            "control_value": {
+                "anyOf": [{ "type": "string" }, { "type": "number" }],
+                "pattern": "^\\S+$",
+                "description": "Value used for controls in 'phenotype'. Carried as a string, so numeric conventions such as PLINK's 1 and textual ones such as 'Control' are both accepted. Required on binary rows, rejected on quantitative rows.",
+                "errorMessage": "Control value must be a single token without spaces, for example '1' or 'Control'",
+                "meta": ["control_value"]
+            },
+            "case_value": {
+                "anyOf": [{ "type": "string" }, { "type": "number" }],
+                "pattern": "^\\S+$",
+                "description": "Value used for cases in 'phenotype'. Carried as a string, so numeric conventions such as PLINK's 2 and textual ones such as 'Case' are both accepted. Required on binary rows, rejected on quantitative rows.",
+                "errorMessage": "Case value must be a single token without spaces, for example '2' or 'Case'",
+                "meta": ["case_value"]
+            },
+            "quant_covariates": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+$",
+                "description": "Optional headered file of prepared quantitative covariates.",
+                "errorMessage": "Quantitative covariate file cannot contain spaces and must exist"
+            },
+            "cat_covariates": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+$",
+                "description": "Optional headered file of prepared categorical covariates.",
+                "errorMessage": "Categorical covariate file cannot contain spaces and must exist"
+            },
+            "association_methods": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+(,[a-z0-9_]+)*$",
+                "description": "Comma-delimited association methods to run: 'plink2', 'regenie', 'gcta_fastgwa', 'ldak_kvik'. There is no inherited run-wide default set.",
+                "errorMessage": "Association methods must be a comma-delimited list of lowercase tokens with no spaces",
+                "meta": ["association_methods"]
+            },
+            "heritability_methods": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+(,[a-z0-9_]+)*$",
+                "description": "Comma-delimited heritability methods to run: 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc'. There is no inherited run-wide default set.",
+                "errorMessage": "Heritability methods must be a comma-delimited list of lowercase tokens with no spaces",
+                "meta": ["heritability_methods"]
+            },
+            "population_prevalence": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 1,
+                "description": "Population prevalence of a binary trait, used to report heritability on the liability scale. Always required by LDAK PCGC.",
+                "errorMessage": "Population prevalence must be a number strictly between 0 and 1",
+                "meta": ["population_prevalence"]
+            },
+            "sample_prevalence": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "exclusiveMaximum": 1,
+                "description": "Case proportion in the analysed sample. Only meaningful alongside a population prevalence, to correct ascertainment on the liability scale.",
+                "errorMessage": "Sample prevalence must be a number strictly between 0 and 1",
+                "meta": ["sample_prevalence"]
+            },
+            "ldak_model": {
+                "type": "string",
+                "enum": ["human_default", "custom"],
+                "default": "human_default",
+                "description": "Kinship model used by the LDAK heritability routes. 'human_default' is the documented human model and fixes 'ldak_power' at -0.25; 'custom' hands the power to the researcher.",
+                "errorMessage": "LDAK model must be one of 'human_default' or 'custom'",
+                "meta": ["ldak_model"]
+            },
+            "ldak_power": {
+                "type": "number",
+                "minimum": -2,
+                "maximum": 0,
+                "default": -0.25,
+                "description": "Power applied to predictor variances when LDAK builds its kinship matrix. The default is the documented human model value and is reported explicitly rather than left implicit.",
+                "errorMessage": "LDAK power must be a number between -2 and 0",
+                "meta": ["ldak_power"]
+            },
+            "ldak_relatedness_filter": {
+                "type": "boolean",
+                "default": false,
+                "description": "Restrict this analysis's LDAK heritability estimator to an unrelated subset. Carried at the estimator, so the kinship matrix shared with unrestricted analyses is unchanged.",
+                "errorMessage": "LDAK relatedness filter must be 'true' or 'false'",
+                "meta": ["ldak_relatedness_filter"]
+            },
+            "ldak_kvik_step1_subset": {
+                "type": "string",
+                "enum": ["all", "thin_common", "provided"],
+                "description": "How LDAK-KVIK selects its step 1 predictor subset: every predictor, a thinned common set, or the list in 'ldak_kvik_step1_extract'. Required with 'ldak_kvik' and resolved explicitly rather than by default.",
+                "errorMessage": "KVIK step 1 subset must be one of 'all', 'thin_common' or 'provided'",
+                "meta": ["ldak_kvik_step1_subset"]
+            },
+            "ldak_kvik_step1_extract": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+$",
+                "description": "Predictor list used for LDAK-KVIK step 1. Accepted only when 'ldak_kvik_step1_subset' is 'provided'.",
+                "errorMessage": "KVIK step 1 extract file cannot contain spaces and must exist"
+            },
+            "gcta_grm_parts": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Number of parts GCTA splits its relatedness matrix build into. A memory control rather than a scientific setting, required with any GCTA route and stated explicitly rather than defaulted.",
+                "errorMessage": "GCTA relatedness matrix part count must be an integer of 1 or more",
+                "meta": ["gcta_grm_parts"]
+            },
+            "gcta_ldms_maf_edges": {
+                "type": "string",
+                "pattern": "^[0-9]*\\.?[0-9]+(;[0-9]*\\.?[0-9]+)*$",
+                "description": "Semicolon-delimited, strictly ordered minor allele frequency bin edges for GCTA GREML-LDMS. Semicolons are used because commas already delimit the method selector lists.",
+                "errorMessage": "MAF edges must be a semicolon-delimited list of numbers, for example '0.01;0.05;0.2;0.5'",
+                "meta": ["gcta_ldms_maf_edges"]
             }
         },
-        "required": ["sample", "vcf", "pheno"]
+        "required": [
+            "analysis_id",
+            "cohort_id",
+            "trait_id",
+            "trait_type",
+            "genome_build",
+            "phenotype",
+            "phenotype_column"
+        ]
     }
 }
