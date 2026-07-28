@@ -8,3 +8,20 @@ testing*
 *.pyc
 null/
 .lineage/
+
+# Local development environment — machine-specific, and .envrc carries secrets
+.envrc
+.direnv/
+.nf-test.log
+
+# Local agent and workspace files — not part of the nf-core pipeline
+.claude/
+CLAUDE.md
+SPEC.md
+.scratch/
+CONTEXT.md
+CONTEXT-MAP.md
+docs/agents/
+docs/adr/
+docs/gwas-tool-documentation/
+docs/nf-core-standards/
