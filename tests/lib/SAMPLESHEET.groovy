@@ -14,17 +14,17 @@ class SAMPLESHEET {
     // The columns that carry files, and therefore the ones that need a placeholder on disk.
     static final List<String> FILE_COLUMNS = [
         'pgen',
-        'pvar',
         'psam',
+        'pvar',
         'bed',
         'bim',
         'fam',
         'vcf',
         'vcf_index',
-        'pheno_file',
-        'qcovar_file',
-        'covar_file',
-        'kvik_extract_file',
+        'phenotype',
+        'quant_covariates',
+        'cat_covariates',
+        'ldak_kvik_step1_extract',
     ]
 
     // Read the shipped demo samplesheet as an ordered header plus a list of column-keyed rows.

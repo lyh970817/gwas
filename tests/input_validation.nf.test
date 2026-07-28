@@ -11,9 +11,9 @@ nextflow_pipeline {
     // shows up here rather than silently diverging.
     //
     // Rows of assets/samplesheet.csv, and therefore of every sheet below:
-    //   index 0 -> samplesheet row 2, example_pgen_qt   quantitative, PLINK 2 genotypes
-    //   index 1 -> samplesheet row 3, example_pgen_bt   binary, PLINK 2 genotypes, same cohort as row 2
-    //   index 2 -> samplesheet row 4, example_bfile_qt  quantitative, PLINK 1 genotypes
+    //   index 0 -> samplesheet row 2, example_pgen_qt   quantitative, PLINK 2 genotypes, GCTA GREML
+    //   index 1 -> samplesheet row 3, example_pgen_bt   binary, PLINK 2 genotypes, same cohort, LDAK
+    //   index 2 -> samplesheet row 4, example_bfile_qt  quantitative, PLINK 1 genotypes, GREML-LDMS
     //   index 3 -> samplesheet row 5, example_vcf_qt    quantitative, VCF genotypes, LDAK-KVIK
     def scenarios = [
         [
@@ -47,8 +47,14 @@ nextflow_pipeline {
         [
             name: "KVIK extract file with a non-provided subset control",
             sheet: "kvik_extract_without_provided",
-            mutate: { rows -> rows[3].kvik_extract_file = 'example_all.predictors' },
-            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'kvik_extract_file'", "only accepted when kvik_subset is 'provided'"],
+            mutate: { rows -> rows[3].ldak_kvik_step1_extract = 'example_all.predictors' },
+            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'ldak_kvik_step1_extract'", "only accepted when ldak_kvik_step1_subset is 'provided'"],
+        ],
+        [
+            name: "KVIK selected without a step 1 subset control",
+            sheet: "kvik_without_subset",
+            mutate: { rows -> rows[3].ldak_kvik_step1_subset = '' },
+            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'ldak_kvik_step1_subset'", "there is no implicit resolution"],
         ],
         [
             name: "row selecting no method at all",
@@ -76,8 +82,8 @@ nextflow_pipeline {
             sheet: "cohort_genotype_mismatch",
             mutate: { rows ->
                 rows[1].pgen = ''
-                rows[1].pvar = ''
                 rows[1].psam = ''
+                rows[1].pvar = ''
                 rows[1].bed = rows[2].bed
                 rows[1].bim = rows[2].bim
                 rows[1].fam = rows[2].fam
@@ -94,13 +100,22 @@ nextflow_pipeline {
             name: "GCTA relatedness matrix part count without a GCTA method",
             sheet: "grm_parts_without_gcta",
             mutate: { rows -> rows[3].gcta_grm_parts = '4' },
-            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'gcta_grm_parts'", "only consumed by the GCTA methods"],
+            expect: ["row 5 (analysis_id 'example_vcf_qt'), column 'gcta_grm_parts'", "consumed by the GCTA methods only"],
+        ],
+        [
+            name: "LDAK kinship power without an LDAK heritability method",
+            sheet: "ldak_power_without_ldak",
+            mutate: { rows ->
+                rows[0].ldak_model = 'custom'
+                rows[0].ldak_power = '-1'
+            },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'ldak_model'", "consumed by the LDAK heritability methods only"],
         ],
         [
             name: "MAF edge list delimited with commas rather than semicolons",
             sheet: "comma_delimited_maf_edges",
-            mutate: { rows -> rows[2].ldms_maf_edges = '0.01,0.05,0.2,0.5' },
-            expect: ["Entry 3: Error for field 'ldms_maf_edges'", "semicolon-delimited list of numbers"],
+            mutate: { rows -> rows[2].gcta_ldms_maf_edges = '0.01,0.05,0.2,0.5' },
+            expect: ["Entry 3: Error for field 'gcta_ldms_maf_edges'", "semicolon-delimited list of numbers"],
         ],
     ]
 
@@ -154,8 +169,8 @@ nextflow_pipeline {
             params {
                 outdir = "$outputDir"
                 input = SAMPLESHEET.build(projectDir, outputDir, "textual_case_control", { rows ->
-                    rows[1].case_value = 'Affected'
                     rows[1].control_value = 'Unaffected'
+                    rows[1].case_value = 'Affected'
                 })
             }
         }
