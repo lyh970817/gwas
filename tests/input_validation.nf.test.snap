@@ -2,6 +2,12 @@
     "case and control source values are accepted as text as well as numbers": {
         "content": [
             {
+                "PLINK2_MAKEPGEN": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "PLINK2_VCF": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
@@ -11,6 +17,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-28T05:51:06.749598347"
+        "timestamp": "2026-07-28T06:48:03.314138424"
     }
 }

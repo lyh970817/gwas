@@ -43,6 +43,21 @@
                 }
             }
         },
+        "save_controls": {
+            "title": "Save controls",
+            "type": "object",
+            "fa_icon": "fas fa-save",
+            "description": "Publish intermediates that are otherwise kept out of the results directory.",
+            "help_text": "Intermediates are unpublished by default so that a large run does not fill your storage with files you did not ask for. Each save control turns one family of intermediates back on.",
+            "properties": {
+                "save_prepared_genotypes": {
+                    "type": "boolean",
+                    "description": "Save the canonical PLINK 2 genotype bundle prepared for each cohort.",
+                    "help_text": "Prepared bundles are published to `<outdir>/genotypes/<cohort_id>/` so that you can inspect them or reuse them outside the pipeline. Only bundles the pipeline built are saved: a cohort supplied as PLINK 2 `pgen`/`psam`/`pvar` is already canonical and is used exactly as given, so there is nothing to save for it.",
+                    "fa_icon": "fas fa-download"
+                }
+            }
+        },
         "institutional_config_options": {
             "title": "Institutional config options",
             "type": "object",
@@ -197,6 +212,9 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/save_controls"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

@@ -1,0 +1,131 @@
+nextflow_pipeline {
+
+    name "Test cohort genotype preparation"
+    script "../main.nf"
+    tag "pipeline"
+    tag "genotypes"
+
+    // These tests run PLINK 2 over the real fixture bundle, so they are built with
+    // SAMPLESHEET.fixtures rather than with the placeholder sheets the validation suite uses.
+    //
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
+    //   index 0 -> example_pgen_qt   cohort example_pgen,  PLINK 2 genotypes
+    //   index 1 -> example_pgen_bt   cohort example_pgen,  PLINK 2 genotypes
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes
+
+    // Adds a second PLINK 1 cohort over the same files, and three further analysis units on the VCF
+    // cohort. The resulting sheet covers all three encodings and carries 1, 1, 2 and 4 analysis units
+    // on its four cohorts, so nothing about a cohort's preparation can depend on how many analysis
+    // units reference it without the difference showing up.
+    def spread = { rows ->
+        def second_plink1 = new LinkedHashMap(rows[2])
+        second_plink1.analysis_id = 'example_bfile2_qt'
+        second_plink1.cohort_id = 'example_bfile2'
+        rows << second_plink1
+
+        (2..4).each { index ->
+            def extra_trait = new LinkedHashMap(rows[3])
+            extra_trait.analysis_id = "example_vcf_qt${index}"
+            extra_trait.trait_id = "QT${index}"
+            rows << extra_trait
+        }
+    }
+
+    test("prepared cohort bundles are absent from published output by default") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "prepared_default", spread)
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // The save control is unset, so the bundles the run just built are nowhere in the
+                // published output — only the two directories every run produces.
+                { assert new File("${params.outdir}").list().toList().sort() == ['multiqc', 'pipeline_info'] },
+                // Preparation still happened, once per cohort that needed it.
+                { assert TRACE.tags(workflow, 'PLINK2_MAKEPGEN') == ['example_bfile', 'example_bfile2'] },
+                { assert TRACE.tags(workflow, 'PLINK2_VCF') == ['example_vcf'] },
+            )
+        }
+    }
+
+    test("--save_prepared_genotypes publishes one bundle per prepared cohort") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "prepared_saved", spread)
+                save_prepared_genotypes = true
+            }
+        }
+
+        then {
+            def prepared = new File("${params.outdir}/genotypes")
+            // stable_path: All files + folders in ${params.outdir}/ with a stable path (including file name)
+            def stable_path = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            // stable_content: All files in ${params.outdir}/ with stable content
+            def stable_content = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            assertAll(
+                { assert workflow.success },
+                // One directory per distinct cohort_id the pipeline prepared, whatever encoding it
+                // came from and however many analysis units named it. example_pgen is absent by
+                // design: it was supplied as PLINK 2, so the canonical bundle is the researcher's own
+                // input and the pipeline built nothing to save.
+                { assert prepared.list().toList().sort() == ['example_bfile', 'example_bfile2', 'example_vcf'] },
+                // A PLINK 1 cohort and a VCF cohort converge on the same canonical bundle: the same
+                // three PLINK 2 files, named after the cohort.
+                { assert prepared.list().toList().every { cohort ->
+                    new File(prepared, cohort).list().toList().sort() == ["${cohort}.pgen", "${cohort}.psam", "${cohort}.pvar"]
+                } },
+                // Four analysis units on the VCF cohort, still one conversion.
+                { assert TRACE.tags(workflow, 'PLINK2_MAKEPGEN') == ['example_bfile', 'example_bfile2'] },
+                { assert TRACE.tags(workflow, 'PLINK2_VCF') == ['example_vcf'] },
+                { assert snapshot(
+                    // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
+                    removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml"),
+                    stable_path,
+                    stable_content
+                ).match('prepared_genotypes') },
+            )
+        }
+    }
+
+    // Two analysis units on one cohort could be a coincidence of how a pair happens to be handled, so
+    // the same claim is made again at four. A plain `join` at the cohort-to-analysis seam would still
+    // prepare the cohort once here; what it would lose is the analysis units, which the companion
+    // subworkflow test measures directly.
+    [2, 4].each { traits ->
+        test("a cohort carrying ${traits} analysis units is prepared exactly once") {
+
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "one_cohort_${traits}_traits", { rows ->
+                        def template = rows[3]
+                        rows.clear()
+                        (1..traits).each { index ->
+                            def unit = new LinkedHashMap(template)
+                            unit.analysis_id = "example_vcf_qt${index}"
+                            unit.trait_id = "QT${index}"
+                            rows << unit
+                        }
+                    })
+                    save_prepared_genotypes = true
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert workflow.success },
+                    { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
+                    { assert new File("${params.outdir}/genotypes").list().toList() == ['example_vcf'] },
+                )
+            }
+        }
+    }
+}

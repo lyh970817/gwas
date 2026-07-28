@@ -1,0 +1,61 @@
+{
+    "prepared_genotypes": {
+        "content": [
+            {
+                "PLINK2_MAKEPGEN": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "PLINK2_VCF": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "Workflow": {
+                    "nf-core/gwas": "v1.0.0dev"
+                }
+            },
+            [
+                "genotypes",
+                "genotypes/example_bfile",
+                "genotypes/example_bfile/example_bfile.pgen",
+                "genotypes/example_bfile/example_bfile.psam",
+                "genotypes/example_bfile/example_bfile.pvar",
+                "genotypes/example_bfile2",
+                "genotypes/example_bfile2/example_bfile2.pgen",
+                "genotypes/example_bfile2/example_bfile2.psam",
+                "genotypes/example_bfile2/example_bfile2.pvar",
+                "genotypes/example_vcf",
+                "genotypes/example_vcf/example_vcf.pgen",
+                "genotypes/example_vcf/example_vcf.psam",
+                "genotypes/example_vcf/example_vcf.pvar",
+                "multiqc",
+                "multiqc/multiqc_data",
+                "multiqc/multiqc_data/llms-full.txt",
+                "multiqc/multiqc_data/multiqc.log",
+                "multiqc/multiqc_data/multiqc.parquet",
+                "multiqc/multiqc_data/multiqc_citations.txt",
+                "multiqc/multiqc_data/multiqc_data.json",
+                "multiqc/multiqc_data/multiqc_software_versions.txt",
+                "multiqc/multiqc_data/multiqc_sources.txt",
+                "multiqc/multiqc_report.html",
+                "pipeline_info",
+                "pipeline_info/nf_core_gwas_software_mqc_versions.yml"
+            ],
+            [
+                "example_bfile.pgen:md5,d1ab61520e26e56ea09712e225c6405b",
+                "example_bfile.psam:md5,34ad6070312b4ca9f265433385ff9312",
+                "example_bfile.pvar:md5,83377f58e9fa754ed9259fda8c0c1bfa",
+                "example_bfile2.pgen:md5,d1ab61520e26e56ea09712e225c6405b",
+                "example_bfile2.psam:md5,34ad6070312b4ca9f265433385ff9312",
+                "example_bfile2.pvar:md5,83377f58e9fa754ed9259fda8c0c1bfa",
+                "example_vcf.pgen:md5,a00e5ab58bdef52767b3690fa6e33c18",
+                "example_vcf.psam:md5,6f811372d231e1a2a2c176c60abb3106",
+                "example_vcf.pvar:md5,ccae8151ff91eab7398ba736ba23a59d",
+                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-28T07:01:01.443736765"
+    }
+}

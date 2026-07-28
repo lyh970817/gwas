@@ -4,16 +4,16 @@ nextflow_pipeline {
     script "../main.nf"
     tag "pipeline"
 
-    // The samplesheet is built from the shipped demo sheet with its file columns pointed at local
-    // placeholders, so the suite stays hermetic while the release fixtures are still unmerged
-    // upstream. `conf/test.config` carries the committed fixture URL and is exercised by running
-    // `-profile test` directly.
+    // The samplesheet is built from the shipped demo sheet with its file columns resolved against the
+    // fixture bundle, so no machine-specific path is committed while the release fixtures are still
+    // unmerged upstream. `conf/test.config` carries the committed fixture URL and is exercised by
+    // running `-profile test` directly.
     test("-profile test") {
 
         when {
             params {
                 outdir = "$outputDir"
-                input = SAMPLESHEET.build(projectDir, outputDir, "default", null)
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "default", null)
             }
         }
 
@@ -24,8 +24,9 @@ nextflow_pipeline {
             def stable_content = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
             assert workflow.success
             assertAll(
-                // Every scientific route is wired by later tickets, so a valid run at this point
-                // legitimately publishes nothing but pipeline information and a MultiQC report.
+                // Cohort genotype preparation is an intermediate and the association and heritability
+                // routes are wired by later tickets, so a valid run at this point legitimately
+                // publishes nothing but pipeline information and a MultiQC report.
                 { assert new File("${params.outdir}").list().toList().sort() == ['multiqc', 'pipeline_info'] },
                 { assert snapshot(
                     // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions

@@ -3,11 +3,19 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+// MODULE: Installed directly from nf-core/modules
+include { MULTIQC                  } from '../modules/nf-core/multiqc/main'
+
+// SUBWORKFLOW: Local to the pipeline
+include { PREPARE_COHORT_GENOTYPES } from '../subworkflows/local/prepare_cohort_genotypes'
+
+// SUBWORKFLOW: Consisting entirely of nf-core/modules
+include { paramsSummaryMultiqc     } from '../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText   } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+
+// PLUGIN
+include { paramsSummaryMap         } from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -29,12 +37,19 @@ workflow GWAS {
     def ch_versions = channel.empty()
     def ch_multiqc_files = channel.empty()
 
-    // The single PLINK 1 `--assoc` graph this pipeline used to run has been removed along with the
-    // samplesheet it was built on. The scientific routes that replace it — cohort genotype
-    // preparation, the four association routes, the five heritability routes and GWASLab
-    // harmonisation — are wired by the tickets that follow this one. Until then a valid run
-    // legitimately produces only pipeline information and a MultiQC report, and the validated
-    // samplesheet is carried no further than this point.
+    //
+    // SUBWORKFLOW: Prepare each distinct cohort's genotypes once into the canonical PLINK 2 bundle
+    //
+    PREPARE_COHORT_GENOTYPES(
+        ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract ->
+            [meta, genotype_files]
+        }
+    )
+
+    // `PREPARE_COHORT_GENOTYPES.out.genotypes` carries one canonical bundle per analysis unit and is
+    // the input every association and heritability route takes. Those routes, and GWASLab
+    // harmonisation, are wired by the tickets that follow this one, so a valid run still publishes
+    // nothing but the prepared bundles (when asked for), pipeline information and a MultiQC report.
 
     //
     // Collate and save software versions

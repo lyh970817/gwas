@@ -168,7 +168,9 @@ nextflow_pipeline {
         when {
             params {
                 outdir = "$outputDir"
-                input = SAMPLESHEET.build(projectDir, outputDir, "textual_case_control", { rows ->
+                // The positive control runs to completion, so unlike every negative case above it
+                // needs the real fixture bundle rather than empty placeholders.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "textual_case_control", { rows ->
                     rows[1].control_value = 'Unaffected'
                     rows[1].case_value = 'Affected'
                 })
