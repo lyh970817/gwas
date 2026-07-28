@@ -8,8 +8,8 @@ include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
-include { PLINK_VCF              } from '../modules/nf-core/plink/vcf/main'
-include { PLINK_GWAS             } from '../modules/nf-core/plink/gwas/main'
+include { PLINK_VCF              } from '../modules/local/plink/vcf/main'
+include { PLINK_GWAS             } from '../modules/local/plink/gwas/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
