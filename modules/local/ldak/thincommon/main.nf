@@ -1,4 +1,4 @@
-process LDAK_THINPREDICTORS {
+process LDAK_THINCOMMON {
     tag "${meta.id}"
     label 'process_medium'
     conda "${moduleDir}/environment.yml"
@@ -8,11 +8,10 @@ process LDAK_THINPREDICTORS {
 
     input:
     tuple val(meta), path(bed), path(bim), path(fam)
-    val window_prune
-    val window_kb
 
     output:
-    tuple val(meta), path("${prefix}.in"), emit: thin_predictors
+    tuple val(meta), path("${prefix}.in"), emit: predictors
+    tuple val(meta), path("${prefix}.progress"), emit: progress, optional: true
     tuple val("${task.process}"), val("ldak6"), eval("ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+'"), emit: versions_ldak6, topic: versions
 
     when:
@@ -23,10 +22,8 @@ process LDAK_THINPREDICTORS {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     ldak6 \\
-        --thin ${prefix} \\
+        --thin-common ${prefix} \\
         --bfile ${bed.baseName} \\
-        --window-prune ${window_prune} \\
-        --window-kb ${window_kb} \\
         --max-threads ${task.cpus} \\
         ${args}
     """
@@ -35,5 +32,6 @@ process LDAK_THINPREDICTORS {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.in
+    touch ${prefix}.progress
     """
 }

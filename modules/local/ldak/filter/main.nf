@@ -1,4 +1,4 @@
-process LDAK_THINPREDICTORS {
+process LDAK_FILTER {
     tag "${meta.id}"
     label 'process_medium'
     conda "${moduleDir}/environment.yml"
@@ -7,12 +7,11 @@ process LDAK_THINPREDICTORS {
         : 'community.wave.seqera.io/library/ldak6_r-base:452828f72b3c9129'}"
 
     input:
-    tuple val(meta), path(bed), path(bim), path(fam)
-    val window_prune
-    val window_kb
+    tuple val(meta), path(grm_files)
 
     output:
-    tuple val(meta), path("${prefix}.in"), emit: thin_predictors
+    tuple val(meta), path("*.keep"), path("*.lose"), emit: filtered_list
+    tuple val(meta), path("*.maxrel"), emit: maxrel, optional: true
     tuple val("${task.process}"), val("ldak6"), eval("ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+'"), emit: versions_ldak6, topic: versions
 
     when:
@@ -20,20 +19,21 @@ process LDAK_THINPREDICTORS {
 
     script:
     def args = task.ext.args ?: ''
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
+    def prefix = task.ext.prefix ?: meta.id
     """
     ldak6 \\
-        --thin ${prefix} \\
-        --bfile ${bed.baseName} \\
-        --window-prune ${window_prune} \\
-        --window-kb ${window_kb} \\
+        --filter ${prefix} \\
+        --grm ${grm_prefix} \\
         --max-threads ${task.cpus} \\
         ${args}
     """
 
     stub:
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: meta.id
     """
-    touch ${prefix}.in
+    touch ${prefix}.keep
+    touch ${prefix}.lose
+    echo "0.0" > ${prefix}.maxrel
     """
 }

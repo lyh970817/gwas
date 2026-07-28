@@ -19,5 +19,6 @@ Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) t
 ### `Dependencies`
 
 - Updated the `plink/gwas` (`2d5c9c0`) and `plink/vcf` (`6d46786`) modules to the latest nf-core/modules version, preserving the pipeline's local patches (the `plink/vcf` `--pheno`/`--make-bed` phenotype input and the `plink/gwas` split `assoc`/`qassoc` outputs plus resource-label overrides).
+- Synced the vendored `modules/local/ldak/` family to the shared component library: the twelve name-matched modules now match the library byte-for-byte, `ldak/filter`, `ldak/subgrm` and `ldak/thincommon` were added, and `ldak/filterrelatedness` was removed in favour of the library's `filter` + `subgrm` split.
 
 ### `Deprecated`

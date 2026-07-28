@@ -43,6 +43,7 @@ input:
           Groovy Map containing phenotype information
           Keep `id` as the phenotype-specific analysis identifier used for the step 2 output prefix
           Keep `is_binary` for trait metadata propagation even though the documented step 2 command does not take `--binary`
+          Optional phenotype selection such as `--mpheno 1` is supplied via `task.ext.args`
           e.g. `[ id:'Y1', is_binary:false ]`
     - phenotype_file:
         type: file
@@ -50,10 +51,6 @@ input:
         pattern: "*.{txt,tsv,pheno,phe}"
         ontologies:
           - edam: "http://edamontology.org/format_3475"
-    - mpheno:
-        type: integer
-        optional: true
-        description: Optional phenotype column index passed to `--mpheno`; provide `[]` to use the module fallback of `1`
   - - meta3:
         type: map
         description: |
@@ -119,15 +116,10 @@ output:
           description: |
             Groovy Map containing genotype information
             e.g. `[ id:'plink_multichr' ]`
-      - meta2:
-          type: map
-          description: |
-            Groovy Map containing phenotype information
-            e.g. `[ id:'Y1' ]`
-      - "${prefix}.step2.assoc":
+      - "${prefix}.step2*.assoc":
           type: file
           description: LDAK-KVIK step 2 association results
-          pattern: "*.step2.assoc"
+          pattern: "*.step2*.assoc"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
   summaries:
@@ -136,15 +128,10 @@ output:
           description: |
             Groovy Map containing genotype information
             e.g. `[ id:'plink_multichr' ]`
-      - meta2:
-          type: map
-          description: |
-            Groovy Map containing phenotype information
-            e.g. `[ id:'Y1' ]`
-      - "${prefix}.step2.summaries":
+      - "${prefix}.step2*.summaries":
           type: file
           description: Optional LDAK-KVIK step 2 summary output
-          pattern: "*.step2.summaries"
+          pattern: "*.step2*.summaries"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
   pvalues:
@@ -153,15 +140,10 @@ output:
           description: |
             Groovy Map containing genotype information
             e.g. `[ id:'plink_multichr' ]`
-      - meta2:
-          type: map
-          description: |
-            Groovy Map containing phenotype information
-            e.g. `[ id:'Y1' ]`
-      - "${prefix}.step2.pvalues":
+      - "${prefix}.step2*.pvalues":
           type: file
           description: Optional LDAK-KVIK step 2 pvalue output
-          pattern: "*.step2.pvalues"
+          pattern: "*.step2*.pvalues"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
   log:
@@ -170,11 +152,6 @@ output:
           description: |
             Groovy Map containing genotype information
             e.g. `[ id:'plink_multichr' ]`
-      - meta2:
-          type: map
-          description: |
-            Groovy Map containing phenotype information
-            e.g. `[ id:'Y1' ]`
       - "${prefix}.step2.log":
           type: file
           description: LDAK-KVIK step 2 log file
