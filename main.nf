@@ -58,7 +58,7 @@ workflow {
     main:
 
     //
-    // WORKFLOW: Validate a local GCTA test-fixture override
+    // WORKFLOW: Validate a local GWAS test-fixture override
     //
     def local_gwas_fixture_root = System.getenv('GWAS_TEST_FIXTURES')
     def local_gwas_fixture_profiles = [
