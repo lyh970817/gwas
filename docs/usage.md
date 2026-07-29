@@ -29,43 +29,43 @@ analysis_id,cohort_id,trait_id,trait_type,genome_build,ancestry,pgen,psam,pvar,b
 example_pgen_qt,example_pgen,QT,quantitative,GRCh37,EUR,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pgen,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.psam,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pvar,,,,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno,QT,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar,plink2,gcta_greml,,,,,,,,,1,,,,
 ```
 
-| Column | Description |
-| ------ | ----------- |
-| `analysis_id` | Unique, whitespace-free identifier for this analysis unit; used in output paths and filenames. |
-| `cohort_id` | Cohort identifier. Rows sharing it must declare the same genotype source. |
-| `trait_id` | Trait identifier; several traits may share one cohort. |
-| `trait_type` | Trait type: `quantitative` or `binary`. |
-| `genome_build` | Genotype genome build: `GRCh37` or `GRCh38`. |
-| `ancestry` | Case-sensitive ancestry label carried into output provenance. |
-| `pgen` | PLINK 2 genotype file; supply with `psam` and `pvar`. |
-| `psam` | PLINK 2 sample file accompanying `pgen`. |
-| `pvar` | PLINK 2 variant file accompanying `pgen`; `.pvar` and `.pvar.zst` are accepted. |
-| `bed` | PLINK 1 genotype file; supply with `bim` and `fam`. |
-| `bim` | PLINK 1 variant file accompanying `bed`. |
-| `fam` | PLINK 1 sample file accompanying `bed`. |
-| `vcf` | VCF genotype file, converted once per cohort to PLINK 2. |
-| `vcf_index` | Optional `.tbi` or `.csi` index accompanying `vcf`. |
-| `phenotype` | Headered phenotype file containing the selected trait. |
-| `phenotype_column` | Name of the trait column in `phenotype`. |
-| `control_value` | Control coding for a binary trait; required on binary rows and empty on quantitative rows. |
-| `case_value` | Case coding for a binary trait; required on binary rows and empty on quantitative rows. |
-| `quant_covariates` | Optional headered file of prepared quantitative covariates. |
-| `cat_covariates` | Optional headered file of prepared categorical covariates. |
-| `association_methods` | Comma-delimited association routes: `plink2`, `regenie`, `gcta_fastgwa`, and/or `ldak_kvik`. |
-| `heritability_methods` | Comma-delimited heritability routes: `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, and/or `ldak_pcgc`. |
-| `population_prevalence` | Population prevalence in `(0,1)` for binary-trait liability-scale estimates; always required for LDAK-PCGC. |
-| `sample_prevalence` | Case proportion in `(0,1)` for ascertainment correction when population prevalence is supplied. |
-| `ldak_model` | LDAK kinship model: `human_default` (default) or `custom`. |
-| `ldak_power` | LDAK predictor-variance power from `-2` to `0`; defaults to `-0.25`. |
-| `ldak_weights` | Optional LDAK predictor-weights file; an empty cell selects explicit equal weights. |
-| `ldak_relatedness_filter` | Whether an LDAK heritability estimate uses an unrelated subset; defaults to `false`. |
-| `ldak_kvik_step1_subset` | KVIK Step 1 predictor policy: `all`, `thin_common`, or `provided`; required for `ldak_kvik`. |
-| `ldak_kvik_step1_extract` | Predictor list for KVIK Step 1; accepted only when its subset policy is `provided`. |
-| `gcta_grm_parts` | Number of GCTA relatedness-matrix build parts; required with any GCTA route. |
-| `gcta_sparse_cutoff` | Relatedness cutoff for the fastGWA sparse matrix; defaults to `0.05`. |
-| `gcta_ld_score_region_kb` | GCTA GREML-LDMS LD-score region width in kilobases; defaults to `200`. |
-| `gcta_ld_bins` | Number of GREML-LDMS individual-SNP LD-score strata; defaults to `4`. |
-| `gcta_ldms_maf_edges` | Semicolon-delimited, strictly increasing MAF bin edges required for `gcta_greml_ldms`. |
+| Column                    | Description                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `analysis_id`             | Unique, whitespace-free identifier for this analysis unit; used in output paths and filenames.                                                                                              |
+| `cohort_id`               | Cohort identifier. Rows sharing it must declare the same genotype source.                                                                                                                   |
+| `trait_id`                | Trait identifier; several traits may share one cohort.                                                                                                                                      |
+| `trait_type`              | Trait type: `quantitative` or `binary`.                                                                                                                                                     |
+| `genome_build`            | Genotype genome build: `GRCh37` or `GRCh38`.                                                                                                                                                |
+| `ancestry`                | Case-sensitive ancestry label carried into output provenance.                                                                                                                               |
+| `pgen`                    | PLINK 2 genotype file; supply with `psam` and `pvar`.                                                                                                                                       |
+| `psam`                    | PLINK 2 sample file accompanying `pgen`.                                                                                                                                                    |
+| `pvar`                    | PLINK 2 variant file accompanying `pgen`; `.pvar` and `.pvar.zst` are accepted.                                                                                                             |
+| `bed`                     | PLINK 1 genotype file; supply with `bim` and `fam`.                                                                                                                                         |
+| `bim`                     | PLINK 1 variant file accompanying `bed`.                                                                                                                                                    |
+| `fam`                     | PLINK 1 sample file accompanying `bed`.                                                                                                                                                     |
+| `vcf`                     | VCF genotype file, converted once per cohort to PLINK 2.                                                                                                                                    |
+| `vcf_index`               | Optional `.tbi` or `.csi` index accompanying `vcf`.                                                                                                                                         |
+| `phenotype`               | Headered phenotype file containing the selected trait.                                                                                                                                      |
+| `phenotype_column`        | Name of the trait column in `phenotype`.                                                                                                                                                    |
+| `control_value`           | Control coding for a binary trait; required on binary rows and empty on quantitative rows.                                                                                                  |
+| `case_value`              | Case coding for a binary trait; required on binary rows and empty on quantitative rows.                                                                                                     |
+| `quant_covariates`        | Optional headered file of prepared quantitative covariates.                                                                                                                                 |
+| `cat_covariates`          | Optional headered file of prepared categorical covariates.                                                                                                                                  |
+| `association_methods`     | Comma-delimited association routes: `plink2`, `regenie`, `gcta_fastgwa`, and/or `ldak_kvik`.                                                                                                |
+| `heritability_methods`    | Comma-delimited heritability routes: `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, and/or `ldak_pcgc`.                                                                           |
+| `population_prevalence`   | Population prevalence in `(0,1)` for binary-trait liability-scale estimates; always required for LDAK-PCGC.                                                                                 |
+| `sample_prevalence`       | Case proportion in `(0,1)` for ascertainment correction when population prevalence is supplied.                                                                                             |
+| `ldak_model`              | LDAK kinship model: `human_default` (default) or `custom`.                                                                                                                                  |
+| `ldak_power`              | LDAK predictor-variance power from `-2` to `0`; defaults to `-0.25`.                                                                                                                        |
+| `ldak_weights`            | Optional LDAK predictor-weights file; an empty cell selects explicit equal weights.                                                                                                         |
+| `ldak_relatedness_filter` | Whether an LDAK heritability estimate uses an unrelated subset; defaults to `false`.                                                                                                        |
+| `ldak_kvik_step1_subset`  | KVIK Step 1 predictor policy: `all`, `thin_common`, or `provided`; required for `ldak_kvik`.                                                                                                |
+| `ldak_kvik_step1_extract` | Predictor list for KVIK Step 1; accepted only when its subset policy is `provided`.                                                                                                         |
+| `gcta_grm_parts`          | Number of GCTA relatedness-matrix build parts; required with any GCTA route.                                                                                                                |
+| `gcta_sparse_cutoff`      | Relatedness cutoff for the fastGWA sparse matrix; defaults to `0.05`.                                                                                                                       |
+| `gcta_ld_score_region_kb` | GCTA GREML-LDMS LD-score region width in kilobases; defaults to `200`.                                                                                                                      |
+| `gcta_ld_bins`            | Number of GREML-LDMS individual-SNP LD-score strata; defaults to `4`.                                                                                                                       |
+| `gcta_ldms_maf_edges`     | Semicolon-delimited, strictly increasing MAF interval boundaries required for `gcta_greml_ldms`; they must start at `0` and end at `0.5` so every predictor belongs to exactly one stratum. |
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 

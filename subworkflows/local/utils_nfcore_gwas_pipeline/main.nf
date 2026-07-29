@@ -845,6 +845,9 @@ def parseMafEdges(maf_edges, reject) {
     if (parsed_maf_edges != parsed_maf_edges.toSorted() || parsed_maf_edges.unique(false).size() != parsed_maf_edges.size()) {
         reject.call('gcta_ldms_maf_edges', "MAF bin edges must be strictly increasing, got '${maf_edges}'")
     }
+    if (maf_edges != null && (parsed_maf_edges.size() < 2 || parsed_maf_edges.first() != 0 || parsed_maf_edges.last() != 0.5)) {
+        reject.call('gcta_ldms_maf_edges', "MAF interval boundaries must start at 0 and end at 0.5, got '${maf_edges}'")
+    }
     return parsed_maf_edges
 }
 

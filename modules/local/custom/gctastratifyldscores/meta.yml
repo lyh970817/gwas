@@ -30,7 +30,7 @@ input:
         description: Positive number of quantile-based individual-SNP LD-score bins
     - maf_edges:
         type: list
-        description: Strictly increasing numeric MAF interval boundaries covering every predictor
+        description: Strictly increasing numeric MAF interval boundaries spanning 0 to 0.5 and covering every predictor
 output:
   strata_bundle:
     - - meta:

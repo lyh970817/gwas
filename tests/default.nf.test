@@ -18,29 +18,48 @@ nextflow_pipeline {
         }
 
         then {
-            // stable_name: All files + folders in ${params.outdir}/ with a stable name
-            def stable_name = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            // stable_path: All files in ${params.outdir}/ with stable content
-            def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            def stable_name_association = getAllFilesFromDir("${params.outdir}/association", relative: true, includeDir: true).findAll { path -> path.toString() }
+            def stable_path_association = getAllFilesFromDir("${params.outdir}/association", ignoreFile: 'tests/.nftignore')
+            def stable_name_heritability = getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true).findAll { path -> path.toString() }
+            def stable_path_heritability = getAllFilesFromDir("${params.outdir}/heritability", ignoreFile: 'tests/.nftignore')
+            def stable_name_summary_statistics = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
+            def stable_path_summary_statistics = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+            def stable_name_multiqc = getAllFilesFromDir("${params.outdir}/multiqc", relative: true, includeDir: true).findAll { path -> path.toString() }
+            def stable_path_multiqc = getAllFilesFromDir(
+                "${params.outdir}/multiqc",
+                ignore: [
+                    'multiqc_data/llms-full.txt',
+                    'multiqc_data/multiqc.log',
+                    'multiqc_data/multiqc.parquet',
+                    'multiqc_data/multiqc_data.json',
+                    'multiqc_data/multiqc_software_versions.txt',
+                    'multiqc_data/multiqc_sources.txt',
+                    'multiqc_report.html',
+                ],
+            )
+            def stable_name_pipeline_info = getAllFilesFromDir(
+                "${params.outdir}/pipeline_info",
+                relative: true,
+                includeDir: true,
+                ignore: ['*.{html,json,txt}'],
+            ).findAll { path -> path.toString() }
+            def stable_path_pipeline_info = []
             assert workflow.success
             assertAll(
-                // Two of the four demo rows select plink2, so a valid run publishes its native
-                // association results and the harmonised summary statistics derived from them, and
-                // one selects gcta_greml, so it publishes a heritability estimate as well, alongside
+                // The four demo rows cover PLINK 2, GCTA fastGWA and LDAK-KVIK association plus
+                // GCTA GREML, GCTA GREML-LDMS and LDAK-REML heritability. Native association and
+                // heritability results and harmonised summary statistics are published alongside
                 // pipeline information and a MultiQC report. Cohort genotype preparation, phenotype
-                // normalisation and the relatedness matrix the estimate was made from are all
-                // intermediates and stay unpublished unless a save control asks for them, and the
-                // remaining routes are wired by later tickets, so those five are the whole published
-                // layout at this point.
+                // normalisation and relatedness matrices remain unpublished intermediates unless a
+                // save control requests them, so these five top-level areas are the complete layout.
                 { assert new File("${params.outdir}").list().toList().sort() == ['association', 'heritability', 'multiqc', 'pipeline_info', 'summary_statistics'] },
-                { assert snapshot(
-                    // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
-                    removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml"),
-                    // All stable path names, with a relative path
-                    stable_name,
-                    // All files with stable contents
-                    stable_path
-                ).match() }
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+                { assert snapshot(stable_name_association, stable_path_association).match('association') },
+                { assert snapshot(stable_name_heritability, stable_path_heritability).match('heritability') },
+                { assert snapshot(stable_name_summary_statistics, stable_path_summary_statistics).match('summary_statistics') },
+                { assert snapshot(stable_name_multiqc, stable_path_multiqc).match('multiqc') },
+                { assert snapshot(stable_name_pipeline_info, stable_path_pipeline_info).match('pipeline_info') },
             )
         }
     }

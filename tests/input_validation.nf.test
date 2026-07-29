@@ -142,9 +142,27 @@ nextflow_pipeline {
             expect: ["Entry 3: Error for field 'gcta_ldms_maf_edges'", "semicolon-delimited list of numbers"],
         ],
         [
-            // A single edge is read by nf-schema as a number rather than as the delimited string,
-            // so the column accepts both types. This case fixes the number arm's lower bound in
-            // place; without it the column would silently admit a negative frequency.
+            name: "MAF boundaries omit the zero-frequency endpoint",
+            sheet: "maf_edges_without_zero",
+            mutate: { rows -> rows[2].gcta_ldms_maf_edges = '0.01;0.05;0.2;0.5' },
+            expect: [
+                "row 4 (analysis_id 'example_bfile_qt'), column 'gcta_ldms_maf_edges'",
+                "MAF interval boundaries must start at 0 and end at 0.5",
+            ],
+        ],
+        [
+            name: "MAF boundaries omit the half-frequency endpoint",
+            sheet: "maf_edges_without_half",
+            mutate: { rows -> rows[2].gcta_ldms_maf_edges = '0;0.01;0.05;0.2' },
+            expect: [
+                "row 4 (analysis_id 'example_bfile_qt'), column 'gcta_ldms_maf_edges'",
+                "MAF interval boundaries must start at 0 and end at 0.5",
+            ],
+        ],
+        [
+            // A lone negative edge is read by nf-schema as a number rather than as a delimited
+            // string. Keeping this case proves the number arm cannot silently admit a negative
+            // frequency before semantic validation rejects all incomplete boundary lists.
             name: "single MAF edge below the frequency floor",
             sheet: "negative_maf_edge",
             mutate: { rows -> rows[2].gcta_ldms_maf_edges = '-0.5' },
@@ -272,12 +290,10 @@ nextflow_pipeline {
         when {
             params {
                 outdir = "$outputDir"
-                // Positive control for the two cell spellings nf-schema type-infers away from the
-                // delimited-string form the columns are otherwise written in. Like the test above it
-                // runs to completion, so it needs the real fixture bundle.
+                // Positive control for cell spellings that can be type-inferred differently from the
+                // surrounding CSV. Like the test above it runs to completion, so it needs the real
+                // fixture bundle.
                 input = SAMPLESHEET.fixtures(projectDir, outputDir, "edge_case_cell_spellings", { rows ->
-                    // A lone MAF edge arrives as a number, not as a one-element semicolon list.
-                    rows[2].gcta_ldms_maf_edges = '0.05'
                     // Default-valued method controls are harmless on a row that does not select
                     // their consuming routes, whether the values came from schema defaults or were
                     // written explicitly in the CSV.

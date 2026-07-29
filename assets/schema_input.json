@@ -271,8 +271,8 @@
                 "type": ["string", "number"],
                 "pattern": "^[0-9]*\\.?[0-9]+(;[0-9]*\\.?[0-9]+)*$",
                 "minimum": 0,
-                "description": "Semicolon-delimited, strictly ordered minor allele frequency bin edges for GCTA GREML-LDMS. Semicolons are used because commas already delimit the method selector lists. A lone edge is read as a number, so 'number' is accepted alongside the delimited string form.",
-                "errorMessage": "MAF edges must be a semicolon-delimited list of numbers, for example '0.01;0.05;0.2;0.5'",
+                "description": "Semicolon-delimited, strictly ordered minor allele frequency interval boundaries for GCTA GREML-LDMS. The boundaries must start at 0 and end at 0.5 so every valid predictor belongs to exactly one stratum. Semicolons are used because commas already delimit the method selector lists.",
+                "errorMessage": "MAF boundaries must be a semicolon-delimited list of numbers spanning 0 to 0.5, for example '0;0.01;0.05;0.2;0.5'",
                 "meta": ["gcta_ldms_maf_edges"]
             }
         },
