@@ -432,4 +432,170 @@ nextflow_pipeline {
             )
         }
     }
+
+    test("binary declared values with no source matches are refused with an actionable diagnostic") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // The declared PLINK-style values remain 1 (control) and 2 (case), but the private
+                // fixture copy contains only a third raw value in BT. Both declarations must be
+                // rejected by normalisation before PLINK 2 can mistake the all-NA output for a
+                // constant canonical PHENO column.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "unmatched_binary_case_control_values", { rows ->
+                    def phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "unmatched_binary_case_control_values", rows[1].phenotype) { lines ->
+                        (0..<lines.size()).collect { index ->
+                            if (index == 0) {
+                                return lines[index]
+                            }
+                            def cells = lines[index].split('\t').toList()
+                            cells[3] = 'unmatched'
+                            return cells.join('\t')
+                        }
+                    }
+                    rows.removeAll { row -> row.analysis_id != 'example_pgen_bt' }
+                    rows[0].phenotype = phenotype
+                })
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                // The error is attributed to the researcher's analysis and source column, not to
+                // PLINK 2's canonical PHENO output name.
+                { assert report.contains("example_pgen_bt") },
+                { assert report.contains("BT") },
+                // Both declared encodings failed to match a raw source cell.
+                { assert report.contains("case_value '2' matched 0") },
+                { assert report.contains("control_value '1' matched 0") },
+                // The raw value and count make the declaration/data mismatch fixable without opening
+                // the phenotype file.
+                { assert report.contains("'unmatched' (500 samples)") },
+            )
+        }
+    }
+
+    test("a binary case declaration absent from the source data is refused with an actionable diagnostic") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Preserve the 350 declared controls, but rewrite every one of the 150 declared
+                // cases to a third value. The source data is then informative enough to say which
+                // declaration failed, instead of the all-levels-absent case above.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "unmatched_binary_case_value", { rows ->
+                    def phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "unmatched_binary_case_value", rows[1].phenotype) { lines ->
+                        [lines.first()] + lines.tail().collect { line ->
+                            def cells = line.split('\t').toList()
+                            cells[3] = cells[3] == '2' ? 'unmatched_case' : cells[3]
+                            return cells.join('\t')
+                        }
+                    }
+                    rows.removeAll { row -> row.analysis_id != 'example_pgen_bt' }
+                    rows[0].phenotype = phenotype
+                })
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                // The diagnostic identifies the analysis and the researcher-facing source column.
+                { assert report.contains('example_pgen_bt') },
+                { assert report.contains("column 'BT'") },
+                // Both declarations are printed, along with their independently measured matches.
+                { assert report.contains("case_value '2'") },
+                { assert report.contains("control_value '1'") },
+                { assert report.contains("case_value '2' matched 0") },
+                { assert report.contains("control_value '1' matched 350") },
+                // The third raw value is tallied, so its spelling and prevalence can be corrected.
+                { assert report.contains("'unmatched_case' (150 samples)") },
+            )
+        }
+    }
+
+    test("a quantitative source with no numeric values is refused with an actionable diagnostic") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Every selected QT value is deliberately non-numeric. The generated source still
+                // has a valid header and 500 samples, so normalisation reaches its semantic check.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "unparseable_quantitative_values", { rows ->
+                    def phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "unparseable_quantitative_values", rows[0].phenotype) { lines ->
+                        [lines.first()] + lines.tail().collect { line ->
+                            def cells = line.split('\t').toList()
+                            cells[2] = 'not_a_number'
+                            return cells.join('\t')
+                        }
+                    }
+                    rows.removeAll { row -> row.analysis_id != 'example_pgen_qt' }
+                    rows[0].phenotype = phenotype
+                })
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                // The error stays attached to the analysis and original quantitative source column.
+                { assert report.contains('example_pgen_qt') },
+                { assert report.contains("column 'QT'") },
+                { assert report.contains('matched 0 numeric values') },
+                // The raw spelling and whole-source count make the otherwise non-parseable input actionable.
+                { assert report.contains("'not_a_number' (500 samples)") },
+            )
+        }
+    }
+
+    test("unmatched binary raw values normalise to NA with a bounded deterministic diagnostic") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "bounded_unmatched_binary_values", { rows ->
+                    def phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "bounded_unmatched_binary_values", rows[1].phenotype) { lines ->
+                        def rewritten_controls = 0
+                        (0..<lines.size()).collect { index ->
+                            if (index == 0) {
+                                return lines[index]
+                            }
+                            def cells = lines[index].split('\t').toList()
+                            // Eleven distinct control values leave all 150 cases represented, and
+                            // exercise both the ten-value cap and lexical tie-break for equal counts.
+                            if (cells[3] == '1' && rewritten_controls < 11) {
+                                rewritten_controls += 1
+                                cells[3] = String.format('stray_%02d', rewritten_controls)
+                            }
+                            return cells.join('\t')
+                        }
+                    }
+                    rows.removeAll { row -> row.analysis_id != 'example_pgen_bt' }
+                    rows[0].phenotype = phenotype
+                })
+            }
+        }
+
+        then {
+            def phenotype = new File(work_files(outputDir).find { entry -> entry.name == 'example_pgen_bt.pheno' }.absolutePath).readLines()
+            def codes = phenotype[1..-1].collect { line -> line.split('\t')[2] }.countBy { code -> code }
+            def normalise_log = work_files(outputDir).find { entry -> entry.name == 'example_pgen_bt.normalise.log' }.text
+            def displayed = (1..10).collect { index -> "'stray_${String.format('%02d', index)}' (1 samples)" }
+            def expected_diagnostic = "unmatched raw values: ${displayed.join(', ')}; 1 further distinct unmatched raw values omitted"
+            assertAll(
+                { assert workflow.success },
+                // The otherwise valid binary trait runs through PLINK 2, and all 11 undeclared
+                // values take the one canonical missing code rather than becoming a third phenotype.
+                { assert codes == ['0': 339, '1': 150, 'NA': 11] },
+                // Equal counts sort lexically after the descending-count primary key. Only ten raw
+                // spellings are shown; the eleventh is represented by the precise elision suffix.
+                { assert normalise_log.contains(expected_diagnostic) },
+                { assert !normalise_log.contains("'stray_11'") },
+            )
+        }
+    }
 }

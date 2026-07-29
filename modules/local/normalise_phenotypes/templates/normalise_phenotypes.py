@@ -38,6 +38,9 @@ ANALYSIS_ID = "${analysis_id}"
 
 MISSING = "NA"
 
+# Keep raw-value diagnostics useful without allowing an unbounded error or log line for bad input.
+MAX_UNMATCHED_VALUES = 10
+
 # `NA` is the one missing code all four programmes accept. `-9` is read as missing on the way in
 # because PLINK and GCTA both write it, but it is never written out: LDAK and REGENIE reject it, and
 # PLINK 2 errors out when a `-9` shares a file with a value in (-9, 10]. The empty string is a
@@ -175,6 +178,7 @@ def merge_covariates(quant, cat):
 def write_lines(path, lines):
     with open(path, "w", newline="\\n") as handle:
         handle.writelines(line + "\\n" for line in lines)
+        handle.flush()
 
 
 def write_table(suffix, header, body):
@@ -186,6 +190,61 @@ def write_table(suffix, header, body):
 
 def identities(body):
     return set((row[0], row[1]) for row in body)
+
+
+def raw_value_counts(raw_values):
+    """Count source-cell spellings before any normalisation can hide them."""
+    counts = {}
+    for value in raw_values:
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def format_raw_value_examples(counts, kind):
+    """Render bounded, deterministic source-value examples without an unbounded diagnostic."""
+    if not counts:
+        return "none"
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    displayed = ranked[:MAX_UNMATCHED_VALUES]
+    summary = ", ".join("'{}' ({} samples)".format(value, count) for value, count in displayed)
+    elided = len(ranked) - len(displayed)
+    if elided:
+        summary += "; {} further distinct {} values omitted".format(elided, kind)
+    return summary
+
+
+def format_unmatched_raw_values(counts):
+    """Render the additive binary unmatched-value policy line for the normalisation log."""
+    if not counts:
+        return "unmatched raw values: none"
+    return "unmatched raw values: {}".format(format_raw_value_examples(counts, "unmatched raw"))
+
+
+def binary_match_counts(raw_values):
+    """Count declared binary values with the exact stripping semantics normalise_trait uses."""
+    case_matches = 0
+    control_matches = 0
+    for value in raw_values:
+        stripped = value.strip()
+        if stripped == CASE_VALUE:
+            case_matches += 1
+        if stripped == CONTROL_VALUE:
+            control_matches += 1
+    return case_matches, control_matches
+
+
+def numeric_match_count(raw_values):
+    """Count source cells that pass the same numeric parsing normalise_trait applies."""
+    matches = 0
+    for value in raw_values:
+        if is_missing(value):
+            continue
+        try:
+            float(value)
+        except ValueError:
+            continue
+        matches += 1
+    return matches
 
 
 phenotype_header, phenotype_body = read_table(PHENOTYPE_FILE, "phenotype")
@@ -203,21 +262,27 @@ if trait_index < 2:
         )
     )
 
-trait_rows = [[row[0], row[1], normalise_trait(row[trait_index])] for row in phenotype_body]
-write_table("pheno", ["FID", "IID", "PHENO"], trait_rows)
+raw_trait_values = [row[trait_index] for row in phenotype_body]
+raw_counts = raw_value_counts(raw_trait_values)
+case_raw_matches, control_raw_matches = binary_match_counts(raw_trait_values)
+numeric_raw_matches = numeric_match_count(raw_trait_values)
+raw_unmatched = {
+    value: count
+    for value, count in raw_counts.items()
+    if not is_missing(value) and normalise_trait(value) == MISSING
+}
+normalised_trait_values = [normalise_trait(value) for value in raw_trait_values]
+trait_rows = [
+    [row[0], row[1], normalised_value]
+    for row, normalised_value in zip(phenotype_body, normalised_trait_values)
+]
 
 quant_covariates = load_covariates(QUANT_COVARIATES_FILE, "quantitative covariate")
 cat_covariates = load_covariates(CAT_COVARIATES_FILE, "categorical covariate")
-if quant_covariates is not None:
-    write_table("qcovar", quant_covariates[0], quant_covariates[1])
-if cat_covariates is not None:
-    write_table("catcovar", cat_covariates[0], cat_covariates[1])
 
 # The merged file has no headerless counterpart: GCTA and LDAK take the two kinds of covariate
 # through separate flags and never see a merged file.
 merged = merge_covariates(quant_covariates, cat_covariates)
-if merged is not None:
-    write_lines("{}.covar".format(PREFIX), ["\\t".join(row) for row in [merged[0]] + merged[1]])
 
 tally = {}
 for trait_row in trait_rows:
@@ -265,7 +330,42 @@ for covariates, label, source in [
 if merged is not None:
     report.append("merged covariate file: {} columns over {} samples".format(len(merged[0]), len(merged[1])))
 
+# Deliberately final: every pre-existing report line above retains its order, and this diagnostic is
+# always emitted even when validation below stops normalisation before any phenotype/covariate output.
+unmatched_diagnostic = format_unmatched_raw_values(raw_unmatched)
+report.append(unmatched_diagnostic)
 write_lines("{}.normalise.log".format(PREFIX), report)
+
+if TRAIT_TYPE == "binary":
+    if case_raw_matches == 0 or control_raw_matches == 0:
+        fail(
+            "phenotype source '{}' column '{}' declares case_value '{}' and control_value '{}'; "
+            "case_value '{}' matched {}; control_value '{}' matched {}; {}".format(
+                PHENOTYPE_FILE,
+                PHENOTYPE_COLUMN,
+                CASE_VALUE,
+                CONTROL_VALUE,
+                CASE_VALUE,
+                case_raw_matches,
+                CONTROL_VALUE,
+                control_raw_matches,
+                "raw values: {}".format(format_raw_value_examples(raw_counts, "raw")),
+            )
+        )
+elif TRAIT_TYPE == "quantitative" and numeric_raw_matches == 0:
+    fail(
+        "phenotype source '{}' column '{}' matched 0 numeric values; raw values: {}".format(
+            PHENOTYPE_FILE, PHENOTYPE_COLUMN, format_raw_value_examples(raw_counts, "raw")
+        )
+    )
+
+write_table("pheno", ["FID", "IID", "PHENO"], trait_rows)
+if quant_covariates is not None:
+    write_table("qcovar", quant_covariates[0], quant_covariates[1])
+if cat_covariates is not None:
+    write_table("catcovar", cat_covariates[0], cat_covariates[1])
+if merged is not None:
+    write_lines("{}.covar".format(PREFIX), ["\\t".join(row) for row in [merged[0]] + merged[1]])
 
 # Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
 write_lines("versions.yml", ['"${task.process}":', "    python: {}".format(sys.version.split()[0])])
