@@ -424,6 +424,12 @@ def relatednessMatrixKinds(meta) {
     if ('gcta_greml' in meta.heritability_methods) {
         kinds << 'gcta_dense'
     }
+    if ('gcta_greml_ldms' in meta.heritability_methods) {
+        kinds << 'gcta_ldms'
+    }
+    if ('gcta_fastgwa' in meta.association_methods) {
+        kinds << 'gcta_sparse'
+    }
     return kinds.unique()
 }
 
@@ -438,6 +444,16 @@ def relatednessMatrixKinds(meta) {
 def relatednessMatrixSettings(meta, kind) {
     if (kind == 'gcta_dense') {
         return [:]
+    }
+    if (kind == 'gcta_ldms') {
+        return [
+            ld_score_region_kb: meta.gcta_ld_score_region_kb,
+            ld_bins: meta.gcta_ld_bins,
+            maf_edges: meta.gcta_ldms_maf_edges,
+        ]
+    }
+    if (kind == 'gcta_sparse') {
+        return [cutoff: meta.gcta_sparse_cutoff]
     }
     error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
 }

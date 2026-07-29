@@ -430,14 +430,18 @@ nextflow_function {
         }
     }
 
-    test("a selector list with no wired matrix consumer asks for nothing") {
+    test("the GCTA LDMS and fastGWA selectors request their own matrix families") {
 
         function "relatednessMatrixKinds"
 
         when {
             function {
                 """
-                input[0] = [id: 'example_bfile_qt', heritability_methods: ['ldak_reml', 'gcta_greml_ldms']]
+                input[0] = [
+                    id: 'example_bfile_qt',
+                    association_methods: ['gcta_fastgwa'],
+                    heritability_methods: ['gcta_greml', 'gcta_greml_ldms'],
+                ]
                 """
             }
         }
@@ -445,9 +449,61 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                // Both of these get their matrices from routes that are not wired yet. An analysis
-                // unit that needs no matrix contributes no request, so it cannot make one get built.
-                { assert function.result == [] },
+                // Matrix families do not cross-reuse: the dense GREML matrix, the LDMS MGRM and the
+                // sparse fastGWA matrix have distinct formats and scientific construction settings.
+                { assert function.result == ['gcta_dense', 'gcta_ldms', 'gcta_sparse'] },
+            )
+        }
+    }
+
+    test("GCTA LDMS and sparse construction settings are explicit key components") {
+
+        function "relatednessMatrixSettings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'analysis',
+                    gcta_ld_score_region_kb: 100,
+                    gcta_ld_bins: 8,
+                    gcta_ldms_maf_edges: [0.0, 0.01, 0.05, 0.5],
+                    gcta_sparse_cutoff: 0.025,
+                ]
+                input[1] = 'gcta_ldms'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [
+                    ld_score_region_kb: 100,
+                    ld_bins: 8,
+                    maf_edges: [0.0, 0.01, 0.05, 0.5],
+                ] },
+            )
+        }
+    }
+
+    test("the fastGWA sparse cutoff is an explicit matrix key component") {
+
+        function "relatednessMatrixSettings"
+
+        when {
+            function {
+                """
+                input[0] = [id: 'analysis', gcta_sparse_cutoff: 0.025]
+                input[1] = 'gcta_sparse'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [cutoff: 0.025] },
             )
         }
     }
@@ -540,7 +596,7 @@ nextflow_function {
             function {
                 """
                 input[0] = [id: 'example_pgen_qt']
-                input[1] = 'gcta_sparse'
+                input[1] = 'gcta_unknown'
                 """
             }
         }
@@ -551,7 +607,7 @@ nextflow_function {
                 // kind but forgets its settings would get an empty settings map, and two genuinely
                 // different matrices would silently collapse onto one key.
                 { assert function.failed },
-                { assert function.stdout.join('\n').contains("no relatedness matrix settings are registered for kind 'gcta_sparse'") },
+                { assert function.stdout.join('\n').contains("no relatedness matrix settings are registered for kind 'gcta_unknown'") },
             )
         }
     }

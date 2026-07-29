@@ -1,0 +1,97 @@
+nextflow_pipeline {
+
+    name "Test GCTA GREML-LDMS heritability route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "heritability"
+    tag "gcta"
+    tag "gcta_greml_ldms"
+
+    def greml_ldms = { row, analysis_id, ld_bins, maf_edges ->
+        row.analysis_id = analysis_id
+        row.association_methods = ''
+        row.heritability_methods = 'gcta_greml_ldms'
+        row.gcta_grm_parts = '1'
+        row.gcta_ld_score_region_kb = '50'
+        row.gcta_ld_bins = ld_bins
+        row.gcta_ldms_maf_edges = maf_edges
+        row.ldak_model = ''
+        row.ldak_power = ''
+        row.ldak_relatedness_filter = ''
+        return row
+    }
+
+    test("semicolon-delimited MAF edges produce the expected GREML-LDMS strata and native result") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_greml_ldms", { rows ->
+                    def row = rows[2]
+                    rows.clear()
+                    row.association_methods = ''
+                    row.heritability_methods = 'gcta_greml_ldms'
+                    row.gcta_grm_parts = '1'
+                    row.gcta_ld_score_region_kb = '50'
+                    row.gcta_ld_bins = '1'
+                    row.gcta_ldms_maf_edges = '0;0.5'
+                    row.ldak_model = ''
+                    row.ldak_power = ''
+                    row.ldak_relatedness_filter = ''
+                    rows << row
+                })
+            }
+        }
+
+        then {
+            def result = new File("${params.outdir}/heritability/individual/gcta_greml_ldms/example_bfile_qt/example_bfile_qt.gcta_greml_ldms.hsq")
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 1 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
+                // One LD bin crossed with one MAF interval produces one non-empty stratum.
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTACREATEMGRMMANIFEST') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 1 },
+                { assert result.exists() },
+                { assert result.readLines().first().split('\t').toList() == ['Source', 'Variance', 'SE'] },
+            )
+        }
+    }
+
+    test("LDMS reuse follows region, bin count and MAF edge identity") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_greml_ldms_reuse", { rows ->
+                    def source = rows[2]
+                    rows.clear()
+                    rows << greml_ldms(new LinkedHashMap(source), 'ldms_same_1', '1', '0;0.5')
+                    rows << greml_ldms(new LinkedHashMap(source), 'ldms_same_2', '1', '0.0;0.50')
+                    rows << greml_ldms(new LinkedHashMap(source), 'ldms_different_edges', '1', '0;0.01;0.5')
+                    rows << greml_ldms(new LinkedHashMap(source), 'ldms_different_bins', '2', '0;0.5')
+                })
+            }
+        }
+
+        then {
+            assert workflow.success
+            assertAll(
+                // Three matrix identities for four analyses: equal-meaning settings share, while a
+                // changed edge list and a changed LD bin count each create their own build.
+                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 3 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 3 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTACREATEMGRMMANIFEST') == 3 },
+                { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 4 },
+                { assert new File("${params.outdir}/heritability/individual/gcta_greml_ldms").list().toList().sort() == [
+                    'ldms_different_bins',
+                    'ldms_different_edges',
+                    'ldms_same_1',
+                    'ldms_same_2',
+                ] },
+            )
+        }
+    }
+}

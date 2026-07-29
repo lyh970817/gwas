@@ -5,6 +5,7 @@
 */
 // MODULE: Local to the pipeline
 include { GWASLAB_HARMONIZE            } from '../modules/local/gwaslab/harmonize/main'
+include { GCTA_FASTGWA                 } from '../modules/local/gcta/fastgwa/main'
 include { NORMALISE_PHENOTYPES         } from '../modules/local/normalise_phenotypes/main'
 include { PLINK2_GLM                   } from '../modules/local/plink2/glm/main'
 
@@ -65,6 +66,7 @@ workflow GWAS {
     PREPARE_RELATEDNESS_MATRICES(
         ch_analysis_genotypes,
         PREPARE_COHORT_GENOTYPES.out.cohort_genotypes,
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
     )
 
     //
@@ -84,6 +86,15 @@ workflow GWAS {
     def ch_analysis_inputs = PREPARE_COHORT_GENOTYPES.out.genotypes
         .join(NORMALISE_PHENOTYPES.out.phenotype, failOnMismatch: true, failOnDuplicate: true)
         .join(NORMALISE_PHENOTYPES.out.covariates, remainder: true)
+
+    // GCTA rejects a header row. Both fastGWA and GREML therefore consume the headerless phenotype
+    // and covariate serialisations. Optional covariates are represented by [], which stages nothing.
+    def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
+        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
+        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
+        .map { meta, phenotype, quant_covariates, cat_covariates ->
+            [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
+        }
 
     //
     // MODULE: PLINK 2 --glm association
@@ -192,6 +203,59 @@ workflow GWAS {
     )
 
     //
+    // MODULE: GCTA fastGWA-MLM association
+    //
+    // This is deliberately inline: a composition wrapping one module is not an nf-core subworkflow.
+    // The module chooses --fastGWA-mlm or --fastGWA-mlm-binary from the boolean phenotype input;
+    // conf/modules/gcta.config supplies no arbitrary ext.args, so plain --fastGWA-lr is unreachable.
+    def ch_fastgwa_genotypes = PREPARE_COHORT_GENOTYPES.out.genotypes
+        .filter { meta, _pgen, _psam, _pvar -> 'gcta_fastgwa' in meta.association_methods }
+    def ch_fastgwa_phenotypes = ch_gcta_phenotypes
+        .filter { meta, _phenotype, _quant_covariates, _cat_covariates -> 'gcta_fastgwa' in meta.association_methods }
+
+    def ch_fastgwa_invocations = ch_fastgwa_genotypes
+        .map { meta, pgen, psam, pvar -> [meta.id, [meta, pgen, pvar, psam]] }
+        .join(
+            ch_fastgwa_phenotypes.map { meta, phenotype, _quant_covariates, _cat_covariates -> [meta.id, [meta, phenotype, meta.is_binary]] },
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
+        .join(
+            ch_fastgwa_phenotypes.map { meta, _phenotype, quant_covariates, _cat_covariates -> [meta.id, [meta, quant_covariates]] },
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
+        .join(
+            ch_fastgwa_phenotypes.map { meta, _phenotype, _quant_covariates, cat_covariates -> [meta.id, [meta, cat_covariates]] },
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
+        .join(
+            PREPARE_RELATEDNESS_MATRICES.out.gcta_sparse.map { meta, sparse_grm_files -> [meta.id, [meta, sparse_grm_files]] },
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
+        .multiMap { _analysis_id, genotypes, pheno, qcovar, covar, sparse_grm ->
+            genotypes: genotypes
+            pheno: pheno
+            qcovar: qcovar
+            covar: covar
+            sparse_grm: sparse_grm
+        }
+
+    GCTA_FASTGWA(
+        ch_fastgwa_invocations.genotypes,
+        ch_fastgwa_invocations.pheno,
+        ch_fastgwa_invocations.qcovar,
+        ch_fastgwa_invocations.covar,
+        ch_fastgwa_invocations.sparse_grm,
+    )
+
+    //
     // MODULE: GWASLab harmonisation of every association result
     //
     // One record per analysis per association method actually exercised. Each route contributes an
@@ -218,6 +282,9 @@ workflow GWAS {
     )
     ch_association_results = ch_association_results.mix(
         PLINK_ASSOCIATION_LDAK_KVIK.out.results.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
+    )
+    ch_association_results = ch_association_results.mix(
+        GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }
     )
 
     // The optional reference resources are resolved once for the run rather than per record: they are
@@ -249,30 +316,24 @@ workflow GWAS {
     // ones the association routes use, and the trait sits at a fixed third column, which makes `--mpheno`
     // the constant 1 (set in conf/modules/gcta.config).
     //
-    // The covariate channels are subsets of the analysis units, so they are folded onto the phenotype
-    // channel — which is total — with `remainder: true` and default to `[]`, which stages nothing and
-    // reaches the component as an absent file.
-    def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
-        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
-        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
-        .map { meta, phenotype, quant_covariates, cat_covariates ->
-            [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
-        }
+    // The dense and LDMS matrix families retain distinct reuse keys and are adapted into the one public
+    // GCTA heritability contract here. The middle GRM element is absent for GREML and is the MGRM manifest
+    // for GREML-LDMS; the estimator selector makes the subworkflow enforce that distinction.
+    def ch_greml_matrices = PREPARE_RELATEDNESS_MATRICES.out.gcta_dense
+        .map { meta, grm_files -> [meta, [], grm_files, 'greml'] }
+        .mix(
+            PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms
+                .map { meta, mgrm, grm_files -> [meta, mgrm, grm_files, 'greml_ldms'] }
+        )
 
-    // Every analysis unit on `gcta_dense` asked for a dense GCTA matrix, and `gcta_greml` is the only route
-    // that does, so no further filtering is applied here: `relatednessMatrixKinds` is the one place that
-    // decides which method needs which matrix. `failOnMismatch` is deliberately absent — the phenotype
-    // channel is total over analysis units while this one carries only the GREML ones, so an unmatched
-    // right-hand element is expected rather than a defect. The middle element of `grm` is the MGRM manifest,
-    // which the subworkflow requires to be absent on the `greml` route and present on `greml_ldms`.
-    def ch_greml_inputs = PREPARE_RELATEDNESS_MATRICES.out.gcta_dense
+    def ch_greml_inputs = ch_greml_matrices
         .join(ch_gcta_phenotypes, failOnDuplicate: true)
-        .multiMap { meta, grm_files, phenotype, quant_covariates, cat_covariates ->
-            grm: [meta, [], grm_files]
+        .multiMap { meta, mgrm, grm_files, estimator, phenotype, quant_covariates, cat_covariates ->
+            grm: [meta, mgrm, grm_files]
             pheno: [meta, phenotype]
             qcovar: [meta, quant_covariates]
             covar: [meta, cat_covariates]
-            estimator: [meta, 'greml']
+            estimator: [meta, estimator]
         }
 
     // `GRM_HERITABILITY_GCTA.out.versions` is deliberately unconsumed: `gcta/reml` already publishes to the

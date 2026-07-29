@@ -129,5 +129,5 @@ workflow PREPARE_COHORT_GENOTYPES {
     emit:
     genotypes        = ch_genotypes // channel: [ val(meta), path(pgen), path(psam), path(pvar) ]
     cohort_genotypes = ch_cohort_genotypes // channel: [ val(cohort_meta), path(pgen), path(psam), path(pvar) ]
-    plink1_genotypes = ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], LDAK analyses only
+    plink1_genotypes = ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], analyses needing PLINK 1
 }
