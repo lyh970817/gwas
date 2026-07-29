@@ -56,6 +56,19 @@ workflow NFCORE_GWAS {
 workflow {
 
     main:
+
+    //
+    // WORKFLOW: Validate a local GCTA test-fixture override
+    //
+    def local_gwas_fixture_root = System.getenv('GWAS_TEST_FIXTURES')
+    def local_gwas_fixture_profiles = ['test_gcta_fastgwa', 'test_gcta_greml_ldms']
+    if (local_gwas_fixture_root && workflow.profile.tokenize(',').intersect(local_gwas_fixture_profiles)) {
+        def local_gwas_fixture_marker = new File(local_gwas_fixture_root, 'results/fixtures/genotypes/example_all.pgen').absoluteFile
+        if (!local_gwas_fixture_marker.exists()) {
+            error("[nf-core/gwas] ERROR: GWAS_TEST_FIXTURES is set to '${local_gwas_fixture_root}' but ${local_gwas_fixture_marker} does not exist")
+        }
+    }
+
     //
     // SUBWORKFLOW: Run initialisation tasks
     //

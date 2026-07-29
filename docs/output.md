@@ -27,9 +27,9 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
   - `<analysis_id>.plink2.glm.linear`: PLINK 2 `--glm` results for a quantitative trait.
   - `<analysis_id>.plink2.glm.logistic.hybrid`: PLINK 2 `--glm` results for a binary trait. The `.hybrid` extension indicates that Firth fallback was available, which the pipeline enables by default.
 - `association/regenie/<analysis_id>/`
-  - `<analysis_id>.regenie.gz`: REGENIE Step 2 association results for the analysis.
+  - `<analysis_id>.regenie.gz`: [REGENIE](https://rgcgithub.github.io/regenie/) Step 2 association results for the analysis.
 - `association/ldak_kvik/<analysis_id>/`
-  - `<analysis_id>.ldak_kvik.step2.assoc`: LDAK-KVIK Step 2 association results for the analysis.
+  - `<analysis_id>.ldak_kvik.step2.assoc`: [LDAK-KVIK](https://www.ldak-kvik.com/) Step 2 association results for the analysis.
 - `association/gcta_fastgwa/<analysis_id>/`
   - `<analysis_id>.gcta_fastgwa.fastGWA`: [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) fastGWA-MLM association results for the analysis.
 - `intermediates/regenie/<analysis_id>/` (only with `--save_regenie_predictions`)
