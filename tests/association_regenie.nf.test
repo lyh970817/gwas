@@ -45,6 +45,23 @@ nextflow_pipeline {
         return commands(output_dir).findAll { command -> command ==~ /(?s).*\nregenie \\\n.*/ }
     }
 
+    // Gzip member headers contain container metadata that is not part of the scientific result.
+    // Snapshot decompressed text with line endings normalised, retaining each relative path so a
+    // content change remains attributable when an output area grows beyond one compressed file.
+    def gzip_text_hashes = { directory ->
+        def root = new File(directory.toString())
+        def hashes = []
+        root.eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name.endsWith('.gz')) {
+                def relative = root.toPath().relativize(entry.toPath()).toString()
+                def text = new java.util.zip.GZIPInputStream(new FileInputStream(entry))
+                    .withReader('UTF-8') { reader -> reader.readLines().join('\n') }
+                hashes << "${relative}:md5,${text.md5()}"
+            }
+        }
+        return hashes.sort()
+    }
+
     // REGENIE writes one LOCO prediction table per selected phenotype. Its first data field is the
     // chromosome withheld from that row's prediction, so the file itself — rather than a filename
     // count — is the scientific evidence that all fixture autosomes were represented.
@@ -104,9 +121,9 @@ nextflow_pipeline {
                     def generated_commands = regenie_commands(outputDir)
                     def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/regenie", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_native = getAllFilesFromDir("${params.outdir}/association/regenie", ignoreFile: 'tests/.nftignore')
+                    def stable_path_native = gzip_text_hashes("${params.outdir}/association/regenie")
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                         { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
@@ -133,6 +150,8 @@ nextflow_pipeline {
     execution_modes.each { mode ->
         test("chunked Step 1 publishes the reusable prediction bundle only when requested${mode.suffix}") {
 
+            // nf-test 0.9.3 exposes profiles only at suite scope. This scenario shares a suite with
+            // standard-mode cases, so load its same-named profile config through the per-test seam.
             config "../conf/test_regenie_chunked.config"
             tag "regenie_chunked"
             if (mode.stub) {
@@ -169,14 +188,14 @@ nextflow_pipeline {
                 } else {
                     def generated_commands = regenie_commands(outputDir)
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/regenie", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_native = getAllFilesFromDir("${params.outdir}/association/regenie", ignoreFile: 'tests/.nftignore')
+                    def stable_path_native = gzip_text_hashes("${params.outdir}/association/regenie")
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     def stable_name_intermediates = getAllFilesFromDir("${params.outdir}/intermediates/regenie", relative: true, includeDir: true).findAll { path -> path.toString() }
                     // REGENIE records the task-work path of each LOCO file in the prediction list.
-                    // Snapshot the LOCO bytes directly, and normalise only that volatile path to the
-                    // public basename while retaining the phenotype-to-file mapping.
-                    def stable_path_intermediates = getAllFilesFromDir("${params.outdir}/intermediates/regenie", ignoreFile: 'tests/.nftignore', ignore: ['**/*_pred.list'])
+                    // Snapshot the LOCO table as decompressed text, and normalise the volatile list
+                    // path to its public basename while retaining the phenotype-to-file mapping.
+                    def stable_path_intermediates = gzip_text_hashes("${params.outdir}/intermediates/regenie")
                     def stable_predictions = new File(intermediates, 'example_pgen_qt.regenie_step1_pred.list')
                         .readLines()
                         .collect { line ->
@@ -242,9 +261,9 @@ nextflow_pipeline {
                     def generated_commands = regenie_commands(outputDir)
                     def step2 = generated_commands.find { command -> command.contains('--step 2') }
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/regenie", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_native = getAllFilesFromDir("${params.outdir}/association/regenie", ignoreFile: 'tests/.nftignore')
+                    def stable_path_native = gzip_text_hashes("${params.outdir}/association/regenie")
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert generated_commands.size() == 2 },
                         { assert generated_commands.every { command -> command.contains('--bt') } },

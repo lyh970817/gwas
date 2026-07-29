@@ -2,10 +2,9 @@ nextflow_pipeline {
 
     name "Test LDAK-KVIK association route"
     script "../main.nf"
-    profile "test_ldak"
-    // Load the scenario config after the pipeline's module-family configs so the CI-only seed wins
-    // over the production LDAK argument selector.
-    config "../conf/test_ldak_kvik_deterministic.config"
+    // Compose the base LDAK fixtures with the scenario profile. The scenario profile is applied last,
+    // so its CI-only seed wins over the production LDAK argument selector.
+    profile "test_ldak,test_ldak_kvik_deterministic"
     tag "pipeline"
     tag "association"
     tag "ldak"
@@ -65,6 +64,23 @@ nextflow_pipeline {
         return scripts
     }
 
+    // GWASLab outputs text in a gzip container whose member metadata is not scientific content.
+    // Snapshot decompressed text with line endings normalised and retain the relative filename so
+    // a content change remains attributable if an output area later contains multiple files.
+    def gzip_text_hashes = { directory ->
+        def root = new File(directory.toString())
+        def hashes = []
+        root.eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name.endsWith('.gz')) {
+                def relative = root.toPath().relativize(entry.toPath()).toString()
+                def text = new java.util.zip.GZIPInputStream(new FileInputStream(entry))
+                    .withReader('UTF-8') { reader -> reader.readLines().join('\n') }
+                hashes << "${relative}:md5,${text.md5()}"
+            }
+        }
+        return hashes.sort()
+    }
+
     def execution_modes = [
         [suffix: '', stub: false],
         [suffix: ' - stub', stub: true],
@@ -108,7 +124,7 @@ nextflow_pipeline {
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 0 },
@@ -162,7 +178,7 @@ nextflow_pipeline {
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
@@ -210,7 +226,7 @@ nextflow_pipeline {
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 0 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
@@ -259,7 +275,7 @@ nextflow_pipeline {
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
-                    def stable_path_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert step1.contains('--binary YES') },
                         { assert !step2.contains('--binary') },

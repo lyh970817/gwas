@@ -38,14 +38,14 @@
                 "example_pgen_bt/example_pgen_bt.ldak_kvik.gwaslab.tsv.gz"
             ],
             [
-                "example_pgen_bt.ldak_kvik.gwaslab.tsv.gz:md5,48a9f4e8ab3837003102d0e1c5825d23"
+                "example_pgen_bt/example_pgen_bt.ldak_kvik.gwaslab.tsv.gz:md5,2aee968e6b763219eb1157e6597e3643"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T02:27:27.355913001"
+        "timestamp": "2026-07-30T03:10:36.610167237"
     },
     "binary-native": {
         "content": [
@@ -102,14 +102,14 @@
                 "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz"
             ],
             [
-                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,45b6a8ada5dc3ad6299e74fbb1deb7c9"
+                "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,c0e96f91e8fd65f7b122945cd309d962"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T02:39:19.266963442"
+        "timestamp": "2026-07-30T03:08:33.650936226"
     },
     "thin-common-harmonised": {
         "content": [
@@ -118,14 +118,14 @@
                 "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz"
             ],
             [
-                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3"
+                "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,4aeb0ec5eca4a3e811cf5f25f4073c1e"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T02:45:18.480592642"
+        "timestamp": "2026-07-30T03:15:11.526254013"
     },
     "provided-harmonised": {
         "content": [
@@ -134,14 +134,14 @@
                 "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz"
             ],
             [
-                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,45b6a8ada5dc3ad6299e74fbb1deb7c9"
+                "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,c0e96f91e8fd65f7b122945cd309d962"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T02:46:21.520670375"
+        "timestamp": "2026-07-30T03:09:46.364534074"
     },
     "all-native": {
         "content": [
