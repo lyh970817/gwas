@@ -82,9 +82,9 @@ nextflow_pipeline {
             then {
                 def native_result = new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz")
                 def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz")
-                assert workflow.success
                 if (mode.stub) {
                     assertAll(
+                        { assert workflow.success },
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                         { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
                         { assert TRACE.count(workflow, 'REGENIE_RUNL0') == 0 },
@@ -103,6 +103,7 @@ nextflow_pipeline {
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
+                        { assert workflow.success },
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                         { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
                         { assert TRACE.count(workflow, 'REGENIE_RUNL0') == 0 },
@@ -146,9 +147,9 @@ nextflow_pipeline {
                 def intermediates = new File("${params.outdir}/intermediates/regenie/example_pgen_qt")
                 def native_result = new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz")
                 def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz")
-                assert workflow.success
                 if (mode.stub) {
                     assertAll(
+                        { assert workflow.success },
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 0 },
                         { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 1 },
                         { assert TRACE.count(workflow, 'REGENIE_RUNL0') > 0 },
@@ -180,6 +181,7 @@ nextflow_pipeline {
                             return "${fields[0]} ${new File(fields[1]).name}"
                         }
                     assertAll(
+                        { assert workflow.success },
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 0 },
                         { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 1 },
                         // The requested job count is an upper bound: assert actual native fan-out rather
@@ -226,9 +228,9 @@ nextflow_pipeline {
             then {
                 def native_result = new File("${params.outdir}/association/regenie/example_pgen_bt/example_pgen_bt.regenie.gz")
                 def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_bt/example_pgen_bt.regenie.gwaslab.tsv.gz")
-                assert workflow.success
                 if (mode.stub) {
                     assertAll(
+                        { assert workflow.success },
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                         { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                         { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
@@ -243,6 +245,7 @@ nextflow_pipeline {
                     def stable_name_harmonised = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
                     def stable_path_harmonised = gzip_text_hashes("${params.outdir}/summary_statistics")
                     assertAll(
+                        { assert workflow.success },
                         { assert generated_commands.size() == 2 },
                         { assert generated_commands.every { command -> command.contains('--bt') } },
                         { assert step2.contains('--firth') },
