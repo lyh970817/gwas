@@ -48,4 +48,30 @@ nextflow_pipeline {
             )
         }
     }
+
+    test("the complete 35-column contract is accepted and reports software versions") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "complete_35_columns", { rows ->
+                    rows.retainAll { row -> row.analysis_id == 'example_pgen_qt' }
+                    rows[0].association_methods = 'plink2'
+                    rows[0].heritability_methods = ''
+                    rows[0].gcta_grm_parts = ''
+                })
+            }
+        }
+
+        then {
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            assertAll(
+                { assert workflow.success },
+                { assert SAMPLESHEET.demo(projectDir).header.size() == 35 },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
 }

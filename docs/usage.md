@@ -10,45 +10,62 @@
 
 ## Samplesheet input
 
-You will need to create a samplesheet with information about the samples you would like to analyse before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row as shown in the examples below.
+Provide one comma-separated row per analysis unit: one cohort paired with one trait. Pass the file to
+`--input`:
 
 ```bash
 --input '[path to samplesheet file]'
 ```
 
-### Multiple runs of the same sample
+The header must contain all 35 columns below. Column order is not significant, but every header is
+mandatory even when its cells are optional; leave an unused cell empty. Supply exactly one genotype
+encoding per row: PLINK 2 (`pgen`, `psam`, `pvar`), PLINK 1 (`bed`, `bim`, `fam`), or `vcf` with an
+optional `vcf_index`. When a selector contains several methods, quote the comma-delimited CSV cell.
 
-The `sample` identifiers have to be the same when you have re-sequenced the same sample more than once e.g. to increase sequencing depth. The pipeline will concatenate the raw reads before performing any downstream analysis. Below is an example for the same sample sequenced across 3 lanes:
-
-```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
-```
-
-### Full samplesheet
-
-The pipeline will auto-detect whether a sample is single- or paired-end using the information provided in the samplesheet. The samplesheet can have as many columns as you desire, however, there is a strict requirement for the first 3 columns to match those defined in the table below.
-
-A final samplesheet file consisting of both single- and paired-end data may look something like the one below. This is for 6 samples, where `TREATMENT_REP3` has been sequenced twice.
+A quantitative-trait analysis using PLINK 2 input may look like this:
 
 ```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP2,AEG588A2_S2_L002_R1_001.fastq.gz,AEG588A2_S2_L002_R2_001.fastq.gz
-CONTROL_REP3,AEG588A3_S3_L002_R1_001.fastq.gz,AEG588A3_S3_L002_R2_001.fastq.gz
-TREATMENT_REP1,AEG588A4_S4_L003_R1_001.fastq.gz,
-TREATMENT_REP2,AEG588A5_S5_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
+analysis_id,cohort_id,trait_id,trait_type,genome_build,ancestry,pgen,psam,pvar,bed,bim,fam,vcf,vcf_index,phenotype,phenotype_column,control_value,case_value,quant_covariates,cat_covariates,association_methods,heritability_methods,population_prevalence,sample_prevalence,ldak_model,ldak_power,ldak_weights,ldak_relatedness_filter,ldak_kvik_step1_subset,ldak_kvik_step1_extract,gcta_grm_parts,gcta_sparse_cutoff,gcta_ld_score_region_kb,gcta_ld_bins,gcta_ldms_maf_edges
+example_pgen_qt,example_pgen,QT,quantitative,GRCh37,EUR,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pgen,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.psam,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pvar,,,,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno,QT,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar,plink2,gcta_greml,,,,,,,,,1,,,,
 ```
 
-| Column    | Description                                                                                                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sample`  | Custom sample name. This entry will be identical for multiple sequencing libraries/runs from the same sample. Spaces in sample names are automatically converted to underscores (`_`). |
-| `fastq_1` | Full path to FastQ file for Illumina short reads 1. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
-| `fastq_2` | Full path to FastQ file for Illumina short reads 2. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
+| Column | Description |
+| ------ | ----------- |
+| `analysis_id` | Unique, whitespace-free identifier for this analysis unit; used in output paths and filenames. |
+| `cohort_id` | Cohort identifier. Rows sharing it must declare the same genotype source. |
+| `trait_id` | Trait identifier; several traits may share one cohort. |
+| `trait_type` | Trait type: `quantitative` or `binary`. |
+| `genome_build` | Genotype genome build: `GRCh37` or `GRCh38`. |
+| `ancestry` | Case-sensitive ancestry label carried into output provenance. |
+| `pgen` | PLINK 2 genotype file; supply with `psam` and `pvar`. |
+| `psam` | PLINK 2 sample file accompanying `pgen`. |
+| `pvar` | PLINK 2 variant file accompanying `pgen`; `.pvar` and `.pvar.zst` are accepted. |
+| `bed` | PLINK 1 genotype file; supply with `bim` and `fam`. |
+| `bim` | PLINK 1 variant file accompanying `bed`. |
+| `fam` | PLINK 1 sample file accompanying `bed`. |
+| `vcf` | VCF genotype file, converted once per cohort to PLINK 2. |
+| `vcf_index` | Optional `.tbi` or `.csi` index accompanying `vcf`. |
+| `phenotype` | Headered phenotype file containing the selected trait. |
+| `phenotype_column` | Name of the trait column in `phenotype`. |
+| `control_value` | Control coding for a binary trait; required on binary rows and empty on quantitative rows. |
+| `case_value` | Case coding for a binary trait; required on binary rows and empty on quantitative rows. |
+| `quant_covariates` | Optional headered file of prepared quantitative covariates. |
+| `cat_covariates` | Optional headered file of prepared categorical covariates. |
+| `association_methods` | Comma-delimited association routes: `plink2`, `regenie`, `gcta_fastgwa`, and/or `ldak_kvik`. |
+| `heritability_methods` | Comma-delimited heritability routes: `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, and/or `ldak_pcgc`. |
+| `population_prevalence` | Population prevalence in `(0,1)` for binary-trait liability-scale estimates; always required for LDAK-PCGC. |
+| `sample_prevalence` | Case proportion in `(0,1)` for ascertainment correction when population prevalence is supplied. |
+| `ldak_model` | LDAK kinship model: `human_default` (default) or `custom`. |
+| `ldak_power` | LDAK predictor-variance power from `-2` to `0`; defaults to `-0.25`. |
+| `ldak_weights` | Optional LDAK predictor-weights file; an empty cell selects explicit equal weights. |
+| `ldak_relatedness_filter` | Whether an LDAK heritability estimate uses an unrelated subset; defaults to `false`. |
+| `ldak_kvik_step1_subset` | KVIK Step 1 predictor policy: `all`, `thin_common`, or `provided`; required for `ldak_kvik`. |
+| `ldak_kvik_step1_extract` | Predictor list for KVIK Step 1; accepted only when its subset policy is `provided`. |
+| `gcta_grm_parts` | Number of GCTA relatedness-matrix build parts; required with any GCTA route. |
+| `gcta_sparse_cutoff` | Relatedness cutoff for the fastGWA sparse matrix; defaults to `0.05`. |
+| `gcta_ld_score_region_kb` | GCTA GREML-LDMS LD-score region width in kilobases; defaults to `200`. |
+| `gcta_ld_bins` | Number of GREML-LDMS individual-SNP LD-score strata; defaults to `4`. |
+| `gcta_ldms_maf_edges` | Semicolon-delimited, strictly increasing MAF bin edges required for `gcta_greml_ldms`. |
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 

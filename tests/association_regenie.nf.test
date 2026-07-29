@@ -75,6 +75,7 @@ nextflow_pipeline {
             def generated_commands = regenie_commands(outputDir)
             def native_result = new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz")
             def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             assert workflow.success
             assertAll(
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
@@ -90,6 +91,7 @@ nextflow_pipeline {
                 { assert generated_commands.every { command -> command.contains('--phenoColList PHENO') } },
                 { assert generated_commands.every { command -> !command.contains('--minMAC') } },
                 { assert loco_chromosomes(outputDir).containsAll((1..22).toList()) },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
         }
     }

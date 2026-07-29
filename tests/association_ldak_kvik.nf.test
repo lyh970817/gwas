@@ -73,6 +73,7 @@ nextflow_pipeline {
 
         then {
             def kvik_commands = commands(outputDir).findAll { command -> command.contains('--kvik-step') }
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             assert workflow.success
             assertAll(
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
@@ -85,6 +86,7 @@ nextflow_pipeline {
                 { assert kvik_commands.size() == 2 },
                 { assert kvik_commands.every { command -> command.contains('--mpheno 1') } },
                 { assert !kvik_commands.find { command -> command.contains('--kvik-step1') }.contains('--extract') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
         }
     }

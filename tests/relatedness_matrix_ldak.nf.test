@@ -106,6 +106,7 @@ nextflow_pipeline {
                     ))
                 } else {
                     def commands = calckinsCommands(params.outdir)
+                    def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
                     assertAll(
                         { assert workflow.success },
                         // The relatedness filter is outside the key: both rows use one expensive kinship build.
@@ -128,6 +129,7 @@ nextflow_pipeline {
                         { assert commands.size() == 1 },
                         { assert commands.first().contains('--ignore-weights YES') },
                         { assert !commands.first().contains('--weights ') },
+                        { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                     )
                 }
             }

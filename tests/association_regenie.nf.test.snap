@@ -1,0 +1,28 @@
+{
+    "versions": {
+        "content": [
+            {
+                "GWASLAB_HARMONIZE": {
+                    "gwaslab": "4.1.9"
+                },
+                "NORMALISE_PHENOTYPES": {
+                    "python": "3.14.5"
+                },
+                "REGENIE_STEP1": {
+                    "regenie": "4.1.2"
+                },
+                "REGENIE_STEP2": {
+                    "regenie": "4.1.2"
+                },
+                "Workflow": {
+                    "nf-core/gwas": "v1.0.0dev"
+                }
+            }
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T01:48:19.295392273"
+    }
+}
