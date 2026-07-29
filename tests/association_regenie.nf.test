@@ -9,7 +9,7 @@ nextflow_pipeline {
 
     // Keep one quantitative PGEN analysis and route it only through REGENIE. The dedicated profile
     // supplies the route's resource envelope; the generated sheet keeps the test bound to the
-    // committed 31-column input contract while resolving every programme input to the real fixture
+    // committed 35-column input contract while resolving every programme input to the real fixture
     // checkout.
     def regenie_only = { rows ->
         rows.retainAll { row -> row.analysis_id == 'example_pgen_qt' }

@@ -162,8 +162,8 @@ workflow GWAS {
     // preflight; this adapter preserves absence as `[]` and carries the explicit policy into the
     // reusable composition without re-interpreting it.
     def ch_kvik_extract_policy = ch_samplesheet
-        .filter { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract -> 'ldak_kvik' in meta.association_methods }
-        .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract ->
+        .filter { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights -> 'ldak_kvik' in meta.association_methods }
+        .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract, _ldak_weights ->
             [meta.id, meta, kvik_extract ?: [], meta.ldak_kvik_step1_subset]
         }
 
