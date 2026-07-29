@@ -67,7 +67,7 @@ Issues and specs live as markdown files under `.scratch/<feature-slug>/` in this
 
 ### Triage labels
 
-The five canonical triage roles are used as-is (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+The five canonical triage roles are used as-is (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), plus one of our own, `done`, for a ticket whose work has landed. Recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
