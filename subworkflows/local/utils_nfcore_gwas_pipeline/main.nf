@@ -519,7 +519,7 @@ def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mod
         kind: kind,
         cohort: meta.cohort,
         settings: settings,
-        parts: meta.gcta_grm_parts,
+        parts: kind.startsWith('gcta_') ? meta.gcta_grm_parts : null,
         key: relatednessMatrixKey(identity, settings),
     ]
     if (kind == 'ldak_kinship') {

@@ -711,6 +711,45 @@ nextflow_function {
         }
     }
 
+    test("a mixed GCTA and LDAK row does not carry the GCTA partition count into its LDAK request") {
+
+        function "relatednessMatrixRequest"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'example_pgen_bt',
+                    cohort: 'example_pgen',
+                    genotype_format: 'plink2',
+                    association_methods: ['gcta_fastgwa'],
+                    heritability_methods: ['ldak_reml'],
+                    gcta_grm_parts: 3,
+                    ldak_model: 'human_default',
+                    ldak_power: -0.25,
+                    ldak_relatedness_filter: false,
+                ]
+                input[1] = [
+                    file('example_all.pgen'),
+                    file('example_all.psam'),
+                    file('example_all.pvar'),
+                ]
+                input[2] = 'ldak_kinship'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // The companion GCTA request test above proves the same row-level control is carried
+                // for a GCTA kind. It is not an LDAK build input, so carrying it here would make two
+                // otherwise reusable LDAK requests conflict during request reconciliation.
+                { assert function.result.parts == null },
+            )
+        }
+    }
+
     test("an unregistered matrix kind is refused rather than silently given no settings") {
 
         function "relatednessMatrixSettings"
