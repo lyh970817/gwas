@@ -1,0 +1,159 @@
+nextflow_pipeline {
+
+    name "Test LDAK-KVIK association route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "association"
+    tag "ldak"
+    tag "kvik"
+    profile "test_ldak"
+
+    def kvik_only = { policy ->
+        return { rows ->
+            rows.retainAll { row -> row.analysis_id == 'example_vcf_qt' }
+            rows[0].association_methods = 'ldak_kvik'
+            rows[0].heritability_methods = ''
+            rows[0].ldak_kvik_step1_subset = policy
+            rows[0].ldak_kvik_step1_extract = ''
+        }
+    }
+
+    def kvik_provided = { project_dir, output_dir ->
+        return { rows ->
+            rows.retainAll { row -> row.analysis_id == 'example_vcf_qt' }
+            rows[0].association_methods = 'ldak_kvik'
+            rows[0].heritability_methods = ''
+            rows[0].ldak_kvik_step1_subset = 'provided'
+
+            // Build a private predictor list from the fixture BIM. The shared fixture checkout is
+            // read-only and no machine-local path is committed; when tests use the upstream URL,
+            // the same code reads that URL instead.
+            def source_path = FIXTURES.base(project_dir) + 'results/fixtures/genotypes/example_all.bim'
+            def source_text = source_path.startsWith('http')
+                ? new URL(source_path).text
+                : new File(source_path).text
+            def target = new File(new File(output_dir.toString()).parentFile, 'inputs/kvik_provided/provided.in')
+            target.parentFile.mkdirs()
+            target.text = source_text.readLines().collect { line -> line.split(/\s+/)[1] }.join('\n') + '\n'
+            rows[0].ldak_kvik_step1_extract = target.absolutePath
+        }
+    }
+
+    def kvik_binary = { rows ->
+        rows.retainAll { row -> row.analysis_id == 'example_pgen_bt' }
+        rows[0].association_methods = 'ldak_kvik'
+        rows[0].heritability_methods = ''
+        rows[0].population_prevalence = ''
+        rows[0].sample_prevalence = ''
+        rows[0].ldak_model = ''
+        rows[0].ldak_power = ''
+        rows[0].ldak_relatedness_filter = ''
+        rows[0].ldak_kvik_step1_subset = 'all'
+        rows[0].ldak_kvik_step1_extract = ''
+    }
+
+    def commands = { output_dir ->
+        def scripts = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name == '.command.sh') {
+                scripts << entry.text
+            }
+        }
+        return scripts
+    }
+
+    test("the all-predictors policy runs KVIK and harmonises its native result") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_all", kvik_only('all'))
+            }
+        }
+
+        then {
+            def kvik_commands = commands(outputDir).findAll { command -> command.contains('--kvik-step') }
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 0 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
+                { assert new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz").exists() },
+                { assert kvik_commands.size() == 2 },
+                { assert kvik_commands.every { command -> command.contains('--mpheno 1') } },
+                { assert !kvik_commands.find { command -> command.contains('--kvik-step1') }.contains('--extract') },
+            )
+        }
+    }
+
+    test("the thin-common policy supplies LDAK's generated predictor list to Step 1") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_thin_common", kvik_only('thin_common'))
+            }
+        }
+
+        then {
+            def step1 = commands(outputDir).find { command -> command.contains('--kvik-step1') }
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert step1.contains('--extract example_vcf_qt.ldak_kvik.step1.in') },
+                { assert new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz").exists() },
+            )
+        }
+    }
+
+    test("the provided policy stages the row's predictor list without running thinning") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_provided", kvik_provided(projectDir, outputDir))
+            }
+        }
+
+        then {
+            def step1 = commands(outputDir).find { command -> command.contains('--kvik-step1') }
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 0 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert step1.contains('--extract provided.in') },
+                { assert new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz").exists() },
+            )
+        }
+    }
+
+    test("binary mode reaches KVIK Step 1 and the binary GWASLab mapping") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_binary", kvik_binary)
+            }
+        }
+
+        then {
+            def step1 = commands(outputDir).find { command -> command.contains('--kvik-step1') }
+            def step2 = commands(outputDir).find { command -> command.contains('--kvik-step2') }
+            assert workflow.success
+            assertAll(
+                { assert step1.contains('--binary YES') },
+                { assert !step2.contains('--binary') },
+                { assert new File("${params.outdir}/association/ldak_kvik/example_pgen_bt/example_pgen_bt.ldak_kvik.step2.assoc").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_pgen_bt/example_pgen_bt.ldak_kvik.gwaslab.tsv.gz").exists() },
+            )
+        }
+    }
+}

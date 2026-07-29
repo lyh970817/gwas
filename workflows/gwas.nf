@@ -13,6 +13,7 @@ include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GRM_HERITABILITY_GCTA        } from '../subworkflows/local/grm_heritability_gcta'
+include { PLINK_ASSOCIATION_LDAK_KVIK  } from '../subworkflows/local/plink_association_ldak_kvik'
 include { PLINK_GWAS_REGENIE           } from '../subworkflows/local/plink_gwas_regenie'
 include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES } from '../subworkflows/local/prepare_relatedness_matrices'
@@ -143,6 +144,54 @@ workflow GWAS {
     )
 
     //
+    // SUBWORKFLOW: LDAK-KVIK Step 1 fitting and Step 2 association
+    //
+    // LDAK consumes the headerless phenotype serialisation and keeps quantitative and categorical
+    // covariates separate. Fold both optional covariate streams onto the total phenotype stream so
+    // that an absent file is represented by `[]` and stages nothing.
+    def ch_kvik_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
+        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
+        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
+        .filter { meta, _phenotype, _quant_covariates, _cat_covariates -> 'ldak_kvik' in meta.association_methods }
+        .map { meta, phenotype, quant_covariates, cat_covariates ->
+            [meta.id, meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
+        }
+
+    // The extract path is a row input rather than prepared programme output. Its conditional
+    // relationship to the required all/thin_common/provided policy was already validated at
+    // preflight; this adapter preserves absence as `[]` and carries the explicit policy into the
+    // reusable composition without re-interpreting it.
+    def ch_kvik_extract_policy = ch_samplesheet
+        .filter { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract -> 'ldak_kvik' in meta.association_methods }
+        .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract ->
+            [meta.id, meta, kvik_extract ?: [], meta.ldak_kvik_step1_subset]
+        }
+
+    def ch_kvik_input = PREPARE_COHORT_GENOTYPES.out.plink1_genotypes
+        .filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in meta.association_methods }
+        .map { meta, bed, bim, fam -> [meta.id, meta, bed, bim, fam] }
+        .join(ch_kvik_phenotypes, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .join(ch_kvik_extract_policy, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .multiMap { _analysis_id, meta, bed, bim, fam, _phenotype_meta, phenotype, quant_covariates, cat_covariates, _extract_meta, kvik_extract, subset_policy ->
+            genotypes: [meta, bed, bim, fam]
+            phenotype: [meta, phenotype, meta.is_binary]
+            qcovariates: [meta, quant_covariates]
+            covariates: [meta, cat_covariates]
+            extract_policy: [meta, kvik_extract, subset_policy]
+            keep: [meta, []]
+        }
+
+    PLINK_ASSOCIATION_LDAK_KVIK(
+        ch_kvik_input.genotypes,
+        ch_kvik_input.genotypes,
+        ch_kvik_input.phenotype,
+        ch_kvik_input.qcovariates,
+        ch_kvik_input.covariates,
+        ch_kvik_input.extract_policy,
+        ch_kvik_input.keep,
+    )
+
+    //
     // MODULE: GWASLab harmonisation of every association result
     //
     // One record per analysis per association method actually exercised. Each route contributes an
@@ -166,6 +215,9 @@ workflow GWAS {
     )
     ch_association_results = ch_association_results.mix(
         PLINK_GWAS_REGENIE.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
+    )
+    ch_association_results = ch_association_results.mix(
+        PLINK_ASSOCIATION_LDAK_KVIK.out.results.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
     )
 
     // The optional reference resources are resolved once for the run rather than per record: they are
