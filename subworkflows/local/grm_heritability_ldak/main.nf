@@ -18,14 +18,14 @@ workflow GRM_HERITABILITY_LDAK {
     ch_estimator // channel: [ val(meta6), val(estimator) ], route selector once per analysis
 
     main:
-    ch_estimators = ch_estimator.map { meta, estimator ->
+    def ch_estimators = ch_estimator.map { meta, estimator ->
         if (!['reml', 'he', 'pcgc'].contains(estimator)) {
             error("[nf-core/gwas] ERROR: GRM_HERITABILITY_LDAK estimator must be 'reml', 'he' or 'pcgc', got '${estimator}'")
         }
         tuple(meta.id, estimator)
     }
 
-    ch_analyses = ch_grm
+    def ch_analyses = ch_grm
         .map { meta, grm_files -> tuple(meta.id, tuple(meta, grm_files)) }
         .join(
             ch_pheno.map { meta2, phenotype_file, prevalence -> tuple(meta2.id, tuple(meta2, phenotype_file, prevalence)) },
@@ -65,12 +65,12 @@ workflow GRM_HERITABILITY_LDAK {
     // jointly and therefore needs no adjusted matrix. The keep list travels with the adjustment as
     // well, because LDAK requires the kinship to be regressed on the covariates over exactly the
     // samples the estimator will use rather than over the full cohort.
-    ch_adjust_routes = ch_analyses.branch { _analysis_id, _grm, _pheno, qcovar, covar, _keep, estimator ->
+    def ch_adjust_routes = ch_analyses.branch { _analysis_id, _grm, _pheno, qcovar, covar, _keep, estimator ->
         adjusted: estimator != 'reml' && (qcovar[1] || covar[1])
         direct: true
     }
 
-    ch_adjustgrm_state = ch_adjust_routes.adjusted.multiMap { analysis_id, grm, pheno, qcovar, covar, keep, _estimator ->
+    def ch_adjustgrm_state = ch_adjust_routes.adjusted.multiMap { analysis_id, grm, pheno, qcovar, covar, keep, _estimator ->
         grm: tuple([id: "${analysis_id}.adjusted"], grm[1])
         pheno: tuple([id: "${analysis_id}.adjusted"], pheno[1])
         keep: keep
@@ -86,7 +86,7 @@ workflow GRM_HERITABILITY_LDAK {
         ch_adjustgrm_state.covar,
     )
 
-    ch_adjusted_grm = LDAK_ADJUSTGRM.out.adjusted_grm
+    def ch_adjusted_grm = LDAK_ADJUSTGRM.out.adjusted_grm
         .map { execution_meta, grm_bin, grm_id, grm_details, grm_adjust, grm_root ->
             tuple(execution_meta.id, [grm_bin, grm_id, grm_details, grm_adjust, grm_root])
         }
@@ -98,7 +98,7 @@ workflow GRM_HERITABILITY_LDAK {
         )
         .map { _execution_id, grm_files, focal_meta -> tuple(focal_meta, grm_files) }
 
-    ch_adjustgrm_logs = LDAK_ADJUSTGRM.out.log
+    def ch_adjustgrm_logs = LDAK_ADJUSTGRM.out.log
         .map { execution_meta, log_file -> tuple(execution_meta.id, log_file) }
         .join(
             ch_adjustgrm_state.focal_meta,
@@ -108,11 +108,11 @@ workflow GRM_HERITABILITY_LDAK {
         )
         .map { _execution_id, log_file, focal_meta -> tuple(focal_meta, log_file) }
 
-    ch_estimator_grm = ch_adjust_routes.direct
+    def ch_estimator_grm = ch_adjust_routes.direct
         .map { analysis_id, grm, _pheno, _qcovar, _covar, _keep, _estimator -> tuple(analysis_id, grm[1]) }
         .mix(ch_adjusted_grm.map { focal_meta, grm_files -> tuple(focal_meta.id, grm_files) })
 
-    ch_invocations = ch_analyses
+    def ch_invocations = ch_analyses
         .join(
             ch_estimator_grm,
             by: 0,
@@ -128,7 +128,7 @@ workflow GRM_HERITABILITY_LDAK {
             return tuple(tuple(grm[0], pheno[1], pheno[2]), tuple(grm[0], estimator_grm_files), keep, qcovar, covar)
         }
 
-    ch_reml_invocations = ch_invocations.reml.multiMap { pheno, grm, keep, qcovar, covar ->
+    def ch_reml_invocations = ch_invocations.reml.multiMap { pheno, grm, keep, qcovar, covar ->
         pheno: pheno
         grm: grm
         keep: keep
@@ -143,7 +143,7 @@ workflow GRM_HERITABILITY_LDAK {
         ch_reml_invocations.covar,
     )
 
-    ch_he_invocations = ch_invocations.he.multiMap { pheno, grm, keep, qcovar, covar ->
+    def ch_he_invocations = ch_invocations.he.multiMap { pheno, grm, keep, qcovar, covar ->
         pheno: pheno
         grm: grm
         keep: keep
@@ -158,7 +158,7 @@ workflow GRM_HERITABILITY_LDAK {
         ch_he_invocations.covar,
     )
 
-    ch_pcgc_invocations = ch_invocations.pcgc.multiMap { pheno, grm, keep, qcovar, covar ->
+    def ch_pcgc_invocations = ch_invocations.pcgc.multiMap { pheno, grm, keep, qcovar, covar ->
         pheno: pheno
         grm: grm
         keep: keep
@@ -173,11 +173,26 @@ workflow GRM_HERITABILITY_LDAK {
         ch_pcgc_invocations.covar,
     )
 
-    ch_coeff = LDAK_REML.out.coeff.mix(LDAK_HE.out.coeff, LDAK_PCGC.out.coeff)
-    ch_cross = LDAK_REML.out.cross.mix(LDAK_HE.out.cross, LDAK_PCGC.out.cross)
-    ch_share = LDAK_REML.out.share.mix(LDAK_HE.out.share, LDAK_PCGC.out.share)
-    ch_progress = LDAK_REML.out.progress.mix(LDAK_HE.out.progress, LDAK_PCGC.out.progress)
-    ch_logs = LDAK_REML.out.log.mix(LDAK_HE.out.log, LDAK_PCGC.out.log, ch_adjustgrm_logs)
+    def ch_coeff = LDAK_REML.out.coeff
+    ch_coeff = ch_coeff.mix(LDAK_HE.out.coeff)
+    ch_coeff = ch_coeff.mix(LDAK_PCGC.out.coeff)
+
+    def ch_cross = LDAK_REML.out.cross
+    ch_cross = ch_cross.mix(LDAK_HE.out.cross)
+    ch_cross = ch_cross.mix(LDAK_PCGC.out.cross)
+
+    def ch_share = LDAK_REML.out.share
+    ch_share = ch_share.mix(LDAK_HE.out.share)
+    ch_share = ch_share.mix(LDAK_PCGC.out.share)
+
+    def ch_progress = LDAK_REML.out.progress
+    ch_progress = ch_progress.mix(LDAK_HE.out.progress)
+    ch_progress = ch_progress.mix(LDAK_PCGC.out.progress)
+
+    def ch_logs = LDAK_REML.out.log
+    ch_logs = ch_logs.mix(LDAK_HE.out.log)
+    ch_logs = ch_logs.mix(LDAK_PCGC.out.log)
+    ch_logs = ch_logs.mix(ch_adjustgrm_logs)
 
     emit:
     reml_results   = LDAK_REML.out.reml_results // channel: [ val(meta), path(reml) ], REML-route records only

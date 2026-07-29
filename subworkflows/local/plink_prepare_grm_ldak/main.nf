@@ -14,7 +14,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
     ch_filter_relatedness // channel: [ val(meta3), val(filter_relatedness) ], route selector once per analysis
 
     main:
-    ch_calckins_inputs = ch_genotypes
+    def ch_calckins_inputs = ch_genotypes
         .map { meta, bed, bim, fam, power -> tuple(meta.id, tuple(meta, bed, bim, fam, power)) }
         .join(
             ch_weights.map { meta2, weights_file -> tuple(meta2.id, tuple(meta2, weights_file)) },
@@ -36,10 +36,10 @@ workflow PLINK_PREPARE_GRM_LDAK {
 
     LDAK_CALCKINS(ch_calckins_inputs.genotypes, ch_calckins_inputs.weights)
 
-    ch_unfiltered_grm = LDAK_CALCKINS.out.ldak_grm.map { meta, grm_bin, grm_id, grm_details, grm_adjust ->
+    def ch_unfiltered_grm = LDAK_CALCKINS.out.ldak_grm.map { meta, grm_bin, grm_id, grm_details, grm_adjust ->
         tuple(meta, [grm_bin, grm_id, grm_details, grm_adjust])
     }
-    ch_grm_routes = ch_unfiltered_grm
+    def ch_grm_routes = ch_unfiltered_grm
         .map { meta, grm_files -> tuple(meta.id, tuple(meta, grm_files)) }
         .join(
             ch_calckins_inputs.routing,
@@ -56,7 +56,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
 
     LDAK_FILTER(ch_grm_routes.filtered)
 
-    ch_subgrm_state = ch_grm_routes.filtered
+    def ch_subgrm_state = ch_grm_routes.filtered
         .map { meta, grm_files -> tuple(meta.id, tuple(meta, grm_files)) }
         .join(
             LDAK_FILTER.out.filtered_list.map { meta, keep, _lose -> tuple(meta.id, keep) },
@@ -70,7 +70,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
         }
     LDAK_SUBGRM(ch_subgrm_state.subgrm)
 
-    ch_filtered_analysis_grm = LDAK_SUBGRM.out.sub_grm
+    def ch_filtered_analysis_grm = LDAK_SUBGRM.out.sub_grm
         .map { execution_meta, grm_bin, grm_id, grm_details, grm_adjust ->
             tuple(execution_meta.id, [grm_bin, grm_id, grm_details, grm_adjust])
         }
@@ -81,7 +81,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
             failOnMismatch: true,
         )
         .map { _execution_id, grm_files, focal_meta -> tuple(focal_meta, grm_files) }
-    ch_analysis_grm = ch_grm_routes.direct.mix(ch_filtered_analysis_grm)
+    def ch_analysis_grm = ch_grm_routes.direct.mix(ch_filtered_analysis_grm)
 
     emit:
     analysis_grm   = ch_analysis_grm // channel: [ val(meta), path(grm_files) ], selected collected GRM bundle

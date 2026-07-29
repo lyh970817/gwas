@@ -13,6 +13,9 @@ nextflow_pipeline {
             .tokenize()[1]
     }
 
+    // This scenario exercises the per-row phenotype and prevalence input contract. Its generated
+    // `params.input` sheet therefore uses the documented input-contract exception instead of a static
+    // profile that could not express both quantitative and binary liability-scale rows.
     test("rows selecting LDAK REML publish native observed and liability-scale results") {
 
         when {
@@ -42,8 +45,8 @@ nextflow_pipeline {
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             def stable_name = getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true).findAll { path -> path.toString() }
             def stable_path = getAllFilesFromDir("${params.outdir}/heritability", ignoreFile: 'tests/.nftignore')
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert heritability.list().toList() == ['individual'] },
                 { assert new File(heritability, 'individual').list().toList() == ['ldak_reml'] },
                 { assert individual.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
@@ -58,6 +61,56 @@ nextflow_pipeline {
                 { assert versions.text.contains('LDAK_REML') },
                 { assert snapshot(stable_name, stable_path).match('heritability') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+
+    test("LDAK REML direct, filtered and liability routes compose under global stubbing") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.build(projectDir, outputDir, "ldak_reml_stub", { rows ->
+                    def quantitative = rows[0]
+                    def binary = rows[1]
+                    rows.clear()
+                    [quantitative, binary].each { row ->
+                        row.association_methods = ''
+                        row.heritability_methods = 'ldak_reml'
+                        row.gcta_grm_parts = ''
+                        row.gcta_ldms_maf_edges = ''
+                        row.ldak_model = 'custom'
+                        row.ldak_power = '-0.5'
+                    }
+                    quantitative.ldak_relatedness_filter = 'false'
+                    binary.ldak_relatedness_filter = 'true'
+                    rows << quantitative
+                    rows << binary
+                })
+            }
+        }
+
+        then {
+            def individual = new File("${params.outdir}/heritability/individual/ldak_reml")
+            def quantitative = new File(individual, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml')
+            def binary = new File(individual, 'example_pgen_bt/example_pgen_bt.ldak_reml.reml')
+            def liability = new File(individual, 'example_pgen_bt/example_pgen_bt.ldak_reml.reml.liab')
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 2 },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                { assert TRACE.count(workflow, 'MULTIQC') == 1 },
+                { assert individual.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                { assert quantitative.isFile() && quantitative.length() == 0 },
+                { assert binary.isFile() && binary.length() == 0 },
+                { assert liability.isFile() && liability.length() == 0 },
+                { assert !new File(individual, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml.liab').exists() },
             )
         }
     }

@@ -45,6 +45,9 @@ nextflow_pipeline {
         return commands
     }
 
+    // These scenarios exercise scientific input contracts declared per samplesheet row: matrix identity,
+    // filtering, and weight-file semantics. Their generated `params.input` sheets therefore use the
+    // documented input-contract exception instead of minting one static profile per row combination.
     test("filtered and unfiltered analyses share one LDAK kinship build") {
 
         when {
@@ -67,8 +70,8 @@ nextflow_pipeline {
             def unrestricted = new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml')
             def restricted = new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml')
             def commands = calckinsCommands(params.outdir)
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 // The relatedness filter is outside the key: both rows use one expensive kinship build.
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                 // Since one row requested an unrelated subset, the one base matrix is filtered and
@@ -93,7 +96,7 @@ nextflow_pipeline {
         }
     }
 
-    test("changing LDAK model or power forks the matrix key") {
+    test("changing either LDAK model or power forks the matrix key") {
 
         when {
             params {
@@ -101,24 +104,26 @@ nextflow_pipeline {
                 input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_distinct_matrices", { rows ->
                     def binary = rows[1]
                     def human = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_human', 'human_default', '-0.25', 'false')
-                    def custom = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom', 'custom', '-0.5', 'false')
+                    def custom_model = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_model', 'custom', '-0.25', 'false')
+                    def custom_power = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_power', 'custom', '-0.5', 'false')
                     rows.clear()
                     rows << human
-                    rows << custom
+                    rows << custom_model
+                    rows << custom_power
                 })
             }
         }
 
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            assert workflow.success
             assertAll(
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 3 },
                 { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
                 // Independently derived from the documented canonical strings with `sha256sum`.
-                { assert matrices.list().toList().sort() == ['5f8579a3a568', 'f299aab0058a'] },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                { assert matrices.list().toList().sort() == ['5f8579a3a568', 'a677a0c52d65', 'f299aab0058a'] },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 3 },
             )
         }
     }
@@ -145,8 +150,8 @@ nextflow_pipeline {
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
             def commands = calckinsCommands(params.outdir)
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                 // Independently derived from the generated weight bytes and canonical settings string.
@@ -180,8 +185,8 @@ nextflow_pipeline {
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
             def commands = calckinsCommands(params.outdir)
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                 // Same basename, different content digests, therefore two independently derived keys.
@@ -189,6 +194,44 @@ nextflow_pipeline {
                 { assert commands.size() == 2 },
                 { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
                 { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
+            )
+        }
+    }
+
+    test("filtered and unfiltered LDAK matrix routes compose under global stubbing") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.build(projectDir, outputDir, "ldak_shared_matrix_stub", { rows ->
+                    def binary = rows[1]
+                    def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
+                    def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
+                    rows.clear()
+                    rows << unrestricted
+                    rows << restricted
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 2 },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                { assert TRACE.count(workflow, 'MULTIQC') == 1 },
+                { assert matrices.list().toList() == ['5f8579a3a568'] },
+                { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
+                { assert new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml').isFile() },
+                { assert new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml').isFile() },
             )
         }
     }
