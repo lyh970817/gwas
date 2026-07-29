@@ -26,6 +26,25 @@ nextflow_pipeline {
         return row
     }
 
+    def privateWeights = { project, output, name, pvar, weight ->
+        SAMPLESHEET.rewrite(project, output, name, pvar, { lines ->
+            lines
+                .findAll { line -> line && !line.startsWith('#') }
+                .collect { line -> "${line.tokenize()[2]} ${weight}" }
+        })
+    }
+
+    def calckinsCommands = { output ->
+        def commands = []
+        def work = new File(new File(output.toString()).parentFile, 'work')
+        work.eachFileRecurse { candidate ->
+            if (candidate.name == '.command.sh' && candidate.text.contains('--calc-kins-direct')) {
+                commands << candidate.text.replaceAll(/\s+/, ' ')
+            }
+        }
+        return commands
+    }
+
     test("filtered and unfiltered analyses share one LDAK kinship build") {
 
         when {
@@ -47,6 +66,7 @@ nextflow_pipeline {
             def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
             def unrestricted = new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml')
             def restricted = new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml')
+            def commands = calckinsCommands(params.outdir)
             assert workflow.success
             assertAll(
                 // The relatedness filter is outside the key: both rows use one expensive kinship build.
@@ -56,16 +76,19 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                { assert matrices.list().toList() == ['3904e834c758'] },
-                { assert new File(matrices, '3904e834c758').list().toList().sort() == [
-                    'example_pgen.ldak_kinship.3904e834c758.grm.adjust',
-                    'example_pgen.ldak_kinship.3904e834c758.grm.bin',
-                    'example_pgen.ldak_kinship.3904e834c758.grm.details',
-                    'example_pgen.ldak_kinship.3904e834c758.grm.id',
+                { assert matrices.list().toList() == ['5f8579a3a568'] },
+                { assert new File(matrices, '5f8579a3a568').list().toList().sort() == [
+                    'example_pgen.ldak_kinship.5f8579a3a568.grm.adjust',
+                    'example_pgen.ldak_kinship.5f8579a3a568.grm.bin',
+                    'example_pgen.ldak_kinship.5f8579a3a568.grm.details',
+                    'example_pgen.ldak_kinship.5f8579a3a568.grm.id',
                 ] },
                 { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
                 { assert value(unrestricted, 'Total_Samples') == '500' },
                 { assert value(restricted, 'Total_Samples') == '222' },
+                { assert commands.size() == 1 },
+                { assert commands.first().contains('--ignore-weights YES') },
+                { assert !commands.first().contains('--weights ') },
             )
         }
     }
@@ -94,8 +117,78 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
                 // Independently derived from the documented canonical strings with `sha256sum`.
-                { assert matrices.list().toList().sort() == ['3904e834c758', '5de577b7405c'] },
+                { assert matrices.list().toList().sort() == ['5f8579a3a568', 'f299aab0058a'] },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+            )
+        }
+    }
+
+    test("identical weight bytes at different paths share one matrix") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_same_weight_content", { rows ->
+                    def binary = rows[1]
+                    def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
+                    def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
+                    first.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_first', binary.pvar, '1')
+                    second.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_second', binary.pvar, '1')
+                    assert first.ldak_weights != second.ldak_weights
+                    rows.clear()
+                    rows << first
+                    rows << second
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def commands = calckinsCommands(params.outdir)
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                // Independently derived from the generated weight bytes and canonical settings string.
+                { assert matrices.list().toList() == ['2be27b8074df'] },
+                { assert commands.size() == 1 },
+                { assert commands.first().contains('--weights example_all.pvar') },
+                { assert !commands.first().contains('--ignore-weights YES') },
+            )
+        }
+    }
+
+    test("different weight bytes with the same basename fork matrices") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_different_weight_content", { rows ->
+                    def binary = rows[1]
+                    def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
+                    def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
+                    first.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_first', binary.pvar, '1')
+                    second.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_second', binary.pvar, '2')
+                    assert new File(first.ldak_weights).name == new File(second.ldak_weights).name
+                    rows.clear()
+                    rows << first
+                    rows << second
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def commands = calckinsCommands(params.outdir)
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                // Same basename, different content digests, therefore two independently derived keys.
+                { assert matrices.list().toList().sort() == ['2be27b8074df', 'd75cd202b48d'] },
+                { assert commands.size() == 2 },
+                { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
+                { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
             )
         }
     }

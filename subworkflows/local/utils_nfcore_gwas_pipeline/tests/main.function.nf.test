@@ -528,7 +528,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == [model: 'human_default', power: -0.25, weights: 'equal'] },
+                { assert function.result == [model: 'human_default', power: -0.25, weights: [mode: 'equal']] },
                 { assert !function.result.containsKey('relatedness_filter') },
             )
         }
@@ -551,6 +551,45 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result == [cutoff: 0.025] },
+            )
+        }
+    }
+
+    test("LDAK supplied-weight settings use only the file content identity") {
+
+        function "relatednessMatrixSettings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'example_pgen_bt',
+                    ldak_model: 'custom',
+                    ldak_power: -0.5,
+                    ldak_weights_mode: 'provided',
+                ]
+                input[1] = 'ldak_kinship'
+                input[2] = [
+                    mode: 'file',
+                    sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [
+                    model: 'custom',
+                    power: -0.5,
+                    weights: [
+                        mode: 'file',
+                        sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                    ],
+                ] },
+                { assert !function.result.toString().contains('weights.txt') },
+                { assert !function.result.toString().contains('/') },
             )
         }
     }
@@ -584,9 +623,9 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                // Independently derived from the documented canonical string with `sha256sum`.
-                { assert function.result.key == '5de577b7405c' },
-                { assert function.result.settings == [model: 'human_default', power: '-.2500', weights: 'equal'] },
+                // Independently derived from the canonical identity/settings string with `sha256sum`.
+                { assert function.result.key == 'f299aab0058a' },
+                { assert function.result.settings == [model: 'human_default', power: '-.2500', weights: [mode: 'equal']] },
                 { assert function.result.filter_relatedness },
             )
         }

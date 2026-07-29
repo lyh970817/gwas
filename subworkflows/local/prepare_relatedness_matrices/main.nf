@@ -21,12 +21,13 @@ include { GCTA_MAKEBKSPARSE } from '../../../modules/local/gcta/makebksparse/mai
 
 // FUNCTION: Local to the pipeline
 include { canonicaliseDeclaredValue } from '../utils_nfcore_gwas_pipeline'
+include { ldakWeightsIdentity       } from '../utils_nfcore_gwas_pipeline'
 include { relatednessMatrixKinds    } from '../utils_nfcore_gwas_pipeline'
 include { relatednessMatrixRequest  } from '../utils_nfcore_gwas_pipeline'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:
-    ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ] ]
+    ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ], path(ldak_weights) ], [] when absent
     ch_cohort_genotypes // channel: [ val(cohort_meta), path(pgen), path(psam), path(pvar) ]
     ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], analyses needing PLINK 1
 
@@ -37,10 +38,12 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // three estimators that share a matrix contributes three requests carrying one key; an analysis
     // selecting none contributes nothing.
     //
-    def ch_requests = ch_analyses.flatMap { meta, genotype_files ->
+    def ch_requests = ch_analyses.flatMap { meta, genotype_files, ldak_weights ->
         relatednessMatrixKinds(meta).collect { kind ->
-            def request = relatednessMatrixRequest(meta, genotype_files, kind)
-            [request.key, meta, request]
+            def weights_identity = kind == 'ldak_kinship' ? ldakWeightsIdentity(ldak_weights) : [mode: 'equal']
+            def request = relatednessMatrixRequest(meta, genotype_files, kind, weights_identity)
+            def weights_file = kind == 'ldak_kinship' ? ldak_weights ?: [] : []
+            [request.key, meta, request, weights_file]
         }
     }
 
@@ -56,7 +59,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // from anywhere else must not read as a disagreement.
     //
     def ch_reconciled_parts = ch_requests
-        .map { key, meta, request -> [key, [analysis: meta.id, parts: request.parts]] }
+        .map { key, meta, request, _weights_file -> [key, [analysis: meta.id, parts: request.parts]] }
         .groupTuple()
         .map { key, declarations ->
             def distinct = declarations.collect { declaration -> canonicaliseDeclaredValue(declaration.parts) }.unique()
@@ -75,10 +78,10 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // structurally incapable of fragmenting the matrix.
     //
     def ch_matrices = ch_requests
-        .map { key, _meta, request -> [key, request] }
-        .unique { key, _request -> key }
+        .map { key, _meta, request, weights_file -> [key, request, weights_file] }
+        .unique { key, _request, _weights_file -> key }
         .join(ch_reconciled_parts, failOnDuplicate: true, failOnMismatch: true)
-        .map { key, request, parts ->
+        .map { key, request, weights_file, parts ->
             def matrix_meta = [
                 id: "${request.cohort}.${request.kind}.${key}",
                 cohort: request.cohort,
@@ -86,7 +89,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
                 key: key,
                 settings: request.settings,
             ]
-            [key, matrix_meta, request, parts]
+            [key, matrix_meta, request, weights_file, parts]
         }
 
     //
@@ -96,10 +99,10 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // Exactly one bundle exists per cohort key, so the product is exactly one element per matrix.
     //
     def ch_matrix_genotypes = ch_matrices
-        .filter { _key, matrix_meta, _request, _parts ->
+        .filter { _key, matrix_meta, _request, _weights_file, _parts ->
             matrix_meta.kind in ['gcta_dense', 'gcta_sparse', 'gcta_ldms']
         }
-        .map { _key, matrix_meta, _request, parts -> [matrix_meta.cohort, matrix_meta, parts] }
+        .map { _key, matrix_meta, _request, _weights_file, parts -> [matrix_meta.cohort, matrix_meta, parts] }
         .combine(
             ch_cohort_genotypes.map { cohort_meta, pgen, psam, pvar -> [cohort_meta.id, pgen, psam, pvar] },
             by: 0
@@ -210,8 +213,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // rows that disagree on filtering still share this one LDAK_CALCKINS invocation.
     //
     def ch_ldak_filter_by_key = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' }
-        .map { key, _meta, request -> [key, request.filter_relatedness] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'ldak_kinship' }
+        .map { key, _meta, request, _weights_file -> [key, request.filter_relatedness] }
         .groupTuple()
         .map { key, filters -> [key, filters.any { filter_relatedness -> filter_relatedness }] }
 
@@ -219,14 +222,14 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // with focal analysis metadata. Collapse those identical fan-out records back to one cohort bundle before
     // combining them with the possibly-many matrix keys of that cohort.
     def ch_ldak_inputs = ch_matrices
-        .filter { _key, matrix_meta, _request, _parts -> matrix_meta.kind == 'ldak_kinship' }
-        .map { key, matrix_meta, request, _parts -> [matrix_meta.cohort, key, matrix_meta, request] }
+        .filter { _key, matrix_meta, _request, _weights_file, _parts -> matrix_meta.kind == 'ldak_kinship' }
+        .map { key, matrix_meta, request, weights_file, _parts -> [matrix_meta.cohort, key, matrix_meta, request, weights_file] }
         .combine(ch_plink1_cohorts, by: 0)
-        .map { _cohort, key, matrix_meta, request, bed, bim, fam -> [key, matrix_meta, request, bed, bim, fam] }
+        .map { _cohort, key, matrix_meta, request, weights_file, bed, bim, fam -> [key, matrix_meta, request, weights_file, bed, bim, fam] }
         .join(ch_ldak_filter_by_key, failOnDuplicate: true, failOnMismatch: true)
-        .multiMap { _key, matrix_meta, request, bed, bim, fam, filter_relatedness ->
+        .multiMap { _key, matrix_meta, request, weights_file, bed, bim, fam, filter_relatedness ->
             genotypes: [matrix_meta, bed, bim, fam, request.settings.power]
-            weights: [matrix_meta, []]
+            weights: [matrix_meta, weights_file]
             filter_relatedness: [matrix_meta, filter_relatedness]
         }
 
@@ -242,8 +245,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // carrying the focal analysis meta rather than the matrix meta.
     //
     def ch_gcta_dense = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'gcta_dense' }
-        .map { key, meta, _request -> [key, meta] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'gcta_dense' }
+        .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
             GCTA_PREPARE_GRM_DENSE.out.grm_files.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
             by: 0
@@ -251,8 +254,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .map { _key, meta, grm_files -> [meta, grm_files] }
 
     def ch_gcta_sparse = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'gcta_sparse' }
-        .map { key, meta, _request -> [key, meta] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'gcta_sparse' }
+        .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
             GCTA_MAKEBKSPARSE.out.sparse_grm_files.map { matrix_meta, sparse_grm_files -> [matrix_meta.key, sparse_grm_files] },
             by: 0
@@ -260,8 +263,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .map { _key, meta, sparse_grm_files -> [meta, sparse_grm_files] }
 
     def ch_gcta_ldms = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'gcta_ldms' }
-        .map { key, meta, _request -> [key, meta] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'gcta_ldms' }
+        .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
             GCTA_PREPARE_GRM_LDMS.out.mgrm_bundle.map { matrix_meta, mgrm, grm_files -> [matrix_meta.key, mgrm, grm_files] },
             by: 0
@@ -272,8 +275,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // matrix and carry its keep list onward to the estimator, without changing the base matrix key shared by
     // either route.
     def ch_ldak_unfiltered = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' && !request.filter_relatedness }
-        .map { key, meta, _request -> [key, meta] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'ldak_kinship' && !request.filter_relatedness }
+        .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
             PLINK_PREPARE_GRM_LDAK.out.unfiltered_grm.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
             by: 0
@@ -281,8 +284,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .map { _key, meta, grm_files -> [meta, grm_files, []] }
 
     def ch_ldak_filtered = ch_requests
-        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' && request.filter_relatedness }
-        .map { key, meta, _request -> [key, meta] }
+        .filter { _key, _meta, request, _weights_file -> request.kind == 'ldak_kinship' && request.filter_relatedness }
+        .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
             PLINK_PREPARE_GRM_LDAK.out.analysis_grm.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
             by: 0

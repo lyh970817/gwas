@@ -16,13 +16,14 @@ components:
   - plink_prepare_grm_ldak
   - gcta/makebksparse
   - canonicalisedeclaredvalue
+  - ldakweightsidentity
   - relatednessmatrixkinds
   - relatednessmatrixrequest
 input:
   - ch_analyses:
-      description: One analysis unit per element, carrying its cohort identity, its selected heritability methods and the genotype files of the single populated encoding. The declared file names are key components, so this is the same channel PREPARE_COHORT_GENOTYPES takes rather than a reshaping of its output.
-      structure: "[map meta, list genotype_files]"
-      pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz}"
+      description: One analysis unit per element, carrying its cohort identity, selected heritability methods, genotype files and the optional LDAK weights Path. The Path is carried outside metadata and matrix identity; only its content digest enters the reuse key.
+      structure: "[map meta, list genotype_files, path ldak_weights|[]]"
+      pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,weights}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - ch_cohort_genotypes:

@@ -49,11 +49,16 @@ workflow GWAS {
     def ch_versions = channel.empty()
     def ch_multiqc_files = channel.empty()
 
-    // One element per analysis unit carrying the genotype files it declared. Built once and passed to both
-    // consumers: cohort preparation collapses it to the distinct cohorts, and the matrix subworkflow needs
-    // the declared file names for the reuse key.
+    // One element per analysis unit carrying the genotype files it declared. Cohort preparation collapses
+    // this to the distinct cohorts.
     def ch_analysis_genotypes = ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
         [meta, genotype_files]
+    }
+
+    // Matrix preparation additionally receives the optional LDAK weights Path. It derives identity from the
+    // bytes before request deduplication and keeps the Path outside matrix metadata and the published key.
+    def ch_relatedness_analyses = ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, ldak_weights ->
+        [meta, genotype_files, ldak_weights ?: []]
     }
 
     //
@@ -65,7 +70,7 @@ workflow GWAS {
     // SUBWORKFLOW: Build each distinct relatedness matrix once and fan it out per analysis unit
     //
     PREPARE_RELATEDNESS_MATRICES(
-        ch_analysis_genotypes,
+        ch_relatedness_analyses,
         PREPARE_COHORT_GENOTYPES.out.cohort_genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
     )

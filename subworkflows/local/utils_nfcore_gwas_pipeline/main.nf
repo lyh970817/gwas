@@ -437,17 +437,40 @@ def relatednessMatrixKinds(meta) {
 }
 
 //
+// The portable identity of an optional LDAK weights file.
+//
+// Only the file's bytes decide whether two analyses can reuse one matrix. A path or basename would make
+// published keys machine-specific, would fail to reuse identical files copied elsewhere and would collapse
+// different files sharing one name. The actual Path therefore stays on the build tuple outside this map.
+//
+def ldakWeightsIdentity(weights_file) {
+    if (!weights_file) {
+        return [mode: 'equal']
+    }
+    def weights_path = weights_file instanceof java.nio.file.Path ? weights_file : weights_file.toPath()
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    java.nio.file.Files
+        .newInputStream(weights_path)
+        .withCloseable { input ->
+            input.eachByte(8192) { buffer, count ->
+                digest.update(buffer, 0, count)
+            }
+        }
+    return [mode: 'file', sha256: digest.digest().encodeHex().toString()]
+}
+
+//
 // The declared construction settings of one matrix kind: the inputs that change the matrix itself. GCTA
 // dense has no settings beyond cohort identity, while LDMS and sparse matrices name their selectors
 // explicitly. LDAK's model, power and weights are key components, but its per-analysis relatedness filter is
-// deliberately absent: one kinship build supplies both the all-sample and unrelated-subset routes. At this
-// seam `equal` is the canonical default weight identity; supplied files are added without path identity by
-// the weights-specific follow-up.
+// deliberately absent: one kinship build supplies both the all-sample and unrelated-subset routes. `weights`
+// is a structured content identity: equal weighting has only its mode, while a supplied file has its mode
+// and full SHA-256 digest, never a path or basename.
 //
 // An `if` chain rather than a `switch`: `nextflow lint` aborts on any `switch` statement it is given
 // (`ERROR ~ begin N, end N+1, length N`), so the construct cannot appear in this repository at all.
 //
-def relatednessMatrixSettings(meta, kind) {
+def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal']) {
     if (kind == 'gcta_dense') {
         return [:]
     }
@@ -465,7 +488,7 @@ def relatednessMatrixSettings(meta, kind) {
         return [
             model: meta.ldak_model,
             power: meta.ldak_power,
-            weights: 'equal',
+            weights: weights_identity,
         ]
     }
     error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
@@ -484,8 +507,8 @@ def relatednessMatrixSettings(meta, kind) {
 // parts. It is a memory control, so two rows declaring different counts are not asking for two matrices —
 // they are contradicting each other about one, which is an error, not a fork.
 //
-def relatednessMatrixRequest(meta, genotype_files, kind) {
-    def settings = relatednessMatrixSettings(meta, kind)
+def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal']) {
+    def settings = relatednessMatrixSettings(meta, kind, weights_identity)
     def identity = [
         cohort: meta.cohort,
         genotype_format: meta.genotype_format,
