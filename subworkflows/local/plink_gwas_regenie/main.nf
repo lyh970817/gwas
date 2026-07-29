@@ -1,4 +1,10 @@
+// Run REGENIE Step 1 fitting and Step 2 association across PLINK-format genotype shards.
+// Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
+
+// SUBWORKFLOW: Vendored from the component library
 include { PLINK_FIT_REGENIE } from '../plink_fit_regenie/main'
+
+// MODULE: Installed directly from nf-core/modules
 include { REGENIE_STEP2     } from '../../../modules/nf-core/regenie/step2/main'
 
 workflow PLINK_GWAS_REGENIE {
@@ -43,5 +49,4 @@ workflow PLINK_GWAS_REGENIE {
     logs        = PLINK_FIT_REGENIE.out.logs.mix(REGENIE_STEP2.out.log) // channel: [ val(meta), path(log) ]
     predictions = PLINK_FIT_REGENIE.out.predictions // channel: [ val(meta), path(predictions) ]
     loco        = PLINK_FIT_REGENIE.out.loco // channel: [ val(meta), path(loco) ]
-    versions    = PLINK_FIT_REGENIE.out.versions.mix(REGENIE_STEP2.out.versions_regenie).unique() // channel: [ val(process), val(tool), val(version) ]
 }

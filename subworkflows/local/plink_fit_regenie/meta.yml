@@ -85,9 +85,6 @@ output:
       description: REGENIE log files from the selected Step 1 route
       pattern: "*.log"
       ontologies: []
-  - versions:
-      type: string
-      description: Distinct REGENIE version tuples from the selected Step 1 route
 authors:
   - "@lyh970817"
 maintainers:

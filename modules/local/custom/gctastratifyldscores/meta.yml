@@ -48,21 +48,27 @@ output:
           pattern: "*_snp_group*.txt"
           ontologies:
             - edam: "http://edamontology.org/format_2330" # Textual format
-  versions:
-    - versions.yml:
-        type: file
-        description: R version
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750" # YAML
+  versions_r_base:
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - r-base:
+          type: string
+          description: The tool name
+      - "Rscript -e 'cat(as.character(getRversion()))'":
+          type: eval
+          description: The command used to retrieve the R version
 topics:
   versions:
-    - versions.yml:
-        type: file
-        description: R version
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750" # YAML
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - r-base:
+          type: string
+          description: The tool name
+      - "Rscript -e 'cat(as.character(getRversion()))'":
+          type: eval
+          description: The command used to retrieve the R version
 containers:
   conda:
     linux/amd64:

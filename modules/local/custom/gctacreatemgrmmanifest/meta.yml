@@ -52,21 +52,27 @@ output:
           description: Complete GCTA binary GRM bundles referenced by the manifest
           pattern: "*.grm.{id,bin,N.bin}"
           ontologies: []
-  versions:
-    - versions.yml:
-        type: file
-        description: File containing software versions
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750" # YAML
+  versions_coreutils:
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - coreutils:
+          type: string
+          description: The tool name
+      - "sort --version | sed -n '1{s/sort (GNU coreutils) //;p}'":
+          type: eval
+          description: The command used to retrieve the GNU Coreutils version
 topics:
   versions:
-    - versions.yml:
-        type: file
-        description: File containing software versions
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750" # YAML
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - coreutils:
+          type: string
+          description: The tool name
+      - "sort --version | sed -n '1{s/sort (GNU coreutils) //;p}'":
+          type: eval
+          description: The command used to retrieve the GNU Coreutils version
 containers:
   conda:
     linux/amd64:

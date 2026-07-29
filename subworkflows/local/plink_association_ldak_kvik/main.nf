@@ -1,3 +1,7 @@
+// Run LDAK-KVIK Step 1 once per analysis and Step 2 across its PLINK 1 genotype shards.
+// Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
+
+// MODULE: Local to the pipeline
 include { LDAK_THINCOMMON } from '../../../modules/local/ldak/thincommon/main'
 include { LDAK_KVIKSTEP1  } from '../../../modules/local/ldak/kvikstep1/main'
 include { LDAK_KVIKSTEP2  } from '../../../modules/local/ldak/kvikstep2/main'
@@ -136,9 +140,6 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
     )
 
     ch_logs = LDAK_KVIKSTEP1.out.log.mix(LDAK_KVIKSTEP2.out.log)
-    ch_versions = LDAK_KVIKSTEP1.out.versions_ldak6
-        .mix(LDAK_KVIKSTEP2.out.versions_ldak6, LDAK_THINCOMMON.out.versions_ldak6)
-        .unique()
 
     emit:
     results     = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ], once per Step 2 shard
@@ -148,5 +149,4 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
     effects     = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per analysis
     progress    = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], only for thin_common analyses
     logs        = ch_logs // channel: [ val(meta), path(log) ]
-    versions    = ch_versions // channel: unique [ val(process), val(tool), val(version) ] records
 }

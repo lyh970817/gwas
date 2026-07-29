@@ -138,9 +138,6 @@ output:
       description: LDAK-KVIK Step 1 and Step 2 log files
       pattern: "*.step*.log"
       ontologies: []
-  - versions:
-      type: string
-      description: Distinct [process, tool, version] tuples from executed components
 authors:
   - "@andongni"
 maintainers:

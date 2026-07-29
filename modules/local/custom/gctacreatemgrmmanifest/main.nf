@@ -11,26 +11,25 @@ process CUSTOM_GCTACREATEMGRMMANIFEST {
     tuple val(meta), path(grm_files)
 
     output:
-    tuple val(meta), path("${prefix}.mgrm"), path(grm_files), emit: mgrm_bundle
-    path "versions.yml", emit: versions, topic: versions
+    tuple val(meta), path("*.mgrm"), path(grm_files), emit: mgrm_bundle
+    tuple val("${task.process}"), val("coreutils"), eval("sort --version | sed -n '1{s/sort (GNU coreutils) //;p}'"), emit: versions_coreutils, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    prefix = task.ext.prefix ?: "${meta.id}"
-    template('gctacreatemgrmmanifest.sh')
-
-    stub:
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     for grm_id in *.grm.id; do
         echo "\${grm_id%.grm.id}"
     done | sort -V > ${prefix}.mgrm
+    """
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        coreutils: \$(cat --version | head -n 1 | cut -d ' ' -f 4)
-    END_VERSIONS
+    stub:
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    """
+    for grm_id in *.grm.id; do
+        echo "\${grm_id%.grm.id}"
+    done | sort -V > ${prefix}.mgrm
     """
 }

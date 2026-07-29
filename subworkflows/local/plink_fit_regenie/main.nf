@@ -1,3 +1,7 @@
+// Fit REGENIE Step 1 prediction models in standard mode or through the split L0/L1 route.
+// Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
+
+// MODULE: Installed directly from nf-core/modules
 include { REGENIE_STEP1   } from '../../../modules/nf-core/regenie/step1/main'
 include { REGENIE_SPLITL0 } from '../../../modules/nf-core/regenie/splitl0/main'
 include { REGENIE_RUNL0   } from '../../../modules/nf-core/regenie/runl0/main'
@@ -15,7 +19,7 @@ workflow PLINK_FIT_REGENIE {
     main:
     ch_modes = ch_step1_mode.map { meta, step1_mode ->
         if (!['standard', 'chunked'].contains(step1_mode)) {
-            error("PLINK_FIT_REGENIE: step1_mode must be 'standard' or 'chunked', got '${step1_mode}'")
+            error("[nf-core/gwas] ERROR: PLINK_FIT_REGENIE step1_mode must be 'standard' or 'chunked', got '${step1_mode}'")
         }
         tuple(meta.id, step1_mode)
     }
@@ -109,5 +113,4 @@ workflow PLINK_FIT_REGENIE {
     predictions = REGENIE_STEP1.out.predictions.mix(REGENIE_RUNL1.out.predictions) // channel: [ val(meta), path(predictions) ]
     loco        = REGENIE_STEP1.out.loco.mix(REGENIE_RUNL1.out.loco) // channel: [ val(meta), path(loco) ]
     logs        = REGENIE_STEP1.out.log.mix(REGENIE_SPLITL0.out.log, REGENIE_RUNL0.out.log, REGENIE_RUNL1.out.log) // channel: [ val(meta), path(log) ]
-    versions    = REGENIE_STEP1.out.versions_regenie.mix(REGENIE_SPLITL0.out.versions_regenie, REGENIE_RUNL0.out.versions_regenie, REGENIE_RUNL1.out.versions_regenie).unique() // channel: [ val(process), val(tool), val(version) ]
 }

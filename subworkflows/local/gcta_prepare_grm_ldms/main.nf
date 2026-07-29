@@ -1,11 +1,13 @@
-//
 // Build LD-by-MAF-stratified GCTA genetic relationship matrices
-//
+// Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
+// MODULE: Local to the pipeline
 include { GCTA_CALCULATELDSCORES        } from '../../../modules/local/gcta/calculateldscores/main'
 include { CUSTOM_GCTASTRATIFYLDSCORES   } from '../../../modules/local/custom/gctastratifyldscores/main'
-include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
 include { CUSTOM_GCTACREATEMGRMMANIFEST } from '../../../modules/local/custom/gctacreatemgrmmanifest/main'
+
+// SUBWORKFLOW: Vendored from the component library
+include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
 
 workflow GCTA_PREPARE_GRM_LDMS {
     take:

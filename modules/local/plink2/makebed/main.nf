@@ -11,8 +11,8 @@ process PLINK2_MAKEBED {
     tuple val(meta), path(pgen), path(psam), path(pvar)
 
     output:
-    tuple val(meta), path("${prefix}.bed"), path("${prefix}.bim"), path("${prefix}.fam"), emit: bed
-    tuple val(meta), path("${prefix}.log"), emit: log
+    tuple val(meta), path("*.bed"), path("*.bim"), path("*.fam"), emit: bed
+    tuple val(meta), path("*.log"), emit: log
     tuple val("${task.process}"), val("plink2"), eval("plink2 --version 2>&1 | sed 's/^PLINK v//; s/ 64.*\$//'"), emit: versions_plink2, topic: versions
 
     when:
@@ -21,7 +21,7 @@ process PLINK2_MAKEBED {
     script:
     def args = task.ext.args ?: ''
     def input_prefix = pgen.baseName
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     def mem_mb = task.memory.toMega()
     """
     plink2 \\
@@ -34,7 +34,7 @@ process PLINK2_MAKEBED {
     """
 
     stub:
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.bed
     touch ${prefix}.bim

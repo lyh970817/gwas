@@ -112,9 +112,6 @@ output:
       description: REGENIE Step 1 leave-one-chromosome-out predictions
       pattern: "*.loco.gz"
       ontologies: []
-  - versions:
-      type: string
-      description: Distinct REGENIE version tuples from Step 1 and Step 2
 authors:
   - "@lyh970817"
 maintainers:
