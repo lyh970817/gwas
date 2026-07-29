@@ -25,6 +25,11 @@
                         "git_sha": "12b957f0599c720ed004d792db68330d32d43b9e",
                         "installed_by": ["modules"]
                     },
+                    "gcta/fastgwa": {
+                        "branch": "master",
+                        "git_sha": "b5e95182ba240127c1c78f33d405a35fe0fc5302",
+                        "installed_by": ["modules"]
+                    },
                     "gcta/grmcutoff": {
                         "branch": "master",
                         "git_sha": "81ee454e5346e06c955d371586dc6478a987d236",
