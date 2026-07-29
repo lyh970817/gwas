@@ -2,31 +2,9 @@ nextflow_pipeline {
 
     name "Test REGENIE association route"
     script "../main.nf"
-    profile "test_regenie"
     tag "pipeline"
     tag "association"
     tag "regenie"
-
-    // Keep one quantitative PGEN analysis and route it only through REGENIE. The generated sheet
-    // keeps the test bound to the committed 35-column input contract while resolving every programme
-    // input to the real fixture checkout.
-    def regenie_only = { rows ->
-        rows.retainAll { row -> row.analysis_id == 'example_pgen_qt' }
-        rows[0].association_methods = 'regenie'
-        rows[0].heritability_methods = ''
-        rows[0].gcta_grm_parts = ''
-    }
-
-    def regenie_binary_only = { rows ->
-        rows.retainAll { row -> row.analysis_id == 'example_pgen_bt' }
-        rows[0].association_methods = 'regenie'
-        rows[0].heritability_methods = ''
-        rows[0].population_prevalence = ''
-        rows[0].sample_prevalence = ''
-        rows[0].ldak_model = ''
-        rows[0].ldak_power = ''
-        rows[0].ldak_relatedness_filter = ''
-    }
 
     // Every generated command in the run. Optional selectors are deliberately asserted here rather
     // than inferred from a snapshot: snapshots prove public artefacts, while `.command.sh` is the
@@ -83,13 +61,14 @@ nextflow_pipeline {
         [suffix: ' - stub', stub: true],
     ]
 
-    // Route selection, trait mode and the analysis identity are public row-level fields. Each scenario
-    // therefore uses the documented `params.input` exception to generate a real-fixture samplesheet
-    // without inventing a profile per row contract. Run-level Step 1 controls live in the dedicated
-    // chunked config below; `outdir` is the only other per-test parameter.
+    // Each scenario loads its same-named registered profile config directly because nf-test 0.9.3
+    // exposes profile selection only at suite scope. The configs own immutable 35-column inputs;
+    // `outdir` remains the only parameter assigned in a test body.
     execution_modes.each { mode ->
         test("standard Step 1 produces native and harmonised results without publishing predictions${mode.suffix}") {
 
+            config "../conf/test_regenie_standard.config"
+            tag "regenie_standard"
             if (mode.stub) {
                 options "-stub"
             }
@@ -97,7 +76,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_standard", regenie_only)
                 }
             }
 
@@ -161,7 +139,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_chunked", regenie_only)
                 }
             }
 
@@ -234,6 +211,8 @@ nextflow_pipeline {
     execution_modes.each { mode ->
         test("binary-trait mode is consistent across fitting and association${mode.suffix}") {
 
+            config "../conf/test_regenie_binary.config"
+            tag "regenie_binary"
             if (mode.stub) {
                 options "-stub"
             }
@@ -241,7 +220,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_binary", regenie_binary_only)
                 }
             }
 

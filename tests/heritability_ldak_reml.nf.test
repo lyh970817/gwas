@@ -18,12 +18,13 @@ nextflow_pipeline {
         [suffix: ' - stub', stub: true],
     ]
 
-    // This scenario exercises the per-row phenotype and prevalence input contract. Its generated
-    // `params.input` sheet therefore uses the documented input-contract exception instead of a static
-    // profile that could not express both quantitative and binary liability-scale rows.
+    // The registered profile config owns the immutable quantitative and binary rows. It is loaded
+    // directly because nf-test 0.9.3 exposes profile selection only at suite scope.
     executionModes.each { mode ->
         test("rows selecting LDAK REML publish native observed and liability-scale results${mode.suffix}") {
 
+            config "../conf/test_ldak_reml.config"
+            tag "ldak_reml"
             if (mode.stub) {
                 options "-stub"
             }
@@ -31,18 +32,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_reml", { rows ->
-                        def quantitative = rows[0]
-                        def binary = rows[1]
-                        rows.clear()
-                        [quantitative, binary].each { row ->
-                            row.association_methods = ''
-                            row.heritability_methods = 'ldak_reml'
-                            row.gcta_grm_parts = ''
-                            row.gcta_ldms_maf_edges = ''
-                            rows << row
-                        }
-                    })
                 }
             }
 

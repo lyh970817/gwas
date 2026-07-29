@@ -2,57 +2,10 @@ nextflow_pipeline {
 
     name "Test LDAK-KVIK association route"
     script "../main.nf"
-    // Compose the base LDAK fixtures with the scenario profile. The scenario profile is applied last,
-    // so its CI-only seed wins over the production LDAK argument selector.
-    profile "test_ldak,test_ldak_kvik_deterministic"
     tag "pipeline"
     tag "association"
     tag "ldak"
     tag "kvik"
-
-    def kvik_only = { policy ->
-        return { rows ->
-            rows.retainAll { row -> row.analysis_id == 'example_vcf_qt' }
-            rows[0].association_methods = 'ldak_kvik'
-            rows[0].heritability_methods = ''
-            rows[0].ldak_kvik_step1_subset = policy
-            rows[0].ldak_kvik_step1_extract = ''
-        }
-    }
-
-    def kvik_provided = { project_dir, output_dir ->
-        return { rows ->
-            rows.retainAll { row -> row.analysis_id == 'example_vcf_qt' }
-            rows[0].association_methods = 'ldak_kvik'
-            rows[0].heritability_methods = ''
-            rows[0].ldak_kvik_step1_subset = 'provided'
-
-            // Build a private predictor list from the fixture BIM. The shared fixture checkout is
-            // read-only and no machine-local path is committed; when tests use the upstream URL,
-            // the same code reads that URL instead.
-            def source_path = FIXTURES.base(project_dir) + 'results/fixtures/genotypes/example_all.bim'
-            def source_text = source_path.startsWith('http')
-                ? new URL(source_path).text
-                : new File(source_path).text
-            def target = new File(new File(output_dir.toString()).parentFile, 'inputs/kvik_provided/provided.in')
-            target.parentFile.mkdirs()
-            target.text = source_text.readLines().collect { line -> line.split(/\s+/)[1] }.join('\n') + '\n'
-            rows[0].ldak_kvik_step1_extract = target.absolutePath
-        }
-    }
-
-    def kvik_binary = { rows ->
-        rows.retainAll { row -> row.analysis_id == 'example_pgen_bt' }
-        rows[0].association_methods = 'ldak_kvik'
-        rows[0].heritability_methods = ''
-        rows[0].population_prevalence = ''
-        rows[0].sample_prevalence = ''
-        rows[0].ldak_model = ''
-        rows[0].ldak_power = ''
-        rows[0].ldak_relatedness_filter = ''
-        rows[0].ldak_kvik_step1_subset = 'all'
-        rows[0].ldak_kvik_step1_extract = ''
-    }
 
     def commands = { output_dir ->
         def scripts = []
@@ -86,12 +39,13 @@ nextflow_pipeline {
         [suffix: ' - stub', stub: true],
     ]
 
-    // KVIK route selection, binary mode, predictor policy and an optional supplied predictor file are
-    // all public row-level fields. The scenarios therefore use the documented `params.input` exception
-    // to generate real-fixture 35-column samplesheets; `outdir` is the only other per-test parameter.
+    // Each scenario loads its same-named registered profile config directly because nf-test 0.9.3
+    // exposes profile selection only at suite scope. The configs own immutable 35-column inputs and
+    // the deterministic seed; `outdir` remains the only parameter assigned in a test body.
     execution_modes.each { mode ->
         test("the all-predictors policy runs KVIK and harmonises its native result${mode.suffix}") {
 
+            config "../conf/test_ldak_kvik_all.config"
             tag "kvik_all"
             if (mode.stub) {
                 options "-stub"
@@ -100,7 +54,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_all", kvik_only('all'))
                 }
             }
 
@@ -149,6 +102,8 @@ nextflow_pipeline {
     execution_modes.each { mode ->
         test("the thin-common policy supplies LDAK's generated predictor list to Step 1${mode.suffix}") {
 
+            config "../conf/test_ldak_kvik_thin_common.config"
+            tag "kvik_thin_common"
             if (mode.stub) {
                 options "-stub"
             }
@@ -156,7 +111,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_thin_common", kvik_only('thin_common'))
                 }
             }
 
@@ -197,6 +151,8 @@ nextflow_pipeline {
     execution_modes.each { mode ->
         test("the provided policy stages the row's predictor list without running thinning${mode.suffix}") {
 
+            config "../conf/test_ldak_kvik_provided.config"
+            tag "kvik_provided"
             if (mode.stub) {
                 options "-stub"
             }
@@ -204,7 +160,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_provided", kvik_provided(projectDir, outputDir))
                 }
             }
 
@@ -245,6 +200,8 @@ nextflow_pipeline {
     execution_modes.each { mode ->
         test("binary mode reaches KVIK Step 1 and the binary GWASLab mapping${mode.suffix}") {
 
+            config "../conf/test_ldak_kvik_binary.config"
+            tag "kvik_binary"
             if (mode.stub) {
                 options "-stub"
             }
@@ -252,7 +209,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "kvik_binary", kvik_binary)
                 }
             }
 

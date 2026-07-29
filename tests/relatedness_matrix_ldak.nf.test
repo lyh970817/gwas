@@ -2,7 +2,6 @@ nextflow_pipeline {
 
     name "Test LDAK relatedness matrix build and reuse"
     script "../main.nf"
-    config "../conf/test_ldak_relatedness.config"
     tag "pipeline"
     tag "relatedness"
     tag "ldak"
@@ -12,26 +11,6 @@ nextflow_pipeline {
             .readLines()
             .find { line -> line.startsWith("${name} ") }
             .tokenize()[1]
-    }
-
-    def ldakReml = { row, id, model, power, filter ->
-        row.analysis_id = id
-        row.association_methods = ''
-        row.heritability_methods = 'ldak_reml'
-        row.gcta_grm_parts = ''
-        row.gcta_ldms_maf_edges = ''
-        row.ldak_model = model
-        row.ldak_power = power
-        row.ldak_relatedness_filter = filter
-        return row
-    }
-
-    def privateWeights = { project, output, name, pvar, weight ->
-        SAMPLESHEET.rewrite(project, output, name, pvar, { lines ->
-            lines
-                .findAll { line -> line && !line.startsWith('#') }
-                .collect { line -> "${line.tokenize()[2]} ${weight}" }
-        })
     }
 
     def calckinsCommands = { output ->
@@ -66,12 +45,14 @@ nextflow_pipeline {
         ]
     }
 
-    // These scenarios exercise scientific input contracts declared per samplesheet row: matrix identity,
-    // filtering, and weight-file semantics. Their generated `params.input` sheets therefore use the
-    // documented input-contract exception instead of minting one static profile per row combination.
+    // Each scenario loads its same-named registered profile config directly because nf-test 0.9.3
+    // exposes profile selection only at suite scope. The configs own immutable matrix-identity rows;
+    // `outdir` remains the only parameter assigned in a test body.
     executionModes.each { mode ->
         test("filtered and unfiltered analyses share one LDAK kinship build${mode.suffix}") {
 
+            config "../conf/test_ldak_relatedness_shared.config"
+            tag "ldak_relatedness_shared"
             if (mode.stub) {
                 options "-stub"
             }
@@ -79,14 +60,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_shared_matrix", { rows ->
-                        def binary = rows[1]
-                        def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
-                        def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
-                        rows.clear()
-                        rows << unrestricted
-                        rows << restricted
-                    })
                 }
             }
 
@@ -139,6 +112,8 @@ nextflow_pipeline {
     executionModes.each { mode ->
         test("changing either LDAK model or power forks the matrix key${mode.suffix}") {
 
+            config "../conf/test_ldak_relatedness_distinct.config"
+            tag "ldak_relatedness_distinct"
             if (mode.stub) {
                 options "-stub"
             }
@@ -146,16 +121,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_distinct_matrices", { rows ->
-                        def binary = rows[1]
-                        def human = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_human', 'human_default', '-0.25', 'false')
-                        def custom_model = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_model', 'custom', '-0.25', 'false')
-                        def custom_power = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_power', 'custom', '-0.5', 'false')
-                        rows.clear()
-                        rows << human
-                        rows << custom_model
-                        rows << custom_power
-                    })
                 }
             }
 
@@ -189,6 +154,8 @@ nextflow_pipeline {
     executionModes.each { mode ->
         test("identical weight bytes at different paths share one matrix${mode.suffix}") {
 
+            config "../conf/test_ldak_relatedness_same_weights.config"
+            tag "ldak_relatedness_same_weights"
             if (mode.stub) {
                 options "-stub"
             }
@@ -196,17 +163,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_same_weight_content", { rows ->
-                        def binary = rows[1]
-                        def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
-                        def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
-                        first.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_first', binary.pvar, '1')
-                        second.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_second', binary.pvar, '1')
-                        assert first.ldak_weights != second.ldak_weights
-                        rows.clear()
-                        rows << first
-                        rows << second
-                    })
                 }
             }
 
@@ -242,6 +198,8 @@ nextflow_pipeline {
     executionModes.each { mode ->
         test("different weight bytes with the same basename fork matrices${mode.suffix}") {
 
+            config "../conf/test_ldak_relatedness_different_weights.config"
+            tag "ldak_relatedness_different_weights"
             if (mode.stub) {
                 options "-stub"
             }
@@ -249,17 +207,6 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_different_weight_content", { rows ->
-                        def binary = rows[1]
-                        def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
-                        def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
-                        first.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_first', binary.pvar, '1')
-                        second.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_second', binary.pvar, '2')
-                        assert new File(first.ldak_weights).name == new File(second.ldak_weights).name
-                        rows.clear()
-                        rows << first
-                        rows << second
-                    })
                 }
             }
 
