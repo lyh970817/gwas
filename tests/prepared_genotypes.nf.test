@@ -45,9 +45,10 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 // The save control is unset, so the bundles the run just built are nowhere in the
-                // published output — only the native and harmonised results of the two rows that
-                // select a wired method, and the two directories every run produces.
-                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'multiqc', 'pipeline_info', 'summary_statistics'] },
+                // published output — only the native and harmonised results of the rows that select a
+                // wired association method, the heritability estimate of the row that selects a wired
+                // heritability method, and the two directories every run produces.
+                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'heritability', 'multiqc', 'pipeline_info', 'summary_statistics'] },
                 // Preparation still happened, once per cohort that needed it.
                 { assert TRACE.tags(workflow, 'PLINK2_MAKEPGEN') == ['example_bfile', 'example_bfile2'] },
                 { assert TRACE.tags(workflow, 'PLINK2_VCF') == ['example_vcf'] },

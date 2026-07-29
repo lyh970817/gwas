@@ -188,49 +188,43 @@ workflow PIPELINE_COMPLETION {
 //
 def associationColumnMappings() {
     return [
-        plink2: [
-            common: [
-                snpid: 'ID',
-                chrom: '#CHROM',
-                pos: 'POS',
-                ea: 'A1',
-                nea: 'REF',
-                eaf: 'A1_FREQ',
-                n: 'OBS_CT',
-                beta: 'BETA',
-                se: 'SE',
-                p: 'P',
-            ]
-        ],
-        regenie: [
-            common: [
-                snpid: 'ID',
-                chrom: 'CHROM',
-                pos: 'GENPOS',
-                ea: 'ALLELE1',
-                nea: 'ALLELE0',
-                eaf: 'A1FREQ',
-                n: 'N',
-                beta: 'BETA',
-                se: 'SE',
-                mlog10p: 'LOG10P',
-                readargs: [sep: ' '],
-            ]
-        ],
-        gcta_fastgwa: [
-            common: [
-                snpid: 'SNP',
-                chrom: 'CHR',
-                pos: 'POS',
-                ea: 'A1',
-                nea: 'A2',
-                eaf: 'AF1',
-                n: 'N',
-                beta: 'BETA',
-                se: 'SE',
-                p: 'P',
-            ]
-        ],
+        plink2: [common: [
+            snpid: 'ID',
+            chrom: '#CHROM',
+            pos: 'POS',
+            ea: 'A1',
+            nea: 'REF',
+            eaf: 'A1_FREQ',
+            n: 'OBS_CT',
+            beta: 'BETA',
+            se: 'SE',
+            p: 'P',
+        ]],
+        regenie: [common: [
+            snpid: 'ID',
+            chrom: 'CHROM',
+            pos: 'GENPOS',
+            ea: 'ALLELE1',
+            nea: 'ALLELE0',
+            eaf: 'A1FREQ',
+            n: 'N',
+            beta: 'BETA',
+            se: 'SE',
+            mlog10p: 'LOG10P',
+            readargs: [sep: ' '],
+        ]],
+        gcta_fastgwa: [common: [
+            snpid: 'SNP',
+            chrom: 'CHR',
+            pos: 'POS',
+            ea: 'A1',
+            nea: 'A2',
+            eaf: 'AF1',
+            n: 'N',
+            beta: 'BETA',
+            se: 'SE',
+            p: 'P',
+        ]],
         ldak_kvik: [
             common: [
                 snpid: 'Predictor',
@@ -316,6 +310,166 @@ def associationMethodTokens() {
 def heritabilityMethodTokens() {
     return ['gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc']
 }
+
+//
+// One declared value rendered as text, so that two values of the same meaning render alike.
+//
+// A declared value is a quantity a researcher stated: an entry of a matrix's construction settings, or the
+// partition count. This exists because such a value parsed from a CSV cell and the equivalent value filled in
+// from a schema default are not equal by Groovy object equality even when they mean the same number: a
+// samplesheet cell reaches nf-schema as an Integer, a BigDecimal or a String depending on the column's
+// declared type and on whether the cell was populated at all, while a `default` in assets/schema_input.json
+// arrives as whatever literal the JSON parser produced. Comparing them unrendered would give one matrix two
+// keys and build it twice.
+//
+// Numbers, and strings that spell a number, both render through BigDecimal with trailing zeros stripped, so
+// 4, 4.0, '4' and '4.00' are one value and -0.25 and '-.25' are another. `BigDecimal` is constructed from
+// the value's text rather than from a double, which would render 0.1 as 0.1000000000000000055511151231257827
+// and split a CSV `0.1` from a schema-default `0.1`. Nulls render distinctly from the empty string, because
+// "the researcher declared nothing" should not be silently conflated with a literal zero.
+//
+// Identifiers are rendered by canonicaliseIdentifier below instead, and never by this function: numeric
+// equivalence is meaningless between names and collapsing them would over-share a matrix.
+//
+def canonicaliseDeclaredValue(value) {
+    if (value == null) {
+        return 'null'
+    }
+    if (value instanceof Boolean) {
+        return value ? 'true' : 'false'
+    }
+    if (value instanceof Map) {
+        return '{' + value.sort { entry -> entry.key }.collect { name, entry -> "${name}=${canonicaliseDeclaredValue(entry)}" }.join(',') + '}'
+    }
+    if (value instanceof Collection) {
+        return '[' + value.collect { entry -> canonicaliseDeclaredValue(entry) }.join(',') + ']'
+    }
+    if (value instanceof Number) {
+        return new BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
+    }
+    def text = value.toString().trim()
+    return text ==~ /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/
+        ? new BigDecimal(text).stripTrailingZeros().toPlainString()
+        : text
+}
+
+//
+// One identifier rendered as text, verbatim.
+//
+// An identifier is a name the researcher chose or the pipeline assigned — a cohort id, a genotype format, a
+// genotype file name, a matrix kind — and two names are the same only when they are spelled the same. Passing
+// one through canonicaliseDeclaredValue instead would read numeric-looking names as numbers and collapse the
+// cohorts `01` and `1` (likewise `7`, `7.0`, `+7`, and `1e3` with `1000`) onto one reuse key, so the analyses
+// of one cohort would silently be estimated against the other cohort's relatedness matrix. Every other seam
+// that decides cohort identity — the preflight's genotype agreement check, PREPARE_COHORT_GENOTYPES'
+// deduplication — compares these names textually, and the key has to agree with them or the two layers
+// disagree about how many cohorts a run has.
+//
+def canonicaliseIdentifier(value) {
+    if (value == null) {
+        return 'null'
+    }
+    if (value instanceof Map) {
+        return '{' + value.sort { entry -> entry.key }.collect { name, entry -> "${name}=${canonicaliseIdentifier(entry)}" }.join(',') + '}'
+    }
+    if (value instanceof Collection) {
+        return '[' + value.collect { entry -> canonicaliseIdentifier(entry) }.join(',') + ']'
+    }
+    return value.toString().trim()
+}
+
+//
+// The reuse key of one relatedness matrix: a digest over the cohort identity and every declared input that
+// changes the matrix, and over nothing else.
+//
+// Identity and settings are taken as two arguments rather than as one map because the two are rendered by
+// different rules — identifiers verbatim, declared values numerically — and a single map would leave the
+// choice to be made per component name, which is exactly the decision a route registering a new setting
+// should not have to make.
+//
+// Content-derived rather than arrival-ordered, so that adding a row to the samplesheet does not renumber the
+// matrices that were already built and invalidate resume. Truncated to twelve hex characters because it is a
+// path segment a researcher has to read and quote; twelve characters is 48 bits, which is far beyond
+// collision range for the tens of matrices one run can declare.
+//
+def relatednessMatrixKey(identity, settings) {
+    def rendered = identity.collectEntries { name, value -> [(name): canonicaliseIdentifier(value)] } + [settings: canonicaliseDeclaredValue(settings)]
+    def canonical = rendered
+        .sort { entry -> entry.key }
+        .collect { name, text -> "${name}=${text}" }
+        .join('\n')
+    return java.security.MessageDigest
+        .getInstance('SHA-256')
+        .digest(canonical.getBytes('UTF-8'))
+        .encodeHex()
+        .toString()
+        .substring(0, 12)
+}
+
+//
+// The relatedness matrices one analysis unit needs, by the methods it selected.
+//
+// A matrix kind names the tool and the matrix family together, because cross-tool reuse is not possible —
+// GCTA and LDAK matrices are different formats produced by different algorithms — so the kind is itself a key
+// component and two tools can never collide on one key.
+//
+// Registering a route is exactly this: add its method token here and its construction settings in
+// relatednessMatrixSettings below. Adding a route's settings anywhere else silently makes two different
+// matrices share one key.
+//
+def relatednessMatrixKinds(meta) {
+    def kinds = []
+    if ('gcta_greml' in meta.heritability_methods) {
+        kinds << 'gcta_dense'
+    }
+    return kinds.unique()
+}
+
+//
+// The declared construction settings of one matrix kind: the inputs that change the matrix itself. Empty for
+// the GCTA dense GRM, which is built over every variant of the cohort bundle with no MAF filter, no SNP group
+// and no weighting, and therefore varies with nothing but the cohort.
+//
+// An `if` chain rather than a `switch`: `nextflow lint` aborts on any `switch` statement it is given
+// (`ERROR ~ begin N, end N+1, length N`), so the construct cannot appear in this repository at all.
+//
+def relatednessMatrixSettings(meta, kind) {
+    if (kind == 'gcta_dense') {
+        return [:]
+    }
+    error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
+}
+
+//
+// One analysis unit's request for one matrix: its reuse key, and the construction inputs that are
+// deliberately outside the key and so have to be reconciled across the rows that share it.
+//
+// The genotypes enter the key as sorted basenames rather than as paths: absolute paths differ per machine
+// and the digest is a published path segment, so a path-derived digest would make every published tree
+// machine-specific.
+//
+// `parts` is outside the key because GCTA's --make-grm-part only splits the same computation into more
+// pieces: the merged matrix is byte-identical whatever the count, verified against gcta 1.94.1 at 1, 2 and 3
+// parts. It is a memory control, so two rows declaring different counts are not asking for two matrices —
+// they are contradicting each other about one, which is an error, not a fork.
+//
+def relatednessMatrixRequest(meta, genotype_files, kind) {
+    def settings = relatednessMatrixSettings(meta, kind)
+    def identity = [
+        cohort: meta.cohort,
+        genotype_format: meta.genotype_format,
+        genotypes: genotype_files.collect { genotype_file -> genotype_file.name }.sort(),
+        kind: kind,
+    ]
+    return [
+        kind: kind,
+        cohort: meta.cohort,
+        settings: settings,
+        parts: meta.gcta_grm_parts,
+        key: relatednessMatrixKey(identity, settings),
+    ]
+}
+
 
 //
 // The three mutually exclusive genotype groups, each mapped to the columns that make it complete.

@@ -229,12 +229,14 @@ nextflow_pipeline {
             assert workflow.success
             assertAll(
                 // Pipeline information and the MultiQC report each have their own top-level
-                // directory, the native association results have theirs and the harmonised summary
-                // statistics theirs, and nothing else is published: the prepared cohort bundles and
-                // the normalised phenotypes are intermediates and both save controls are unset. What
-                // this file owns is the `association` tree; `tests/summary_statistics.nf.test` owns
-                // the harmonised one.
-                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'multiqc', 'pipeline_info', 'summary_statistics'] },
+                // directory, the native association results have theirs, the harmonised summary
+                // statistics theirs, and the heritability estimate of the one demo row that selects a
+                // wired heritability method has its own; nothing else is published, because the
+                // prepared cohort bundles, the normalised phenotypes and the relatedness matrix are
+                // intermediates and all three save controls are unset. What this file owns is the
+                // `association` tree; `tests/summary_statistics.nf.test` owns the harmonised one and
+                // `tests/heritability_gcta_greml.nf.test` the heritability one.
+                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'heritability', 'multiqc', 'pipeline_info', 'summary_statistics'] },
                 { assert !new File("${params.outdir}/genotypes").exists() },
                 { assert !new File("${params.outdir}/phenotypes").exists() },
                 // Both intermediates were genuinely produced, so their absence above is a publishing

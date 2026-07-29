@@ -1,0 +1,108 @@
+nextflow_pipeline {
+
+    name "Test GCTA GREML heritability route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "heritability"
+    tag "gcta"
+
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
+    //   index 0 -> example_pgen_qt   cohort example_pgen, quantitative, already selects gcta_greml
+    //   index 1 -> example_pgen_bt   cohort example_pgen, binary, prevalence 0.3, selects LDAK
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes
+    //
+    // The binary row is routed here as well as the quantitative one. On this fixture the quantitative
+    // trait converges on the boundary — GCTA drops the genetic variance component and reports
+    // V(G)/Vp 0.000001 with Pval 5.0000e-01 — which is a complete, deterministic and perfectly
+    // snapshottable result, but a scientifically vacuous one. The binary trait on the same matrix
+    // gives a real estimate, and with a declared prevalence it also exercises the liability-scale
+    // branch of the route's arguments, so the two rows together cover the layout and the science.
+    //
+    // tests/relatedness_matrix.nf.test owns the matrix these estimates are made from; this file owns
+    // what the route publishes.
+
+    test("a row selecting GCTA GREML publishes a native GREML result under the heritability layout") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_greml", { rows ->
+                    def quantitative = rows[0]
+                    def binary = rows[1]
+                    rows.clear()
+                    // Association is exercised in its own file; clearing it here keeps the run to the
+                    // route under test.
+                    [quantitative, binary].each { row ->
+                        row.association_methods = ''
+                        row.heritability_methods = 'gcta_greml'
+                        row.gcta_grm_parts = '1'
+                        // The LDAK columns the demo sheet populates on its binary row are meaningless
+                        // once the row selects no LDAK method, and the preflight rejects them for
+                        // that reason. The prevalence is not one of them: it is consumed by every
+                        // heritability method, GREML included.
+                        row.ldak_model = ''
+                        row.ldak_power = ''
+                        row.ldak_relatedness_filter = ''
+                        rows << row
+                    }
+                })
+            }
+        }
+
+        then {
+            def heritability = new File("${params.outdir}/heritability")
+            def individual = new File(heritability, 'individual/gcta_greml')
+            def binary_lines = new File(individual, 'example_pgen_bt/example_pgen_bt.gcta_greml.hsq').readLines()
+            def binary = binary_lines
+                .collect { line -> line.split('\t').toList() }
+                .collectEntries { cells -> [cells.first(), cells.size() > 1 ? cells[1] : null] }
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            // stable_name: All files + folders in ${params.outdir}/heritability/ with a stable name.
+            // The directory it is pointed at comes back as an empty relative path, which is dropped.
+            def stable_name = getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true).findAll { path -> path.toString() }
+            // stable_path: All files in ${params.outdir}/heritability/ with stable content. GCTA's
+            // `.hsq` is byte-identical across thread counts, so hashing it is safe even though
+            // resourceLimits differ between profiles.
+            def stable_path = getAllFilesFromDir("${params.outdir}/heritability", ignoreFile: 'tests/.nftignore')
+            assert workflow.success
+            assertAll(
+                // Nested by scientific stage, then by what the estimate is about, then by method, then
+                // by analysis identifier. `individual` is the estimate of one trait's own heritability,
+                // which is what distinguishes it from the genetic correlation between two traits that
+                // a later ticket publishes beside it.
+                { assert new File("${params.outdir}").list().toList().contains('heritability') },
+                { assert heritability.list().toList() == ['individual'] },
+                { assert new File(heritability, 'individual').list().toList() == ['gcta_greml'] },
+                { assert individual.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                // The filename grammar, stated once as a pattern rather than restated per file:
+                // analysis identifier, then method, then GCTA's own suffix. The method is a path
+                // segment and part of the filename, so an estimate is attributable to its estimator
+                // from a directory listing alone.
+                { assert individual.listFiles().every { directory ->
+                    directory.list().every { name -> name ==~ "\\Q${directory.name}\\E\\.gcta_greml\\.hsq" }
+                } },
+                // GCTA's native output, published as GCTA wrote it: heritability results are not
+                // harmonised, which is a statement about association results only.
+                { assert binary_lines.first().split('\t').toList() == ['Source', 'Variance', 'SE'] },
+                { assert ['V(G)', 'V(e)', 'Vp', 'V(G)/Vp', 'logL', 'logL0', 'LRT', 'df', 'Pval', 'n'].every { row -> binary.containsKey(row) } },
+                { assert binary.n == '500' },
+                // A real estimate rather than a boundary convergence, which is why the binary row is
+                // routed here at all.
+                { assert (binary['V(G)/Vp'] as BigDecimal) > 0.1 },
+                { assert (binary.Pval as BigDecimal) < 0.05 },
+                // The row declares a population prevalence, so the estimate is also reported on the
+                // liability scale — the branch of the route's arguments that a quantitative row must
+                // never reach.
+                { assert binary.containsKey('V(G)/Vp_L') },
+                { assert (binary['V(G)/Vp_L'] as BigDecimal) > (binary['V(G)/Vp'] as BigDecimal) },
+                { assert !new File(individual, 'example_pgen_qt/example_pgen_qt.gcta_greml.hsq').readLines().any { line -> line.startsWith('V(G)/Vp_L') } },
+                // The estimator reports itself into the run's software versions, so a published
+                // estimate is attributable to a named version of the programme that made it.
+                { assert versions.text.contains('GCTA_REML') },
+                { assert snapshot(stable_name, stable_path).match('heritability') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+}

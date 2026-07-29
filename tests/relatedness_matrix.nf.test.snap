@@ -11,20 +11,8 @@
                 "GCTA_REML": {
                     "gcta": "1.94.1"
                 },
-                "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
-                },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
-                },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PLINK2_MAKEPGEN": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
                 },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
@@ -35,6 +23,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-29T05:20:54.794651388"
+        "timestamp": "2026-07-29T04:55:10.238364017"
     }
 }

@@ -14,6 +14,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 
 - [Association](#association) - Association test results, one directory per method
 - [Summary statistics](#summary-statistics) - Harmonised summary statistics, one directory per analysis
+- [Heritability](#heritability) - Heritability estimates, one directory per method and analysis
 - [MultiQC](#multiqc) - Aggregate report describing results and QC from the whole pipeline
 - [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
 
@@ -53,6 +54,20 @@ The columns are GWASLab's canonical names in GWASLab's canonical order rather th
 Which checks can run depends on the optional reference resources you configure. Without any, the file is still standardised in name, column set and allele order, but nothing is checked against an external reference. Supplying `--gwaslab_reference_fasta_grch37` / `--gwaslab_reference_fasta_grch38` allows alleles to be checked and flipped against the reference sequence, `--gwaslab_rsid_vcf_grch37` / `--gwaslab_rsid_vcf_grch38` allows rsIDs to be assigned, and `--gwaslab_strand_vcf_grch37` / `--gwaslab_strand_vcf_grch38` allows the strand of palindromic variants to be inferred. Each is selected by the genome build the analysis declares in its samplesheet row, so a run mixing builds configures each build independently, and an analysis on a build with no configured resource is still standardised without one.
 
 GWASLab's own harmonisation log is an intermediate and is not published: it records the run timestamp and container-local input paths, so it would differ between two otherwise identical runs.
+
+### Heritability
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `heritability/individual/gcta_greml/<analysis_id>/`
+  - `<analysis_id>.gcta_greml.hsq`: [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) GREML variance-component estimates for one analysis, as GCTA wrote them.
+
+</details>
+
+Heritability output is written per method and per analysis, under `individual/` because these estimators work from individual-level genotypes rather than from summary statistics. The file is GCTA's native `.hsq` table: the genetic and residual variance components, `V(G)/Vp` as the estimate of heritability on the observed scale, its standard error, the log likelihood, the likelihood-ratio test and its p-value, and `n`, the number of samples the estimator actually used after intersecting genotypes, phenotype and covariates. For a binary trait whose row declares `population_prevalence`, a further `V(G)/Vp_L` line gives the estimate transformed to the liability scale. Unlike association results, heritability estimates are not harmonised — there is nothing cross-method to align.
+
+The relatedness matrix each estimate is computed from is an intermediate and is not published unless `--save_relatedness_matrices` is set, in which case the matrices appear under `quality_control/relatedness_matrices/<key>/`. `<key>` is the reuse key of the matrix, a digest of the cohort and of every setting that changes the matrix: analyses that share one are computed against one matrix, which is built once. GCTA's own logs are not published, since they record container-local paths and the run timestamp.
 
 ### MultiQC
 

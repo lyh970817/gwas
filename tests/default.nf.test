@@ -25,12 +25,14 @@ nextflow_pipeline {
             assert workflow.success
             assertAll(
                 // Two of the four demo rows select plink2, so a valid run publishes its native
-                // association results and the harmonised summary statistics derived from them,
-                // alongside pipeline information and a MultiQC report. Cohort genotype preparation
-                // and phenotype normalisation are intermediates and stay unpublished unless a save
-                // control asks for them, and the remaining routes are wired by later tickets, so
-                // those four are the whole published layout at this point.
-                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'multiqc', 'pipeline_info', 'summary_statistics'] },
+                // association results and the harmonised summary statistics derived from them, and
+                // one selects gcta_greml, so it publishes a heritability estimate as well, alongside
+                // pipeline information and a MultiQC report. Cohort genotype preparation, phenotype
+                // normalisation and the relatedness matrix the estimate was made from are all
+                // intermediates and stay unpublished unless a save control asks for them, and the
+                // remaining routes are wired by later tickets, so those five are the whole published
+                // layout at this point.
+                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'heritability', 'multiqc', 'pipeline_info', 'summary_statistics'] },
                 { assert snapshot(
                     // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
                     removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml"),

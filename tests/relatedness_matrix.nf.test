@@ -1,0 +1,400 @@
+nextflow_pipeline {
+
+    name "Test relatedness matrix build and reuse"
+    script "../main.nf"
+    tag "pipeline"
+    tag "relatedness"
+
+    // These tests build real GCTA relatedness matrices over the fixture bundle, so every sheet is
+    // built with SAMPLESHEET.fixtures rather than with the placeholder sheets the validation suite
+    // uses.
+    //
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
+    //   index 0 -> example_pgen_qt   cohort example_pgen,  PLINK 2 genotypes, quantitative, gcta_greml
+    //   index 1 -> example_pgen_bt   cohort example_pgen,  PLINK 2 genotypes, binary,       LDAK
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes, quantitative, GREML-LDMS
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes,     quantitative, no heritability
+    //
+    // Every sheet below clears `association_methods`, because none of these tests is about an
+    // association result and the run is shorter without one. A row selecting only a heritability
+    // method is a valid row.
+    //
+    // The reuse key of the demo cohorts is asserted as a literal here — `3b47382e01cd` for
+    // example_pgen, `5d51ed5c7620` for example_bfile — because the key is the published path segment
+    // and is what makes a resumed run reuse a matrix rather than rebuild it. The same twelve
+    // characters are derived from the key function directly in
+    // subworkflows/local/utils_nfcore_gwas_pipeline/tests/main.function.nf.test, which also carries
+    // the two properties of the key that no pipeline run can show yet.
+
+    // Turns a row into a GREML analysis unit on `parts` matrix partitions, clearing the LDAK columns
+    // the demo sheet populates on its binary row, which are meaningless once the row no longer selects
+    // an LDAK method and which the preflight rejects for exactly that reason.
+    def greml = { row, parts ->
+        row.association_methods = ''
+        row.heritability_methods = 'gcta_greml'
+        row.gcta_grm_parts = parts
+        row.gcta_ldms_maf_edges = ''
+        row.ldak_model = ''
+        row.ldak_power = ''
+        row.ldak_relatedness_filter = ''
+        return row
+    }
+
+    // The first column of a `.hsq` file, which is GCTA's own row vocabulary, and the value column
+    // beside it.
+    def hsq = { path ->
+        return new File(path)
+            .readLines()
+            .collect { line -> line.split('\t').toList() }
+            .collectEntries { cells -> [cells.first(), cells.size() > 1 ? cells[1] : null] }
+    }
+
+    test("several analysis units on one cohort share one matrix build and each gets its own estimate") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Four analysis units on cohort example_pgen, differing in trait, trait type,
+                // prevalence and therefore in the command line GCTA is given, and agreeing on
+                // everything the matrix is built from. Two partitions on all four, which is also the
+                // positive half of the partition-count criterion: rows that share a key and agree on
+                // the count reuse one build rather than being refused.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "shared_matrix", { rows ->
+                    def quantitative = rows[0]
+                    def binary = rows[1]
+                    rows.clear()
+                    (1..2).each { index ->
+                        def unit = greml(new LinkedHashMap(quantitative), '2')
+                        unit.analysis_id = "example_pgen_qt${index}"
+                        rows << unit
+                    }
+                    (1..2).each { index ->
+                        def unit = greml(new LinkedHashMap(binary), '2')
+                        unit.analysis_id = "example_pgen_bt${index}"
+                        // One binary unit reports on the liability scale and one on the observed
+                        // scale, so the two differ in the flags GCTA is handed as well as in the
+                        // phenotype it reads.
+                        if (index == 2) {
+                            unit.population_prevalence = ''
+                            unit.sample_prevalence = ''
+                        }
+                        rows << unit
+                    }
+                })
+            }
+        }
+
+        then {
+            def analyses = ['example_pgen_bt1', 'example_pgen_bt2', 'example_pgen_qt1', 'example_pgen_qt2']
+            def heritability = new File("${params.outdir}/heritability/individual/gcta_greml")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            assert workflow.success
+            assertAll(
+                // Asserted from the trace rather than from published files: a reused matrix publishes
+                // the same files as a rebuilt one, so only the trace answers "how many were built".
+                //
+                // Two partition tasks and one merge, for four analysis units. Once per trait would be
+                // eight and one, and once per trait per partition would be eight and four.
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
+                // The contrast that gives the claim above its meaning: everything keyed to the
+                // analysis unit did run four times, on the same four rows.
+                { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES') == analyses },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 4 },
+                // And the shared matrix reached all four estimators, each of which produced its own
+                // complete result rather than four analyses sharing one output.
+                { assert heritability.list().toList().sort() == analyses },
+                { assert heritability.list().toList().every { analysis ->
+                    new File(heritability, analysis).list().toList() == ["${analysis}.gcta_greml.hsq"]
+                } },
+                { assert analyses.every { analysis ->
+                    def estimate = hsq("${heritability}/${analysis}/${analysis}.gcta_greml.hsq")
+                    // A complete GREML result, not a truncated one: the variance components, the
+                    // ratio that is the heritability estimate, the likelihood-ratio test behind its
+                    // p-value, and the sample count it was fitted on.
+                    ['V(G)', 'V(e)', 'Vp', 'V(G)/Vp', 'logL', 'logL0', 'LRT', 'df', 'Pval', 'n'].every { row -> estimate.containsKey(row) } && estimate.n == '500'
+                } },
+                // The liability-scale line appears on the binary unit that declared a prevalence and
+                // on no other, so the shared matrix was fanned out with each unit's own command line
+                // rather than with one unit's.
+                { assert hsq("${heritability}/example_pgen_bt1/example_pgen_bt1.gcta_greml.hsq").containsKey('V(G)/Vp_L') },
+                { assert !hsq("${heritability}/example_pgen_bt2/example_pgen_bt2.gcta_greml.hsq").containsKey('V(G)/Vp_L') },
+                { assert !hsq("${heritability}/example_pgen_qt1/example_pgen_qt1.gcta_greml.hsq").containsKey('V(G)/Vp_L') },
+                // The save control is unset, so the matrix this run built is nowhere in the published
+                // output even though the trace above proves it was built.
+                { assert !new File("${params.outdir}/quality_control").exists() },
+                { assert new File("${params.outdir}").list().toList().sort() == ['heritability', 'multiqc', 'pipeline_info'] },
+                // Both matrix-building programmes are reported once each, as is the estimator, even
+                // though the matrix served four analyses and was built in two partitions: a version is
+                // a statement about the programme the run used, not a tally of how often it ran.
+                { assert versions.text.contains('GCTA_MAKEGRMPART') },
+                { assert versions.text.contains('CUSTOM_GCTAMERGEGRMPARTS') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+
+    test("two cohorts on one method produce two matrix builds under two keys") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // The same method and the same partition count on two cohorts. Cohort identity is a
+                // key component, so this is two matrices, not one shared by four analyses.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "two_cohorts", { rows ->
+                    def plink2 = greml(rows[0], '1')
+                    def plink1 = greml(rows[2], '1')
+                    rows.clear()
+                    rows << plink2
+                    rows << plink1
+                })
+                save_relatedness_matrices = true
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 2 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 2 },
+                // Key-addressed rather than cohort-addressed, because one cohort can carry several
+                // distinct matrices and a matrix several analyses share belongs to none of them.
+                { assert matrices.list().toList().sort() == ['3b47382e01cd', '5d51ed5c7620'] },
+                // The bundle GCTA REML reads is all three files together — the module refuses a
+                // bundle without its `.grm.bin` — so all three are what a saved matrix has to be.
+                // The per-partition files and the GCTA logs are deliberately not published.
+                { assert new File(matrices, '3b47382e01cd').list().toList().sort() == [
+                    'example_pgen.gcta_dense.3b47382e01cd.grm.N.bin',
+                    'example_pgen.gcta_dense.3b47382e01cd.grm.bin',
+                    'example_pgen.gcta_dense.3b47382e01cd.grm.id',
+                ] },
+                { assert new File(matrices, '5d51ed5c7620').list().toList().sort() == [
+                    'example_bfile.gcta_dense.5d51ed5c7620.grm.N.bin',
+                    'example_bfile.gcta_dense.5d51ed5c7620.grm.bin',
+                    'example_bfile.gcta_dense.5d51ed5c7620.grm.id',
+                ] },
+                // A matrix is a run-wide artefact, published beside the other quality control output
+                // rather than under any one analysis or method.
+                { assert new File("${params.outdir}/quality_control").list().toList() == ['relatedness_matrices'] },
+                { assert new File("${params.outdir}").list().toList().sort() == ['heritability', 'multiqc', 'pipeline_info', 'quality_control'] },
+            )
+        }
+    }
+
+    test("rows sharing construction inputs share one build however those inputs were spelled") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Two rows that differ in everything except what the matrix is built from: trait,
+                // trait type, case and control coding, prevalence and covariates. One leaves the
+                // defaulted samplesheet columns empty and takes the schema's values for them; the
+                // other states those same values verbatim.
+                //
+                // Neither of those columns is a key component on this route — the GCTA dense matrix
+                // has no construction setting at all, and no key component of it carries a schema
+                // default — so what this asserts is that a row's defaulted-versus-stated columns, and
+                // everything else per-analysis about it, stay out of the key. That the canonicalisation
+                // itself collapses a stated value onto the equivalent default is asserted directly
+                // against the key function in the function test named at the top of this file, where
+                // it is decidable today.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "spelled_alike", { rows ->
+                    def defaulted = greml(rows[0], '2')
+                    def stated = greml(rows[1], '2')
+                    stated.ldak_model = 'human_default'
+                    stated.ldak_power = '-0.25'
+                    stated.ldak_relatedness_filter = 'false'
+                    stated.quant_covariates = ''
+                    stated.cat_covariates = ''
+                    rows.clear()
+                    rows << defaulted
+                    rows << stated
+                })
+                save_relatedness_matrices = true
+            }
+        }
+
+        then {
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 2 },
+                // One key, and the same key the single-cohort runs above produce, so nothing about
+                // either row leaked into it.
+                { assert new File("${params.outdir}/quality_control/relatedness_matrices").list().toList() == ['3b47382e01cd'] },
+                { assert new File("${params.outdir}/heritability/individual/gcta_greml").list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+            )
+        }
+    }
+
+    test("two analysis units with different missing samples still share one matrix") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // The committed fixtures carry no missing value, so this scenario writes its own
+                // phenotype files: one with the trait missing for ten samples and one with it missing
+                // for twenty-five different ones. The two units therefore analyse different, and
+                // differently sized, sample sets.
+                //
+                // Missingness is per trait and is carried at the estimator, where GCTA drops a sample
+                // it has no phenotype for. The matrix is built from the cohort's genotypes and knows
+                // nothing about either trait, so it must not fragment — a design that built one matrix
+                // per analysed sample set would build two here, and would do so for every trait in a
+                // real study.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "missingness", { rows ->
+                    // Captured before either row is rewritten, so both copies are made from the
+                    // committed fixture rather than the second from the first.
+                    def source = rows[0].phenotype
+                    def blank = { name, range ->
+                        return SAMPLESHEET.rewrite(projectDir, outputDir, name, source) { lines ->
+                            (0..<lines.size()).collect { index ->
+                                if (!(index in range)) {
+                                    return lines[index]
+                                }
+                                def cells = lines[index].split('\t').toList()
+                                cells[2] = 'NA'
+                                return cells.join('\t')
+                            }
+                        }
+                    }
+                    def few_missing = greml(rows[0], '1')
+                    def many_missing = greml(new LinkedHashMap(rows[0]), '1')
+                    few_missing.phenotype = blank('missingness_few', 1..10)
+                    many_missing.analysis_id = 'example_pgen_qt_many_missing'
+                    many_missing.phenotype = blank('missingness_many', 11..35)
+                    rows.clear()
+                    rows << few_missing
+                    rows << many_missing
+                })
+                save_relatedness_matrices = true
+            }
+        }
+
+        then {
+            def heritability = new File("${params.outdir}/heritability/individual/gcta_greml")
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 2 },
+                { assert new File("${params.outdir}/quality_control/relatedness_matrices").list().toList() == ['3b47382e01cd'] },
+                // The missingness genuinely reached the estimator and genuinely differed between the
+                // two units, so the shared matrix is a real sharing rather than the two units having
+                // turned out identical.
+                { assert hsq("${heritability}/example_pgen_qt/example_pgen_qt.gcta_greml.hsq").n == '490' },
+                { assert hsq("${heritability}/example_pgen_qt_many_missing/example_pgen_qt_many_missing.gcta_greml.hsq").n == '475' },
+            )
+        }
+    }
+
+    test("rows sharing a matrix but disagreeing on its partition count are refused") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Real fixtures rather than placeholders, so that this run has nothing else that can
+                // fail: the message asserted below has to be the reason the run stopped, not one of
+                // several errors it happened to reach.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "conflicting_parts", { rows ->
+                    def two_parts = greml(rows[0], '2')
+                    def three_parts = greml(rows[1], '3')
+                    rows.clear()
+                    rows << two_parts
+                    rows << three_parts
+                })
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                // The partition count is a memory control and the merged matrix is byte-identical
+                // whatever it is, so two rows declaring different counts are contradicting each other
+                // about one matrix rather than asking for two. Honouring either silently would give
+                // the researcher a matrix built to settings they did not ask for.
+                { assert report.contains('share one relatedness matrix') },
+                { assert report.contains('conflicting gcta_grm_parts') },
+                // Named well enough to fix without bisecting the samplesheet: which rows, which
+                // matrix, and which values disagree.
+                { assert report.contains("'example_pgen_qt'") },
+                { assert report.contains("'example_pgen_bt'") },
+                { assert report.contains('3b47382e01cd') },
+                { assert report.contains('values 2, 3') },
+                // And it says what to do about it.
+                { assert report.contains('give every row on this matrix the same gcta_grm_parts') },
+                // No estimate was produced from a matrix built to one row's count.
+                { assert !new File("${params.outdir}/heritability").exists() },
+            )
+        }
+    }
+
+    // Written by the resume test's `when` block and read by its `then` block, which is where the
+    // second run is launched from. Both sheets are materialised up front so that the `then` block
+    // needs nothing but a path.
+    def resume_sheets = [:]
+
+    test("resuming after a trait is added to an analysed cohort reuses the matrix") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Two analysis units on cohort example_pgen, and the same sheet with a third on the
+                // same cohort, which is the ordinary way a study grows.
+                resume_sheets.before = SAMPLESHEET.fixtures(projectDir, outputDir, "resume_before", { rows ->
+                    def quantitative = greml(rows[0], '2')
+                    def binary = greml(rows[1], '2')
+                    rows.clear()
+                    rows << quantitative
+                    rows << binary
+                })
+                resume_sheets.after = SAMPLESHEET.fixtures(projectDir, outputDir, "resume_after", { rows ->
+                    def quantitative = greml(rows[0], '2')
+                    def binary = greml(rows[1], '2')
+                    def added = greml(new LinkedHashMap(rows[0]), '2')
+                    added.analysis_id = 'example_pgen_qt_added'
+                    rows.clear()
+                    rows << quantitative
+                    rows << binary
+                    rows << added
+                })
+                input = resume_sheets.before
+            }
+        }
+
+        then {
+            // The second stage. nf-test drives one `nextflow run` per test, so the resumed run is
+            // launched from here against the run this test just finished — see tests/lib/RESUME.groovy
+            // for why that is the only way to observe a task cache from nf-test, and note that it
+            // makes this test cost two full pipeline executions.
+            def resumed = RESUME.rerun(outputDir, [input: resume_sheets.after, outdir: "${outputDir}_resumed"])
+            assert workflow.success
+            assertAll(
+                // The first run built the matrix once for its two units.
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 2 },
+                // The second run reused it. Adding a row to the samplesheet does not change the key,
+                // so it does not change the matrix identity, the manifest or the genotypes the build
+                // tasks see — and a content-derived key is what makes that true, where matrices
+                // numbered in arrival order would renumber on insertion and invalidate every one.
+                { assert RESUME.statuses(resumed, 'GCTA_MAKEGRMPART') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(resumed, 'CUSTOM_GCTAMERGEGRMPARTS') == ['CACHED'] },
+                // And only the new analysis unit was actually computed, which is what says the
+                // resumed run was a real resume rather than a fresh run that happened to agree.
+                { assert RESUME.statuses(resumed, 'NORMALISE_PHENOTYPES') == ['CACHED', 'CACHED', 'COMPLETED'] },
+                { assert RESUME.statuses(resumed, 'GCTA_REML') == ['CACHED', 'CACHED', 'COMPLETED'] },
+                // The added trait got its own complete estimate from the matrix it did not build.
+                { assert new File("${outputDir}_resumed/heritability/individual/gcta_greml").list().toList().sort() == [
+                    'example_pgen_bt',
+                    'example_pgen_qt',
+                    'example_pgen_qt_added',
+                ] },
+            )
+        }
+    }
+}

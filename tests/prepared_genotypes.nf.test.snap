@@ -2,6 +2,15 @@
     "prepared_genotypes": {
         "content": [
             {
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
+                },
+                "GCTA_MAKEGRMPART": {
+                    "gcta": "1.94.1"
+                },
+                "GCTA_REML": {
+                    "gcta": "1.94.1"
+                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9"
                 },
@@ -41,6 +50,11 @@
                 "genotypes/example_vcf/example_vcf.pgen",
                 "genotypes/example_vcf/example_vcf.psam",
                 "genotypes/example_vcf/example_vcf.pvar",
+                "heritability",
+                "heritability/individual",
+                "heritability/individual/gcta_greml",
+                "heritability/individual/gcta_greml/example_pgen_qt",
+                "heritability/individual/gcta_greml/example_pgen_qt/example_pgen_qt.gcta_greml.hsq",
                 "multiqc",
                 "multiqc/multiqc_data",
                 "multiqc/multiqc_data/llms-full.txt",
@@ -71,6 +85,7 @@
                 "example_vcf.pgen:md5,a00e5ab58bdef52767b3690fa6e33c18",
                 "example_vcf.psam:md5,6f811372d231e1a2a2c176c60abb3106",
                 "example_vcf.pvar:md5,ccae8151ff91eab7398ba736ba23a59d",
+                "example_pgen_qt.gcta_greml.hsq:md5,45be7eb46e7ddff5b0f7dc59dba85fcd",
                 "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
                 "example_pgen_bt.plink2.gwaslab.tsv.gz:md5,ccae9196e519b10d8e913e39923d6ee7",
                 "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5"
@@ -80,6 +95,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-29T01:56:02.826058017"
+        "timestamp": "2026-07-29T04:50:23.439697305"
     }
 }

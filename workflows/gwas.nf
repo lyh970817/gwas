@@ -12,7 +12,9 @@ include { PLINK2_GLM                   } from '../modules/local/plink2/glm/main'
 include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
+include { GRM_HERITABILITY_GCTA        } from '../subworkflows/local/grm_heritability_gcta'
 include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
+include { PREPARE_RELATEDNESS_MATRICES } from '../subworkflows/local/prepare_relatedness_matrices'
 include { associationColumnMappingJson } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { gwaslabReferenceLookup       } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { methodsDescriptionText       } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
@@ -43,13 +45,24 @@ workflow GWAS {
     def ch_versions = channel.empty()
     def ch_multiqc_files = channel.empty()
 
+    // One element per analysis unit carrying the genotype files it declared. Built once and passed to both
+    // consumers: cohort preparation collapses it to the distinct cohorts, and the matrix subworkflow needs
+    // the declared file names for the reuse key.
+    def ch_analysis_genotypes = ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract ->
+        [meta, genotype_files]
+    }
+
     //
     // SUBWORKFLOW: Prepare each distinct cohort's genotypes once into the canonical PLINK 2 bundle
     //
-    PREPARE_COHORT_GENOTYPES(
-        ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract ->
-            [meta, genotype_files]
-        }
+    PREPARE_COHORT_GENOTYPES(ch_analysis_genotypes)
+
+    //
+    // SUBWORKFLOW: Build each distinct relatedness matrix once and fan it out per analysis unit
+    //
+    PREPARE_RELATEDNESS_MATRICES(
+        ch_analysis_genotypes,
+        PREPARE_COHORT_GENOTYPES.out.cohort_genotypes,
     )
 
     //
@@ -133,6 +146,49 @@ workflow GWAS {
         ch_harmonise_input.reference_fasta,
         ch_harmonise_input.rsid_reference,
         ch_harmonise_input.strand_reference,
+    )
+
+    //
+    // SUBWORKFLOW: GCTA GREML heritability
+    //
+    // GCTA rejects a header row, so this route takes the headerless serialisations rather than the headered
+    // ones the association routes use, and the trait sits at a fixed third column, which makes `--mpheno`
+    // the constant 1 (set in conf/modules/gcta.config).
+    //
+    // The covariate channels are subsets of the analysis units, so they are folded onto the phenotype
+    // channel — which is total — with `remainder: true` and default to `[]`, which stages nothing and
+    // reaches the component as an absent file.
+    def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
+        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
+        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
+        .map { meta, phenotype, quant_covariates, cat_covariates ->
+            [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
+        }
+
+    // Every analysis unit on `gcta_dense` asked for a dense GCTA matrix, and `gcta_greml` is the only route
+    // that does, so no further filtering is applied here: `relatednessMatrixKinds` is the one place that
+    // decides which method needs which matrix. `failOnMismatch` is deliberately absent — the phenotype
+    // channel is total over analysis units while this one carries only the GREML ones, so an unmatched
+    // right-hand element is expected rather than a defect. The middle element of `grm` is the MGRM manifest,
+    // which the subworkflow requires to be absent on the `greml` route and present on `greml_ldms`.
+    def ch_greml_inputs = PREPARE_RELATEDNESS_MATRICES.out.gcta_dense
+        .join(ch_gcta_phenotypes, failOnDuplicate: true)
+        .multiMap { meta, grm_files, phenotype, quant_covariates, cat_covariates ->
+            grm: [meta, [], grm_files]
+            pheno: [meta, phenotype]
+            qcovar: [meta, quant_covariates]
+            covar: [meta, cat_covariates]
+            estimator: [meta, 'greml']
+        }
+
+    // `GRM_HERITABILITY_GCTA.out.versions` is deliberately unconsumed: `gcta/reml` already publishes to the
+    // `versions` topic, so accumulating the subworkflow's own emit as well would report GCTA twice.
+    GRM_HERITABILITY_GCTA(
+        ch_greml_inputs.grm,
+        ch_greml_inputs.pheno,
+        ch_greml_inputs.qcovar,
+        ch_greml_inputs.covar,
+        ch_greml_inputs.estimator,
     )
 
     //

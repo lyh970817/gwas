@@ -61,6 +61,12 @@
                     "description": "Save the normalised phenotype and covariate files prepared for each analysis unit.",
                     "help_text": "Normalised files are published to `<outdir>/phenotypes/<analysis_id>/` so that you can check how your trait was recoded before an association or heritability run consumed it. The set is the headered phenotype file, the separate quantitative and categorical covariate files, and the merged covariate file; the headerless serialisations and the normalisation log are never published.",
                     "fa_icon": "fas fa-download"
+                },
+                "save_relatedness_matrices": {
+                    "type": "boolean",
+                    "description": "Save the relatedness matrices built for the heritability and mixed-model routes.",
+                    "help_text": "Matrices are published to `<outdir>/quality_control/relatedness_matrices/<key>/`, where `<key>` is the content-derived reuse key of the matrix: a digest over the cohort identity and every construction setting that changes the matrix. The path is key-addressed rather than cohort-addressed because one cohort can carry several distinct matrices, and because a matrix that several analyses share belongs to none of them. Only the merged bundle is saved; the per-partition files it was built from are not.",
+                    "fa_icon": "fas fa-download"
                 }
             }
         },
