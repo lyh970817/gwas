@@ -1,0 +1,278 @@
+nextflow_pipeline {
+
+    name "Test GWASLab summary statistics harmonisation"
+    script "../main.nf"
+    tag "pipeline"
+    tag "summary_statistics"
+    tag "gwaslab"
+
+    // Every sheet here is built with SAMPLESHEET.fixtures and runs a real association: harmonisation
+    // reads the file the association programme wrote, so a placeholder sheet would prove nothing.
+    //
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
+    //   index 0 -> example_pgen_qt   cohort example_pgen,  quantitative, plink2
+    //   index 1 -> example_pgen_bt   cohort example_pgen,  binary,       plink2
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes, no association method
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes,     no association method
+    //
+    // Only rows 0 and 1 select plink2, so exactly two of the four analysis units reach harmonisation.
+
+    // Every file a task wrote or had staged, read out of the run's working directory.
+    //
+    // Two claims this file makes are about files that are not published: the association result as
+    // the association programme actually wrote it, before publishing renamed it, and which
+    // reference resource was staged into which harmonisation task.
+    def work_files = { output_dir ->
+        def files = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile()) {
+                files << entry
+            }
+        }
+        return files
+    }
+
+    // The working directory of every GWASLab task that ran, keyed by the analysis whose summary
+    // statistics it harmonised. The harmonised file is named after the analysis and the method, so
+    // the task directory identifies itself and no trace bookkeeping is needed to match them up.
+    def harmonised_tasks = { output_dir ->
+        def tasks = [:]
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name.endsWith('.gwaslab.tsv.gz')) {
+                tasks[entry.name.tokenize('.').first()] = entry.parentFile
+            }
+        }
+        return tasks
+    }
+
+    // The header of a harmonised file, read out of the gzip stream rather than by shelling out.
+    def harmonised_header = { entry ->
+        return new java.util.zip.GZIPInputStream(new FileInputStream(entry))
+            .withReader('UTF-8') { reader -> reader.readLine() }
+            .split('\t')
+            .toList()
+    }
+
+    // Every data row's STATUS code from a harmonised file. GWASLab's STATUS is a positional digit
+    // string whose sixth digit records the reference-sequence check: 9 means the check was not
+    // performed, anything else means it was. It is therefore the file's own evidence of whether a
+    // reference FASTA reached the task that wrote it.
+    def reference_check_digits = { entry ->
+        def rows = new java.util.zip.GZIPInputStream(new FileInputStream(entry)).withReader('UTF-8') { reader ->
+            reader.readLines()
+        }
+        def status = rows.first().split('\t').toList().indexOf('STATUS')
+        return rows.tail().collect { row -> row.split('\t')[status][5] }.toSet()
+    }
+
+    // A synthetic reference FASTA and its `.fai`, written beside the generated samplesheets so that
+    // it can never reach a published snapshot, and its path returned for the reference parameter.
+    //
+    // Deliberately synthetic. Whether a real reference *improves* a harmonisation is the component's
+    // own upstream test's job; what this file owns is which analysis was given which build's
+    // reference, and for that a FASTA that GWASLab opens, indexes and reports on is enough. A real
+    // human genome would add a multi-gigabyte fetch and change nothing about the claim.
+    def reference_fasta = { output_dir, name ->
+        def directory = new File(new File(output_dir.toString()).parentFile, "references/${name}")
+        directory.mkdirs()
+        def line_length = 60
+        def lines_per_contig = 20
+        def fasta = new StringBuilder()
+        def index = []
+        ((1..22).collect { number -> number.toString() } + ['X', 'Y', 'MT']).each { contig ->
+            def header = ">${contig}\n"
+            index << [contig, line_length * lines_per_contig, fasta.length() + header.length(), line_length, line_length + 1].join('\t')
+            fasta.append(header)
+            lines_per_contig.times { fasta.append('N' * line_length).append('\n') }
+        }
+        new File(directory, 'reference.fa').text = fasta.toString()
+        new File(directory, 'reference.fa.fai').text = index.join('\n') + '\n'
+        return new File(directory, 'reference.fa').absolutePath
+    }
+
+    test("harmonisation runs once per analysis per method and publishes beside the untouched native result") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "harmonisation_default", null)
+            }
+        }
+
+        then {
+            def summary_statistics = new File("${params.outdir}/summary_statistics")
+            def native_published = new File("${params.outdir}/association/plink2/example_pgen_qt/example_pgen_qt.plink2.glm.linear")
+            // What PLINK 2 itself wrote, before publishing renamed it. The published name drops the
+            // `.PHENO` segment PLINK 2 injects, so the two names differ and the comparison is
+            // between the file as written and the file as published.
+            def native_written = work_files(outputDir).find { entry -> entry.name == 'example_pgen_qt.plink2.PHENO.glm.linear' }
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            // stable_name: All files + folders in ${params.outdir}/summary_statistics/ with a stable
+            // name. The directory it is pointed at comes back as an empty relative path, which is
+            // dropped.
+            def stable_name = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
+            // stable_path: All files in ${params.outdir}/summary_statistics/ with stable content.
+            // nf-test hashes a `.gz` file's decompressed bytes, so the gzip member header's embedded
+            // timestamp does not make this snapshot vary between runs.
+            def stable_path = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+            assert workflow.success
+            assertAll(
+                // Asserted from the trace rather than from published files: a cached task publishes
+                // the same files as a re-executed one, so only the trace answers "how many ran".
+                //
+                // The contrast with normalisation is what makes the multiplicity claim mean
+                // anything. Four analysis units exist and all four were normalised; two of them
+                // select an association method, one method each, and harmonisation ran exactly
+                // twice — once per analysis per method actually exercised, not once per analysis.
+                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 4 },
+                { assert TRACE.count(workflow, 'PLINK2_GLM') == 2 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 2 },
+                // The component tags on the analysis identifier alone, so with a second route wired
+                // this set is unchanged while the count above doubles. Asserted as a set for that
+                // reason.
+                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').toSet() == ['example_pgen_bt', 'example_pgen_qt'].toSet() },
+                // Keyed by analysis identifier, one directory per routed analysis.
+                { assert summary_statistics.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                // The filename grammar, stated once against the whole method vocabulary rather than
+                // against the one method wired today, so the assertion survives the next route
+                // landing unchanged: analysis identifier, then method, then the GWASLab tool suffix.
+                { assert summary_statistics.listFiles().every { directory ->
+                    directory.list().every { name -> name ==~ "\\Q${directory.name}\\E\\.(plink2|regenie|gcta_fastgwa|ldak_kvik)\\.gwaslab\\.tsv\\.gz" }
+                } },
+                // And the method is distinguishable from the filename and *only* from the filename:
+                // nothing under summary_statistics is a directory, so no method can be a path
+                // segment. This is the half of the criterion that makes a cross-method comparison a
+                // single directory listing.
+                { assert summary_statistics.listFiles().every { directory -> directory.listFiles().every { entry -> entry.isFile() } } },
+                // The tool suffix is present on every harmonised file, and on nothing else.
+                { assert summary_statistics.listFiles().collect { directory -> directory.list().toList() }.flatten().every { name -> name.endsWith('.gwaslab.tsv.gz') } },
+                // The native PLINK 2 result is still published beside the harmonised one, and it is
+                // still byte-for-byte the file PLINK 2 wrote: harmonisation reads the association
+                // output, it does not rewrite it, and publishing changes only the name.
+                { assert new File("${params.outdir}/association/plink2").list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                { assert new File("${params.outdir}/association/plink2/example_pgen_bt").list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
+                { assert native_published.exists() },
+                { assert native_written != null },
+                { assert native_published.bytes == native_written.bytes },
+                // Still PLINK 2's own format rather than the harmonised one, stated positively so
+                // that an in-place rewrite could not pass the byte comparison above by rewriting
+                // both copies.
+                { assert native_published.readLines().first().split('\t').toList().take(3) == ['#CHROM', 'POS', 'ID'] },
+                { assert snapshot(stable_name, stable_path).match('summary_statistics') },
+                // The harmoniser reports itself into the run's software versions, so a published
+                // harmonised file is attributable to a named version of the programme that
+                // standardised it rather than only to the programme that produced the association.
+                { assert versions.text.contains('GWASLAB_HARMONIZE') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+
+    test("every harmonised file carries the same canonical column header") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "harmonisation_columns", null)
+            }
+        }
+
+        then {
+            def headers = []
+            new File("${params.outdir}/summary_statistics").eachFileRecurse { entry ->
+                if (entry.isFile() && entry.name.endsWith('.gwaslab.tsv.gz')) {
+                    headers << harmonised_header(entry)
+                }
+            }
+            assert workflow.success
+            assertAll(
+                // A claim over every harmonised file the run produced, not over a named pair, so it
+                // becomes the cross-method comparison the moment a second route lands and needs no
+                // rewriting to get there. It is not vacuous today either: the demo sheet carries one
+                // quantitative and one binary analysis, and PLINK 2 writes genuinely different files
+                // for them — `.glm.linear` against `.glm.logistic.hybrid`, and without `cols=+beta`
+                // an effect column headed BETA against one headed OR.
+                { assert headers.size() == 2 },
+                { assert headers.unique().size() == 1 },
+                // GWASLab's canonical field names in GWASLab's canonical order, restricted to the
+                // columns the registered mapping supplies. Pinned exactly rather than checked for a
+                // handful of members, because "standardised" is a claim about the whole header.
+                { assert headers.first() == ['SNPID', 'CHR', 'POS', 'EA', 'NEA', 'STATUS', 'EAF', 'BETA', 'SE', 'P', 'N'] },
+            )
+        }
+    }
+
+    test("the reference resource follows the declared genome build and a build with none still harmonises") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Three analysis units whose builds cut across both cohort and trait type, so that
+                // no predicate other than the build reproduces the partition the reference lookup
+                // has to make:
+                //
+                //   example_pgen_qt   GRCh38  cohort example_pgen   quantitative
+                //   example_pgen_bt   GRCh37  cohort example_pgen   binary
+                //   example_bfile_bt  GRCh38  cohort example_bfile  binary
+                //
+                // `example_pgen` appears on both sides of the split and `binary` appears on both
+                // sides of it, so a lookup keyed on the cohort or on the trait would give a
+                // different answer from the one asserted below. Only the build separates them.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "build_keyed_reference", { rows ->
+                    rows.removeAll { row -> row.analysis_id == 'example_vcf_qt' }
+                    rows.find { row -> row.analysis_id == 'example_pgen_qt' }.genome_build = 'GRCh38'
+                    rows.find { row -> row.analysis_id == 'example_pgen_qt' }.association_methods = 'plink2'
+                    rows.find { row -> row.analysis_id == 'example_pgen_bt' }.genome_build = 'GRCh37'
+                    def bfile = rows.find { row -> row.analysis_id == 'example_bfile_qt' }
+                    bfile.analysis_id = 'example_bfile_bt'
+                    bfile.trait_id = 'BT'
+                    bfile.trait_type = 'binary'
+                    bfile.genome_build = 'GRCh38'
+                    bfile.phenotype_column = 'BT'
+                    bfile.control_value = '1'
+                    bfile.case_value = '2'
+                    bfile.association_methods = 'plink2'
+                    bfile.heritability_methods = ''
+                    bfile.gcta_grm_parts = ''
+                    bfile.gcta_ldms_maf_edges = ''
+                })
+                // Configured for one build only. The other build has no reference at all, which is
+                // the degradation path: harmonisation must still standardise without one.
+                gwaslab_reference_fasta_grch38 = reference_fasta(outputDir, "build_keyed_reference")
+            }
+        }
+
+        then {
+            def tasks = harmonised_tasks(outputDir)
+            def staged = tasks.collectEntries { analysis, directory -> [analysis, directory.list().toList().contains('reference.fa')] }
+            def summary_statistics = new File("${params.outdir}/summary_statistics")
+            assert workflow.success
+            assertAll(
+                // The GRCh37 analysis ran and produced a harmonised file with no reference
+                // configured for its build at all. That is the more important half of the
+                // criterion: an analysis whose build has no reference still harmonises.
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 3 },
+                { assert summary_statistics.list().toList().sort() == ['example_bfile_bt', 'example_pgen_bt', 'example_pgen_qt'] },
+                { assert summary_statistics.listFiles().every { directory -> directory.list().size() == 1 } },
+                // Which task was given the reference, read from the working directory because the
+                // staged input is not published. The two GRCh38 analyses got it and the GRCh37 one
+                // did not, across a cohort boundary and across a trait-type boundary.
+                { assert staged == ['example_pgen_qt': true, 'example_pgen_bt': false, 'example_bfile_bt': true] },
+                // The index sidecar came with it, resolved by convention from the FASTA path rather
+                // than declared as a further parameter.
+                { assert tasks['example_pgen_qt'].list().toList().contains('reference.fa.fai') },
+                { assert tasks['example_bfile_bt'].list().toList().contains('reference.fa.fai') },
+                { assert !tasks['example_pgen_bt'].list().toList().contains('reference.fa.fai') },
+                // And the reference was used, not merely staged: GWASLab records the outcome of the
+                // reference-sequence check in every row's STATUS code, and the digit reserved for it
+                // is the untouched 9 only for the analysis whose build had no reference.
+                { assert reference_check_digits(new File(summary_statistics, 'example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz')) != ['9'].toSet() },
+                { assert reference_check_digits(new File(summary_statistics, 'example_bfile_bt/example_bfile_bt.plink2.gwaslab.tsv.gz')) != ['9'].toSet() },
+                { assert reference_check_digits(new File(summary_statistics, 'example_pgen_bt/example_pgen_bt.plink2.gwaslab.tsv.gz')) == ['9'].toSet() },
+                // The harmonised header is the same either way: whether a reference was available is
+                // a property of the harmonisation, not of the format it produces.
+                { assert summary_statistics.listFiles().collect { directory -> harmonised_header(directory.listFiles().first()) }.unique().size() == 1 },
+            )
+        }
+    }
+}

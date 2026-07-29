@@ -166,10 +166,146 @@ workflow PIPELINE_COMPLETION {
 */
 
 //
-// Accepted association method tokens for the `association_methods` column.
+// The GWASLab constructor column mapping for each association method.
+//
+// Explicit mappings rather than GWASLab format names, for every method and not only the ones with no
+// format-book entry: LDAK-KVIK has no entry at all, the pinned GWASLab version differs from the version
+// whose format book was inspected, and PLINK 2's own entry declares a `#` comment character, which would
+// make pandas read the `#CHROM` header line as a comment. Four short maps cost less than four unverified
+// assumptions.
+//
+// The keys are `gwaslab.Sumstats` constructor arguments and the values are the source column headers the
+// programme actually writes; the component splats the serialised map straight into that constructor. A key
+// that is not a constructor argument is forwarded to `pandas.read_table` instead, which is how `readargs`
+// carries a non-tab separator.
+//
+// `common` applies to every analysis. `quantitative` and `binary` are merged over it where the programme
+// renames its effect columns by trait type; a method that does not need them omits both.
+//
+// Registering a new association route is exactly this: add an entry. The accepted `association_methods`
+// vocabulary is derived from these keys, so a route cannot be selectable without a mapping and a mapping
+// cannot be orphaned.
+//
+def associationColumnMappings() {
+    return [
+        plink2: [
+            common: [
+                snpid: 'ID',
+                chrom: '#CHROM',
+                pos: 'POS',
+                ea: 'A1',
+                nea: 'REF',
+                eaf: 'A1_FREQ',
+                n: 'OBS_CT',
+                beta: 'BETA',
+                se: 'SE',
+                p: 'P',
+            ]
+        ],
+        regenie: [
+            common: [
+                snpid: 'ID',
+                chrom: 'CHROM',
+                pos: 'GENPOS',
+                ea: 'ALLELE1',
+                nea: 'ALLELE0',
+                eaf: 'A1FREQ',
+                n: 'N',
+                beta: 'BETA',
+                se: 'SE',
+                mlog10p: 'LOG10P',
+                readargs: [sep: ' '],
+            ]
+        ],
+        gcta_fastgwa: [
+            common: [
+                snpid: 'SNP',
+                chrom: 'CHR',
+                pos: 'POS',
+                ea: 'A1',
+                nea: 'A2',
+                eaf: 'AF1',
+                n: 'N',
+                beta: 'BETA',
+                se: 'SE',
+                p: 'P',
+            ]
+        ],
+        ldak_kvik: [
+            common: [
+                snpid: 'Predictor',
+                chrom: 'Chromosome',
+                pos: 'Basepair',
+                ea: 'A1',
+                nea: 'A2',
+                maf: 'MAF',
+                z: 'Wald_Stat',
+                p: 'Wald_P',
+            ],
+            quantitative: [beta: 'Effect', se: 'SE'],
+            binary: [beta: 'Approx_Log_OR', se: 'Approx_SE'],
+        ],
+    ]
+}
+
+//
+// The column mapping for one analysis, serialised as the JSON object the component takes as its
+// `input_format`. Serialised here rather than written out by hand so that quoting is the JSON library's
+// problem rather than a reviewer's.
+//
+def associationColumnMappingJson(method, is_binary) {
+    def entry = associationColumnMappings()[method]
+    if (!entry) {
+        error("[nf-core/gwas] ERROR: no GWASLab column mapping is registered for association method '${method}'")
+    }
+    return groovy.json.JsonOutput.toJson(entry.common + (entry[is_binary ? 'binary' : 'quantitative'] ?: [:]))
+}
+
+//
+// The optional GWASLab reference resources, keyed on genome build and on nothing else. The samplesheet's
+// `genome_build` column is the only real heterogeneity in this set — an rsID VCF is a property of the
+// coordinate system, not of a cohort or an ancestry — so the reference selection reduces to this.
+//
+// A build with no configured resource yields empty lists, which stage nothing and reach the component as
+// an absent reference; harmonisation then standardises without one rather than failing. Index sidecars are
+// read by convention rather than exposed as six further parameters, and a missing one is a hard error
+// naming the file, because a silently absent index would fail later inside GWASLab.
+//
+def gwaslabReferenceLookup() {
+    def sidecar = { resource, suffixes ->
+        if (!resource) {
+            return []
+        }
+        def resolved = suffixes.collect { suffix -> file("${resource}${suffix}") }.find { candidate -> candidate.exists() }
+        if (!resolved) {
+            error("[nf-core/gwas] ERROR: no index found for GWASLab reference '${resource}', expected one of ${suffixes.collect { suffix -> "'${resource}${suffix}'" }.join(', ')}")
+        }
+        return resolved
+    }
+    def resources = { fasta, rsid_vcf, strand_vcf ->
+        [
+            fasta: fasta ? file(fasta, checkIfExists: true) : [],
+            fasta_index: sidecar.call(fasta, ['.fai']),
+            rsid_vcf: rsid_vcf ? file(rsid_vcf, checkIfExists: true) : [],
+            rsid_vcf_index: sidecar.call(rsid_vcf, ['.tbi', '.csi']),
+            strand_vcf: strand_vcf ? file(strand_vcf, checkIfExists: true) : [],
+            strand_vcf_index: sidecar.call(strand_vcf, ['.tbi', '.csi']),
+        ]
+    }
+    return [
+        GRCh37: resources.call(params.gwaslab_reference_fasta_grch37, params.gwaslab_rsid_vcf_grch37, params.gwaslab_strand_vcf_grch37),
+        GRCh38: resources.call(params.gwaslab_reference_fasta_grch38, params.gwaslab_rsid_vcf_grch38, params.gwaslab_strand_vcf_grch38),
+    ]
+}
+
+//
+// Accepted association method tokens for the `association_methods` column. Derived from the column-mapping
+// registry: every association result is harmonised, so a route that is selectable without a registered
+// mapping is a route that fails at harmonisation time. The literal order of that map is preserved, so the
+// vocabulary this reports in a validation error is unchanged.
 //
 def associationMethodTokens() {
-    return ['plink2', 'regenie', 'gcta_fastgwa', 'ldak_kvik']
+    return associationColumnMappings().keySet().toList()
 }
 
 //

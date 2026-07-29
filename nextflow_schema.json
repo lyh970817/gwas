@@ -64,6 +64,57 @@
                 }
             }
         },
+        "harmonisation_options": {
+            "title": "Harmonisation options",
+            "type": "object",
+            "fa_icon": "fas fa-align-left",
+            "description": "Optional reference resources used when standardising summary statistics with GWASLab.",
+            "help_text": "Every association result is standardised by GWASLab whether or not these are supplied. Supplying them additionally allows GWASLab to check and flip alleles against the reference sequence, assign rsIDs, and infer the strand of palindromic variants. They are selected by the genome build an analysis declares in its samplesheet row, so a run mixing builds configures each build independently and an analysis on a build with no configured resource is standardised without one. Indexes are read from the conventional sidecar names next to each file: `<fasta>.fai` for a FASTA, and `<vcf>.tbi` or `<vcf>.csi` for a VCF.",
+            "properties": {
+                "gwaslab_reference_fasta_grch37": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Reference sequence FASTA for GRCh37 analyses.",
+                    "fa_icon": "fas fa-file"
+                },
+                "gwaslab_reference_fasta_grch38": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Reference sequence FASTA for GRCh38 analyses.",
+                    "fa_icon": "fas fa-file"
+                },
+                "gwaslab_rsid_vcf_grch37": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Indexed VCF or BCF used to assign rsIDs to GRCh37 analyses.",
+                    "fa_icon": "fas fa-file"
+                },
+                "gwaslab_rsid_vcf_grch38": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Indexed VCF or BCF used to assign rsIDs to GRCh38 analyses.",
+                    "fa_icon": "fas fa-file"
+                },
+                "gwaslab_strand_vcf_grch37": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Indexed VCF or BCF used to infer the strand of palindromic variants in GRCh37 analyses.",
+                    "fa_icon": "fas fa-file"
+                },
+                "gwaslab_strand_vcf_grch38": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Indexed VCF or BCF used to infer the strand of palindromic variants in GRCh38 analyses.",
+                    "fa_icon": "fas fa-file"
+                }
+            }
+        },
         "institutional_config_options": {
             "title": "Institutional config options",
             "type": "object",
@@ -221,6 +272,9 @@
         },
         {
             "$ref": "#/$defs/save_controls"
+        },
+        {
+            "$ref": "#/$defs/harmonisation_options"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

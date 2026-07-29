@@ -2,6 +2,9 @@
     "-profile test": {
         "content": [
             {
+                "GWASLAB_HARMONIZE": {
+                    "gwaslab": "4.1.9"
+                },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
                 },
@@ -36,18 +39,25 @@
                 "multiqc/multiqc_data/multiqc_sources.txt",
                 "multiqc/multiqc_report.html",
                 "pipeline_info",
-                "pipeline_info/nf_core_gwas_software_mqc_versions.yml"
+                "pipeline_info/nf_core_gwas_software_mqc_versions.yml",
+                "summary_statistics",
+                "summary_statistics/example_pgen_bt",
+                "summary_statistics/example_pgen_bt/example_pgen_bt.plink2.gwaslab.tsv.gz",
+                "summary_statistics/example_pgen_qt",
+                "summary_statistics/example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz"
             ],
             [
-                "example_pgen_bt.plink2.glm.logistic.hybrid:md5,90b3f96e6dd5fd570a7ce60bb6830f38",
+                "example_pgen_bt.plink2.glm.logistic.hybrid:md5,83d85cc0bda51b829ba43323abfd3530",
                 "example_pgen_qt.plink2.glm.linear:md5,ea3c5efee75bd852b546b6be5d07db5c",
-                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f"
+                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
+                "example_pgen_bt.plink2.gwaslab.tsv.gz:md5,ccae9196e519b10d8e913e39923d6ee7",
+                "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-28T23:40:51.0416061"
+        "timestamp": "2026-07-29T01:51:24.160867991"
     }
 }

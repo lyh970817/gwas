@@ -26,6 +26,25 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-29T01:54:44.325328483"
+        "timestamp": "2026-07-29T02:19:19.029541238"
+    },
+    "summary_statistics": {
+        "content": [
+            [
+                "example_pgen_bt",
+                "example_pgen_bt/example_pgen_bt.plink2.gwaslab.tsv.gz",
+                "example_pgen_qt",
+                "example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz"
+            ],
+            [
+                "example_pgen_bt.plink2.gwaslab.tsv.gz:md5,ccae9196e519b10d8e913e39923d6ee7",
+                "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-29T01:47:10.551400733"
     }
 }

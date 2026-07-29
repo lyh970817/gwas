@@ -4,22 +4,25 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // MODULE: Local to the pipeline
-include { NORMALISE_PHENOTYPES     } from '../modules/local/normalise_phenotypes/main'
-include { PLINK2_GLM               } from '../modules/local/plink2/glm/main'
+include { GWASLAB_HARMONIZE            } from '../modules/local/gwaslab/harmonize/main'
+include { NORMALISE_PHENOTYPES         } from '../modules/local/normalise_phenotypes/main'
+include { PLINK2_GLM                   } from '../modules/local/plink2/glm/main'
 
 // MODULE: Installed directly from nf-core/modules
-include { MULTIQC                  } from '../modules/nf-core/multiqc/main'
+include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { PREPARE_COHORT_GENOTYPES } from '../subworkflows/local/prepare_cohort_genotypes'
-include { methodsDescriptionText   } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
+include { associationColumnMappingJson } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+include { gwaslabReferenceLookup       } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+include { methodsDescriptionText       } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
-include { paramsSummaryMultiqc     } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
+include { paramsSummaryMultiqc         } from '../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML       } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 
 // PLUGIN
-include { paramsSummaryMap         } from 'plugin/nf-schema'
+include { paramsSummaryMap             } from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -85,6 +88,51 @@ workflow GWAS {
         ch_glm_input.genotypes,
         ch_glm_input.phenotype,
         ch_glm_input.covariates,
+    )
+
+    //
+    // MODULE: GWASLab harmonisation of every association result
+    //
+    // One record per analysis per association method actually exercised. Each route contributes an
+    // adapter that names its method on the meta map and normalises whatever emissions the programme
+    // splits its results across; everything downstream is method-agnostic. `meta.id` stays the analysis
+    // identifier — the method is a separate key, because the analysis is what the published summary
+    // statistics directory is keyed by and the method is what distinguishes the files inside it.
+    //
+    // PLINK 2 splits its result across four optional emissions, one per regression it may have fitted,
+    // and exactly one of them is populated for a given analysis, so the four are mixed back into one.
+    def ch_association_results = channel.empty()
+
+    def ch_plink2_results = PLINK2_GLM.out.linear.mix(
+        PLINK2_GLM.out.logistic,
+        PLINK2_GLM.out.logistic_hybrid,
+        PLINK2_GLM.out.firth,
+    )
+
+    ch_association_results = ch_association_results.mix(
+        ch_plink2_results.map { meta, sumstats -> [meta + [method: 'plink2'], sumstats] }
+    )
+
+    // The optional reference resources are resolved once for the run rather than per record: they are
+    // parameter-derived and build-keyed, and the samplesheet's build enum makes the lookup total.
+    def gwaslab_references = gwaslabReferenceLookup()
+
+    // `multiMap` rather than four `map`s of the same channel, so the reference tuples cannot drift out of
+    // lockstep with the summary statistics they belong to. A build with no configured resource yields
+    // `[]`, which stages nothing and reaches the component as an absent reference.
+    def ch_harmonise_input = ch_association_results.multiMap { meta, sumstats ->
+        def references = gwaslab_references[meta.build]
+        sumstats: [meta, sumstats, associationColumnMappingJson(meta.method, meta.is_binary), meta.build]
+        reference_fasta: [[id: meta.build], references.fasta, references.fasta_index]
+        rsid_reference: [[id: meta.build], references.rsid_vcf, references.rsid_vcf_index]
+        strand_reference: [[id: meta.build], references.strand_vcf, references.strand_vcf_index]
+    }
+
+    GWASLAB_HARMONIZE(
+        ch_harmonise_input.sumstats,
+        ch_harmonise_input.reference_fasta,
+        ch_harmonise_input.rsid_reference,
+        ch_harmonise_input.strand_reference,
     )
 
     //
