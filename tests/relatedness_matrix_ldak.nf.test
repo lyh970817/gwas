@@ -45,194 +45,248 @@ nextflow_pipeline {
         return commands
     }
 
+    def executionModes = [
+        [suffix: '', stub: false],
+        [suffix: ' - stub', stub: true],
+    ]
+
+    def stubAssertions = { workflow, matrices, heritability, matrixKeys, analysisIds, routeCounts ->
+        return [
+            { assert workflow.success },
+            { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+            { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == analysisIds.size() },
+            { assert TRACE.count(workflow, 'LDAK_CALCKINS') == matrixKeys.size() },
+            { assert TRACE.count(workflow, 'LDAK_FILTER') == routeCounts.filter },
+            { assert TRACE.count(workflow, 'LDAK_SUBGRM') == routeCounts.subgrm },
+            { assert TRACE.count(workflow, 'LDAK_REML') == analysisIds.size() },
+            { assert TRACE.count(workflow, 'MULTIQC') == 1 },
+            { assert matrices.list().toList().sort() == matrixKeys.sort() },
+            { assert heritability.list().toList().sort() == analysisIds.sort() },
+            { assert analysisIds.every { id -> new File(heritability, "${id}/${id}.ldak_reml.reml").isFile() } },
+        ]
+    }
+
     // These scenarios exercise scientific input contracts declared per samplesheet row: matrix identity,
     // filtering, and weight-file semantics. Their generated `params.input` sheets therefore use the
     // documented input-contract exception instead of minting one static profile per row combination.
-    test("filtered and unfiltered analyses share one LDAK kinship build") {
+    executionModes.each { mode ->
+        test("filtered and unfiltered analyses share one LDAK kinship build${mode.suffix}") {
 
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_shared_matrix", { rows ->
-                    def binary = rows[1]
-                    def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
-                    def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
-                    rows.clear()
-                    rows << unrestricted
-                    rows << restricted
-                })
+            if (mode.stub) {
+                options "-stub"
             }
-        }
 
-        then {
-            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
-            def unrestricted = new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml')
-            def restricted = new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml')
-            def commands = calckinsCommands(params.outdir)
-            assertAll(
-                { assert workflow.success },
-                // The relatedness filter is outside the key: both rows use one expensive kinship build.
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
-                // Since one row requested an unrelated subset, the one base matrix is filtered and
-                // subsetted once; the unrestricted row still receives the all-sample emission.
-                { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                { assert matrices.list().toList() == ['5f8579a3a568'] },
-                { assert new File(matrices, '5f8579a3a568').list().toList().sort() == [
-                    'example_pgen.ldak_kinship.5f8579a3a568.grm.adjust',
-                    'example_pgen.ldak_kinship.5f8579a3a568.grm.bin',
-                    'example_pgen.ldak_kinship.5f8579a3a568.grm.details',
-                    'example_pgen.ldak_kinship.5f8579a3a568.grm.id',
-                ] },
-                { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
-                { assert value(unrestricted, 'Total_Samples') == '500' },
-                { assert value(restricted, 'Total_Samples') == '222' },
-                { assert commands.size() == 1 },
-                { assert commands.first().contains('--ignore-weights YES') },
-                { assert !commands.first().contains('--weights ') },
-            )
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_shared_matrix", { rows ->
+                        def binary = rows[1]
+                        def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
+                        def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
+                        rows.clear()
+                        rows << unrestricted
+                        rows << restricted
+                    })
+                }
+            }
+
+            then {
+                def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+                def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+                def unrestricted = new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml')
+                def restricted = new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml')
+                if (mode.stub) {
+                    assertAll(*stubAssertions(
+                        workflow,
+                        matrices,
+                        heritability,
+                        ['5f8579a3a568'],
+                        ['example_pgen_bt_all', 'example_pgen_bt_unrelated'],
+                        [filter: 1, subgrm: 1],
+                    ))
+                } else {
+                    def commands = calckinsCommands(params.outdir)
+                    assertAll(
+                        { assert workflow.success },
+                        // The relatedness filter is outside the key: both rows use one expensive kinship build.
+                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                        // Since one row requested an unrelated subset, the one base matrix is filtered and
+                        // subsetted once; the unrestricted row still receives the all-sample emission.
+                        { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
+                        { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
+                        { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                        { assert matrices.list().toList() == ['5f8579a3a568'] },
+                        { assert new File(matrices, '5f8579a3a568').list().toList().sort() == [
+                            'example_pgen.ldak_kinship.5f8579a3a568.grm.adjust',
+                            'example_pgen.ldak_kinship.5f8579a3a568.grm.bin',
+                            'example_pgen.ldak_kinship.5f8579a3a568.grm.details',
+                            'example_pgen.ldak_kinship.5f8579a3a568.grm.id',
+                        ] },
+                        { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
+                        { assert value(unrestricted, 'Total_Samples') == '500' },
+                        { assert value(restricted, 'Total_Samples') == '222' },
+                        { assert commands.size() == 1 },
+                        { assert commands.first().contains('--ignore-weights YES') },
+                        { assert !commands.first().contains('--weights ') },
+                    )
+                }
+            }
         }
     }
 
-    test("changing either LDAK model or power forks the matrix key") {
+    executionModes.each { mode ->
+        test("changing either LDAK model or power forks the matrix key${mode.suffix}") {
 
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_distinct_matrices", { rows ->
-                    def binary = rows[1]
-                    def human = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_human', 'human_default', '-0.25', 'false')
-                    def custom_model = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_model', 'custom', '-0.25', 'false')
-                    def custom_power = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_power', 'custom', '-0.5', 'false')
-                    rows.clear()
-                    rows << human
-                    rows << custom_model
-                    rows << custom_power
-                })
+            if (mode.stub) {
+                options "-stub"
             }
-        }
 
-        then {
-            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 3 },
-                { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
-                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
-                // Independently derived from the documented canonical strings with `sha256sum`.
-                { assert matrices.list().toList().sort() == ['5f8579a3a568', 'a677a0c52d65', 'f299aab0058a'] },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 3 },
-            )
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_distinct_matrices", { rows ->
+                        def binary = rows[1]
+                        def human = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_human', 'human_default', '-0.25', 'false')
+                        def custom_model = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_model', 'custom', '-0.25', 'false')
+                        def custom_power = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom_power', 'custom', '-0.5', 'false')
+                        rows.clear()
+                        rows << human
+                        rows << custom_model
+                        rows << custom_power
+                    })
+                }
+            }
+
+            then {
+                def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+                def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+                if (mode.stub) {
+                    assertAll(*stubAssertions(
+                        workflow,
+                        matrices,
+                        heritability,
+                        ['5f8579a3a568', 'a677a0c52d65', 'f299aab0058a'],
+                        ['example_pgen_bt_human', 'example_pgen_bt_custom_model', 'example_pgen_bt_custom_power'],
+                        [filter: 0, subgrm: 0],
+                    ))
+                } else {
+                    assertAll(
+                        { assert workflow.success },
+                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 3 },
+                        { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
+                        { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
+                        // Independently derived from the documented canonical strings with `sha256sum`.
+                        { assert matrices.list().toList().sort() == ['5f8579a3a568', 'a677a0c52d65', 'f299aab0058a'] },
+                        { assert TRACE.count(workflow, 'LDAK_REML') == 3 },
+                    )
+                }
+            }
         }
     }
 
-    test("identical weight bytes at different paths share one matrix") {
+    executionModes.each { mode ->
+        test("identical weight bytes at different paths share one matrix${mode.suffix}") {
 
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_same_weight_content", { rows ->
-                    def binary = rows[1]
-                    def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
-                    def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
-                    first.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_first', binary.pvar, '1')
-                    second.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_second', binary.pvar, '1')
-                    assert first.ldak_weights != second.ldak_weights
-                    rows.clear()
-                    rows << first
-                    rows << second
-                })
+            if (mode.stub) {
+                options "-stub"
             }
-        }
 
-        then {
-            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def commands = calckinsCommands(params.outdir)
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                // Independently derived from the generated weight bytes and canonical settings string.
-                { assert matrices.list().toList() == ['2be27b8074df'] },
-                { assert commands.size() == 1 },
-                { assert commands.first().contains('--weights example_all.pvar') },
-                { assert !commands.first().contains('--ignore-weights YES') },
-            )
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_same_weight_content", { rows ->
+                        def binary = rows[1]
+                        def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
+                        def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
+                        first.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_first', binary.pvar, '1')
+                        second.ldak_weights = privateWeights(projectDir, outputDir, 'same_weight_content_second', binary.pvar, '1')
+                        assert first.ldak_weights != second.ldak_weights
+                        rows.clear()
+                        rows << first
+                        rows << second
+                    })
+                }
+            }
+
+            then {
+                def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+                def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+                if (mode.stub) {
+                    assertAll(*stubAssertions(
+                        workflow,
+                        matrices,
+                        heritability,
+                        ['2be27b8074df'],
+                        ['example_pgen_bt_first', 'example_pgen_bt_second'],
+                        [filter: 0, subgrm: 0],
+                    ))
+                } else {
+                    def commands = calckinsCommands(params.outdir)
+                    assertAll(
+                        { assert workflow.success },
+                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                        { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                        // Independently derived from the generated weight bytes and canonical settings string.
+                        { assert matrices.list().toList() == ['2be27b8074df'] },
+                        { assert commands.size() == 1 },
+                        { assert commands.first().contains('--weights example_all.pvar') },
+                        { assert !commands.first().contains('--ignore-weights YES') },
+                    )
+                }
+            }
         }
     }
 
-    test("different weight bytes with the same basename fork matrices") {
+    executionModes.each { mode ->
+        test("different weight bytes with the same basename fork matrices${mode.suffix}") {
 
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_different_weight_content", { rows ->
-                    def binary = rows[1]
-                    def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
-                    def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
-                    first.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_first', binary.pvar, '1')
-                    second.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_second', binary.pvar, '2')
-                    assert new File(first.ldak_weights).name == new File(second.ldak_weights).name
-                    rows.clear()
-                    rows << first
-                    rows << second
-                })
+            if (mode.stub) {
+                options "-stub"
             }
-        }
 
-        then {
-            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def commands = calckinsCommands(params.outdir)
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                // Same basename, different content digests, therefore two independently derived keys.
-                { assert matrices.list().toList().sort() == ['2be27b8074df', 'd75cd202b48d'] },
-                { assert commands.size() == 2 },
-                { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
-                { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
-            )
-        }
-    }
-
-    test("filtered and unfiltered LDAK matrix routes compose under global stubbing") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.build(projectDir, outputDir, "ldak_shared_matrix_stub", { rows ->
-                    def binary = rows[1]
-                    def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
-                    def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
-                    rows.clear()
-                    rows << unrestricted
-                    rows << restricted
-                })
+            when {
+                params {
+                    outdir = "$outputDir"
+                    input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_different_weight_content", { rows ->
+                        def binary = rows[1]
+                        def first = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_first', 'custom', '-0.5', 'false')
+                        def second = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_second', 'custom', '-0.5', 'false')
+                        first.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_first', binary.pvar, '1')
+                        second.ldak_weights = privateWeights(projectDir, outputDir, 'different_weight_content_second', binary.pvar, '2')
+                        assert new File(first.ldak_weights).name == new File(second.ldak_weights).name
+                        rows.clear()
+                        rows << first
+                        rows << second
+                    })
+                }
             }
-        }
 
-        then {
-            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 2 },
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                { assert TRACE.count(workflow, 'MULTIQC') == 1 },
-                { assert matrices.list().toList() == ['5f8579a3a568'] },
-                { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
-                { assert new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml').isFile() },
-                { assert new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml').isFile() },
-            )
+            then {
+                def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+                def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+                if (mode.stub) {
+                    assertAll(*stubAssertions(
+                        workflow,
+                        matrices,
+                        heritability,
+                        ['2be27b8074df', 'd75cd202b48d'],
+                        ['example_pgen_bt_first', 'example_pgen_bt_second'],
+                        [filter: 0, subgrm: 0],
+                    ))
+                } else {
+                    def commands = calckinsCommands(params.outdir)
+                    assertAll(
+                        { assert workflow.success },
+                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
+                        { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                        // Same basename, different content digests, therefore two independently derived keys.
+                        { assert matrices.list().toList().sort() == ['2be27b8074df', 'd75cd202b48d'] },
+                        { assert commands.size() == 2 },
+                        { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
+                        { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
+                    )
+                }
+            }
         }
     }
 }
