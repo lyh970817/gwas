@@ -1,0 +1,431 @@
+nextflow_pipeline {
+
+    name "Test PLINK 2 --glm association route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "association"
+    tag "plink2"
+
+    // These tests run the phenotype normaliser and PLINK 2 over the real fixture bundle, so every
+    // sheet is built with SAMPLESHEET.fixtures rather than with the placeholder sheets the validation
+    // suite uses: normalisation reads the phenotype file's header and recodes its values, so an empty
+    // placeholder would prove nothing.
+    //
+    // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
+    //   index 0 -> example_pgen_qt   cohort example_pgen, quantitative, source column QT at position 3
+    //   index 1 -> example_pgen_bt   cohort example_pgen, binary,       source column BT at position 4
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes, no association method
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes,     no association method
+    //
+    // Only rows 0 and 1 select plink2, so an association result is expected for those two and for no
+    // other row.
+
+    // Adds a second PLINK 1 cohort and three further analysis units on the VCF cohort, giving four
+    // cohorts carrying 1, 1, 2 and 4 analysis units. Identical to the sheet
+    // tests/prepared_genotypes.nf.test uses, so the two files make their per-cohort and per-analysis
+    // claims about the same run shape.
+    def spread = { rows ->
+        def second_plink1 = new LinkedHashMap(rows[2])
+        second_plink1.analysis_id = 'example_bfile2_qt'
+        second_plink1.cohort_id = 'example_bfile2'
+        rows << second_plink1
+
+        (2..4).each { index ->
+            def extra_trait = new LinkedHashMap(rows[3])
+            extra_trait.analysis_id = "example_vcf_qt${index}"
+            extra_trait.trait_id = "QT${index}"
+            rows << extra_trait
+        }
+    }
+
+    // Every file a task wrote or had staged, read out of the run's working directory.
+    //
+    // Two of this route's properties are about files that are deliberately *not* published, so they
+    // cannot be asserted from the output directory: the headerless serialisation GCTA and LDAK take,
+    // which carries the same content as its headered counterpart, and the covariate file that a row
+    // without covariates must not have had fabricated for it.
+    def work_files = { output_dir ->
+        def files = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile()) {
+                files << entry
+            }
+        }
+        return files
+    }
+
+    test("normalisation runs once per analysis unit where cohort preparation runs once per cohort") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "association_spread", spread)
+                save_normalised_phenotypes = true
+            }
+        }
+
+        then {
+            def analyses = [
+                'example_bfile2_qt',
+                'example_bfile_qt',
+                'example_pgen_bt',
+                'example_pgen_qt',
+                'example_vcf_qt',
+                'example_vcf_qt2',
+                'example_vcf_qt3',
+                'example_vcf_qt4',
+            ]
+            def normalised = new File("${params.outdir}/phenotypes")
+            assert workflow.success
+            assertAll(
+                // Asserted from the trace rather than from published files: a cached task publishes
+                // the same files as a re-executed one, so only the trace answers "how many ran".
+                { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES') == analyses },
+                // The contrast is what makes the claim mean anything. The same eight analysis units
+                // sit on four cohorts, and preparation still ran once per cohort that needed one —
+                // normalisation is keyed to the analysis unit, preparation to the cohort.
+                { assert TRACE.tags(workflow, 'PLINK2_MAKEPGEN') == ['example_bfile', 'example_bfile2'] },
+                { assert TRACE.tags(workflow, 'PLINK2_VCF') == ['example_vcf'] },
+                // Two of the eight units select plink2.
+                { assert TRACE.count(workflow, 'PLINK2_GLM') == 2 },
+                { assert normalised.list().toList().sort() == analyses },
+                // Quantitative and categorical covariates are separate outputs, which is what lets
+                // GCTA take them through --qcovar and --covar and LDAK through --covar and --factors.
+                // The merged file beside them is the single file PLINK 2 and REGENIE take instead.
+                { assert new File(normalised, 'example_pgen_qt').list().toList().sort() == [
+                    'example_pgen_qt.catcovar',
+                    'example_pgen_qt.covar',
+                    'example_pgen_qt.pheno',
+                    'example_pgen_qt.qcovar',
+                ] },
+                { assert new File(normalised, 'example_pgen_qt/example_pgen_qt.qcovar').readLines().first().split('\t').toList() == [
+                    'FID',
+                    'IID',
+                    'AGE',
+                    'PC1',
+                    'PC2',
+                    'PC3',
+                    'PC4',
+                    'PC5',
+                ] },
+                { assert new File(normalised, 'example_pgen_qt/example_pgen_qt.catcovar').readLines().first().split('\t').toList() == ['FID', 'IID', 'SEX'] },
+                // The merged file is the two joined on FID and IID, quantitative columns first.
+                { assert new File(normalised, 'example_pgen_qt/example_pgen_qt.covar').readLines().first().split('\t').toList() == [
+                    'FID',
+                    'IID',
+                    'AGE',
+                    'PC1',
+                    'PC2',
+                    'PC3',
+                    'PC4',
+                    'PC5',
+                    'SEX',
+                ] },
+            )
+        }
+    }
+
+    test("the normalised trait sits at a fixed column position whatever its source name and position") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "fixed_column", null)
+                save_normalised_phenotypes = true
+            }
+        }
+
+        then {
+            def qt = new File("${params.outdir}/phenotypes/example_pgen_qt/example_pgen_qt.pheno").readLines()
+            def bt = new File("${params.outdir}/phenotypes/example_pgen_bt/example_pgen_bt.pheno").readLines()
+            def codes = bt[1..-1].collect { line -> line.split('\t')[2] }.countBy { code -> code }
+            assert workflow.success
+            assertAll(
+                // The fixture is FID IID QT BT, so the two analysis units read source columns that
+                // differ in name *and* in position, and both land in the same place: a three-column
+                // file whose trait is always the third column, always called PHENO. That is what
+                // turns GCTA's and LDAK's --mpheno into the constant 1 and makes PLINK 2's
+                // phenotype-named output filename deterministic.
+                { assert qt.first().split('\t').toList() == ['FID', 'IID', 'PHENO'] },
+                { assert bt.first().split('\t').toList() == ['FID', 'IID', 'PHENO'] },
+                { assert qt.size() == 501 },
+                { assert bt.size() == 501 },
+                { assert qt[1..-1].every { line -> line.split('\t').size() == 3 } },
+                { assert bt[1..-1].every { line -> line.split('\t').size() == 3 } },
+                // Source column 3, a quantitative value copied verbatim.
+                { assert qt[1].split('\t').toList() == ['HG00096', 'HG00096', '0.317843'] },
+                // Source column 4, recoded. The row declares control_value 1 and case_value 2, and
+                // HG00096 carries BT 1, so it is a control and normalises to 0 — the coding all four
+                // downstream programmes read the same way.
+                { assert bt[1].split('\t').toList() == ['HG00096', 'HG00096', '0'] },
+                // A tally rather than a single cell, so a recode that happened to get the first row
+                // right cannot pass. The fixture is 350 controls and 150 cases.
+                { assert codes == ['0': 350, '1': 150] },
+                // The headerless serialisation GCTA and LDAK take is byte-identical minus line 1. It
+                // is deliberately unpublished, so it is read from the working directory.
+                { assert work_files(outputDir).find { entry -> entry.name == 'example_pgen_qt.noheader.pheno' }.readLines() == qt[1..-1] },
+                { assert work_files(outputDir).find { entry -> entry.name == 'example_pgen_bt.noheader.pheno' }.readLines() == bt[1..-1] },
+            )
+        }
+    }
+
+    test("a row that omits covariates entirely completes with no placeholder file") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "no_covariates", { rows ->
+                    rows.each { row ->
+                        row.quant_covariates = ''
+                        row.cat_covariates = ''
+                    }
+                })
+                save_normalised_phenotypes = true
+            }
+        }
+
+        then {
+            def written = work_files(outputDir).collect { entry -> entry.name }
+            // Not a weak assertion. PLINK 2 errors out on an unadjusted --glm unless it is told the
+            // omission is deliberate, so a run that reaches here proves `allow-no-covars` was applied
+            // to exactly the rows that needed it.
+            assert workflow.success
+            assertAll(
+                // Only the phenotype. No .qcovar, no .catcovar, no merged .covar.
+                { assert new File("${params.outdir}/phenotypes/example_pgen_qt").list().toList() == ['example_pgen_qt.pheno'] },
+                { assert new File("${params.outdir}/phenotypes/example_pgen_bt").list().toList() == ['example_pgen_bt.pheno'] },
+                // Nothing was fabricated out of sight either: no covariate file of any kind was
+                // written into or staged in a task's working directory.
+                { assert written.findAll { name -> name.endsWith('.covar') || name.endsWith('.qcovar') || name.endsWith('.catcovar') } == [] },
+                // And the association still ran.
+                { assert new File("${params.outdir}/association/plink2/example_pgen_qt").list().toList() == ['example_pgen_qt.plink2.glm.linear'] },
+                { assert new File("${params.outdir}/association/plink2/example_pgen_bt").list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
+            )
+        }
+    }
+
+    test("the default run publishes association results by stage and method and nothing else") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "association_default", null)
+            }
+        }
+
+        then {
+            def association = new File("${params.outdir}/association/plink2")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            def linear = new File(association, 'example_pgen_qt/example_pgen_qt.plink2.glm.linear').readLines()
+            def header = linear.first().split('\t').toList()
+            // The association tree only. The whole-tree snapshot is tests/default.nf.test's job, and
+            // a labelled per-area snapshot is what keeps this file's diffs readable as later routes
+            // add their own directories beside this one.
+            // stable_name: All files + folders in ${params.outdir}/association/ with a stable name.
+            // The directory it is pointed at comes back as an empty relative path, which is dropped.
+            def stable_name = getAllFilesFromDir("${params.outdir}/association", relative: true, includeDir: true).findAll { path -> path.toString() }
+            // stable_path: All files in ${params.outdir}/association/ with stable content
+            def stable_path = getAllFilesFromDir("${params.outdir}/association", ignoreFile: 'tests/.nftignore')
+            assert workflow.success
+            assertAll(
+                // Pipeline information and the MultiQC report each have their own top-level
+                // directory, the association results have theirs, and nothing else is published: the
+                // prepared cohort bundles and the normalised phenotypes are intermediates and both
+                // save controls are unset.
+                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'multiqc', 'pipeline_info'] },
+                { assert !new File("${params.outdir}/genotypes").exists() },
+                { assert !new File("${params.outdir}/phenotypes").exists() },
+                // Both intermediates were genuinely produced, so their absence above is a publishing
+                // decision rather than a step that silently did not run.
+                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 4 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
+                // Nested by scientific stage, then method, then analysis identifier. Two of the four
+                // demo rows select plink2 and only those two are here.
+                { assert association.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                // The extension *is* the Firth assertion: PLINK 2 names the file after the regression
+                // it actually ran, and `.logistic.hybrid` is the hybrid Firth-fallback fit. A binary
+                // trait fitted without the fallback would be `.glm.logistic`.
+                { assert new File(association, 'example_pgen_bt').list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
+                { assert new File(association, 'example_pgen_qt').list().toList() == ['example_pgen_qt.plink2.glm.linear'] },
+                // The filename grammar, stated once as a pattern rather than restated per file:
+                // analysis identifier, then method, then the native suffix.
+                { assert association.listFiles().every { directory ->
+                    directory.list().every { name -> name ==~ "\\Q${directory.name}\\E\\.plink2\\.glm\\.(linear|logistic|logistic\\.hybrid|firth)" }
+                } },
+                // Allele frequency and sample count, which the harmonisation ticket that follows
+                // needs and which `cols=+a1freq` states explicitly rather than inheriting.
+                { assert 'A1_FREQ' in header },
+                { assert 'OBS_CT' in header },
+                // Every sample in the fixture was analysed. This is the contrast that gives the
+                // missing-value test below its meaning.
+                { assert linear[1].split('\t')[header.indexOf('OBS_CT')] == '500' },
+                // Published unmodified: stable_path is a content hash of the file PLINK 2 wrote, and
+                // the only thing the publish directive changes is the name.
+                { assert snapshot(stable_name, stable_path).match('association') },
+                // MULTIQC is deliberately absent from the versions map. Its input is the collected
+                // versions file, so publishing its own version to the `versions` topic would make the
+                // topic unable to close and hang the run — see modules/nf-core/multiqc/main.nf. sarek,
+                // rnaseq and the nf-core template all leave it out for the same reason, and MultiQC
+                // reports its version in its own report.
+                { assert !versions.text.contains('MULTIQC') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+
+    test("missing values in the source files normalise to the one code every programme reads") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // The committed fixtures carry no missing value of any kind, so this scenario builds
+                // its own copies. Ten phenotype rows are rewritten to the spellings a researcher's
+                // file may really carry — PLINK's and GCTA's -9, lower- and upper-case NA and nan, an
+                // empty cell, and a value that is not a number at all — and, on the binary row, a
+                // level the samplesheet declares as neither the case nor the control value. Five
+                // *different* covariate rows, disjoint from those ten, lose their age, so the two
+                // kinds of missingness can be told apart in the regression's sample count.
+                //
+                // The empty cell is the one spelling that is not just another token: it is the
+                // ordinary way a tab-delimited file says "no value", and a reader that splits on
+                // arbitrary whitespace collapses it away and sees a ragged row instead of a missing
+                // one. It belongs in both files for that reason.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "missing_values", { rows ->
+                    def phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "missing_values", rows[0].phenotype) { lines ->
+                        def spellings = ['NA', '-9', 'nan', 'NaN', 'na', 'not_a_number', '', 'NA', 'NA', 'NA']
+                        (0..<lines.size()).collect { index ->
+                            if (index < 1 || index > 10) {
+                                return lines[index]
+                            }
+                            def cells = lines[index].split('\t').toList()
+                            cells[2] = spellings[index - 1]
+                            cells[3] = '9'
+                            return cells.join('\t')
+                        }
+                    }
+                    def quant_covariates = SAMPLESHEET.rewrite(projectDir, outputDir, "missing_values", rows[0].quant_covariates) { lines ->
+                        (0..<lines.size()).collect { index ->
+                            if (index < 21 || index > 25) {
+                                return lines[index]
+                            }
+                            def cells = lines[index].split('\t').toList()
+                            cells[2] = ['-9', '-9', '-9', 'NA', ''][index - 21]
+                            return cells.join('\t')
+                        }
+                    }
+                    // The two rows that select plink2; the other two would only lengthen the run.
+                    rows.removeAll { row -> !(row.analysis_id in ['example_pgen_qt', 'example_pgen_bt']) }
+                    rows.each { row ->
+                        row.phenotype = phenotype
+                        row.quant_covariates = quant_covariates
+                    }
+                })
+                save_normalised_phenotypes = true
+            }
+        }
+
+        then {
+            def qt = new File("${params.outdir}/phenotypes/example_pgen_qt/example_pgen_qt.pheno").readLines()
+            def bt = new File("${params.outdir}/phenotypes/example_pgen_bt/example_pgen_bt.pheno").readLines()
+            def qcovar = new File("${params.outdir}/phenotypes/example_pgen_qt/example_pgen_qt.qcovar").readLines()
+            def linear = new File("${params.outdir}/association/plink2/example_pgen_qt/example_pgen_qt.plink2.glm.linear").readLines()
+            def obs_ct = linear.first().split('\t').toList().indexOf('OBS_CT')
+            assert workflow.success
+            assertAll(
+                // Every spelling becomes the literal NA, which is the only missing code PLINK 2,
+                // REGENIE, GCTA and LDAK all accept. -9 in particular must not survive: LDAK and
+                // REGENIE reject it outright, and PLINK 2 errors out when a -9 shares a file with a
+                // value in (-9, 10].
+                { assert qt[1..10].collect { line -> line.split('\t')[2] } == ['NA'] * 10 },
+                { assert qt[1..-1].every { line -> !(line.split('\t')[2] in ['-9', 'nan', 'NaN', 'na', 'not_a_number']) } },
+                // Rows the mutation did not touch keep their value verbatim.
+                { assert qt[11].split('\t').toList() == ['HG00155', 'HG00155', '-1.492103'] },
+                // A binary level the row declares as neither case nor control is missing, not a third
+                // code, and the rest of the recode is untouched by it.
+                { assert bt[1..10].collect { line -> line.split('\t')[2] } == ['NA'] * 10 },
+                { assert bt[1..-1].collect { line -> line.split('\t')[2] }.countBy { code -> code } == ['0': 342, '1': 148, 'NA': 10] },
+                // Covariate missingness is normalised on the same terms, and only the cell that was
+                // missing changes: the row's other covariates pass through verbatim.
+                { assert qcovar[21..25].collect { line -> line.split('\t')[2] } == ['NA'] * 5 },
+                { assert qcovar[21].split('\t').toList() == ['HG00263', 'HG00263', 'NA', '0.027406', '0.048594', '0.013293', '0.066562', '0.001569'] },
+                { assert qcovar[26].split('\t')[2] == '67' },
+                // PLINK 2 read the NA code as missing rather than as a value or an error: ten samples
+                // lost their trait and five others their age, and the regression analysed the other
+                // 485. Against the 500 the unmutated run reports, this is the whole missing-value
+                // path end to end.
+                { assert linear[1].split('\t')[obs_ct] == '485' },
+            )
+        }
+    }
+
+    test("an analysis identifier matching its own input filename leaves that input intact") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Normalisation writes the same extensions it reads, so an analysis unit named after
+                // its own phenotype file — `example` beside `example.pheno`, which is exactly how the
+                // fixture bundle names things — is the case where an output can land on a staged
+                // input. Nextflow stages an input as a symlink and does not guard against that, so a
+                // module writing at the task root would rewrite the researcher's own file through the
+                // link and report success while doing it.
+                //
+                // The phenotype here is a private copy, not the shared bundle: if this ever regresses
+                // the test must destroy its own file rather than the committed fixtures. The
+                // covariates are dropped so that no shared file is exposed either.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "self_named_analysis", { rows ->
+                    rows.removeAll { row -> row.analysis_id != 'example_pgen_qt' }
+                    rows[0].phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "self_named_analysis", rows[0].phenotype) { lines -> lines }
+                    rows[0].analysis_id = 'example'
+                    rows[0].quant_covariates = ''
+                    rows[0].cat_covariates = ''
+                })
+                save_normalised_phenotypes = true
+            }
+        }
+
+        then {
+            def source = new File(new File(outputDir.toString()).parentFile, 'samplesheets/self_named_analysis/mutated/example.pheno').readLines()
+            def normalised = new File("${params.outdir}/phenotypes/example/example.pheno").readLines()
+            assert workflow.success
+            assertAll(
+                // The source file still declares all four of its own columns and still carries its
+                // own values, so nothing was written through the staged symlink.
+                { assert source.first().split('\t').toList() == ['FID', 'IID', 'QT', 'BT'] },
+                { assert source.size() == 501 },
+                { assert source[1].split('\t').toList() == ['HG00096', 'HG00096', '0.317843', '1'] },
+                // And the normalised file is a real, separate result rather than the source read back.
+                { assert normalised.first().split('\t').toList() == ['FID', 'IID', 'PHENO'] },
+                { assert normalised[1].split('\t').toList() == ['HG00096', 'HG00096', '0.317843'] },
+            )
+        }
+    }
+
+    test("a phenotype column absent from the phenotype file is refused") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // Real fixtures rather than placeholders: the column is checked against the
+                // phenotype file's own header, so the file has to have one.
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "unknown_phenotype_column", { rows ->
+                    rows[0].phenotype_column = 'NOT_A_COLUMN'
+                })
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                // The message names the analysis unit, so a large samplesheet can be fixed without
+                // bisecting it, and the column, so the fix is unambiguous.
+                { assert report.contains("example_pgen_qt") },
+                { assert report.contains("NOT_A_COLUMN") },
+                // And it says what the file does declare, so the fix does not require opening it.
+                { assert report.contains("'FID', 'IID', 'QT', 'BT'") },
+            )
+        }
+    }
+}

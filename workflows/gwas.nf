@@ -3,6 +3,10 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+// MODULE: Local to the pipeline
+include { NORMALISE_PHENOTYPES     } from '../modules/local/normalise_phenotypes/main'
+include { PLINK2_GLM               } from '../modules/local/plink2/glm/main'
+
 // MODULE: Installed directly from nf-core/modules
 include { MULTIQC                  } from '../modules/nf-core/multiqc/main'
 
@@ -45,10 +49,43 @@ workflow GWAS {
         }
     )
 
-    // `PREPARE_COHORT_GENOTYPES.out.genotypes` carries one canonical bundle per analysis unit and is
-    // the input every association and heritability route takes. Those routes, and GWASLab
-    // harmonisation, are wired by the tickets that follow this one, so a valid run still publishes
-    // nothing but the prepared bundles (when asked for), pipeline information and a MultiQC report.
+    //
+    // MODULE: Normalise each analysis unit's phenotype and covariates into the canonical layout
+    //
+    NORMALISE_PHENOTYPES(
+        ch_samplesheet.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract ->
+            [meta, phenotype, quant_covariates, cat_covariates]
+        }
+    )
+
+    // The genotype bundle, the normalised phenotype and the merged covariate file, one element per
+    // analysis unit. `join` is correct here where `combine` was correct at the cohort seam: all three
+    // channels are keyed one-to-one on the analysis meta, so a missing or duplicated key is a defect
+    // and the strict form is what says so. The covariate file is optional, so it joins with
+    // `remainder: true` and arrives as `null` for a row that supplied none.
+    def ch_analysis_inputs = PREPARE_COHORT_GENOTYPES.out.genotypes
+        .join(NORMALISE_PHENOTYPES.out.phenotype, failOnMismatch: true, failOnDuplicate: true)
+        .join(NORMALISE_PHENOTYPES.out.covariates, remainder: true)
+
+    //
+    // MODULE: PLINK 2 --glm association
+    //
+    // `multiMap` rather than three `map`s of the same channel, so the three inputs cannot drift out
+    // of lockstep. A row that supplied no covariates passes `[]`, which stages nothing: the module's
+    // covariate argument is a ternary on a `path` inside a tuple, and no placeholder file is written.
+    def ch_glm_input = ch_analysis_inputs
+        .filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'plink2' in meta.association_methods }
+        .multiMap { meta, pgen, psam, pvar, phenotype, covariates ->
+            genotypes: [meta, pgen, psam, pvar]
+            phenotype: [meta, phenotype]
+            covariates: [meta, covariates ?: []]
+        }
+
+    PLINK2_GLM(
+        ch_glm_input.genotypes,
+        ch_glm_input.phenotype,
+        ch_glm_input.covariates,
+    )
 
     //
     // Collate and save software versions

@@ -12,8 +12,24 @@ The directories listed below will be created in the results directory after the 
 
 The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes data using the following steps:
 
+- [Association](#association) - Association test results, one directory per method
 - [MultiQC](#multiqc) - Aggregate report describing results and QC from the whole pipeline
 - [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
+
+### Association
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `association/plink2/<analysis_id>/`
+  - `<analysis_id>.plink2.glm.linear`: PLINK 2 `--glm` results for a quantitative trait.
+  - `<analysis_id>.plink2.glm.logistic.hybrid`: PLINK 2 `--glm` results for a binary trait. The `.hybrid` extension indicates that Firth fallback was available, which the pipeline enables by default.
+
+</details>
+
+[PLINK 2](https://www.cog-genomics.org/plink/2.0/assoc) `--glm` output is published exactly as PLINK 2 wrote it; only the filename changes, because PLINK 2 always embeds the phenotype name in it and the pipeline renames the file to follow the analysis-identifier-then-method grammar used throughout the published output. Results include the `A1_FREQ` (allele frequency) and `OBS_CT` (sample count) columns.
+
+The phenotype and covariate files the pipeline normalises for each analysis are intermediates and are not published unless `--save_normalised_phenotypes` is set, in which case they appear under `phenotypes/<analysis_id>/`.
 
 ### MultiQC
 

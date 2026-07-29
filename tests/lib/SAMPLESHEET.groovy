@@ -49,6 +49,27 @@ class SAMPLESHEET {
         return materialise(outputDir, name, demo(projectDir), mutate, FIXTURES.base(projectDir), fileColumns(projectDir))
     }
 
+    // Rewrite one fixture file for the sheet named `name` and return the path to put in the cell it
+    // came from. `transform` is handed the file's lines and returns the lines to write.
+    //
+    // Called from inside a `mutate` closure, for the cases the committed fixtures do not cover: they
+    // carry no missing value and code their binary trait one way only, so a test of missingness or of
+    // an unusual trait coding has to supply its own file. The shared test-datasets checkout is
+    // read-only as far as this suite is concerned, so the copy is written beside the generated
+    // samplesheet, outside the output directory, where it can never reach a published snapshot.
+    static String rewrite(Object projectDir, Object outputDir, String name, Object cell, Closure transform) {
+        def source = cell.toString().replace(FIXTURES.UPSTREAM, FIXTURES.base(projectDir))
+        def text = source.startsWith('http') ? new URL(source).text : new File(source).text
+        // Beside the sheet's placeholder directory rather than in it: a rewritten fixture is a
+        // deliberate statement about content, where a placeholder is an empty file that exists only
+        // so a path resolves.
+        def directory = new File(new File(new File(outputDir.toString()).parentFile, "samplesheets/${name}"), 'mutated')
+        directory.mkdirs()
+        def target = new File(directory, source.tokenize('/').last())
+        target.text = transform(text.readLines()).join('\n') + '\n'
+        return target.absolutePath
+    }
+
     // Materialise a samplesheet from an explicit header and rows, bypassing the demo sheet. Used for
     // the superseded input format, which shares no columns with the current contract and therefore
     // needs no placeholders.

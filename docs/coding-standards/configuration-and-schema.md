@@ -112,11 +112,38 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 - **[SHOULD]** A `process_gpu` label is a legitimate non-template extension where GPU-capable tools exist —
   all three independently converged on the same name and shape.
 
-## 4. `conf/modules.config`
+## 4. Module configs (`conf/modules/*.config`)
 
-- **[MUST]** A single `conf/modules.config` file. Splitting into `conf/modules/*.config` (rnaseq, sarek) is
-  a scaling pattern for very large pipelines that requires a `modules_config: false` lint exemption; do not
-  reach for it before the single file is genuinely unmanageable. _(mag matches the current template default)_
+- **[MUST]** One config file per method family under `conf/modules/`, loaded by `includeConfig` from
+  `nextflow.config`. There is no `conf/modules.config`.
+
+  This reverses the rule this section originally carried, which required the single file and called the
+  split "a scaling pattern for very large pipelines … do not reach for it before the single file is
+  genuinely unmanageable". It was reversed on 2026-07-28 by the ticket that added the first association
+  route, for a reason the size argument does not cover: this pipeline has seven method families
+  (PLINK 2, REGENIE, two GCTA routes, three LDAK routes, GWASLab harmonisation), each arriving in its own
+  ticket, and the property being bought is that a route ships as a **new file** rather than as an edit to
+  a file every other route also edits. That is a merge-conflict and review-scope property, not a
+  line-count one. The split is 2 of 3 in the reference set (rnaseq 32 files, sarek 39) so it is not
+  exotic; mag's monolith is 41,970 bytes, which is what the single file becomes.
+
+  Two obligations come with it, both verified against `nf-core pipelines lint` 4.1.0.dev0:
+  - `.nf-core.yml` needs **both** `lint.files_exist: - conf/modules.config` (the `files_exist` check lists
+    it as a required file) and `lint.modules_config: false` (the `modules_config` check reads the file to
+    match `withName:` selectors against the workflow scripts). rnaseq and sarek both carry exactly this
+    pair. One without the other still fails.
+  - The process-wide default `publishDir` moves to `nextflow.config`, because it belongs to no method
+    family. It is set `enabled: false` there: the published layout is organised by scientific stage, which
+    no process-name-derived path can produce, and each per-family file opts its own processes in. sarek
+    declines to have a default at all; mag keeps one and disables it. Do **not** leave a
+    process-name-derived default enabled — it silently publishes every new module's intermediates under
+    `outdir/<first-word-of-process-name>/`.
+
+- **[MUST]** Order the `includeConfig` lines by pipeline stage and say so in a comment: a later file's
+  `withName` selector wins where two match the same process. _(rnaseq's wording, worth copying verbatim)_
+- **[MUST]** Each file opens with the same two-tier banner as every other config file (§1), followed by a
+  `// STAGE NAME` banner comment. _(sarek repeats the full banner, including the `ext.*` key legend, in
+  every one of its 39 files; rnaseq has no banner at all and its files are harder to place)_
 - **[MUST]** Build multi-flag `ext.args` as a list joined and trimmed, never by string concatenation:
 
   ```groovy
@@ -136,7 +163,8 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
   ```
 
-- **[MUST]** Order `withName:` blocks by pipeline stage, with `MULTIQC` last. _(all three)_
+- **[MUST]** Order `withName:` blocks by pipeline stage within a file, and load `conf/modules/multiqc.config`
+  last. _(all three)_
 - **[MUST]** Use bare quoted process-name selectors by default (`withName: 'PLINK2_QC'`). Escalate to a
   fully-qualified `.*:SUBWORKFLOW:PROCESS` selector only where the same process runs from more than one
   subworkflow context and needs different settings per call site. Always quote the selector — sarek has one
@@ -145,8 +173,8 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   top-level `if (params.x) { }` blocks wrapping a `withName:` block. mag has zero such `if` blocks.
 - **[SHOULD]** `ext.prefix` as a static string for simple cases; as a closure interpolating the meta fields
   that actually distinguish the output when a process fans out across several axes.
-- **[SHOULD]** A `// STAGE NAME` banner comment per stage. Less critical in the split layout where the
-  filename carries the label; in a single-file layout it is the only navigation aid.
+- **[SHOULD]** A further `// STAGE NAME` banner comment per stage inside a file that covers more than one.
+  Superseded for the one-stage-per-file case by the banner rule above.
 
 ## 5. `conf/test*.config`
 
@@ -221,8 +249,10 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 ## 8. `.nf-core.yml`
 
 - **[MUST]** Keep `files_exist` and `files_unchanged` in sync with the actual repository. Both rnaseq and
-  sarek list files that no longer exist (`conf/modules.config` after splitting; `awstest.yml` after
-  replacement) — stale exemptions that mask real lint signal.
+  sarek list files they no longer contain (`awstest.yml` after replacement, `ci.yml` after renaming) —
+  stale exemptions that mask real lint signal. The one deliberate exception is `conf/modules.config`: the
+  `files_exist` check requires it, this pipeline does not have it, and §4 explains why. An exemption for a
+  file the repository intends never to have is not stale; an exemption for one it merely used to have is.
 - **[SHOULD]** Treat the count of lint exemptions as a proxy for template-deviation risk. mag needs two
   keys, sarek four, rnaseq five — and that ordering tracks how far each has drifted from the template.
   Every new exemption should be justified in the review that introduces it.

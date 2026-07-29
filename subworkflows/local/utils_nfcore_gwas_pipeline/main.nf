@@ -517,6 +517,7 @@ def validateInputSamplesheet(rows, samplesheet, schema) {
                 heritability_methods: heritability_methods,
                 genotype_format: genotype_format,
                 is_binary: is_binary,
+                has_covariates: cells.quant_covariates || cells.cat_covariates ? true : false,
                 case_value: settings.case_value == null ? null : settings.case_value.toString(),
                 control_value: settings.control_value == null ? null : settings.control_value.toString(),
                 population_prevalence: settings.population_prevalence,

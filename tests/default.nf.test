@@ -24,10 +24,12 @@ nextflow_pipeline {
             def stable_path = getAllFilesFromDir(params.outdir, ignoreFile: 'tests/.nftignore')
             assert workflow.success
             assertAll(
-                // Cohort genotype preparation is an intermediate and the association and heritability
-                // routes are wired by later tickets, so a valid run at this point legitimately
-                // publishes nothing but pipeline information and a MultiQC report.
-                { assert new File("${params.outdir}").list().toList().sort() == ['multiqc', 'pipeline_info'] },
+                // Two of the four demo rows select plink2, so a valid run publishes its association
+                // results alongside pipeline information and a MultiQC report. Cohort genotype
+                // preparation and phenotype normalisation are intermediates and stay unpublished
+                // unless a save control asks for them, and the remaining routes are wired by later
+                // tickets, so those three are the whole published layout at this point.
+                { assert new File("${params.outdir}").list().toList().sort() == ['association', 'multiqc', 'pipeline_info'] },
                 { assert snapshot(
                     // pipeline versions.yml file for multiqc from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
                     removeNextflowVersion("$outputDir/pipeline_info/nf_core_gwas_software_mqc_versions.yml"),

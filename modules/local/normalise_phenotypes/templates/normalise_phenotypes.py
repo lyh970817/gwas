@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""Normalise one analysis unit's phenotype and covariate files into the canonical layout.
+
+The four association and heritability programmes this pipeline drives disagree irreconcilably about
+two things. REGENIE requires a header row and GCTA forbids one, so the phenotype and the covariates
+are written twice, once with a header and once without. And each takes a different trait selector --
+a column name, or a one-based trait index -- so the trait is always written to the third column of a
+three-column file under the constant name PHENO, which turns GCTA's and LDAK's `--mpheno` into the
+constant 1 and makes PLINK 2's phenotype-named output filename deterministic.
+
+At most seven files are written, all tab-delimited with LF line endings:
+
+    <prefix>.pheno              FID IID PHENO                          always
+    <prefix>.qcovar             FID IID <quantitative names>           when the row supplied them
+    <prefix>.catcovar           FID IID <categorical names>            when the row supplied them
+    <prefix>.covar              FID IID <quantitative> <categorical>   when the row supplied either
+    <prefix>.noheader.pheno     the same content minus line 1          always
+    <prefix>.noheader.qcovar    the same content minus line 1          when the row supplied them
+    <prefix>.noheader.catcovar  the same content minus line 1          when the row supplied them
+
+Standard library only, deliberately: the inputs run to a few thousand rows at most, so a dataframe
+dependency would add container weight and a second version to report for no gain.
+"""
+
+import sys
+
+# Interpolated by Nextflow. An optional `path` input the row did not supply is not staged and
+# renders as the empty string, which is the presence test for the two covariate files.
+PHENOTYPE_FILE = "${phenotype}"
+QUANT_COVARIATES_FILE = "${quant_covariates}"
+CAT_COVARIATES_FILE = "${cat_covariates}"
+PHENOTYPE_COLUMN = "${phenotype_column}"
+TRAIT_TYPE = "${trait_type}"
+CASE_VALUE = "${case_value}"
+CONTROL_VALUE = "${control_value}"
+PREFIX = "${prefix}"
+ANALYSIS_ID = "${analysis_id}"
+
+MISSING = "NA"
+
+# `NA` is the one missing code all four programmes accept. `-9` is read as missing on the way in
+# because PLINK and GCTA both write it, but it is never written out: LDAK and REGENIE reject it, and
+# PLINK 2 errors out when a `-9` shares a file with a value in (-9, 10]. The empty string is a
+# genuine member: it is how a tab-delimited file spells a missing cell, and `split_row` preserves it.
+MISSING_TOKENS = frozenset(["", "na", "nan", "-9"])
+
+# The canonical column names. A covariate carrying one of them would be ambiguous in the merged file
+# and would shadow the trait column downstream.
+RESERVED_NAMES = frozenset(["FID", "IID", "PHENO"])
+
+
+def fail(message):
+    """Abort naming the analysis unit, so a large samplesheet can be fixed without bisecting it."""
+    sys.exit("[nf-core/gwas] ERROR: analysis '{}': {}".format(ANALYSIS_ID, message))
+
+
+def split_row(line):
+    """Split one input line into fields, per line, on whichever delimiter it actually uses.
+
+    PLINK writes and accepts both tab- and space-delimited files and a researcher's own file may be
+    either, so neither delimiter can simply be assumed. Splitting on arbitrary whitespace alone is
+    wrong, though: it collapses a run of tabs, so an empty cell -- the ordinary way a tab-delimited
+    file spells a missing value -- would vanish and leave the row looking ragged rather than missing.
+    A line carrying a tab is therefore a tab-delimited line and is split on tabs, which preserves the
+    empty cell for `is_missing` to normalise to NA. No value is ever split by either branch: the
+    samplesheet contract forbids whitespace inside an identifier or a trait value.
+    """
+    line = line.rstrip("\\r\\n")
+    return line.split("\\t") if "\\t" in line else line.split()
+
+
+def read_table(path, role):
+    """Read one FID/IID-keyed input file, rejecting the shapes that cannot be normalised."""
+    with open(path) as handle:
+        rows = [split_row(line) for line in handle]
+    # A row of nothing but empty cells is a blank line, not a sample with a missing everything.
+    rows = [row for row in rows if any(field.strip() for field in row)]
+    if not rows:
+        fail("the {} file '{}' is empty".format(role, path))
+
+    header = rows[0]
+    body = rows[1:]
+    if [name.upper() for name in header[:2]] != ["FID", "IID"]:
+        fail(
+            "the {} file '{}' must start with an FID column and an IID column, but starts with {}".format(
+                role, path, ", ".join("'{}'".format(name) for name in header[:2]) or "nothing"
+            )
+        )
+
+    for number, row in enumerate(body, start=2):
+        if len(row) != len(header):
+            fail(
+                "the {} file '{}' declares {} columns but line {} carries {} fields".format(
+                    role, path, len(header), number, len(row)
+                )
+            )
+
+    seen = set()
+    for row in body:
+        identity = (row[0], row[1])
+        if identity in seen:
+            fail("the {} file '{}' declares sample '{} {}' more than once".format(role, path, row[0], row[1]))
+        seen.add(identity)
+
+    return header, body
+
+
+def is_missing(value):
+    return value.strip().lower() in MISSING_TOKENS
+
+
+def normalise_trait(value):
+    """Recode one source trait value to the coding every downstream programme accepts.
+
+    Binary traits become 0/1/NA -- the only coding PLINK 2, REGENIE, GCTA and LDAK all read the same
+    way -- by comparing the source cell against the declared case and control values as strings. The
+    samplesheet carries both as text precisely so that PLINK's 1/2, a 0/1 file and labels such as
+    'Case' all work without the pipeline guessing which convention is in force. A cell matching
+    neither is missing, which is what makes a third level or a typo visible in the log tally rather
+    than silently recoded.
+    """
+    if TRAIT_TYPE == "binary":
+        stripped = value.strip()
+        if stripped == CASE_VALUE:
+            return "1"
+        if stripped == CONTROL_VALUE:
+            return "0"
+        return MISSING
+    if is_missing(value):
+        return MISSING
+    try:
+        float(value)
+    except ValueError:
+        return MISSING
+    return value
+
+
+def normalise_covariate_row(row):
+    """Covariates pass through verbatim; only their missing code is rewritten."""
+    return row[:2] + [MISSING if is_missing(value) else value for value in row[2:]]
+
+
+def load_covariates(path, role):
+    """Read and normalise one covariate file, or return None when the row supplied none."""
+    if not path:
+        return None
+    header, body = read_table(path, role)
+    for name in header[2:]:
+        if name.upper() in RESERVED_NAMES:
+            fail(
+                "the {} file '{}' declares a covariate named '{}', which collides with the canonical FID, IID and PHENO columns".format(
+                    role, path, name
+                )
+            )
+    return header, [normalise_covariate_row(row) for row in body]
+
+
+def merge_covariates(quant, cat):
+    """Build the single file PLINK 2 and REGENIE take, quantitative columns first.
+
+    The join is an inner one on FID and IID: a sample described by only one of the two files has an
+    incomplete covariate vector and would be dropped by every consumer anyway.
+    """
+    if quant is None:
+        return cat
+    if cat is None:
+        return quant
+    quant_header, quant_body = quant
+    cat_header, cat_body = cat
+    cat_by_identity = {(row[0], row[1]): row[2:] for row in cat_body}
+    body = [row + cat_by_identity[(row[0], row[1])] for row in quant_body if (row[0], row[1]) in cat_by_identity]
+    return quant_header + cat_header[2:], body
+
+
+def write_lines(path, lines):
+    with open(path, "w", newline="\\n") as handle:
+        handle.writelines(line + "\\n" for line in lines)
+
+
+def write_table(suffix, header, body):
+    """Write the headered serialisation PLINK 2 and REGENIE take and the headerless one GCTA and LDAK take."""
+    rows = ["\\t".join(row) for row in body]
+    write_lines("{}.{}".format(PREFIX, suffix), ["\\t".join(header)] + rows)
+    write_lines("{}.noheader.{}".format(PREFIX, suffix), rows)
+
+
+def identities(body):
+    return set((row[0], row[1]) for row in body)
+
+
+phenotype_header, phenotype_body = read_table(PHENOTYPE_FILE, "phenotype")
+if PHENOTYPE_COLUMN not in phenotype_header:
+    fail(
+        "phenotype column '{}' is not present in '{}', which declares {}".format(
+            PHENOTYPE_COLUMN, PHENOTYPE_FILE, ", ".join("'{}'".format(name) for name in phenotype_header)
+        )
+    )
+trait_index = phenotype_header.index(PHENOTYPE_COLUMN)
+if trait_index < 2:
+    fail(
+        "phenotype column '{}' is the {} identifier column of '{}', not a trait".format(
+            PHENOTYPE_COLUMN, "family" if trait_index == 0 else "individual", PHENOTYPE_FILE
+        )
+    )
+
+trait_rows = [[row[0], row[1], normalise_trait(row[trait_index])] for row in phenotype_body]
+write_table("pheno", ["FID", "IID", "PHENO"], trait_rows)
+
+quant_covariates = load_covariates(QUANT_COVARIATES_FILE, "quantitative covariate")
+cat_covariates = load_covariates(CAT_COVARIATES_FILE, "categorical covariate")
+if quant_covariates is not None:
+    write_table("qcovar", quant_covariates[0], quant_covariates[1])
+if cat_covariates is not None:
+    write_table("catcovar", cat_covariates[0], cat_covariates[1])
+
+# The merged file has no headerless counterpart: GCTA and LDAK take the two kinds of covariate
+# through separate flags and never see a merged file.
+merged = merge_covariates(quant_covariates, cat_covariates)
+if merged is not None:
+    write_lines("{}.covar".format(PREFIX), ["\\t".join(row) for row in [merged[0]] + merged[1]])
+
+tally = {}
+for trait_row in trait_rows:
+    tally[trait_row[2]] = tally.get(trait_row[2], 0) + 1
+
+report = [
+    "analysis: {}".format(ANALYSIS_ID),
+    "trait type: {}".format(TRAIT_TYPE),
+    "phenotype source: {} column '{}' at source position {} of {}".format(
+        PHENOTYPE_FILE, PHENOTYPE_COLUMN, trait_index + 1, len(phenotype_header)
+    ),
+    "phenotype target: column 'PHENO' at position 3 of 3",
+    "samples: {}".format(len(trait_rows)),
+    "missing trait values: {}".format(tally.get(MISSING, 0)),
+]
+if TRAIT_TYPE == "binary":
+    report.append("cases (source value '{}' recoded to 1): {}".format(CASE_VALUE, tally.get("1", 0)))
+    report.append("controls (source value '{}' recoded to 0): {}".format(CONTROL_VALUE, tally.get("0", 0)))
+
+phenotype_identities = identities(phenotype_body)
+for covariates, label, source in [
+    (quant_covariates, "quantitative covariates", QUANT_COVARIATES_FILE),
+    (cat_covariates, "categorical covariates", CAT_COVARIATES_FILE),
+]:
+    if covariates is None:
+        report.append("{}: none supplied".format(label))
+        continue
+    report.append(
+        "{}: {} over {} samples from {}".format(label, ", ".join(covariates[0][2:]), len(covariates[1]), source)
+    )
+    covariate_identities = identities(covariates[1])
+    if covariate_identities != phenotype_identities:
+        # A warning rather than an error: every consumer intersects sample sets natively, and
+        # refusing a covariate file that merely covers a different subset would reject legitimate
+        # input.
+        warning = "WARNING: {} in '{}' cover {} samples absent from the phenotype file and omit {} that are present".format(
+            label,
+            source,
+            len(covariate_identities - phenotype_identities),
+            len(phenotype_identities - covariate_identities),
+        )
+        report.append(warning)
+        print("[nf-core/gwas]: analysis '{}': {}".format(ANALYSIS_ID, warning))
+
+if merged is not None:
+    report.append("merged covariate file: {} columns over {} samples".format(len(merged[0]), len(merged[1])))
+
+write_lines("{}.normalise.log".format(PREFIX), report)
+
+# Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
+write_lines("versions.yml", ['"${task.process}":', "    python: {}".format(sys.version.split()[0])])

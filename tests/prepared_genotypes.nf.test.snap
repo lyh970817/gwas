@@ -2,6 +2,12 @@
     "prepared_genotypes": {
         "content": [
             {
+                "NORMALISE_PHENOTYPES": {
+                    "python": "3.14.5"
+                },
+                "PLINK2_GLM": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PLINK2_MAKEPGEN": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
@@ -13,6 +19,12 @@
                 }
             },
             [
+                "association",
+                "association/plink2",
+                "association/plink2/example_pgen_bt",
+                "association/plink2/example_pgen_bt/example_pgen_bt.plink2.glm.logistic.hybrid",
+                "association/plink2/example_pgen_qt",
+                "association/plink2/example_pgen_qt/example_pgen_qt.plink2.glm.linear",
                 "genotypes",
                 "genotypes/example_bfile",
                 "genotypes/example_bfile/example_bfile.pgen",
@@ -40,6 +52,8 @@
                 "pipeline_info/nf_core_gwas_software_mqc_versions.yml"
             ],
             [
+                "example_pgen_bt.plink2.glm.logistic.hybrid:md5,90b3f96e6dd5fd570a7ce60bb6830f38",
+                "example_pgen_qt.plink2.glm.linear:md5,ea3c5efee75bd852b546b6be5d07db5c",
                 "example_bfile.pgen:md5,d1ab61520e26e56ea09712e225c6405b",
                 "example_bfile.psam:md5,34ad6070312b4ca9f265433385ff9312",
                 "example_bfile.pvar:md5,83377f58e9fa754ed9259fda8c0c1bfa",
@@ -56,6 +70,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-28T07:01:01.443736765"
+        "timestamp": "2026-07-28T23:44:47.236905623"
     }
 }

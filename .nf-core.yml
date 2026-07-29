@@ -3,9 +3,15 @@ lint:
     - conf/igenomes.config
     - conf/igenomes_ignored.config
     - .github/workflows/linting_comment.yml
+    # The single module config is split into per-method-family files under `conf/modules/`, so that a
+    # new association or heritability route adds a file instead of editing a shared one. Both the
+    # `files_exist` entry above and the `modules_config` toggle below are required for that: the first
+    # stops lint demanding the deleted file, the second stops the `withName:` check reading it.
+    - conf/modules.config
   files_unchanged:
     - .github/workflows/branch.yml
     - .github/workflows/linting.yml
+  modules_config: false
 nf_core_version: 4.0.2
 repository_type: pipeline
 template:

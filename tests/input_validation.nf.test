@@ -212,8 +212,18 @@ nextflow_pipeline {
             params {
                 outdir = "$outputDir"
                 // The positive control runs to completion, so unlike every negative case above it
-                // needs the real fixture bundle rather than empty placeholders.
+                // needs the real fixture bundle rather than empty placeholders. The two cells are
+                // read by phenotype normalisation, which recodes the trait by comparing each source
+                // value against them, so the phenotype file has to carry the labels the row declares:
+                // the shipped fixture codes its binary trait in PLINK's 1 and 2 instead.
                 input = SAMPLESHEET.fixtures(projectDir, outputDir, "textual_case_control", { rows ->
+                    rows[1].phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "textual_case_control", rows[1].phenotype) { lines ->
+                        [lines.first()] + lines.tail().collect { line ->
+                            def cells = line.split('\t').toList()
+                            cells[3] = cells[3] == '2' ? 'Affected' : 'Unaffected'
+                            return cells.join('\t')
+                        }
+                    }
                     rows[1].control_value = 'Unaffected'
                     rows[1].case_value = 'Affected'
                 })
@@ -246,7 +256,18 @@ nextflow_pipeline {
                     rows[2].gcta_ldms_maf_edges = '0.05'
                     // PLINK's 0/1 coding, plus a leading-zero code. `0` is a populated cell even
                     // though its Groovy truth is false, and '0010' must keep its literal spelling
-                    // rather than being normalised to '10'.
+                    // rather than being normalised to '10'. The phenotype file is rewritten to carry
+                    // both, which is what turns the second claim into a property of the run rather
+                    // than of the parser alone: normalisation compares the source value against the
+                    // declared one as text, so a '0010' silently read as 10 would match nothing and
+                    // PLINK 2 would refuse a phenotype with no cases.
+                    rows[1].phenotype = SAMPLESHEET.rewrite(projectDir, outputDir, "edge_case_cell_spellings", rows[1].phenotype) { lines ->
+                        [lines.first()] + lines.tail().collect { line ->
+                            def cells = line.split('\t').toList()
+                            cells[3] = cells[3] == '2' ? '0010' : '0'
+                            return cells.join('\t')
+                        }
+                    }
                     rows[1].control_value = '0'
                     rows[1].case_value = '0010'
                 })

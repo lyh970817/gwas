@@ -55,6 +55,12 @@
                     "description": "Save the canonical PLINK 2 genotype bundle prepared for each cohort.",
                     "help_text": "Prepared bundles are published to `<outdir>/genotypes/<cohort_id>/` so that you can inspect them or reuse them outside the pipeline. Only bundles the pipeline built are saved: a cohort supplied as PLINK 2 `pgen`/`psam`/`pvar` is already canonical and is used exactly as given, so there is nothing to save for it.",
                     "fa_icon": "fas fa-download"
+                },
+                "save_normalised_phenotypes": {
+                    "type": "boolean",
+                    "description": "Save the normalised phenotype and covariate files prepared for each analysis unit.",
+                    "help_text": "Normalised files are published to `<outdir>/phenotypes/<analysis_id>/` so that you can check how your trait was recoded before an association or heritability run consumed it. The set is the headered phenotype file, the separate quantitative and categorical covariate files, and the merged covariate file; the headerless serialisations and the normalisation log are never published.",
+                    "fa_icon": "fas fa-download"
                 }
             }
         },
