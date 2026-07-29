@@ -6,6 +6,7 @@ nextflow_pipeline {
     tag "association"
     tag "gcta"
     tag "gcta_fastgwa"
+    profile "test_gcta_fastgwa"
 
     def work_files = { output_dir ->
         def files = []
@@ -22,129 +23,124 @@ nextflow_pipeline {
             .withReader('UTF-8') { reader -> reader.readLines() }
     }
 
-    def fastgwa = { row, analysis_id, cutoff ->
-        row.analysis_id = analysis_id
-        row.association_methods = 'gcta_fastgwa'
-        row.heritability_methods = ''
-        row.gcta_grm_parts = '1'
-        row.gcta_sparse_cutoff = cutoff
-        row.gcta_ldms_maf_edges = ''
-        row.ldak_model = ''
-        row.ldak_power = ''
-        row.ldak_relatedness_filter = ''
-        return row
-    }
+    def analysis_ids = [
+        'fastgwa_and_greml',
+        'fastgwa_binary',
+        'fastgwa_different',
+        'fastgwa_same_1',
+        'fastgwa_same_2',
+    ]
 
-    test("GCTA fastGWA-MLM publishes native and harmonised quantitative association results") {
+    def executionModes = [
+        [suffix: '', stub: false],
+        [suffix: ' - stub', stub: true],
+    ]
 
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_fastgwa", { rows ->
-                    def row = rows[0]
-                    rows.clear()
-                    row.association_methods = 'gcta_fastgwa'
-                    row.heritability_methods = ''
-                    row.gcta_grm_parts = '1'
-                    row.gcta_sparse_cutoff = '0.05'
-                    row.gcta_ldms_maf_edges = ''
-                    row.ldak_model = ''
-                    row.ldak_power = ''
-                    row.ldak_relatedness_filter = ''
-                    rows << row
-                })
+    executionModes.each { mode ->
+        test("profile routes quantitative and binary fastGWA with matrix reuse and GREML separation${mode.suffix}") {
+
+            if (mode.stub) {
+                options "-stub"
             }
-        }
 
-        then {
-            def native_result = new File("${params.outdir}/association/gcta_fastgwa/example_pgen_qt/example_pgen_qt.gcta_fastgwa.fastGWA")
-            def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.gcta_fastgwa.gwaslab.tsv.gz")
-            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
-            def command = work_files(outputDir)
-                .findAll { entry -> entry.name == '.command.sh' }
-                .collect { entry -> entry.text }
-                .find { text -> text.contains('gcta') && text.contains('--fastGWA-mlm') }
-            def harmonised_rows = gzip_rows(harmonised_result)
-            def harmonised_header = harmonised_rows.first().split('\t').toList()
-            def sample_count_index = harmonised_header.indexOf('N')
-            assert workflow.success
-            assertAll(
-                { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 1 },
-                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
-                { assert native_result.exists() },
-                { assert native_result.readLines().first().split('\t').toList().contains('N') },
-                { assert harmonised_result.exists() },
-                { assert sample_count_index >= 0 },
-                { assert harmonised_rows.tail().every { row -> row.split('\t')[sample_count_index] } },
-                { assert command != null },
-                { assert command.contains('--fastGWA-mlm') },
-                { assert !command.contains('--fastGWA-lr') },
-                { assert command.contains('--grm-sparse') },
-                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
-            )
-        }
-    }
-
-    test("equal sparse cutoffs share one build while a differing cutoff gets a distinct build") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_fastgwa_reuse", { rows ->
-                    def source = rows[0]
-                    rows.clear()
-                    rows << fastgwa(new LinkedHashMap(source), 'fastgwa_same_1', '0.05')
-                    rows << fastgwa(new LinkedHashMap(source), 'fastgwa_same_2', '0.0500')
-                    rows << fastgwa(new LinkedHashMap(source), 'fastgwa_different', '0.025')
-                })
+            when {
+                params {
+                    outdir = "$outputDir"
+                }
             }
-        }
 
-        then {
-            assert workflow.success
-            assertAll(
-                // Two reuse keys: the first two declarations canonicalise to one cutoff, the third does not.
-                { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
-                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 3 },
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 3 },
-                { assert new File("${params.outdir}/association/gcta_fastgwa").list().toList().sort() == [
-                    'fastgwa_different',
-                    'fastgwa_same_1',
-                    'fastgwa_same_2',
-                ] },
-            )
-        }
-    }
+            then {
+                def association = new File("${params.outdir}/association/gcta_fastgwa")
+                def summary_statistics = new File("${params.outdir}/summary_statistics")
+                def greml = new File("${params.outdir}/heritability/individual/gcta_greml/fastgwa_and_greml/fastgwa_and_greml.gcta_greml.hsq")
+                def native_results = analysis_ids.collect { analysis_id ->
+                    new File(association, "${analysis_id}/${analysis_id}.gcta_fastgwa.fastGWA")
+                }
+                def harmonised_results = analysis_ids.collect { analysis_id ->
+                    new File(summary_statistics, "${analysis_id}/${analysis_id}.gcta_fastgwa.gwaslab.tsv.gz")
+                }
 
-    test("fastGWA and GREML on one cohort build their own sparse and dense matrix families") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                input = SAMPLESHEET.fixtures(projectDir, outputDir, "gcta_fastgwa_and_greml", { rows ->
-                    def row = rows[0]
-                    rows.clear()
-                    fastgwa(row, 'fastgwa_and_greml', '0.05')
-                    row.heritability_methods = 'gcta_greml'
-                    rows << row
-                })
+                if (mode.stub) {
+                    assertAll(
+                        { assert workflow.success },
+                        // Two cutoff-specific sparse families and one independent dense GREML family.
+                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 3 },
+                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 3 },
+                        { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
+                        { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 5 },
+                        { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 5 },
+                        { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
+                        { assert association.list().toList().sort() == analysis_ids },
+                        { assert summary_statistics.list().toList().sort() == analysis_ids },
+                        { assert native_results.every { result -> result.isFile() } },
+                        { assert harmonised_results.every { result -> result.isFile() } },
+                        { assert greml.isFile() },
+                    )
+                } else {
+                    def command_files = work_files(outputDir).findAll { entry -> entry.name == '.command.sh' }
+                    def fastgwa_commands = command_files.findAll { entry ->
+                        entry.text.contains('--grm-sparse') && entry.text.contains('--fastGWA-mlm')
+                    }
+                    def binary_command_file = fastgwa_commands.find { entry -> entry.text.contains('--fastGWA-mlm-binary') }
+                    def binary_published = new File(association, 'fastgwa_binary/fastgwa_binary.gcta_fastgwa.fastGWA')
+                    def binary_written = binary_command_file == null
+                        ? null
+                        : new File(binary_command_file.parentFile, 'fastgwa_binary.gcta_fastgwa.fastGWA')
+                    def binary_header = binary_published.readLines().first().split('\t').toList()
+                    def harmonised_tables = harmonised_results.collect { result ->
+                        def rows = gzip_rows(result)
+                        def header = rows.first().split('\t').toList()
+                        [rows: rows, header: header]
+                    }
+                    def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+                    def stable_name_association = getAllFilesFromDir("${params.outdir}/association", relative: true, includeDir: true).findAll { path -> path.toString() }
+                    def stable_path_association = getAllFilesFromDir("${params.outdir}/association", ignoreFile: 'tests/.nftignore')
+                    def stable_name_summary_statistics = getAllFilesFromDir("${params.outdir}/summary_statistics", relative: true, includeDir: true).findAll { path -> path.toString() }
+                    def stable_path_summary_statistics = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
+                    assertAll(
+                        { assert workflow.success },
+                        // Four declarations canonicalise to cutoff 0.05; the fifth requests 0.025.
+                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 3 },
+                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 3 },
+                        { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
+                        { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 5 },
+                        { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 5 },
+                        // GREML gets its own dense build rather than reusing a fastGWA sparse family.
+                        { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
+                        { assert association.list().toList().sort() == analysis_ids },
+                        { assert summary_statistics.list().toList().sort() == analysis_ids },
+                        { assert native_results.every { result -> result.isFile() } },
+                        { assert harmonised_results.every { result -> result.isFile() } },
+                        { assert greml.isFile() },
+                        { assert fastgwa_commands.size() == 5 },
+                        { assert fastgwa_commands.count { entry -> entry.text.contains('--fastGWA-mlm-binary') } == 1 },
+                        { assert fastgwa_commands.every { entry -> entry.text.contains('--grm-sparse') } },
+                        { assert fastgwa_commands.every { entry -> !entry.text.contains('--fastGWA-lr') } },
+                        { assert binary_command_file != null },
+                        { assert binary_command_file.text.contains('--fastGWA-mlm-binary') },
+                        // GCTA 1.94.1 reports the log-odds effect as BETA even on its binary MLM route.
+                        { assert binary_header == ['CHR', 'SNP', 'POS', 'A1', 'A2', 'N', 'AF1', 'T', 'SE_T', 'P_noSPA', 'BETA', 'SE', 'P', 'CONVERGE'] },
+                        { assert binary_written != null },
+                        { assert binary_written.isFile() },
+                        { assert binary_published.bytes == binary_written.bytes },
+                        // GWASLab preserves a canonical BETA and a populated sample count for every row.
+                        { assert harmonised_tables.every { table -> table.header.containsAll(['BETA', 'N']) } },
+                        { assert harmonised_tables.every { table ->
+                            def beta = table.header.indexOf('BETA')
+                            def n = table.header.indexOf('N')
+                            table.rows.tail().every { row ->
+                                def columns = row.split('\t')
+                                columns[beta] && columns[n]
+                            }
+                        } },
+                        { assert versions.text.contains('GCTA_FASTGWA') },
+                        { assert versions.text.contains('GWASLAB_HARMONIZE') },
+                        { assert snapshot(stable_name_association, stable_path_association).match('association') },
+                        { assert snapshot(stable_name_summary_statistics, stable_path_summary_statistics).match('summary_statistics') },
+                        { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+                    )
+                }
             }
-        }
-
-        then {
-            assert workflow.success
-            assertAll(
-                // GCTA_PREPARE_GRM_DENSE receives one dense GREML request and a distinct dense base
-                // for the sparse fastGWA family. Cross-format reuse is therefore structurally absent.
-                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
-                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 2 },
-                { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 1 },
-                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
-                { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
-                { assert new File("${params.outdir}/association/gcta_fastgwa/fastgwa_and_greml/fastgwa_and_greml.gcta_fastgwa.fastGWA").exists() },
-                { assert new File("${params.outdir}/heritability/individual/gcta_greml/fastgwa_and_greml/fastgwa_and_greml.gcta_greml.hsq").exists() },
-            )
         }
     }
 }

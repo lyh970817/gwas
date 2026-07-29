@@ -30,6 +30,8 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
   - `<analysis_id>.regenie.gz`: REGENIE Step 2 association results for the analysis.
 - `association/ldak_kvik/<analysis_id>/`
   - `<analysis_id>.ldak_kvik.step2.assoc`: LDAK-KVIK Step 2 association results for the analysis.
+- `association/gcta_fastgwa/<analysis_id>/`
+  - `<analysis_id>.gcta_fastgwa.fastGWA`: [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) fastGWA-MLM association results for the analysis.
 - `intermediates/regenie/<analysis_id>/` (only with `--save_regenie_predictions`)
   - `<analysis_id>.regenie_step1_pred.list`: REGENIE Step 1 prediction-list manifest.
   - `<analysis_id>.regenie_step1_1.loco.gz`: Leave-one-chromosome-out predictions for the selected trait.
@@ -75,6 +77,8 @@ GWASLab's own harmonisation log is an intermediate and is not published: it reco
 
 - `heritability/individual/gcta_greml/<analysis_id>/`
   - `<analysis_id>.gcta_greml.hsq`: [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) GREML variance-component estimates for one analysis, as GCTA wrote them.
+- `heritability/individual/gcta_greml_ldms/<analysis_id>/`
+  - `<analysis_id>.gcta_greml_ldms.hsq`: [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) GREML-LDMS variance-component estimates for one analysis, as GCTA wrote them.
 - `heritability/individual/ldak_reml/<analysis_id>/`
   - `<analysis_id>.ldak_reml.reml`: [LDAK](https://dougspeed.com/) REML variance-component estimates for one analysis, as LDAK wrote them.
   - `<analysis_id>.ldak_reml.reml.liab`: Optional liability-scale estimates for a binary analysis that declared `population_prevalence`.

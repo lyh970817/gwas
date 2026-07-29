@@ -5,6 +5,70 @@ nextflow_function {
     tag "function"
     tag "relatedness"
 
+    test("quantitative fastGWA maps the native beta and sample-count columns") {
+
+        function "associationColumnMappingJson"
+
+        when {
+            function {
+                """
+                input[0] = 'gcta_fastgwa'
+                input[1] = false
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert new groovy.json.JsonSlurper().parseText(function.result) == [
+                    snpid: 'SNP',
+                    chrom: 'CHR',
+                    pos: 'POS',
+                    ea: 'A1',
+                    nea: 'A2',
+                    eaf: 'AF1',
+                    n: 'N',
+                    beta: 'BETA',
+                    se: 'SE',
+                    p: 'P',
+                ] },
+            )
+        }
+    }
+
+    test("binary fastGWA retains the native beta mapping without inventing an odds-ratio column") {
+
+        function "associationColumnMappingJson"
+
+        when {
+            function {
+                """
+                input[0] = 'gcta_fastgwa'
+                input[1] = true
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert new groovy.json.JsonSlurper().parseText(function.result) == [
+                    snpid: 'SNP',
+                    chrom: 'CHR',
+                    pos: 'POS',
+                    ea: 'A1',
+                    nea: 'A2',
+                    eaf: 'AF1',
+                    n: 'N',
+                    beta: 'BETA',
+                    se: 'SE',
+                    p: 'P',
+                ] },
+            )
+        }
+    }
+
     // The reuse key decides how many relatedness matrices a run builds, and two of its properties
     // cannot be observed from a pipeline run today.
     //
