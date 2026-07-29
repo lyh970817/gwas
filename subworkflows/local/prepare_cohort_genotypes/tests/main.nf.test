@@ -95,7 +95,7 @@ nextflow_workflow {
         }
     }
 
-    test("only LDAK analysis units receive one shared cohort PLINK 1 derivative") {
+    test("only PLINK 1 consumers receive one shared cohort derivative") {
 
         when {
             workflow {
@@ -107,6 +107,7 @@ nextflow_workflow {
                 input[0] = channel.fromList([
                     [[id: 'ldak_kvik', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['ldak_kvik'], heritability_methods: []], genotypes],
                     [[id: 'ldak_reml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                    [[id: 'gcta_greml_ldms', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['gcta_greml_ldms']], genotypes],
                     [[id: 'plink2_glm', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['plink2'], heritability_methods: []], genotypes],
                     [[id: 'gcta_greml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['gcta_greml']], genotypes],
                 ])
@@ -123,9 +124,9 @@ nextflow_workflow {
             }
             assertAll(
                 { assert workflow.success },
-                // The derivative is analysis-facing and retains focal identity. The two non-LDAK
-                // analyses on the same cohort do not receive a bundle they cannot consume.
-                { assert derivatives.collect { meta, _members -> meta.id }.sort() == ['ldak_kvik', 'ldak_reml'] },
+                // The derivative is analysis-facing and retains focal identity. GCTA GREML-LDMS joins
+                // both LDAK route families at this seam, while unrelated methods receive no bundle.
+                { assert derivatives.collect { meta, _members -> meta.id }.sort() == ['gcta_greml_ldms', 'ldak_kvik', 'ldak_reml'] },
                 { assert derivatives.every { meta, _members -> meta.cohort == 'cohort_plink2' } },
                 // Each derivative is a complete PLINK 1 fileset with one shared basename.
                 { assert derivatives.every { _meta, members ->
@@ -134,7 +135,7 @@ nextflow_workflow {
                 { assert derivatives.every { _meta, members ->
                     members.collect { member -> member.substring(0, member.lastIndexOf('.')) }.unique().size() == 1
                 } },
-                // Both LDAK analyses reuse one cohort conversion.
+                // All three consumers reuse one cohort conversion.
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
             )
         }

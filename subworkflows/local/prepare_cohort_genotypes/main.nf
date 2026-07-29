@@ -96,16 +96,16 @@ workflow PREPARE_COHORT_GENOTYPES {
         .map { _cohort_id, meta, pgen, psam, pvar -> [meta, pgen, psam, pvar] }
 
     //
-    // LDAK consumes PLINK 1. The derivative is lazy — only a cohort with an LDAK association or
-    // heritability analysis is converted — and cohort-keyed, so KVIK and every heritability estimator
-    // share one conversion. It is always derived from the canonical PLINK 2 bundle, even when the
-    // researcher supplied PLINK 1, so every input encoding crosses the same compatibility seam.
+    // LDAK and GCTA GREML-LDMS consume PLINK 1. The derivative is lazy — only a cohort with a route
+    // that needs it is converted — and cohort-keyed, so all such analyses share one conversion. It is
+    // always derived from the canonical PLINK 2 bundle, even when the researcher supplied PLINK 1, so
+    // every input encoding crosses the same compatibility seam.
     //
-    def ch_ldak_analyses = ch_analyses.filter { meta, _genotype_files ->
-        'ldak_kvik' in (meta.association_methods ?: []) || (meta.heritability_methods ?: []).any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] }
+    def ch_plink1_analyses = ch_analyses.filter { meta, _genotype_files ->
+        'ldak_kvik' in (meta.association_methods ?: []) || (meta.heritability_methods ?: []).any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] } || 'gcta_greml_ldms' in (meta.heritability_methods ?: [])
     }
 
-    def ch_ldak_cohort_genotypes = ch_ldak_analyses
+    def ch_plink1_cohort_genotypes = ch_plink1_analyses
         .map { meta, _genotype_files -> [meta.cohort] }
         .unique { cohort_id -> cohort_id }
         .combine(
@@ -114,11 +114,11 @@ workflow PREPARE_COHORT_GENOTYPES {
         )
         .map { _cohort_id, cohort_meta, pgen, psam, pvar -> [cohort_meta, pgen, psam, pvar] }
 
-    PLINK2_MAKEBED(ch_ldak_cohort_genotypes)
+    PLINK2_MAKEBED(ch_plink1_cohort_genotypes)
 
     // The cohort-to-analysis relationship is one-to-many here for the same reason as the canonical
     // fan-out above. Replace the conversion's cohort metadata with the unchanged focal analysis meta.
-    def ch_plink1_genotypes = ch_ldak_analyses
+    def ch_plink1_genotypes = ch_plink1_analyses
         .map { meta, _genotype_files -> [meta.cohort, meta] }
         .combine(
             PLINK2_MAKEBED.out.bed.map { cohort_meta, bed, bim, fam -> [cohort_meta.id, bed, bim, fam] },

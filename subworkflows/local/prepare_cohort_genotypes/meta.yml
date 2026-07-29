@@ -31,7 +31,7 @@ output:
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - plink1_genotypes:
-      description: One lazy PLINK 1 derivative per LDAK analysis unit, carrying unchanged focal analysis metadata. Analyses on one cohort share one conversion.
+      description: One lazy PLINK 1 derivative per analysis unit whose selected route requires it, carrying unchanged focal analysis metadata. Analyses on one cohort share one conversion.
       structure: [map meta, path bed, path bim, path fam]
       pattern: "*.{bed,bim,fam}"
       ontologies:
