@@ -34,8 +34,8 @@ sub-agent.
 When guidance conflicts, resolve in this order:
 
 1. The user's current request.
-2. Repository mechanics in `CLAUDE.md`.
-3. The active `nf-core-*` lifecycle skills under `.claude/skills/`. **For anything destined for upstream
+2. Repository mechanics in `AGENTS.md`.
+3. The active `nf-core-*` lifecycle skills under `.agents/skills/`. **For anything destined for upstream
    `nf-core/modules`** — module and subworkflow interfaces, `meta.yml`, component tests, submission
    hygiene — `nf-core-gwas-module-conventions` and `nf-core-submission-review` are authoritative and this
    document defers to them.

@@ -221,8 +221,8 @@ marked "measured" were verified directly against the checked-out sources, not in
 
 ## 8. Local module bodies
 
-Module-submission standards are owned by `.claude/skills/nf-core-gwas-module-conventions/` and
-`.claude/skills/nf-core-submission-review/`; those take precedence. What follows is the stylistic subset the
+Module-submission standards are owned by `.agents/skills/nf-core-gwas-module-conventions/` and
+`.agents/skills/nf-core-submission-review/`; those take precedence. What follows is the stylistic subset the
 reference pipelines agree on.
 
 - **[MUST]** Directive order, with a blank line between each group:

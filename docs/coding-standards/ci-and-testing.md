@@ -6,7 +6,7 @@ Rule tags: **[MUST]** violation is a review finding · **[SHOULD]** strong defau
 reason · **[TOOLING]** a linter owns this.
 
 Module- and subworkflow-submission testing for upstream `nf-core/modules` is owned by
-`.claude/skills/nf-core-submission-test/` and `.claude/skills/nf-core-submission-review/`; those take
+`.agents/skills/nf-core-submission-test/` and `.agents/skills/nf-core-submission-review/`; those take
 precedence for component tests. This document covers pipeline-level testing and repo tooling.
 
 ---

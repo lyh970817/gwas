@@ -14,9 +14,11 @@ null/
 .direnv/
 .nf-test*
 
-# Local agent and workspace files — not part of the nf-core pipeline
-.claude/
-CLAUDE.md
+# Local agent and workspace files — mutable client state is not part of the
+# nf-core pipeline. The shared skills and repository instructions are tracked
+# through .agents/skills, .claude/skills, .codex/skills, and AGENTS.md.
+.claude/*
+!.claude/skills
 SPEC.md
 .scratch/
 CONTEXT.md
