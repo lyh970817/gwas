@@ -80,6 +80,24 @@ nextflow_pipeline {
                 } else {
                     def commands = calckinsCommands(params.outdir)
                     def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+                    def stable_name_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
+                    def stable_name_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
                     assertAll(
                         { assert workflow.success },
                         // The relatedness filter is outside the key: both rows use one expensive kinship build.
@@ -102,6 +120,8 @@ nextflow_pipeline {
                         { assert commands.size() == 1 },
                         { assert commands.first().contains('--ignore-weights YES') },
                         { assert !commands.first().contains('--weights ') },
+                        { assert snapshot(stable_name_matrices, stable_path_matrices).match('shared-relatedness-matrices') },
+                        { assert snapshot(stable_name_heritability, stable_path_heritability).match('shared-heritability') },
                         { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                     )
                 }
@@ -137,6 +157,24 @@ nextflow_pipeline {
                         [filter: 0, subgrm: 0],
                     ))
                 } else {
+                    def stable_name_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
+                    def stable_name_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
                     assertAll(
                         { assert workflow.success },
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 3 },
@@ -145,6 +183,8 @@ nextflow_pipeline {
                         // Independently derived from the documented canonical strings with `sha256sum`.
                         { assert matrices.list().toList().sort() == ['5f8579a3a568', 'a677a0c52d65', 'f299aab0058a'] },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 3 },
+                        { assert snapshot(stable_name_matrices, stable_path_matrices).match('distinct-relatedness-matrices') },
+                        { assert snapshot(stable_name_heritability, stable_path_heritability).match('distinct-heritability') },
                     )
                 }
             }
@@ -180,6 +220,24 @@ nextflow_pipeline {
                     ))
                 } else {
                     def commands = calckinsCommands(params.outdir)
+                    def stable_name_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
+                    def stable_name_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
                     assertAll(
                         { assert workflow.success },
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
@@ -189,6 +247,8 @@ nextflow_pipeline {
                         { assert commands.size() == 1 },
                         { assert commands.first().contains('--weights example_all.pvar') },
                         { assert !commands.first().contains('--ignore-weights YES') },
+                        { assert snapshot(stable_name_matrices, stable_path_matrices).match('same-weights-relatedness-matrices') },
+                        { assert snapshot(stable_name_heritability, stable_path_heritability).match('same-weights-heritability') },
                     )
                 }
             }
@@ -224,6 +284,24 @@ nextflow_pipeline {
                     ))
                 } else {
                     def commands = calckinsCommands(params.outdir)
+                    def stable_name_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_matrices = getAllFilesFromDir(
+                        matrices.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
+                    def stable_name_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        relative: true,
+                        includeDir: true,
+                    ).findAll { path -> path.toString() }
+                    def stable_path_heritability = getAllFilesFromDir(
+                        heritability.toString(),
+                        ignoreFile: 'tests/.nftignore',
+                    )
                     assertAll(
                         { assert workflow.success },
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
@@ -233,6 +311,8 @@ nextflow_pipeline {
                         { assert commands.size() == 2 },
                         { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
                         { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
+                        { assert snapshot(stable_name_matrices, stable_path_matrices).match('different-weights-relatedness-matrices') },
+                        { assert snapshot(stable_name_heritability, stable_path_heritability).match('different-weights-heritability') },
                     )
                 }
             }
