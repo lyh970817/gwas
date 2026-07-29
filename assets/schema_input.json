@@ -205,6 +205,14 @@
                 "errorMessage": "LDAK power must be a number between -2 and 0",
                 "meta": ["ldak_power"]
             },
+            "ldak_weights": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+$",
+                "description": "Optional LDAK predictor weights file used when building kinship matrices. Leave empty to use explicit equal weights.",
+                "errorMessage": "LDAK weights file cannot contain spaces and must exist"
+            },
             "ldak_relatedness_filter": {
                 "type": "boolean",
                 "default": false,
@@ -233,6 +241,31 @@
                 "description": "Number of parts GCTA splits its relatedness matrix build into. A memory control rather than a scientific setting, required with any GCTA route and stated explicitly rather than defaulted.",
                 "errorMessage": "GCTA relatedness matrix part count must be an integer of 1 or more",
                 "meta": ["gcta_grm_parts"]
+            },
+            "gcta_sparse_cutoff": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "default": 0.05,
+                "description": "Relatedness cutoff used to derive the sparse GCTA matrix for fastGWA-MLM. The default follows the official fastGWA example.",
+                "errorMessage": "GCTA sparse relatedness cutoff must be a number between 0 and 1",
+                "meta": ["gcta_sparse_cutoff"]
+            },
+            "gcta_ld_score_region_kb": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 200,
+                "description": "Region width in kilobases used to calculate GCTA LD scores for GREML-LDMS. The default follows the official LDMS example.",
+                "errorMessage": "GCTA LD-score region width must be an integer of 1 kilobase or more",
+                "meta": ["gcta_ld_score_region_kb"]
+            },
+            "gcta_ld_bins": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 4,
+                "description": "Number of individual-SNP LD-score strata used by GCTA GREML-LDMS. The default divides the scores into quartiles.",
+                "errorMessage": "GCTA LD bin count must be an integer of 1 or more",
+                "meta": ["gcta_ld_bins"]
             },
             "gcta_ldms_maf_edges": {
                 "type": ["string", "number"],

@@ -50,7 +50,7 @@ workflow GWAS {
     // One element per analysis unit carrying the genotype files it declared. Built once and passed to both
     // consumers: cohort preparation collapses it to the distinct cohorts, and the matrix subworkflow needs
     // the declared file names for the reuse key.
-    def ch_analysis_genotypes = ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract ->
+    def ch_analysis_genotypes = ch_samplesheet.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
         [meta, genotype_files]
     }
 
@@ -71,7 +71,7 @@ workflow GWAS {
     // MODULE: Normalise each analysis unit's phenotype and covariates into the canonical layout
     //
     NORMALISE_PHENOTYPES(
-        ch_samplesheet.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract ->
+        ch_samplesheet.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract, _ldak_weights ->
             [meta, phenotype, quant_covariates, cat_covariates]
         }
     )

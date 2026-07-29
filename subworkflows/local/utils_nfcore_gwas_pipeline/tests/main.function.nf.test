@@ -358,6 +358,58 @@ nextflow_function {
         }
     }
 
+    test("omitted construction controls resolve to the documented first-release defaults") {
+
+        function "rowSettings"
+
+        when {
+            function {
+                """
+                input[0] = [:]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result.ldak_weights_mode == 'equal' },
+                { assert function.result.gcta_sparse_cutoff == 0.05 },
+                { assert function.result.gcta_ld_score_region_kb == 200 },
+                { assert function.result.gcta_ld_bins == 4 },
+            )
+        }
+    }
+
+    test("declared construction controls survive parsing without losing their value or weights mode") {
+
+        function "rowSettings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    gcta_sparse_cutoff: '0.0250',
+                    gcta_ld_score_region_kb: '500',
+                    gcta_ld_bins: '8',
+                ]
+                input[1] = [ldak_weights: file('cohort.weights')]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result.ldak_weights_mode == 'provided' },
+                { assert !function.result.containsKey('ldak_weights') },
+                { assert function.result.gcta_sparse_cutoff.toString() == '0.0250' },
+                { assert function.result.gcta_ld_score_region_kb.toString() == '500' },
+                { assert function.result.gcta_ld_bins.toString() == '8' },
+            )
+        }
+    }
+
     test("a heritability selector that needs a dense GCTA matrix asks for one") {
 
         function "relatednessMatrixKinds"

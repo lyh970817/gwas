@@ -7,7 +7,7 @@ nextflow_pipeline {
 
     // Each scenario takes the shipped demo samplesheet, breaks exactly one thing, and asserts the
     // run is refused with a message naming the offending row and column. The demo sheet is the
-    // fixture: it is the committed statement of the 31-column contract, so a column renamed there
+    // fixture: it is the committed statement of the 35-column contract, so a column renamed there
     // shows up here rather than silently diverging.
     //
     // Rows of assets/samplesheet.csv, and therefore of every sheet below:
@@ -110,6 +110,30 @@ nextflow_pipeline {
                 rows[0].ldak_power = '-1'
             },
             expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'ldak_model'", "consumed by the LDAK heritability methods only"],
+        ],
+        [
+            name: "non-default sparse cutoff without fastGWA",
+            sheet: "sparse_cutoff_without_fastgwa",
+            mutate: { rows -> rows[0].gcta_sparse_cutoff = '0.025' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'gcta_sparse_cutoff'", "consumed by 'gcta_fastgwa' only"],
+        ],
+        [
+            name: "non-default LD-score region without GREML-LDMS",
+            sheet: "ld_score_region_without_ldms",
+            mutate: { rows -> rows[0].gcta_ld_score_region_kb = '500' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'gcta_ld_score_region_kb'", "consumed by 'gcta_greml_ldms' only"],
+        ],
+        [
+            name: "non-default LD bin count without GREML-LDMS",
+            sheet: "ld_bins_without_ldms",
+            mutate: { rows -> rows[0].gcta_ld_bins = '8' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'gcta_ld_bins'", "consumed by 'gcta_greml_ldms' only"],
+        ],
+        [
+            name: "LDAK weights without an LDAK heritability method",
+            sheet: "weights_without_ldak_heritability",
+            mutate: { rows -> rows[0].ldak_weights = 'cohort.weights' },
+            expect: ["row 2 (analysis_id 'example_pgen_qt'), column 'ldak_weights'", "consumed by the LDAK heritability methods only"],
         ],
         [
             name: "MAF edge list delimited with commas rather than semicolons",
@@ -254,6 +278,12 @@ nextflow_pipeline {
                 input = SAMPLESHEET.fixtures(projectDir, outputDir, "edge_case_cell_spellings", { rows ->
                     // A lone MAF edge arrives as a number, not as a one-element semicolon list.
                     rows[2].gcta_ldms_maf_edges = '0.05'
+                    // Default-valued method controls are harmless on a row that does not select
+                    // their consuming routes, whether the values came from schema defaults or were
+                    // written explicitly in the CSV.
+                    rows[0].gcta_sparse_cutoff = '0.0500'
+                    rows[0].gcta_ld_score_region_kb = '200'
+                    rows[0].gcta_ld_bins = '4'
                     // PLINK's 0/1 coding, plus a leading-zero code. `0` is a populated cell even
                     // though its Groovy truth is false, and '0010' must keep its literal spelling
                     // rather than being normalised to '10'. The phenotype file is rewritten to carry
@@ -280,4 +310,5 @@ nextflow_pipeline {
             )
         }
     }
+
 }

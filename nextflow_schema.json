@@ -20,7 +20,7 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to a comma-separated samplesheet describing the analysis units to run.",
-                    "help_text": "One row is one analysis unit: a single cohort paired with a single trait. The samplesheet has 31 columns and a header row covering analysis, cohort and trait identity, trait type, genome build, ancestry, one of the three mutually exclusive genotype encodings (PLINK 2 `pgen`/`psam`/`pvar`, PLINK 1 `bed`/`bim`/`fam`, or `vcf`), the phenotype file and column, control and case source values, quantitative and categorical covariate files, the association and heritability method selector lists, population and sample prevalence, and the LDAK and GCTA method controls. See [usage docs](https://nf-co.re/gwas/usage#samplesheet-input).",
+                    "help_text": "One row is one analysis unit: a single cohort paired with a single trait. The samplesheet has 35 columns and a header row covering analysis, cohort and trait identity, trait type, genome build, ancestry, one of the three mutually exclusive genotype encodings (PLINK 2 `pgen`/`psam`/`pvar`, PLINK 1 `bed`/`bim`/`fam`, or `vcf`), the phenotype file and column, control and case source values, quantitative and categorical covariate files, the association and heritability method selector lists, population and sample prevalence, optional LDAK weights, and the LDAK and GCTA construction controls. See [usage docs](https://nf-co.re/gwas/usage#samplesheet-input).",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {

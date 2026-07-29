@@ -1,7 +1,7 @@
 // Samplesheet builder for the pipeline-level tests.
 //
 // Every sheet the tests feed the pipeline is derived from the shipped demo samplesheet,
-// assets/samplesheet.csv, so the suite tracks the committed 31-column contract rather than keeping a
+// assets/samplesheet.csv, so the suite tracks the committed 35-column contract rather than keeping a
 // second copy of it that can drift. A test declares only what it wants to be different.
 //
 // The demo sheet's file columns point at nf-core/test-datasets URLs, and there are two ways to use
@@ -47,6 +47,14 @@ class SAMPLESHEET {
     // programme rather than only exercising validation.
     static String fixtures(Object projectDir, Object outputDir, String name, Closure mutate) {
         return materialise(outputDir, name, demo(projectDir), mutate, FIXTURES.base(projectDir), fileColumns(projectDir))
+    }
+
+    // Materialise a superseded public contract by dropping named headers. File cells use hermetic
+    // placeholders because the mandatory-header gate rejects the sheet before any process can read them.
+    static String withoutColumns(Object projectDir, Object outputDir, String name, List<String> omitted, Closure mutate) {
+        def source = demo(projectDir)
+        source.header = source.header.findAll { column -> !omitted.contains(column) }
+        return materialise(outputDir, name, source, mutate, null, fileColumns(projectDir))
     }
 
     // Rewrite one fixture file for the sheet named `name` and return the path to put in the cell it

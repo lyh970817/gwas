@@ -100,13 +100,15 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
-    // The samplesheet is validated in two passes. nf-schema covers everything a per-row JSON
-    // Schema can express; validateInputSamplesheet covers the rest — the fields whose validity
-    // depends on which methods a row selects, and the cross-field and cross-row rules no per-row
-    // schema can reach. Validation runs over the whole list rather than per channel element,
-    // because the cross-row rules need every row in hand before any of them can be decided.
+    // The samplesheet is validated in three passes. The header gate fixes the complete public
+    // contract before defaults can be injected; nf-schema covers everything a per-row JSON Schema
+    // can express; validateInputSamplesheet covers the rest — the fields whose validity depends on
+    // which methods a row selects, and the cross-field and cross-row rules no per-row schema can
+    // reach. Validation runs over the whole list rather than per channel element, because the
+    // cross-row rules need every row in hand before any of them can be decided.
     //
     def input_schema = "${projectDir}/assets/schema_input.json"
+    validateSamplesheetHeader(input, input_schema)
     def ch_samplesheet = channel.fromList(
         validateInputSamplesheet(samplesheetToList(input, input_schema), input, input_schema)
     )
@@ -497,6 +499,39 @@ def samplesheetPositionalColumns(schema) {
 }
 
 //
+// The public samplesheet contract is the complete header, including optional/defaulted cells.
+// JSON Schema deliberately does not make optional cells required, and nf-schema therefore accepts a
+// CSV that omits their headers altogether. That would silently keep the superseded 31-column
+// contract alive, so compare the actual header with the schema's property names before nf-schema
+// injects any defaults. Column order is not significant, but missing, unexpected or repeated names
+// are all contract errors.
+//
+def validateSamplesheetHeader(samplesheet, schema) {
+    def expected = new groovy.json.JsonSlurper().parseText(file(schema).text).items.properties.keySet().toList()
+    def header_line = file(samplesheet).readLines().find { line -> line.trim() }
+    def observed = header_line
+        ? header_line.split(',', -1).collect { column -> column.trim().replaceAll(/^"|"$/, '') }
+        : []
+    def missing = expected.findAll { column -> !observed.contains(column) }
+    def unexpected = observed.findAll { column -> !expected.contains(column) }.unique()
+    def repeated = observed.countBy { column -> column }.findAll { _column, count -> count > 1 }.keySet().toList()
+
+    def problems = []
+    if (missing) {
+        problems << "missing column headers: ${missing.collect { column -> "'${column}'" }.join(', ')}"
+    }
+    if (unexpected) {
+        problems << "unexpected column headers: ${unexpected.collect { column -> "'${column}'" }.join(', ')}"
+    }
+    if (repeated) {
+        problems << "repeated column headers: ${repeated.collect { column -> "'${column}'" }.join(', ')}"
+    }
+    if (problems) {
+        error("[nf-core/gwas] ERROR: Samplesheet header row 1 does not match the mandatory ${expected.size()}-column input contract.\n\n  - ${problems.join('\n  - ')}\n")
+    }
+}
+
+//
 // An empty samplesheet cell never reaches the meta map as null: nf-schema drops the key and its
 // converter substitutes an empty list in its place. A populated cell, meanwhile, may arrive as a
 // number whose Groovy truth is false — `0` is both a legal PLINK control code and a legal MAF bin
@@ -529,25 +564,35 @@ def methodRoutes(association_methods, heritability_methods) {
         runs_ldak_heritability: heritability_methods.any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] },
         runs_ldak_pcgc: heritability_methods.contains('ldak_pcgc'),
         runs_gcta: association_methods.contains('gcta_fastgwa') || heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] },
+        runs_gcta_fastgwa: association_methods.contains('gcta_fastgwa'),
         runs_greml_ldms: heritability_methods.contains('gcta_greml_ldms'),
     ]
 }
 
 //
-// The conditional columns of one row, resolved once. The LDAK model and power defaults are
-// samplesheet column defaults rather than pipeline parameters: nf-schema fills them in when the
-// column is present, but a samplesheet may omit the column altogether, so they are resolved here as
-// well before anything is compared against them. Every other conditional column is deliberately
-// left without a default.
+// The conditional columns of one row, resolved once. The LDAK model and power and the three GCTA
+// construction controls have samplesheet-column defaults rather than pipeline parameters: nf-schema
+// fills them in when the column is present, but a samplesheet may omit the column altogether, so they
+// are resolved here as well before anything is compared against them. The weights path itself remains
+// outside meta and this settings map: only whether weights were provided is registered here, while
+// the Path is carried positionally so a downstream staging seam can derive content identity without
+// using a basename or a machine-specific absolute path.
 //
-def rowSettings(meta) {
+def rowSettings(meta, cells = [:]) {
     def ldak_power = cellValue(meta.ldak_power)
+    def gcta_sparse_cutoff = cellValue(meta.gcta_sparse_cutoff)
+    def gcta_ld_score_region_kb = cellValue(meta.gcta_ld_score_region_kb)
+    def gcta_ld_bins = cellValue(meta.gcta_ld_bins)
     return [
         ldak_model: cellValue(meta.ldak_model) ?: 'human_default',
         ldak_power: ldak_power != null ? ldak_power : -0.25,
+        ldak_weights_mode: cellValue(cells.ldak_weights) != null ? 'provided' : 'equal',
         ldak_relatedness_filter: cellValue(meta.ldak_relatedness_filter) ? true : false,
         ldak_kvik_step1_subset: cellValue(meta.ldak_kvik_step1_subset),
         gcta_grm_parts: cellValue(meta.gcta_grm_parts),
+        gcta_sparse_cutoff: gcta_sparse_cutoff != null ? gcta_sparse_cutoff : 0.05,
+        gcta_ld_score_region_kb: gcta_ld_score_region_kb != null ? gcta_ld_score_region_kb : 200,
+        gcta_ld_bins: gcta_ld_bins != null ? gcta_ld_bins : 4,
         population_prevalence: cellValue(meta.population_prevalence),
         sample_prevalence: cellValue(meta.sample_prevalence),
         case_value: cellValue(meta.case_value),
@@ -667,7 +712,7 @@ def validateTraitColumns(is_binary, settings, reject) {
 }
 
 //
-// The nine columns whose validity depends on which methods the row selects. Each is consumed by
+// The thirteen columns whose validity depends on which methods the row selects. Each is consumed by
 // particular methods only, so populating one without selecting its consumer is a typo rather than a
 // harmless no-op, and leaving one empty when its consumer is selected is an under-specified
 // analysis.
@@ -690,6 +735,9 @@ def validateMethodConditionedColumns(settings, cells, routes, reject) {
     }
     if (settings.ldak_power != -0.25 && !routes.runs_ldak_heritability) {
         reject.call('ldak_power', "the LDAK kinship power is consumed by the LDAK heritability methods only, and none are selected on this row")
+    }
+    if (cells.ldak_weights && !routes.runs_ldak_heritability) {
+        reject.call('ldak_weights', "the LDAK weights file is consumed by the LDAK heritability methods only, and none are selected on this row")
     }
     if (settings.ldak_relatedness_filter && !routes.runs_ldak_heritability) {
         reject.call('ldak_relatedness_filter', "the relatedness filter is consumed by the LDAK heritability methods only, and none are selected on this row")
@@ -715,6 +763,15 @@ def validateMethodConditionedColumns(settings, cells, routes, reject) {
     if (settings.gcta_grm_parts == null && routes.runs_gcta) {
         reject.call('gcta_grm_parts', "a GCTA method is selected but no relatedness matrix part count is declared")
     }
+    if (canonicaliseDeclaredValue(settings.gcta_sparse_cutoff) != '0.05' && !routes.runs_gcta_fastgwa) {
+        reject.call('gcta_sparse_cutoff', "a non-default sparse cutoff is consumed by 'gcta_fastgwa' only, which is not selected on this row")
+    }
+    if (canonicaliseDeclaredValue(settings.gcta_ld_score_region_kb) != '200' && !routes.runs_greml_ldms) {
+        reject.call('gcta_ld_score_region_kb', "a non-default LD-score region width is consumed by 'gcta_greml_ldms' only, which is not selected on this row")
+    }
+    if (canonicaliseDeclaredValue(settings.gcta_ld_bins) != '4' && !routes.runs_greml_ldms) {
+        reject.call('gcta_ld_bins', "a non-default LD bin count is consumed by 'gcta_greml_ldms' only, which is not selected on this row")
+    }
     if (settings.gcta_ldms_maf_edges != null && !routes.runs_greml_ldms) {
         reject.call('gcta_ldms_maf_edges', "MAF bin edges are consumed by 'gcta_greml_ldms' only, which is not selected on this row")
     }
@@ -737,7 +794,8 @@ def parseMafEdges(maf_edges, reject) {
 
 //
 // Validate the samplesheet beyond what the per-row JSON Schema can express, and reshape each row
-// into `[ meta, genotype_files, phenotype, quant_covariates, cat_covariates, ldak_kvik_step1_extract ]`.
+// into `[ meta, genotype_files, phenotype, quant_covariates, cat_covariates,
+// ldak_kvik_step1_extract, ldak_weights ]`.
 //
 // Every error names the samplesheet row it came from and the column, or set of columns, it is
 // about, so a large samplesheet can be fixed without bisecting it. All errors are collected and
@@ -790,7 +848,7 @@ def validateInputSamplesheet(rows, samplesheet, schema) {
         validateMethodSelectors(association_methods, heritability_methods, reject)
 
         def routes = methodRoutes(association_methods, heritability_methods)
-        def settings = rowSettings(meta)
+        def settings = rowSettings(meta, cells)
 
         def genotype_format = validateGenotypeGroup(cells, reject)
         def genotype_files = genotype_format ? groups[genotype_format].collect { column -> cells[column] } : []
@@ -814,9 +872,13 @@ def validateInputSamplesheet(rows, samplesheet, schema) {
                 sample_prevalence: settings.sample_prevalence,
                 ldak_model: settings.ldak_model,
                 ldak_power: settings.ldak_power,
+                ldak_weights_mode: settings.ldak_weights_mode,
                 ldak_relatedness_filter: settings.ldak_relatedness_filter,
                 ldak_kvik_step1_subset: settings.ldak_kvik_step1_subset,
                 gcta_grm_parts: settings.gcta_grm_parts,
+                gcta_sparse_cutoff: settings.gcta_sparse_cutoff,
+                gcta_ld_score_region_kb: settings.gcta_ld_score_region_kb,
+                gcta_ld_bins: settings.gcta_ld_bins,
                 gcta_ldms_maf_edges: parsed_maf_edges,
             ],
             genotype_files,
@@ -824,6 +886,7 @@ def validateInputSamplesheet(rows, samplesheet, schema) {
             cells.quant_covariates,
             cells.cat_covariates,
             cells.ldak_kvik_step1_extract,
+            cells.ldak_weights,
         ]
     }
 
