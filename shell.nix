@@ -70,6 +70,87 @@ PY
     '';
   };
 
+  # nf-test has no in-run concurrency in 0.9.3-0.9.5; its only split is
+  # `--shard i/n`, which divides test files across separate processes. The suite
+  # is bound by per-test wall clock -- container start plus tool runtime -- not
+  # by CPU or memory, so running shards side by side scales close to linearly.
+  # A 3-way split measured 2.955x (795s -> 269s) on `modules/local/ldak/`.
+  nfTestParallel = pkgs.writeShellApplication {
+    name = "nf-test-parallel";
+    runtimeInputs = [ nfTestCli pkgs.coreutils pkgs.gnused ];
+    text = ''
+      shards=3
+      if [[ "''${1:-}" =~ ^[0-9]+$ ]]; then
+        shards="$1"
+        shift
+      fi
+
+      if (( shards < 1 )); then
+        echo "nf-test-parallel: shard count must be a positive integer" >&2
+        exit 2
+      fi
+
+      if [[ ! -f nf-test.config ]]; then
+        echo "nf-test-parallel: run from the repository root (no nf-test.config here)" >&2
+        exit 2
+      fi
+
+      profile="''${NFT_PROFILE:-+docker}"
+      shard_root=".nf-test-shards"
+
+      # NXF_OFFLINE skips Nextflow's plugin-registry and version round trips and
+      # is worth ~15% per run. It does NOT degrade gracefully on a cold cache --
+      # a missing plugin aborts the run outright rather than triggering a
+      # download -- so enable it only once the declared plugin is present, and
+      # let an online run warm the cache otherwise. Deliberately not paired with
+      # NXF_DISABLE_CHECK_LATEST_VERSION: that measured at baseline on its own
+      # (62.2s vs ~61s), so it buys nothing and should not be re-added.
+      if [[ -z "''${NXF_OFFLINE:-}" ]]; then
+        plugin_dir="''${NXF_PLUGINS_DIR:-$HOME/.nextflow/plugins}"
+        schema="$(sed -n "s/^[[:space:]]*id[[:space:]]*'nf-schema@\([^']*\)'.*/\1/p" nextflow.config | head -1)"
+        if [[ -n "$schema" && -d "$plugin_dir/nf-schema-$schema" ]]; then
+          export NXF_OFFLINE=true
+        else
+          echo "nf-test-parallel: plugin cache cold, running online to warm it" >&2
+        fi
+      fi
+
+      rm -rf "''${shard_root:?}"/shard-*
+      mkdir -p "$shard_root"
+
+      echo "nf-test-parallel: $shards shards, profile $profile"
+
+      pids=()
+      for shard in $(seq 1 "$shards"); do
+        workdir="$shard_root/shard-$shard"
+        mkdir -p "$workdir"
+        # nf-test caches nft-utils under its work dir, so a fresh per-shard dir
+        # would re-fetch the same plugin once per shard. Seed it instead.
+        if [[ -d .nf-test/plugins ]]; then
+          cp -r .nf-test/plugins "$workdir/plugins"
+        fi
+        NFT_WORKDIR="$workdir" nf-test test \
+          --profile="$profile" \
+          --shard "$shard/$shards" \
+          "$@" >"$shard_root/shard-$shard.log" 2>&1 &
+        pids+=("$!")
+      done
+
+      status=0
+      for index in "''${!pids[@]}"; do
+        shard=$(( index + 1 ))
+        if wait "''${pids[index]}"; then
+          echo "  shard $shard/$shards passed"
+        else
+          status=1
+          echo "  shard $shard/$shards FAILED -- $shard_root/shard-$shard.log" >&2
+        fi
+      done
+
+      exit "$status"
+    '';
+  };
+
   condaCli = pkgs.writeShellApplication {
     name = "conda";
     runtimeInputs = [ pkgs.micromamba pkgs.python3 ];
@@ -136,6 +217,7 @@ pkgs.mkShell {
     nextflowCli
     nfCoreCli
     nfTestCli
+    nfTestParallel
     condaCli
     pkgs.apptainer
     pkgs.pre-commit
