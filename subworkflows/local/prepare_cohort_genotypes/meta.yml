@@ -7,6 +7,7 @@ keywords:
   - cohort
   - deduplication
 components:
+  - plink2/makebed
   - plink2/makepgen
   - plink2/vcf
 input:
@@ -29,6 +30,14 @@ output:
       pattern: "*.{pgen,psam,pvar}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
+  - plink1_genotypes:
+      description: One lazy PLINK 1 derivative per LDAK analysis unit, carrying unchanged focal analysis metadata. Analyses on one cohort share one conversion.
+      structure: [map meta, path bed, path bim, path fam]
+      pattern: "*.{bed,bim,fam}"
+      ontologies:
+        - edam: "http://edamontology.org/format_3003"
+        - edam: "http://edamontology.org/format_3285"
+        - edam: "http://edamontology.org/format_3286"
 authors:
   - "@andongni"
 maintainers:
