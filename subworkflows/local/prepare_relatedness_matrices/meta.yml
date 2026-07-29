@@ -6,13 +6,14 @@ keywords:
   - grm
   - kinship
   - deduplication
-# The three helper functions are listed alongside the subworkflow because `nf-core subworkflows lint`
+# The helper functions are listed alongside the subworkflow because `nf-core subworkflows lint`
 # compares every `include` in main.nf against this list, and it lowercases the include name without
 # lowercasing the entry it is matched against — so a camel-cased function name here is reported as
-# missing. All four entries are therefore spelled lowercase.
+# missing. Function entries are therefore spelled lowercase.
 components:
   - gcta_prepare_grm_dense
   - gcta_prepare_grm_ldms
+  - plink_prepare_grm_ldak
   - gcta/makebksparse
   - canonicalisedeclaredvalue
   - relatednessmatrixkinds
@@ -53,6 +54,12 @@ output:
       description: The LD-by-MAF-stratified GCTA matrix family of each requesting GREML-LDMS analysis, carrying focal analysis metadata.
       structure: [map meta, path mgrm_manifest, list grm_files]
       pattern: "*.mgrm, *.grm.{bin,N.bin,id}"
+      ontologies:
+        - edam: "http://edamontology.org/format_2330"
+  - ldak_kinship:
+      description: The filtered or unfiltered LDAK kinship matrix requested by each analysis unit, carrying its optional unrelated-sample keep list.
+      structure: "[map meta, list grm_files, path keep|[]]"
+      pattern: "*.{grm.bin,grm.id,grm.details,grm.adjust,keep}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
 authors:

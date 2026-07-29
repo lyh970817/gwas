@@ -430,13 +430,19 @@ def relatednessMatrixKinds(meta) {
     if ('gcta_fastgwa' in meta.association_methods) {
         kinds << 'gcta_sparse'
     }
+    if (meta.heritability_methods.any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] }) {
+        kinds << 'ldak_kinship'
+    }
     return kinds.unique()
 }
 
 //
-// The declared construction settings of one matrix kind: the inputs that change the matrix itself. Empty for
-// the GCTA dense GRM, which is built over every variant of the cohort bundle with no MAF filter, no SNP group
-// and no weighting, and therefore varies with nothing but the cohort.
+// The declared construction settings of one matrix kind: the inputs that change the matrix itself. GCTA
+// dense has no settings beyond cohort identity, while LDMS and sparse matrices name their selectors
+// explicitly. LDAK's model, power and weights are key components, but its per-analysis relatedness filter is
+// deliberately absent: one kinship build supplies both the all-sample and unrelated-subset routes. At this
+// seam `equal` is the canonical default weight identity; supplied files are added without path identity by
+// the weights-specific follow-up.
 //
 // An `if` chain rather than a `switch`: `nextflow lint` aborts on any `switch` statement it is given
 // (`ERROR ~ begin N, end N+1, length N`), so the construct cannot appear in this repository at all.
@@ -454,6 +460,13 @@ def relatednessMatrixSettings(meta, kind) {
     }
     if (kind == 'gcta_sparse') {
         return [cutoff: meta.gcta_sparse_cutoff]
+    }
+    if (kind == 'ldak_kinship') {
+        return [
+            model: meta.ldak_model,
+            power: meta.ldak_power,
+            weights: 'equal',
+        ]
     }
     error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
 }
@@ -479,13 +492,17 @@ def relatednessMatrixRequest(meta, genotype_files, kind) {
         genotypes: genotype_files.collect { genotype_file -> genotype_file.name }.sort(),
         kind: kind,
     ]
-    return [
+    def request = [
         kind: kind,
         cohort: meta.cohort,
         settings: settings,
         parts: meta.gcta_grm_parts,
         key: relatednessMatrixKey(identity, settings),
     ]
+    if (kind == 'ldak_kinship') {
+        request.filter_relatedness = meta.ldak_relatedness_filter
+    }
+    return request
 }
 
 

@@ -14,6 +14,7 @@ include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GRM_HERITABILITY_GCTA        } from '../subworkflows/local/grm_heritability_gcta'
+include { GRM_HERITABILITY_LDAK        } from '../subworkflows/local/grm_heritability_ldak'
 include { PLINK_ASSOCIATION_LDAK_KVIK  } from '../subworkflows/local/plink_association_ldak_kvik'
 include { PLINK_GWAS_REGENIE           } from '../subworkflows/local/plink_gwas_regenie'
 include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
@@ -87,8 +88,8 @@ workflow GWAS {
         .join(NORMALISE_PHENOTYPES.out.phenotype, failOnMismatch: true, failOnDuplicate: true)
         .join(NORMALISE_PHENOTYPES.out.covariates, remainder: true)
 
-    // GCTA rejects a header row. Both fastGWA and GREML therefore consume the headerless phenotype
-    // and covariate serialisations. Optional covariates are represented by [], which stages nothing.
+    // GCTA and LDAK reject a header row. fastGWA, GREML and LDAK REML therefore consume the headerless
+    // phenotype and covariate serialisations. Optional covariates are represented by [], which stages nothing.
     def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
         .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
         .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
@@ -344,6 +345,36 @@ workflow GWAS {
         ch_greml_inputs.qcovar,
         ch_greml_inputs.covar,
         ch_greml_inputs.estimator,
+    )
+
+    //
+    // SUBWORKFLOW: LDAK REML heritability
+    //
+    // Matrix construction and the per-analysis unrelated-subset routing are owned above by
+    // PREPARE_RELATEDNESS_MATRICES. This route receives the already-selected matrix and keep list, adds the
+    // normalised phenotype/covariates, and passes `reml` as policy from the caller rather than teaching the
+    // reusable heritability subworkflow which samplesheet token selected it.
+    def ch_ldak_reml_inputs = PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship
+        .filter { meta, _grm_files, _keep -> 'ldak_reml' in meta.heritability_methods }
+        .join(ch_gcta_phenotypes, failOnDuplicate: true)
+        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates ->
+            grm: [meta, grm_files]
+            pheno: [meta, phenotype, meta.population_prevalence != null ? meta.population_prevalence : []]
+            qcovar: [meta, quant_covariates]
+            covar: [meta, cat_covariates]
+            keep: [meta, keep ?: []]
+            estimator: [meta, 'reml']
+        }
+
+    // GRM_HERITABILITY_LDAK deliberately emits no versions because every constituent local module reports
+    // directly to the run-wide `versions` topic.
+    GRM_HERITABILITY_LDAK(
+        ch_ldak_reml_inputs.grm,
+        ch_ldak_reml_inputs.pheno,
+        ch_ldak_reml_inputs.qcovar,
+        ch_ldak_reml_inputs.covar,
+        ch_ldak_reml_inputs.keep,
+        ch_ldak_reml_inputs.estimator,
     )
 
     //

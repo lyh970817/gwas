@@ -14,6 +14,7 @@
 // SUBWORKFLOW: Vendored from the component library
 include { GCTA_PREPARE_GRM_DENSE } from '../gcta_prepare_grm_dense/main'
 include { GCTA_PREPARE_GRM_LDMS  } from '../gcta_prepare_grm_ldms/main'
+include { PLINK_PREPARE_GRM_LDAK } from '../plink_prepare_grm_ldak/main'
 
 // MODULE: Local to the pipeline
 include { GCTA_MAKEBKSPARSE } from '../../../modules/local/gcta/makebksparse/main'
@@ -78,13 +79,14 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .unique { key, _request -> key }
         .join(ch_reconciled_parts, failOnDuplicate: true, failOnMismatch: true)
         .map { key, request, parts ->
-            [[
+            def matrix_meta = [
                 id: "${request.cohort}.${request.kind}.${key}",
                 cohort: request.cohort,
                 kind: request.kind,
                 key: key,
                 settings: request.settings,
-            ], parts]
+            ]
+            [key, matrix_meta, request, parts]
         }
 
     //
@@ -94,7 +96,10 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // Exactly one bundle exists per cohort key, so the product is exactly one element per matrix.
     //
     def ch_matrix_genotypes = ch_matrices
-        .map { matrix_meta, parts -> [matrix_meta.cohort, matrix_meta, parts] }
+        .filter { _key, matrix_meta, _request, _parts ->
+            matrix_meta.kind in ['gcta_dense', 'gcta_sparse', 'gcta_ldms']
+        }
+        .map { _key, matrix_meta, _request, parts -> [matrix_meta.cohort, matrix_meta, parts] }
         .combine(
             ch_cohort_genotypes.map { cohort_meta, pgen, psam, pvar -> [cohort_meta.id, pgen, psam, pvar] },
             by: 0
@@ -200,6 +205,38 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     )
 
     //
+    // SUBWORKFLOW: Build one LDAK kinship matrix per key and derive its unrelated subset only when at least
+    // one requesting analysis asked for it. The filter is per analysis and deliberately outside the key, so
+    // rows that disagree on filtering still share this one LDAK_CALCKINS invocation.
+    //
+    def ch_ldak_filter_by_key = ch_requests
+        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' }
+        .map { key, _meta, request -> [key, request.filter_relatedness] }
+        .groupTuple()
+        .map { key, filters -> [key, filters.any { filter_relatedness -> filter_relatedness }] }
+
+    // PREPARE_COHORT_GENOTYPES already built one PLINK 1 derivative per requesting cohort and fanned it out
+    // with focal analysis metadata. Collapse those identical fan-out records back to one cohort bundle before
+    // combining them with the possibly-many matrix keys of that cohort.
+    def ch_ldak_inputs = ch_matrices
+        .filter { _key, matrix_meta, _request, _parts -> matrix_meta.kind == 'ldak_kinship' }
+        .map { key, matrix_meta, request, _parts -> [matrix_meta.cohort, key, matrix_meta, request] }
+        .combine(ch_plink1_cohorts, by: 0)
+        .map { _cohort, key, matrix_meta, request, bed, bim, fam -> [key, matrix_meta, request, bed, bim, fam] }
+        .join(ch_ldak_filter_by_key, failOnDuplicate: true, failOnMismatch: true)
+        .multiMap { _key, matrix_meta, request, bed, bim, fam, filter_relatedness ->
+            genotypes: [matrix_meta, bed, bim, fam, request.settings.power]
+            weights: [matrix_meta, []]
+            filter_relatedness: [matrix_meta, filter_relatedness]
+        }
+
+    PLINK_PREPARE_GRM_LDAK(
+        ch_ldak_inputs.genotypes,
+        ch_ldak_inputs.weights,
+        ch_ldak_inputs.filter_relatedness,
+    )
+
+    //
     // The key-to-analysis seam. One key to many analysis units, so a combining operator again, and because
     // exactly one matrix exists per key the product is exactly one element per requesting analysis unit,
     // carrying the focal analysis meta rather than the matrix meta.
@@ -231,10 +268,38 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         )
         .map { _key, meta, mgrm, grm_files -> [meta, mgrm, grm_files] }
 
+    // Unrestricted analyses take the all-sample emission. Restricted analyses take the derived unrelated
+    // matrix and carry its keep list onward to the estimator, without changing the base matrix key shared by
+    // either route.
+    def ch_ldak_unfiltered = ch_requests
+        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' && !request.filter_relatedness }
+        .map { key, meta, _request -> [key, meta] }
+        .combine(
+            PLINK_PREPARE_GRM_LDAK.out.unfiltered_grm.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
+            by: 0
+        )
+        .map { _key, meta, grm_files -> [meta, grm_files, []] }
+
+    def ch_ldak_filtered = ch_requests
+        .filter { _key, _meta, request -> request.kind == 'ldak_kinship' && request.filter_relatedness }
+        .map { key, meta, _request -> [key, meta] }
+        .combine(
+            PLINK_PREPARE_GRM_LDAK.out.analysis_grm.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
+            by: 0
+        )
+        .combine(
+            PLINK_PREPARE_GRM_LDAK.out.filtered_list.map { matrix_meta, keep, _lose -> [matrix_meta.key, keep] },
+            by: 0
+        )
+        .map { _key, meta, grm_files, keep -> [meta, grm_files, keep] }
+
+    def ch_ldak_kinship = ch_ldak_unfiltered.mix(ch_ldak_filtered)
+
     emit:
-    gcta_dense = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
-    gcta_sparse = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
-    gcta_ldms = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
+    gcta_dense   = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
+    gcta_sparse  = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
+    gcta_ldms    = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
+    ldak_kinship = ch_ldak_kinship // channel: [ val(meta), path(grm_files), path(keep) ]
 }
 
 //

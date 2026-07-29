@@ -1,0 +1,64 @@
+nextflow_pipeline {
+
+    name "Test LDAK REML heritability route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "heritability"
+    tag "ldak"
+
+    def value = { file, name ->
+        new File(file.toString())
+            .readLines()
+            .find { line -> line.startsWith("${name} ") }
+            .tokenize()[1]
+    }
+
+    test("rows selecting LDAK REML publish native observed and liability-scale results") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_reml", { rows ->
+                    def quantitative = rows[0]
+                    def binary = rows[1]
+                    rows.clear()
+                    [quantitative, binary].each { row ->
+                        row.association_methods = ''
+                        row.heritability_methods = 'ldak_reml'
+                        row.gcta_grm_parts = ''
+                        row.gcta_ldms_maf_edges = ''
+                        rows << row
+                    }
+                })
+            }
+        }
+
+        then {
+            def heritability = new File("${params.outdir}/heritability")
+            def individual = new File(heritability, 'individual/ldak_reml')
+            def quantitative = new File(individual, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml')
+            def binary = new File(individual, 'example_pgen_bt/example_pgen_bt.ldak_reml.reml')
+            def liability = new File(individual, 'example_pgen_bt/example_pgen_bt.ldak_reml.reml.liab')
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            def stable_name = getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true).findAll { path -> path.toString() }
+            def stable_path = getAllFilesFromDir("${params.outdir}/heritability", ignoreFile: 'tests/.nftignore')
+            assert workflow.success
+            assertAll(
+                { assert heritability.list().toList() == ['individual'] },
+                { assert new File(heritability, 'individual').list().toList() == ['ldak_reml'] },
+                { assert individual.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                { assert quantitative.exists() },
+                { assert binary.exists() },
+                { assert liability.exists() },
+                { assert !new File(individual, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml.liab').exists() },
+                // Native LDAK REML output remains intact and attributable to the estimator.
+                { assert quantitative.readLines().any { line -> line.startsWith('Her_All ') } },
+                { assert binary.readLines().any { line -> line.startsWith('Her_All ') } },
+                { assert (value(liability, 'Her_All') as BigDecimal) > (value(binary, 'Her_All') as BigDecimal) },
+                { assert versions.text.contains('LDAK_REML') },
+                { assert snapshot(stable_name, stable_path).match('heritability') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+}

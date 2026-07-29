@@ -410,7 +410,7 @@ nextflow_function {
         }
     }
 
-    test("a heritability selector that needs a dense GCTA matrix asks for one") {
+    test("heritability selectors ask for their tool-specific relatedness matrices") {
 
         function "relatednessMatrixKinds"
 
@@ -425,7 +425,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == ['gcta_dense'] },
+                { assert function.result == ['gcta_dense', 'ldak_kinship'] },
             )
         }
     }
@@ -452,6 +452,26 @@ nextflow_function {
                 // Matrix families do not cross-reuse: the dense GREML matrix, the LDMS MGRM and the
                 // sparse fastGWA matrix have distinct formats and scientific construction settings.
                 { assert function.result == ['gcta_dense', 'gcta_ldms', 'gcta_sparse'] },
+            )
+        }
+    }
+
+    test("several LDAK estimators share one LDAK kinship kind") {
+
+        function "relatednessMatrixKinds"
+
+        when {
+            function {
+                """
+                input[0] = [id: 'example_bfile_qt', heritability_methods: ['ldak_reml', 'ldak_he', 'ldak_pcgc']]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == ['ldak_kinship'] },
             )
         }
     }
@@ -487,6 +507,33 @@ nextflow_function {
         }
     }
 
+    test("LDAK kinship settings contain construction inputs but not the analysis filter") {
+
+        function "relatednessMatrixSettings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'example_pgen_bt',
+                    ldak_model: 'human_default',
+                    ldak_power: -0.25,
+                    ldak_relatedness_filter: true,
+                ]
+                input[1] = 'ldak_kinship'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [model: 'human_default', power: -0.25, weights: 'equal'] },
+                { assert !function.result.containsKey('relatedness_filter') },
+            )
+        }
+    }
+
     test("the fastGWA sparse cutoff is an explicit matrix key component") {
 
         function "relatednessMatrixSettings"
@@ -504,6 +551,43 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result == [cutoff: 0.025] },
+            )
+        }
+    }
+
+    test("an LDAK request has a canonical equal-weight key independent of filtering") {
+
+        function "relatednessMatrixRequest"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'example_pgen_bt',
+                    cohort: 'example_pgen',
+                    genotype_format: 'plink2',
+                    heritability_methods: ['ldak_reml'],
+                    ldak_model: 'human_default',
+                    ldak_power: '-.2500',
+                    ldak_relatedness_filter: true,
+                ]
+                input[1] = [
+                    file('example_all.pvar'),
+                    file('example_all.pgen'),
+                    file('example_all.psam'),
+                ]
+                input[2] = 'ldak_kinship'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // Independently derived from the documented canonical string with `sha256sum`.
+                { assert function.result.key == '5de577b7405c' },
+                { assert function.result.settings == [model: 'human_default', power: '-.2500', weights: 'equal'] },
+                { assert function.result.filter_relatedness },
             )
         }
     }

@@ -1,0 +1,102 @@
+nextflow_pipeline {
+
+    name "Test LDAK relatedness matrix build and reuse"
+    script "../main.nf"
+    config "../conf/test_ldak_relatedness.config"
+    tag "pipeline"
+    tag "relatedness"
+    tag "ldak"
+
+    def value = { file, name ->
+        new File(file.toString())
+            .readLines()
+            .find { line -> line.startsWith("${name} ") }
+            .tokenize()[1]
+    }
+
+    def ldakReml = { row, id, model, power, filter ->
+        row.analysis_id = id
+        row.association_methods = ''
+        row.heritability_methods = 'ldak_reml'
+        row.gcta_grm_parts = ''
+        row.gcta_ldms_maf_edges = ''
+        row.ldak_model = model
+        row.ldak_power = power
+        row.ldak_relatedness_filter = filter
+        return row
+    }
+
+    test("filtered and unfiltered analyses share one LDAK kinship build") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_shared_matrix", { rows ->
+                    def binary = rows[1]
+                    def unrestricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_all', 'custom', '-0.5', 'false')
+                    def restricted = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_unrelated', 'custom', '-0.5', 'true')
+                    rows.clear()
+                    rows << unrestricted
+                    rows << restricted
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def heritability = new File("${params.outdir}/heritability/individual/ldak_reml")
+            def unrestricted = new File(heritability, 'example_pgen_bt_all/example_pgen_bt_all.ldak_reml.reml')
+            def restricted = new File(heritability, 'example_pgen_bt_unrelated/example_pgen_bt_unrelated.ldak_reml.reml')
+            assert workflow.success
+            assertAll(
+                // The relatedness filter is outside the key: both rows use one expensive kinship build.
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                // Since one row requested an unrelated subset, the one base matrix is filtered and
+                // subsetted once; the unrestricted row still receives the all-sample emission.
+                { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+                { assert matrices.list().toList() == ['3904e834c758'] },
+                { assert new File(matrices, '3904e834c758').list().toList().sort() == [
+                    'example_pgen.ldak_kinship.3904e834c758.grm.adjust',
+                    'example_pgen.ldak_kinship.3904e834c758.grm.bin',
+                    'example_pgen.ldak_kinship.3904e834c758.grm.details',
+                    'example_pgen.ldak_kinship.3904e834c758.grm.id',
+                ] },
+                { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
+                { assert value(unrestricted, 'Total_Samples') == '500' },
+                { assert value(restricted, 'Total_Samples') == '222' },
+            )
+        }
+    }
+
+    test("changing LDAK model or power forks the matrix key") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "ldak_distinct_matrices", { rows ->
+                    def binary = rows[1]
+                    def human = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_human', 'human_default', '-0.25', 'false')
+                    def custom = ldakReml(new LinkedHashMap(binary), 'example_pgen_bt_custom', 'custom', '-0.5', 'false')
+                    rows.clear()
+                    rows << human
+                    rows << custom
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
+                { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
+                { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
+                // Independently derived from the documented canonical strings with `sha256sum`.
+                { assert matrices.list().toList().sort() == ['3904e834c758', '5de577b7405c'] },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
+            )
+        }
+    }
+}
