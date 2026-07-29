@@ -26,12 +26,21 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - `association/plink2/<analysis_id>/`
   - `<analysis_id>.plink2.glm.linear`: PLINK 2 `--glm` results for a quantitative trait.
   - `<analysis_id>.plink2.glm.logistic.hybrid`: PLINK 2 `--glm` results for a binary trait. The `.hybrid` extension indicates that Firth fallback was available, which the pipeline enables by default.
+- `association/regenie/<analysis_id>/`
+  - `<analysis_id>.regenie.gz`: REGENIE Step 2 association results for the analysis.
+- `intermediates/regenie/<analysis_id>/` (only with `--save_regenie_predictions`)
+  - `<analysis_id>.regenie_step1_pred.list`: REGENIE Step 1 prediction-list manifest.
+  - `<analysis_id>.regenie_step1_1.loco.gz`: Leave-one-chromosome-out predictions for the selected trait.
 
 </details>
 
 [PLINK 2](https://www.cog-genomics.org/plink/2.0/assoc) `--glm` output is published exactly as PLINK 2 wrote it; only the filename changes, because PLINK 2 always embeds the phenotype name in it and the pipeline renames the file to follow the analysis-identifier-then-method grammar used throughout the published output. Results include the `A1_FREQ` (allele frequency) and `OBS_CT` (sample count) columns.
 
+[REGENIE](https://rgcgithub.github.io/regenie/) fits its whole-genome prediction model in Step 1 and tests variants in Step 2. Standard Step 1 is the default; `--regenie_step1_mode chunked` with `--regenie_step1_jobs` uses REGENIE's native split-L0/run-L0/run-L1 execution family for larger cohorts. Step 2's native space-delimited result is published unchanged apart from removing the fixed `_PHENO` filename token introduced by the canonical normalised trait name. The pipeline does not set `--minMAC` unless `--regenie_min_mac` is supplied, so REGENIE's own built-in minimum-MAC default applies.
+
 The phenotype and covariate files the pipeline normalises for each analysis are intermediates and are not published unless `--save_normalised_phenotypes` is set, in which case they appear under `phenotypes/<analysis_id>/`.
+
+REGENIE's prediction list and LOCO table are also intermediates and remain unpublished by default. `--save_regenie_predictions` publishes the reusable bundle under `intermediates/regenie/<analysis_id>/`; the lower-level chunk-planning files, temporary low-memory predictions and programme logs remain in the work directory.
 
 ### Summary statistics
 

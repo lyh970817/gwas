@@ -67,6 +67,63 @@
                     "description": "Save the relatedness matrices built for the heritability and mixed-model routes.",
                     "help_text": "Matrices are published to `<outdir>/quality_control/relatedness_matrices/<key>/`, where `<key>` is the content-derived reuse key of the matrix: a digest over the cohort identity and every construction setting that changes the matrix. The path is key-addressed rather than cohort-addressed because one cohort can carry several distinct matrices, and because a matrix that several analyses share belongs to none of them. Only the merged bundle is saved; the per-partition files it was built from are not.",
                     "fa_icon": "fas fa-download"
+                },
+                "save_regenie_predictions": {
+                    "type": "boolean",
+                    "description": "Save the REGENIE Step 1 prediction list and leave-one-chromosome-out predictions.",
+                    "help_text": "The reusable prediction bundle is absent from published output by default. Enable this control to publish it under `<outdir>/intermediates/regenie/<analysis_id>/` for inspection or reuse.",
+                    "fa_icon": "fas fa-download"
+                }
+            }
+        },
+        "regenie_options": {
+            "title": "REGENIE association options",
+            "type": "object",
+            "fa_icon": "fas fa-chart-line",
+            "description": "Configure REGENIE Step 1 fitting and Step 2 association.",
+            "properties": {
+                "regenie_step1_bsize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of variants in each REGENIE Step 1 block."
+                },
+                "regenie_step2_bsize": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of variants in each REGENIE Step 2 block."
+                },
+                "regenie_step1_mode": {
+                    "type": "string",
+                    "enum": ["standard", "chunked"],
+                    "description": "Run Step 1 in one task or through REGENIE's split-L0/run-L0/run-L1 execution family."
+                },
+                "regenie_step1_jobs": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "description": "Requested maximum number of L0 jobs for chunked Step 1. Required only when `regenie_step1_mode` is `chunked`."
+                },
+                "regenie_lowmem": {
+                    "type": "boolean",
+                    "description": "Use REGENIE's low-memory Step 1 implementation, keeping temporary predictions in the task work directory."
+                },
+                "regenie_firth": {
+                    "type": "boolean",
+                    "description": "Use Firth fallback for binary-trait Step 2 tests."
+                },
+                "regenie_firth_approx": {
+                    "type": "boolean",
+                    "description": "Use the approximate Firth implementation when binary-trait Firth fallback is enabled."
+                },
+                "regenie_firth_p_threshold": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "description": "P-value threshold below which binary-trait Firth fallback is applied."
+                },
+                "regenie_min_mac": {
+                    "type": ["number", "null"],
+                    "minimum": 0,
+                    "description": "Optional minimum minor allele count for Step 2. Null leaves the option off the command line so REGENIE's built-in default applies."
                 }
             }
         },
@@ -278,6 +335,9 @@
         },
         {
             "$ref": "#/$defs/save_controls"
+        },
+        {
+            "$ref": "#/$defs/regenie_options"
         },
         {
             "$ref": "#/$defs/harmonisation_options"

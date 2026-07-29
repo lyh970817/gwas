@@ -1,0 +1,162 @@
+nextflow_pipeline {
+
+    name "Test REGENIE association route"
+    script "../main.nf"
+    tag "pipeline"
+    tag "association"
+    tag "regenie"
+    profile "test_regenie"
+
+    // Keep one quantitative PGEN analysis and route it only through REGENIE. The dedicated profile
+    // supplies the route's resource envelope; the generated sheet keeps the test bound to the
+    // committed 31-column input contract while resolving every programme input to the real fixture
+    // checkout.
+    def regenie_only = { rows ->
+        rows.retainAll { row -> row.analysis_id == 'example_pgen_qt' }
+        rows[0].association_methods = 'regenie'
+        rows[0].heritability_methods = ''
+        rows[0].gcta_grm_parts = ''
+    }
+
+    def regenie_binary_only = { rows ->
+        rows.retainAll { row -> row.analysis_id == 'example_pgen_bt' }
+        rows[0].association_methods = 'regenie'
+        rows[0].heritability_methods = ''
+        rows[0].population_prevalence = ''
+        rows[0].sample_prevalence = ''
+        rows[0].ldak_model = ''
+        rows[0].ldak_power = ''
+        rows[0].ldak_relatedness_filter = ''
+    }
+
+    // Every generated command in the run. Optional selectors are deliberately asserted here rather
+    // than inferred from a snapshot: snapshots prove public artefacts, while `.command.sh` is the
+    // observable seam for a flag that changes scientific behaviour without changing a filename.
+    def commands = { output_dir ->
+        def scripts = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name == '.command.sh') {
+                scripts << entry.text
+            }
+        }
+        return scripts
+    }
+
+    def regenie_commands = { output_dir ->
+        return commands(output_dir).findAll { command -> command ==~ /(?s).*\nregenie \\\n.*/ }
+    }
+
+    // REGENIE writes one LOCO prediction table per selected phenotype. Its first data field is the
+    // chromosome withheld from that row's prediction, so the file itself — rather than a filename
+    // count — is the scientific evidence that all fixture autosomes were represented.
+    def loco_chromosomes = { output_dir ->
+        def loco = null
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (loco == null && entry.isFile() && entry.name.endsWith('.loco.gz')) {
+                loco = entry
+            }
+        }
+        assert loco != null
+        return new java.util.zip.GZIPInputStream(new FileInputStream(loco)).withReader('UTF-8') { reader ->
+            reader.readLines().tail().collect { line -> line.split(' ').first() as Integer }
+        }
+    }
+
+    test("standard Step 1 produces native and harmonised results without publishing predictions") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_standard", regenie_only)
+            }
+        }
+
+        then {
+            def generated_commands = regenie_commands(outputDir)
+            def native_result = new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz")
+            def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz")
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
+                { assert TRACE.count(workflow, 'REGENIE_RUNL0') == 0 },
+                { assert TRACE.count(workflow, 'REGENIE_RUNL1') == 0 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
+                { assert native_result.exists() },
+                { assert harmonised_result.exists() },
+                { assert !new File("${params.outdir}/intermediates/regenie").exists() },
+                { assert generated_commands.size() == 2 },
+                { assert generated_commands.every { command -> command.contains('--phenoColList PHENO') } },
+                { assert generated_commands.every { command -> !command.contains('--minMAC') } },
+                { assert loco_chromosomes(outputDir).containsAll((1..22).toList()) },
+            )
+        }
+    }
+
+    test("chunked Step 1 publishes the reusable prediction bundle only when requested") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_chunked", regenie_only)
+                regenie_step1_mode = 'chunked'
+                regenie_step1_jobs = 3
+                save_regenie_predictions = true
+            }
+        }
+
+        then {
+            def intermediates = new File("${params.outdir}/intermediates/regenie/example_pgen_qt")
+            def generated_commands = regenie_commands(outputDir)
+            assert workflow.success
+            assertAll(
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 0 },
+                { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 1 },
+                // The requested job count is an upper bound: assert actual native fan-out rather
+                // than assuming REGENIE materialised exactly the requested three jobs.
+                { assert TRACE.count(workflow, 'REGENIE_RUNL0') > 0 },
+                { assert TRACE.count(workflow, 'REGENIE_RUNL1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
+                { assert new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz").exists() },
+                { assert intermediates.list().toList().sort() == [
+                    'example_pgen_qt.regenie_step1_1.loco.gz',
+                    'example_pgen_qt.regenie_step1_pred.list',
+                ] },
+                { assert generated_commands.any { command -> command.contains('--split-l0') } },
+                { assert generated_commands.any { command -> command.contains('--run-l0') } },
+                { assert generated_commands.any { command -> command.contains('--run-l1') } },
+                { assert generated_commands.every { command -> !command.contains('--minMAC') } },
+                { assert loco_chromosomes(outputDir).containsAll((1..22).toList()) },
+            )
+        }
+    }
+
+    test("binary-trait mode is consistent across fitting and association") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                input = SAMPLESHEET.fixtures(projectDir, outputDir, "regenie_binary", regenie_binary_only)
+            }
+        }
+
+        then {
+            def generated_commands = regenie_commands(outputDir)
+            def step2 = generated_commands.find { command -> command.contains('--step 2') }
+            assert workflow.success
+            assertAll(
+                { assert generated_commands.size() == 2 },
+                { assert generated_commands.every { command -> command.contains('--bt') } },
+                { assert step2.contains('--firth') },
+                { assert step2.contains('--approx') },
+                { assert step2.contains('--pThresh 0.01') },
+                { assert generated_commands.every { command -> !command.contains('--minMAC') } },
+                { assert new File("${params.outdir}/association/regenie/example_pgen_bt/example_pgen_bt.regenie.gz").exists() },
+                { assert new File("${params.outdir}/summary_statistics/example_pgen_bt/example_pgen_bt.regenie.gwaslab.tsv.gz").exists() },
+            )
+        }
+    }
+}

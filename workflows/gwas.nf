@@ -13,6 +13,7 @@ include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GRM_HERITABILITY_GCTA        } from '../subworkflows/local/grm_heritability_gcta'
+include { PLINK_GWAS_REGENIE           } from '../subworkflows/local/plink_gwas_regenie'
 include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES } from '../subworkflows/local/prepare_relatedness_matrices'
 include { associationColumnMappingJson } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
@@ -104,6 +105,44 @@ workflow GWAS {
     )
 
     //
+    // SUBWORKFLOW: REGENIE Step 1 fitting and Step 2 association
+    //
+    // The prepared PGEN bundle is valid at both sides of the reusable subworkflow's PLINK semantic
+    // union. This first pipeline route sends the whole bundle to Step 2 once; the reusable seam still
+    // accepts repeated records so a future chromosome-sharded prepared representation needs no
+    // interface migration.
+    //
+    // The preparation channel orders the companion files PGEN/PSAM/PVAR, whereas the reusable
+    // component's semantic role is primary/variant/sample (PGEN/PVAR/PSAM), so the adapter spells
+    // that one intentional reordering out. Every scalar is keyed on the same immutable analysis meta
+    // to retain the subworkflow's strict one-to-one joins.
+    def ch_regenie_input = ch_analysis_inputs
+        .filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'regenie' in meta.association_methods }
+        .multiMap { meta, pgen, psam, pvar, phenotype, covariates ->
+            if (params.regenie_step1_mode == 'chunked' && params.regenie_step1_jobs == null) {
+                error("[nf-core/gwas] ERROR: --regenie_step1_jobs is required when --regenie_step1_mode is 'chunked'")
+            }
+            genotypes: [meta, pgen, pvar, psam]
+            phenotype: [meta, phenotype]
+            covariates: [meta, covariates ?: []]
+            step1_bsize: [meta, params.regenie_step1_bsize]
+            step2_bsize: [meta, params.regenie_step2_bsize]
+            step1_mode: [meta, params.regenie_step1_mode]
+            step1_jobs: [meta, params.regenie_step1_mode == 'chunked' ? params.regenie_step1_jobs : []]
+        }
+
+    PLINK_GWAS_REGENIE(
+        ch_regenie_input.genotypes,
+        ch_regenie_input.genotypes,
+        ch_regenie_input.phenotype,
+        ch_regenie_input.covariates,
+        ch_regenie_input.step1_bsize,
+        ch_regenie_input.step2_bsize,
+        ch_regenie_input.step1_mode,
+        ch_regenie_input.step1_jobs,
+    )
+
+    //
     // MODULE: GWASLab harmonisation of every association result
     //
     // One record per analysis per association method actually exercised. Each route contributes an
@@ -124,6 +163,9 @@ workflow GWAS {
 
     ch_association_results = ch_association_results.mix(
         ch_plink2_results.map { meta, sumstats -> [meta + [method: 'plink2'], sumstats] }
+    )
+    ch_association_results = ch_association_results.mix(
+        PLINK_GWAS_REGENIE.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
     )
 
     // The optional reference resources are resolved once for the run rather than per record: they are
