@@ -1,0 +1,34 @@
+{
+    "versions": {
+        "content": [
+            {
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
+                },
+                "GCTA_FASTGWA": {
+                    "gcta": "1.94.1"
+                },
+                "GCTA_MAKEBKSPARSE": {
+                    "gcta": "1.94.1"
+                },
+                "GCTA_MAKEGRMPART": {
+                    "gcta": "1.94.1"
+                },
+                "GWASLAB_HARMONIZE": {
+                    "gwaslab": "4.1.9"
+                },
+                "NORMALISE_PHENOTYPES": {
+                    "python": "3.14.5"
+                },
+                "Workflow": {
+                    "nf-core/gwas": "v1.0.0dev"
+                }
+            }
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T00:53:56.396837438"
+    }
+}

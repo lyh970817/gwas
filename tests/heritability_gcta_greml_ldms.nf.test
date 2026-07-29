@@ -45,6 +45,7 @@ nextflow_pipeline {
 
         then {
             def result = new File("${params.outdir}/heritability/individual/gcta_greml_ldms/example_bfile_qt/example_bfile_qt.gcta_greml_ldms.hsq")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             assert workflow.success
             assertAll(
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
@@ -56,6 +57,7 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 1 },
                 { assert result.exists() },
                 { assert result.readLines().first().split('\t').toList() == ['Source', 'Variance', 'SE'] },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
         }
     }

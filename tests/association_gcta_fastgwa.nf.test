@@ -59,6 +59,7 @@ nextflow_pipeline {
         then {
             def native_result = new File("${params.outdir}/association/gcta_fastgwa/example_pgen_qt/example_pgen_qt.gcta_fastgwa.fastGWA")
             def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt/example_pgen_qt.gcta_fastgwa.gwaslab.tsv.gz")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             def command = work_files(outputDir)
                 .findAll { entry -> entry.name == '.command.sh' }
                 .collect { entry -> entry.text }
@@ -80,6 +81,7 @@ nextflow_pipeline {
                 { assert command.contains('--fastGWA-mlm') },
                 { assert !command.contains('--fastGWA-lr') },
                 { assert command.contains('--grm-sparse') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
         }
     }
