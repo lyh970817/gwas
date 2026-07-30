@@ -1,0 +1,73 @@
+nextflow_pipeline {
+
+    name "Test full-scale profile"
+    script "../main.nf"
+    profile "test_full"
+    tag "pipeline"
+    tag "full_scale"
+
+    // The profile owns its complete fixture-backed samplesheet; only the output directory is a
+    // per-test concern. This is the same configuration boundary a researcher invokes directly.
+    test("-profile test_full exercises every release route on the multi-chromosome fixture") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+        }
+
+        then {
+            def association = new File("${params.outdir}/association")
+            def heritability = new File("${params.outdir}/heritability/individual")
+            def summary_statistics = new File("${params.outdir}/summary_statistics")
+            def stable_name_association = getAllFilesFromDir(
+                association.toString(),
+                relative: true,
+                includeDir: true,
+            ).findAll { path -> path.toString() }
+            def stable_name_heritability = getAllFilesFromDir(
+                heritability.toString(),
+                relative: true,
+                includeDir: true,
+            ).findAll { path -> path.toString() }
+            def stable_name_summary_statistics = getAllFilesFromDir(
+                summary_statistics.toString(),
+                relative: true,
+                includeDir: true,
+            ).findAll { path -> path.toString() }
+            def input_pvar = null
+            new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+                if (input_pvar == null && entry.isFile() && entry.name == 'example_all.pvar') {
+                    input_pvar = entry
+                }
+            }
+            def chromosomes = input_pvar
+                .readLines()
+                .findAll { line -> line && !line.startsWith('#') }
+                .collect { line -> line.tokenize().first() }
+                .toSet()
+            assert workflow.success
+            assertAll(
+                { assert chromosomes == (1..22).collect { chromosome -> chromosome.toString() }.toSet() },
+                { assert association.list().toList().sort() == ['gcta_fastgwa', 'ldak_kvik', 'plink2', 'regenie'] },
+                { assert heritability.list().toList().sort() == ['gcta_greml', 'gcta_greml_ldms', 'ldak_he', 'ldak_pcgc', 'ldak_reml'] },
+                { assert TRACE.count(workflow, 'PLINK2_GLM') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 5 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_REML') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_HE') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_PCGC') == 1 },
+                { assert !new File("${params.outdir}/genotypes").exists() },
+                { assert !new File("${params.outdir}/phenotypes").exists() },
+                { assert !new File("${params.outdir}/quality_control/relatedness_matrices").exists() },
+                { assert snapshot(stable_name_association).match('association') },
+                { assert snapshot(stable_name_heritability).match('heritability') },
+                { assert snapshot(stable_name_summary_statistics).match('summary_statistics') },
+            )
+        }
+    }
+}

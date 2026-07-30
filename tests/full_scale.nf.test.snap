@@ -1,0 +1,75 @@
+{
+    "association": {
+        "content": [
+            [
+                "gcta_fastgwa",
+                "gcta_fastgwa/example_bfile_qt",
+                "gcta_fastgwa/example_bfile_qt/example_bfile_qt.gcta_fastgwa.fastGWA",
+                "ldak_kvik",
+                "ldak_kvik/example_vcf_qt",
+                "ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc",
+                "plink2",
+                "plink2/example_pgen_bt",
+                "plink2/example_pgen_bt/example_pgen_bt.plink2.glm.logistic.hybrid",
+                "plink2/example_pgen_qt",
+                "plink2/example_pgen_qt/example_pgen_qt.plink2.glm.linear",
+                "regenie",
+                "regenie/example_pgen_qt",
+                "regenie/example_pgen_qt/example_pgen_qt.regenie.gz"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T17:51:49.251177172"
+    },
+    "summary_statistics": {
+        "content": [
+            [
+                "example_bfile_qt",
+                "example_bfile_qt/example_bfile_qt.gcta_fastgwa.gwaslab.tsv.gz",
+                "example_pgen_bt",
+                "example_pgen_bt/example_pgen_bt.plink2.gwaslab.tsv.gz",
+                "example_pgen_qt",
+                "example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz",
+                "example_pgen_qt/example_pgen_qt.regenie.gwaslab.tsv.gz",
+                "example_vcf_qt",
+                "example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T17:51:49.266328554"
+    },
+    "heritability": {
+        "content": [
+            [
+                "gcta_greml",
+                "gcta_greml/example_pgen_qt",
+                "gcta_greml/example_pgen_qt/example_pgen_qt.gcta_greml.hsq",
+                "gcta_greml_ldms",
+                "gcta_greml_ldms/example_bfile_qt",
+                "gcta_greml_ldms/example_bfile_qt/example_bfile_qt.gcta_greml_ldms.hsq",
+                "ldak_he",
+                "ldak_he/example_pgen_qt",
+                "ldak_he/example_pgen_qt/example_pgen_qt.ldak_he.he",
+                "ldak_pcgc",
+                "ldak_pcgc/example_pgen_bt",
+                "ldak_pcgc/example_pgen_bt/example_pgen_bt.ldak_pcgc.pcgc",
+                "ldak_pcgc/example_pgen_bt/example_pgen_bt.ldak_pcgc.pcgc.marginal",
+                "ldak_reml",
+                "ldak_reml/example_pgen_bt",
+                "ldak_reml/example_pgen_bt/example_pgen_bt.ldak_reml.reml",
+                "ldak_reml/example_pgen_bt/example_pgen_bt.ldak_reml.reml.liab"
+            ]
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T17:51:49.261444287"
+    }
+}

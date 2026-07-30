@@ -32,6 +32,9 @@
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9"
                 },
+                "LDAK_ADJUSTGRM": {
+                    "ldak6": 6
+                },
                 "LDAK_CALCKINS": {
                     "ldak6": 6
                 },
@@ -42,6 +45,9 @@
                     "ldak6": 6
                 },
                 "LDAK_KVIKSTEP2": {
+                    "ldak6": 6
+                },
+                "LDAK_PCGC": {
                     "ldak6": 6
                 },
                 "LDAK_REML": {
@@ -116,6 +122,10 @@
                 "heritability/individual/gcta_greml_ldms/example_bfile2_qt/example_bfile2_qt.gcta_greml_ldms.hsq",
                 "heritability/individual/gcta_greml_ldms/example_bfile_qt",
                 "heritability/individual/gcta_greml_ldms/example_bfile_qt/example_bfile_qt.gcta_greml_ldms.hsq",
+                "heritability/individual/ldak_pcgc",
+                "heritability/individual/ldak_pcgc/example_pgen_bt",
+                "heritability/individual/ldak_pcgc/example_pgen_bt/example_pgen_bt.ldak_pcgc.pcgc",
+                "heritability/individual/ldak_pcgc/example_pgen_bt/example_pgen_bt.ldak_pcgc.pcgc.marginal",
                 "heritability/individual/ldak_reml",
                 "heritability/individual/ldak_reml/example_pgen_bt",
                 "heritability/individual/ldak_reml/example_pgen_bt/example_pgen_bt.ldak_reml.reml",
@@ -171,6 +181,8 @@
                 "example_pgen_qt.gcta_greml.hsq:md5,45be7eb46e7ddff5b0f7dc59dba85fcd",
                 "example_bfile2_qt.gcta_greml_ldms.hsq:md5,31b0a64809d6afba4e05f395b7c6e808",
                 "example_bfile_qt.gcta_greml_ldms.hsq:md5,31b0a64809d6afba4e05f395b7c6e808",
+                "example_pgen_bt.ldak_pcgc.pcgc:md5,b040face09e034d751c556e93640efdb",
+                "example_pgen_bt.ldak_pcgc.pcgc.marginal:md5,4114b539b42a38e533b56a7e559896c7",
                 "example_pgen_bt.ldak_reml.reml:md5,1744160f45fcde1c55bb48c4e02a6820",
                 "example_pgen_bt.ldak_reml.reml.liab:md5,b5bcc753f927482353574195158ef0e8",
                 "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
@@ -188,6 +200,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T09:01:27.103174035"
+        "timestamp": "2026-07-30T18:00:52.433890514"
     }
 }
