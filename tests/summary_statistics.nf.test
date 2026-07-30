@@ -189,13 +189,10 @@ nextflow_pipeline {
             }
             assert workflow.success
             assertAll(
-                // A claim over every harmonised file the run produced, not over a named pair, so it
-                // becomes the cross-method comparison the moment a second route lands and needs no
-                // rewriting to get there. It is not vacuous today either: the demo sheet carries one
-                // quantitative and one binary analysis, and PLINK 2 writes genuinely different files
-                // for them — `.glm.linear` against `.glm.logistic.hybrid`, and without `cols=+beta`
-                // an effect column headed BETA against one headed OR.
-                { assert headers.size() == 2 },
+                // A claim over every harmonised file the run produced, not over a named pair. The
+                // demo sheet carries two PLINK 2 analyses plus one fastGWA and one LDAK-KVIK
+                // analysis, so this is a genuine cross-method comparison over all three routes.
+                { assert headers.size() == 4 },
                 { assert headers.unique().size() == 1 },
                 // GWASLab's canonical field names in GWASLab's canonical order, restricted to the
                 // columns the registered mapping supplies. Pinned exactly rather than checked for a
