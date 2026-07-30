@@ -234,8 +234,11 @@ def associationColumnMappings() {
                 pos: 'Basepair',
                 ea: 'A1',
                 nea: 'A2',
-                maf: 'MAF',
-                z: 'Wald_Stat',
+                eaf: 'EAF',
+                // LDAK-KVIK reports a per-variant effective analysis size, which can
+                // be fractional. Load it through GWASLab's Float64 N_EFF role; the
+                // harmoniser promotes it to the pipeline's public N field after QC.
+                neff: 'N',
                 p: 'Wald_P',
             ],
             quantitative: [beta: 'Effect', se: 'SE'],

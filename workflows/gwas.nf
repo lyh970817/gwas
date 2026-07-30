@@ -287,7 +287,7 @@ workflow GWAS {
         PLINK_GWAS_REGENIE.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
-        PLINK_ASSOCIATION_LDAK_KVIK.out.results.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
+        PLINK_ASSOCIATION_LDAK_KVIK.out.harmonisation_input.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
         GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }

@@ -143,7 +143,8 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
 
     emit:
     results     = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ], once per Step 2 shard
-    summaries   = LDAK_KVIKSTEP2.out.summaries // channel: [ val(meta), path(summaries) ], optional per shard
+    harmonisation_input = LDAK_KVIKSTEP2.out.harmonisation_input // channel: [ val(meta), path(tsv) ], once per Step 2 shard
+    summaries   = LDAK_KVIKSTEP2.out.summaries // channel: [ val(meta), path(summaries) ], once per Step 2 shard
     pvalues     = LDAK_KVIKSTEP2.out.pvalues // channel: [ val(meta), path(pvalues) ], optional per shard
     predictions = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ]
     effects     = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per analysis

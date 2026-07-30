@@ -108,9 +108,17 @@ output:
       description: LDAK-KVIK Step 2 association result files
       pattern: "*.step2*.assoc"
       ontologies: []
+  - harmonisation_input:
+      type: file
+      description: |
+        Harmonisation-only LDAK-KVIK association tables carrying effect-allele
+        frequency and per-variant effective analysis size from the companion
+        summary output
+      pattern: "*.step2*.harmonisation.tsv"
+      ontologies: []
   - summaries:
       type: file
-      description: Optional LDAK-KVIK Step 2 summary-statistics files
+      description: Required LDAK-KVIK Step 2 summary-statistics files
       pattern: "*.step2*.summaries"
       ontologies: []
   - pvalues:

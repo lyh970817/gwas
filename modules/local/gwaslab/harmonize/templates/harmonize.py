@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import json
+import math
+import numbers
 import os
 import shlex
 
@@ -54,7 +56,6 @@ FLOAT_FORMATS = {
         "MLOG10P",
     ]
 }
-
 prefix = "$task.ext.prefix" if "$task.ext.prefix" != "null" else "$meta.id"
 args = shlex.split("$task.ext.args" if "$task.ext.args" != "null" else "")
 allowed = {"--keep-invalid", "--ref-alt-freq"}
@@ -92,6 +93,20 @@ sumstats.harmonize(
     fix_id_kwargs={"fixchrpos": True},
     sweep_mode=False,
 )
+if "$meta.method" == "ldak_kvik":
+    if "N_EFF" not in sumstats.data.columns:
+        raise ValueError("LDAK-KVIK harmonisation requires GWASLab's N_EFF column")
+    effective_n = sumstats.data["N_EFF"]
+    invalid_effective_n = effective_n.isna() | ~effective_n.map(
+        lambda value: isinstance(value, numbers.Real) and math.isfinite(value) and value > 0
+    )
+    if invalid_effective_n.any():
+        raise ValueError(
+            "LDAK-KVIK effective analysis sizes must be numeric, finite, non-null and greater than zero"
+        )
+    if "N" in sumstats.data.columns:
+        raise ValueError("LDAK-KVIK harmonisation cannot promote N_EFF because N already exists")
+    sumstats.data.rename(columns={"N_EFF": "N"}, inplace=True)
 sumstats.to_format(
     prefix,
     fmt="gwaslab",

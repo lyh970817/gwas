@@ -122,6 +122,21 @@ output:
           pattern: "*.step2*.assoc"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
+  harmonisation_input:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing genotype information
+            e.g. `[ id:'plink_multichr' ]`
+      - "${prefix}.step2*.harmonisation.tsv":
+          type: file
+          description: |
+            Harmonisation-only copy of the LDAK-KVIK association table with the
+            effect-allele frequency and per-variant effective analysis size joined
+            from the companion summary table's A1Freq and n columns
+          pattern: "*.step2*.harmonisation.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475"
   summaries:
     - - meta:
           type: map
@@ -130,7 +145,7 @@ output:
             e.g. `[ id:'plink_multichr' ]`
       - "${prefix}.step2*.summaries":
           type: file
-          description: Optional LDAK-KVIK step 2 summary output
+          description: Required LDAK-KVIK step 2 summary output
           pattern: "*.step2*.summaries"
           ontologies:
             - edam: "http://edamontology.org/format_3475"

@@ -69,6 +69,39 @@ nextflow_function {
         }
     }
 
+    test("quantitative KVIK maps its A1 frequency and effective analysis size without an extra Z field") {
+
+        function "associationColumnMappingJson"
+        tag "kvik_mapping"
+
+        when {
+            function {
+                """
+                input[0] = 'ldak_kvik'
+                input[1] = false
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert new groovy.json.JsonSlurper().parseText(function.result) == [
+                    snpid: 'Predictor',
+                    chrom: 'Chromosome',
+                    pos: 'Basepair',
+                    ea: 'A1',
+                    nea: 'A2',
+                    eaf: 'EAF',
+                    neff: 'N',
+                    p: 'Wald_P',
+                    beta: 'Effect',
+                    se: 'SE',
+                ] },
+            )
+        }
+    }
+
     // The reuse key decides how many relatedness matrices a run builds, and two of its properties
     // cannot be observed from a pipeline run today.
     //
