@@ -10,8 +10,7 @@ process LDAK_ADJUSTGRM {
     tuple val(meta), path(grm_files)
     tuple val(meta2), path(phenotype_file)
     tuple val(meta3), path(keep_file)
-    tuple val(meta4), path(quant_covariates_file)
-    tuple val(meta5), path(cat_covariates_file)
+    tuple val(meta4), path(adjustment_covariates_file)
 
     output:
     tuple val(meta), path("${prefix}.grm.bin"), path("${prefix}.grm.id"), path("${prefix}.grm.details"), path("${prefix}.grm.adjust"), path("${prefix}.grm.root"), emit: adjusted_grm
@@ -26,15 +25,13 @@ process LDAK_ADJUSTGRM {
     def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     prefix = task.ext.prefix ?: "${meta.id}"
     def keep_arg = keep_file ? "--keep ${keep_file}" : ''
-    def covar_arg = quant_covariates_file ? "--covar ${quant_covariates_file}" : ''
-    def factors_arg = cat_covariates_file ? "--factors ${cat_covariates_file}" : ''
+    def covar_arg = adjustment_covariates_file ? "--covar ${adjustment_covariates_file}" : ''
     """
     ldak6 --adjust-grm ${prefix} \\
         --grm ${grm_prefix} \\
         --pheno ${phenotype_file} \\
         ${keep_arg} \\
         ${covar_arg} \\
-        ${factors_arg} \\
         --max-threads ${task.cpus} \\
         ${args} \\
         2>&1 | tee ${prefix}.log

@@ -42,19 +42,11 @@ input:
         ontologies: []
   - - meta4:
         type: map
-        description: Metadata map paired with quantitative covariates input.
-    - quant_covariates_file:
+        description: Metadata map paired with matrix-adjustment covariates input.
+    - adjustment_covariates_file:
         type: file
         optional: true
-        description: Optional numerical covariate design passed to `--covar`; provide `[]` when absent
-        ontologies: []
-  - - meta5:
-        type: map
-        description: Metadata map paired with categorical covariates input
-    - cat_covariates_file:
-        type: file
-        optional: true
-        description: Optional categorical factor design passed to `--factors`; provide `[]` when absent
+        description: Optional headerless numerical design passed to `--covar`; categorical factors must already be treatment-coded because `--adjust-grm` rejects `--factors`
         ontologies: []
 output:
   adjusted_grm:

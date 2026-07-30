@@ -45,6 +45,12 @@ input:
   - ch_estimator:
       description: "Per-analysis heritability estimator selector in the sixth metadata-bearing tuple: reml, he or pcgc. Haseman-Elston and PCGC read a covariate-adjusted matrix whenever a covariate file is present."
       structure: [map meta6, string estimator]
+  - ch_adjust_covar:
+      description: Optional numerical covariate design for LDAK matrix adjustment; use [] when absent. Categorical factors are treatment-coded because LDAK adjust-grm accepts covar but rejects factors.
+      structure: "[map meta7, path adjustment_covariates_file|[]]"
+      pattern: "*.{txt,tsv,covar,cov,adjustcovar}"
+      optional: true
+      ontologies: []
 output:
   - meta:
       type: map

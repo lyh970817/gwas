@@ -112,6 +112,16 @@ output:
           pattern: "*.covar"
           ontologies:
             - edam: "http://edamontology.org/format_3475" # TSV
+  adjustment_covariates:
+    - - meta:
+          type: map
+          description: Metadata map propagated from input
+      - "${prefix}.adjustcovar":
+          type: file
+          description: Headerless numerical covariate design for LDAK matrix adjustment
+          pattern: "*.adjustcovar"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
   log:
     - - meta:
           type: map

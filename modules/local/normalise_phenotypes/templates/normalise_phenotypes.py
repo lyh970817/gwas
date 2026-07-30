@@ -8,7 +8,7 @@ a column name, or a one-based trait index -- so the trait is always written to t
 three-column file under the constant name PHENO, which turns GCTA's and LDAK's `--mpheno` into the
 constant 1 and makes PLINK 2's phenotype-named output filename deterministic.
 
-At most seven files are written, all tab-delimited with LF line endings:
+At most eight files are written, all tab-delimited with LF line endings:
 
     <prefix>.pheno              FID IID PHENO                          always
     <prefix>.qcovar             FID IID <quantitative names>           when the row supplied them
@@ -17,6 +17,7 @@ At most seven files are written, all tab-delimited with LF line endings:
     <prefix>.noheader.pheno     the same content minus line 1          always
     <prefix>.noheader.qcovar    the same content minus line 1          when the row supplied them
     <prefix>.noheader.catcovar  the same content minus line 1          when the row supplied them
+    <prefix>.adjustcovar        quantitative plus encoded factors       when the row supplied either
 
 Standard library only, deliberately: the inputs run to a few thousand rows at most, so a dataframe
 dependency would add container weight and a second version to report for no gain.
@@ -175,6 +176,51 @@ def merge_covariates(quant, cat):
     return quant_header + cat_header[2:], body
 
 
+def adjustment_covariates(quant, cat):
+    """Build the numerical design accepted by LDAK ``--adjust-grm``.
+
+    LDAK's estimators accept categorical covariates through ``--factors``, but ``--adjust-grm``
+    rejects that flag. The equivalent matrix-adjustment design therefore carries quantitative
+    columns unchanged and treatment-codes every categorical column against its lexically first
+    observed level. Missing factor values become missing across every dummy for that factor.
+    """
+    if cat is None:
+        return quant
+
+    cat_header, cat_body = cat
+    factor_levels = []
+    adjustment_header = ["FID", "IID"]
+    for index, name in enumerate(cat_header[2:], start=2):
+        levels = sorted({row[index] for row in cat_body if not is_missing(row[index])})
+        encoded_levels = levels[1:]
+        factor_levels.append((index, encoded_levels))
+        adjustment_header.extend("{}_{}".format(name, level) for level in encoded_levels)
+
+    encoded_cat_by_identity = {}
+    for row in cat_body:
+        encoded = []
+        for index, levels in factor_levels:
+            value = row[index]
+            encoded.extend(
+                [MISSING] * len(levels)
+                if is_missing(value)
+                else ["1" if value == level else "0" for level in levels]
+            )
+        encoded_cat_by_identity[(row[0], row[1])] = encoded
+
+    if quant is None:
+        body = [row[:2] + encoded_cat_by_identity[(row[0], row[1])] for row in cat_body]
+        return adjustment_header, body
+
+    quant_header, quant_body = quant
+    body = [
+        row + encoded_cat_by_identity[(row[0], row[1])]
+        for row in quant_body
+        if (row[0], row[1]) in encoded_cat_by_identity
+    ]
+    return quant_header + adjustment_header[2:], body
+
+
 def write_lines(path, lines):
     with open(path, "w", newline="\\n") as handle:
         handle.writelines(line + "\\n" for line in lines)
@@ -283,6 +329,7 @@ cat_covariates = load_covariates(CAT_COVARIATES_FILE, "categorical covariate")
 # The merged file has no headerless counterpart: GCTA and LDAK take the two kinds of covariate
 # through separate flags and never see a merged file.
 merged = merge_covariates(quant_covariates, cat_covariates)
+adjustment = adjustment_covariates(quant_covariates, cat_covariates)
 
 tally = {}
 for trait_row in trait_rows:
@@ -329,6 +376,12 @@ for covariates, label, source in [
 
 if merged is not None:
     report.append("merged covariate file: {} columns over {} samples".format(len(merged[0]), len(merged[1])))
+if adjustment is not None:
+    report.append(
+        "LDAK matrix-adjustment covariates: {} columns over {} samples".format(
+            len(adjustment[0]), len(adjustment[1])
+        )
+    )
 
 # Deliberately final: every pre-existing report line above retains its order, and this diagnostic is
 # always emitted even when validation below stops normalisation before any phenotype/covariate output.
@@ -366,6 +419,8 @@ if cat_covariates is not None:
     write_table("catcovar", cat_covariates[0], cat_covariates[1])
 if merged is not None:
     write_lines("{}.covar".format(PREFIX), ["\\t".join(row) for row in [merged[0]] + merged[1]])
+if adjustment is not None:
+    write_lines("{}.adjustcovar".format(PREFIX), ["\\t".join(row) for row in adjustment[1]])
 
 # Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
 write_lines("versions.yml", ['"${task.process}":', "    python: {}".format(sys.version.split()[0])])

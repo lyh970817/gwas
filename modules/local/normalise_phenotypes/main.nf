@@ -26,6 +26,7 @@ process NORMALISE_PHENOTYPES {
     tuple val(meta), path("${prefix}.catcovar"), emit: cat_covariates, optional: true
     tuple val(meta), path("${prefix}.noheader.catcovar"), emit: cat_covariates_headerless, optional: true
     tuple val(meta), path("${prefix}.covar"), emit: covariates, optional: true
+    tuple val(meta), path("${prefix}.adjustcovar"), emit: adjustment_covariates, optional: true
     tuple val(meta), path("${prefix}.normalise.log"), emit: log
     // `eval()` is the house style for version capture, but Nextflow rejects an `eval` output on any
     // process whose script is not Bash — and this one is a Python `template`. So the interpreter
@@ -61,9 +62,27 @@ process NORMALISE_PHENOTYPES {
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
+    quant_covariates_stub = quant_covariates
+        ? """
+    touch "${prefix}.qcovar"
+    touch "${prefix}.noheader.qcovar"
+    """
+        : ''
+    cat_covariates_stub = cat_covariates
+        ? """
+    touch "${prefix}.catcovar"
+    touch "${prefix}.noheader.catcovar"
+    """
+        : ''
+    merged_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.covar"\n""" : ''
+    adjustment_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.adjustcovar"\n""" : ''
     """
     printf 'FID\\tIID\\tPHENO\\n' > "${prefix}.pheno"
     printf '' > "${prefix}.noheader.pheno"
+    ${quant_covariates_stub}
+    ${cat_covariates_stub}
+    ${merged_covariates_stub}
+    ${adjustment_covariates_stub}
     touch "${prefix}.normalise.log"
 
     cat <<-END_VERSIONS > versions.yml

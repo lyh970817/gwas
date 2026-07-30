@@ -14,7 +14,9 @@ include { MULTIQC                      } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GRM_HERITABILITY_GCTA        } from '../subworkflows/local/grm_heritability_gcta'
-include { GRM_HERITABILITY_LDAK        } from '../subworkflows/local/grm_heritability_ldak'
+include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_HE   } from '../subworkflows/local/grm_heritability_ldak'
+include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subworkflows/local/grm_heritability_ldak'
+include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
 include { PLINK_ASSOCIATION_LDAK_KVIK  } from '../subworkflows/local/plink_association_ldak_kvik'
 include { PLINK_GWAS_REGENIE           } from '../subworkflows/local/plink_gwas_regenie'
 include { PREPARE_COHORT_GENOTYPES     } from '../subworkflows/local/prepare_cohort_genotypes'
@@ -353,33 +355,94 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: LDAK REML heritability
+    // SUBWORKFLOWS: LDAK REML, Haseman-Elston and PCGC heritability
     //
     // Matrix construction and the per-analysis unrelated-subset routing are owned above by
-    // PREPARE_RELATEDNESS_MATRICES. This route receives the already-selected matrix and keep list, adds the
-    // normalised phenotype/covariates, and passes `reml` as policy from the caller rather than teaching the
-    // reusable heritability subworkflow which samplesheet token selected it.
-    def ch_ldak_reml_inputs = PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship
-        .filter { meta, _grm_files, _keep -> 'ldak_reml' in meta.heritability_methods }
+    // PREPARE_RELATEDNESS_MATRICES. The three aliases preserve the reusable subworkflow's one-estimator
+    // contract while allowing one analysis unit to select all three methods without changing its identity.
+    // HE and PCGC additionally receive the numerical design built specifically for LDAK matrix adjustment;
+    // the estimators themselves retain the original quantitative/categorical split.
+    def ch_ldak_inputs = PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship
         .join(ch_gcta_phenotypes, failOnDuplicate: true)
-        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates ->
+        .join(NORMALISE_PHENOTYPES.out.adjustment_covariates, remainder: true)
+        // `remainder` also emits adjustment-only rows for analyses that selected no LDAK
+        // heritability method. Keep only the left-side matrix records before unpacking the tuple.
+        .filter { record -> record.size() == 7 && record[1] != null }
+        .map { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
+            [meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ?: []]
+        }
+
+    def ch_ldak_reml_inputs = ch_ldak_inputs
+        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
+            'ldak_reml' in meta.heritability_methods
+        }
+        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
             grm: [meta, grm_files]
             pheno: [meta, phenotype, meta.population_prevalence != null ? meta.population_prevalence : []]
             qcovar: [meta, quant_covariates]
             covar: [meta, cat_covariates]
             keep: [meta, keep ?: []]
             estimator: [meta, 'reml']
+            adjustment_covar: [meta, adjustment_covariates]
         }
 
-    // GRM_HERITABILITY_LDAK deliberately emits no versions because every constituent local module reports
-    // directly to the run-wide `versions` topic.
-    GRM_HERITABILITY_LDAK(
+    GRM_HERITABILITY_LDAK_REML(
         ch_ldak_reml_inputs.grm,
         ch_ldak_reml_inputs.pheno,
         ch_ldak_reml_inputs.qcovar,
         ch_ldak_reml_inputs.covar,
         ch_ldak_reml_inputs.keep,
         ch_ldak_reml_inputs.estimator,
+        ch_ldak_reml_inputs.adjustment_covar,
+    )
+
+    def ch_ldak_he_inputs = ch_ldak_inputs
+        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
+            'ldak_he' in meta.heritability_methods
+        }
+        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
+            grm: [meta, grm_files]
+            pheno: [meta, phenotype, []]
+            qcovar: [meta, quant_covariates]
+            covar: [meta, cat_covariates]
+            keep: [meta, keep ?: []]
+            estimator: [meta, 'he']
+            adjustment_covar: [meta, adjustment_covariates]
+        }
+
+    GRM_HERITABILITY_LDAK_HE(
+        ch_ldak_he_inputs.grm,
+        ch_ldak_he_inputs.pheno,
+        ch_ldak_he_inputs.qcovar,
+        ch_ldak_he_inputs.covar,
+        ch_ldak_he_inputs.keep,
+        ch_ldak_he_inputs.estimator,
+        ch_ldak_he_inputs.adjustment_covar,
+    )
+
+    def ch_ldak_pcgc_inputs = ch_ldak_inputs
+        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
+            'ldak_pcgc' in meta.heritability_methods
+        }
+        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
+            grm: [meta, grm_files]
+            pheno: [meta, phenotype, meta.population_prevalence]
+            qcovar: [meta, quant_covariates]
+            covar: [meta, cat_covariates]
+            keep: [meta, keep ?: []]
+            estimator: [meta, 'pcgc']
+            adjustment_covar: [meta, adjustment_covariates]
+        }
+
+    // All constituent local modules report directly to the run-wide `versions` topic.
+    GRM_HERITABILITY_LDAK_PCGC(
+        ch_ldak_pcgc_inputs.grm,
+        ch_ldak_pcgc_inputs.pheno,
+        ch_ldak_pcgc_inputs.qcovar,
+        ch_ldak_pcgc_inputs.covar,
+        ch_ldak_pcgc_inputs.keep,
+        ch_ldak_pcgc_inputs.estimator,
+        ch_ldak_pcgc_inputs.adjustment_covar,
     )
 
     //

@@ -16,6 +16,7 @@ workflow GRM_HERITABILITY_LDAK {
     ch_covar // channel: [ val(meta4), path(cat_covariates_file) ], use [] for the optional file
     ch_keep // channel: [ val(meta5), path(keep_file) ], use [] for the optional file
     ch_estimator // channel: [ val(meta6), val(estimator) ], route selector once per analysis
+    ch_adjust_covar // channel: [ val(meta7), path(adjustment_covariates_file) ], use [] when absent
 
     main:
     def ch_estimators = ch_estimator.map { meta, estimator ->
@@ -57,6 +58,12 @@ workflow GRM_HERITABILITY_LDAK {
             failOnDuplicate: true,
             failOnMismatch: true,
         )
+        .join(
+            ch_adjust_covar.map { meta7, adjustment_covariates_file -> tuple(meta7.id, tuple(meta7, adjustment_covariates_file)) },
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
 
     // Haseman-Elston and PCGC residualise the phenotype on the covariates but read the kinship matrix
     // as-is, so that matrix must first be regressed on the same covariates. Passing the covariates to
@@ -65,25 +72,23 @@ workflow GRM_HERITABILITY_LDAK {
     // jointly and therefore needs no adjusted matrix. The keep list travels with the adjustment as
     // well, because LDAK requires the kinship to be regressed on the covariates over exactly the
     // samples the estimator will use rather than over the full cohort.
-    def ch_adjust_routes = ch_analyses.branch { _analysis_id, _grm, _pheno, qcovar, covar, _keep, estimator ->
-        adjusted: estimator != 'reml' && (qcovar[1] || covar[1])
+    def ch_adjust_routes = ch_analyses.branch { _analysis_id, _grm, _pheno, _qcovar, _covar, _keep, estimator, adjustment_covar ->
+        adjusted: estimator != 'reml' && adjustment_covar[1]
         direct: true
     }
 
-    def ch_adjustgrm_state = ch_adjust_routes.adjusted.multiMap { analysis_id, grm, pheno, qcovar, covar, keep, _estimator ->
+    def ch_adjustgrm_state = ch_adjust_routes.adjusted.multiMap { analysis_id, grm, pheno, _qcovar, _covar, keep, _estimator, adjustment_covar ->
         grm: tuple([id: "${analysis_id}.adjusted"], grm[1])
         pheno: tuple([id: "${analysis_id}.adjusted"], pheno[1])
         keep: keep
-        qcovar: qcovar
-        covar: covar
+        adjustment_covar: adjustment_covar
         focal_meta: tuple("${analysis_id}.adjusted", grm[0])
     }
     LDAK_ADJUSTGRM(
         ch_adjustgrm_state.grm,
         ch_adjustgrm_state.pheno,
         ch_adjustgrm_state.keep,
-        ch_adjustgrm_state.qcovar,
-        ch_adjustgrm_state.covar,
+        ch_adjustgrm_state.adjustment_covar,
     )
 
     def ch_adjusted_grm = LDAK_ADJUSTGRM.out.adjusted_grm
@@ -109,8 +114,10 @@ workflow GRM_HERITABILITY_LDAK {
         .map { _execution_id, log_file, focal_meta -> tuple(focal_meta, log_file) }
 
     def ch_estimator_grm = ch_adjust_routes.direct
-        .map { analysis_id, grm, _pheno, _qcovar, _covar, _keep, _estimator -> tuple(analysis_id, grm[1]) }
-        .mix(ch_adjusted_grm.map { focal_meta, grm_files -> tuple(focal_meta.id, grm_files) })
+        .map { analysis_id, grm, _pheno, _qcovar, _covar, _keep, _estimator, _adjustment_covar ->
+            tuple(analysis_id, grm[1], false)
+        }
+        .mix(ch_adjusted_grm.map { focal_meta, grm_files -> tuple(focal_meta.id, grm_files, true) })
 
     def ch_invocations = ch_analyses
         .join(
@@ -119,13 +126,25 @@ workflow GRM_HERITABILITY_LDAK {
             failOnDuplicate: true,
             failOnMismatch: true,
         )
-        .branch { _analysis_id, grm, pheno, qcovar, covar, keep, estimator, estimator_grm_files ->
+        .branch { _analysis_id, grm, pheno, qcovar, covar, keep, estimator, adjustment_covar, estimator_grm_files, matrix_adjusted ->
             reml: estimator == 'reml'
             return tuple(tuple(grm[0], pheno[1], pheno[2]), tuple(grm[0], estimator_grm_files), keep, qcovar, covar)
             he: estimator == 'he'
-            return tuple(tuple(grm[0], pheno[1]), tuple(grm[0], estimator_grm_files), keep, qcovar, covar)
+            return tuple(
+                tuple(grm[0], pheno[1]),
+                tuple(grm[0], estimator_grm_files),
+                keep,
+                matrix_adjusted ? adjustment_covar : qcovar,
+                matrix_adjusted ? tuple(covar[0], []) : covar,
+            )
             pcgc: estimator == 'pcgc'
-            return tuple(tuple(grm[0], pheno[1], pheno[2]), tuple(grm[0], estimator_grm_files), keep, qcovar, covar)
+            return tuple(
+                tuple(grm[0], pheno[1], pheno[2]),
+                tuple(grm[0], estimator_grm_files),
+                keep,
+                matrix_adjusted ? adjustment_covar : qcovar,
+                matrix_adjusted ? tuple(covar[0], []) : covar,
+            )
         }
 
     def ch_reml_invocations = ch_invocations.reml.multiMap { pheno, grm, keep, qcovar, covar ->
