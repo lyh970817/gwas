@@ -234,6 +234,8 @@ nextflow_pipeline {
                     bfile.association_methods = 'plink2'
                     bfile.heritability_methods = ''
                     bfile.gcta_grm_parts = ''
+                    bfile.gcta_ld_score_region_kb = ''
+                    bfile.gcta_ld_bins = ''
                     bfile.gcta_ldms_maf_edges = ''
                 })
                 // Configured for one build only. The other build has no reference at all, which is

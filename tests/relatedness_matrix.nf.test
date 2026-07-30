@@ -33,6 +33,8 @@ nextflow_pipeline {
         row.association_methods = ''
         row.heritability_methods = 'gcta_greml'
         row.gcta_grm_parts = parts
+        row.gcta_ld_score_region_kb = ''
+        row.gcta_ld_bins = ''
         row.gcta_ldms_maf_edges = ''
         row.ldak_model = ''
         row.ldak_power = ''
