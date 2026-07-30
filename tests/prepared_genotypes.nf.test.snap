@@ -2,8 +2,23 @@
     "prepared_genotypes": {
         "content": [
             {
+                "CUSTOM_GCTACREATEMGRMMANIFEST": {
+                    "coreutils": 9.5
+                },
                 "CUSTOM_GCTAMERGEGRMPARTS": {
                     "coreutils": 9.5
+                },
+                "CUSTOM_GCTASTRATIFYLDSCORES": {
+                    "r-base": "4.2.1"
+                },
+                "GCTA_CALCULATELDSCORES": {
+                    "gcta": "1.94.1"
+                },
+                "GCTA_FASTGWA": {
+                    "gcta": "1.94.1"
+                },
+                "GCTA_MAKEBKSPARSE": {
+                    "gcta": "1.94.1"
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
@@ -11,13 +26,40 @@
                 "GCTA_REML": {
                     "gcta": "1.94.1"
                 },
+                "GCTA_REMLLDMS": {
+                    "gcta": "1.94.1"
+                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9"
+                },
+                "LDAK_CALCKINS": {
+                    "ldak6": 6
+                },
+                "LDAK_FILTER": {
+                    "ldak6": 6
+                },
+                "LDAK_KVIKSTEP1": {
+                    "ldak6": 6
+                },
+                "LDAK_KVIKSTEP2": {
+                    "ldak6": 6
+                },
+                "LDAK_REML": {
+                    "ldak6": 6
+                },
+                "LDAK_SUBGRM": {
+                    "ldak6": 6
+                },
+                "LDAK_THINCOMMON": {
+                    "ldak6": 6
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
                 },
                 "PLINK2_GLM": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
                 "PLINK2_MAKEPGEN": {
@@ -32,6 +74,20 @@
             },
             [
                 "association",
+                "association/gcta_fastgwa",
+                "association/gcta_fastgwa/example_bfile2_qt",
+                "association/gcta_fastgwa/example_bfile2_qt/example_bfile2_qt.gcta_fastgwa.fastGWA",
+                "association/gcta_fastgwa/example_bfile_qt",
+                "association/gcta_fastgwa/example_bfile_qt/example_bfile_qt.gcta_fastgwa.fastGWA",
+                "association/ldak_kvik",
+                "association/ldak_kvik/example_vcf_qt",
+                "association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc",
+                "association/ldak_kvik/example_vcf_qt2",
+                "association/ldak_kvik/example_vcf_qt2/example_vcf_qt2.ldak_kvik.step2.assoc",
+                "association/ldak_kvik/example_vcf_qt3",
+                "association/ldak_kvik/example_vcf_qt3/example_vcf_qt3.ldak_kvik.step2.assoc",
+                "association/ldak_kvik/example_vcf_qt4",
+                "association/ldak_kvik/example_vcf_qt4/example_vcf_qt4.ldak_kvik.step2.assoc",
                 "association/plink2",
                 "association/plink2/example_pgen_bt",
                 "association/plink2/example_pgen_bt/example_pgen_bt.plink2.glm.logistic.hybrid",
@@ -55,6 +111,15 @@
                 "heritability/individual/gcta_greml",
                 "heritability/individual/gcta_greml/example_pgen_qt",
                 "heritability/individual/gcta_greml/example_pgen_qt/example_pgen_qt.gcta_greml.hsq",
+                "heritability/individual/gcta_greml_ldms",
+                "heritability/individual/gcta_greml_ldms/example_bfile2_qt",
+                "heritability/individual/gcta_greml_ldms/example_bfile2_qt/example_bfile2_qt.gcta_greml_ldms.hsq",
+                "heritability/individual/gcta_greml_ldms/example_bfile_qt",
+                "heritability/individual/gcta_greml_ldms/example_bfile_qt/example_bfile_qt.gcta_greml_ldms.hsq",
+                "heritability/individual/ldak_reml",
+                "heritability/individual/ldak_reml/example_pgen_bt",
+                "heritability/individual/ldak_reml/example_pgen_bt/example_pgen_bt.ldak_reml.reml",
+                "heritability/individual/ldak_reml/example_pgen_bt/example_pgen_bt.ldak_reml.reml.liab",
                 "multiqc",
                 "multiqc/multiqc_data",
                 "multiqc/multiqc_data/llms-full.txt",
@@ -68,12 +133,30 @@
                 "pipeline_info",
                 "pipeline_info/nf_core_gwas_software_mqc_versions.yml",
                 "summary_statistics",
+                "summary_statistics/example_bfile2_qt",
+                "summary_statistics/example_bfile2_qt/example_bfile2_qt.gcta_fastgwa.gwaslab.tsv.gz",
+                "summary_statistics/example_bfile_qt",
+                "summary_statistics/example_bfile_qt/example_bfile_qt.gcta_fastgwa.gwaslab.tsv.gz",
                 "summary_statistics/example_pgen_bt",
                 "summary_statistics/example_pgen_bt/example_pgen_bt.plink2.gwaslab.tsv.gz",
                 "summary_statistics/example_pgen_qt",
-                "summary_statistics/example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz"
+                "summary_statistics/example_pgen_qt/example_pgen_qt.plink2.gwaslab.tsv.gz",
+                "summary_statistics/example_vcf_qt",
+                "summary_statistics/example_vcf_qt/example_vcf_qt.ldak_kvik.gwaslab.tsv.gz",
+                "summary_statistics/example_vcf_qt2",
+                "summary_statistics/example_vcf_qt2/example_vcf_qt2.ldak_kvik.gwaslab.tsv.gz",
+                "summary_statistics/example_vcf_qt3",
+                "summary_statistics/example_vcf_qt3/example_vcf_qt3.ldak_kvik.gwaslab.tsv.gz",
+                "summary_statistics/example_vcf_qt4",
+                "summary_statistics/example_vcf_qt4/example_vcf_qt4.ldak_kvik.gwaslab.tsv.gz"
             ],
             [
+                "example_bfile2_qt.gcta_fastgwa.fastGWA:md5,aeb97ade7c85552eed84b2e327570474",
+                "example_bfile_qt.gcta_fastgwa.fastGWA:md5,aeb97ade7c85552eed84b2e327570474",
+                "example_vcf_qt.ldak_kvik.step2.assoc:md5,42f9f2469c109c8767e5e5a137ed7dc3",
+                "example_vcf_qt2.ldak_kvik.step2.assoc:md5,42f9f2469c109c8767e5e5a137ed7dc3",
+                "example_vcf_qt3.ldak_kvik.step2.assoc:md5,42f9f2469c109c8767e5e5a137ed7dc3",
+                "example_vcf_qt4.ldak_kvik.step2.assoc:md5,42f9f2469c109c8767e5e5a137ed7dc3",
                 "example_pgen_bt.plink2.glm.logistic.hybrid:md5,83d85cc0bda51b829ba43323abfd3530",
                 "example_pgen_qt.plink2.glm.linear:md5,ea3c5efee75bd852b546b6be5d07db5c",
                 "example_bfile.pgen:md5,d1ab61520e26e56ea09712e225c6405b",
@@ -86,15 +169,25 @@
                 "example_vcf.psam:md5,6f811372d231e1a2a2c176c60abb3106",
                 "example_vcf.pvar:md5,ccae8151ff91eab7398ba736ba23a59d",
                 "example_pgen_qt.gcta_greml.hsq:md5,45be7eb46e7ddff5b0f7dc59dba85fcd",
+                "example_bfile2_qt.gcta_greml_ldms.hsq:md5,31b0a64809d6afba4e05f395b7c6e808",
+                "example_bfile_qt.gcta_greml_ldms.hsq:md5,31b0a64809d6afba4e05f395b7c6e808",
+                "example_pgen_bt.ldak_reml.reml:md5,1744160f45fcde1c55bb48c4e02a6820",
+                "example_pgen_bt.ldak_reml.reml.liab:md5,b5bcc753f927482353574195158ef0e8",
                 "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
+                "example_bfile2_qt.gcta_fastgwa.gwaslab.tsv.gz:md5,e56779fbcdc3da7bc2d9191e11db935d",
+                "example_bfile_qt.gcta_fastgwa.gwaslab.tsv.gz:md5,e56779fbcdc3da7bc2d9191e11db935d",
                 "example_pgen_bt.plink2.gwaslab.tsv.gz:md5,ccae9196e519b10d8e913e39923d6ee7",
-                "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5"
+                "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5",
+                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3",
+                "example_vcf_qt2.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3",
+                "example_vcf_qt3.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3",
+                "example_vcf_qt4.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-29T04:50:23.439697305"
+        "timestamp": "2026-07-30T08:22:45.556405668"
     }
 }
