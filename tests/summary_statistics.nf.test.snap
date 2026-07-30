@@ -32,6 +32,9 @@
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9"
                 },
+                "LDAK_ADJUSTGRM": {
+                    "ldak6": 6
+                },
                 "LDAK_CALCKINS": {
                     "ldak6": 6
                 },
@@ -42,6 +45,9 @@
                     "ldak6": 6
                 },
                 "LDAK_KVIKSTEP2": {
+                    "ldak6": 6
+                },
+                "LDAK_PCGC": {
                     "ldak6": 6
                 },
                 "LDAK_REML": {
@@ -77,7 +83,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T08:02:11.723156185"
+        "timestamp": "2026-07-30T18:25:39.980087253"
     },
     "summary_statistics": {
         "content": [
