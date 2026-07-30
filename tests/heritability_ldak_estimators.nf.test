@@ -42,6 +42,7 @@ nextflow_pipeline {
                 def heAdjusted = new File(individual, 'ldak_he/ldak_all_covariates/ldak_all_covariates.ldak_he.he')
                 def pcgc = new File(individual, 'ldak_pcgc/ldak_all_covariates/ldak_all_covariates.ldak_pcgc.pcgc')
                 def reml = new File(individual, 'ldak_reml/ldak_all_covariates/ldak_all_covariates.ldak_reml.reml')
+                def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
                 assertAll(
                     { assert workflow.success },
                     { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
@@ -82,6 +83,7 @@ nextflow_pipeline {
                         { assert adjustedEstimatorCommands.size() == 2 },
                         { assert adjustedEstimatorCommands.every { command -> command.contains('--covar ldak_all_covariates.adjustcovar') } },
                         { assert adjustedEstimatorCommands.every { command -> !command.contains('--factors ') } },
+                        { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                         { assert snapshot(stableName, stablePath).match('heritability') },
                     )
                 }

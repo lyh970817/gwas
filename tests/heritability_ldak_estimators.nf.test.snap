@@ -1,4 +1,39 @@
 {
+    "versions": {
+        "content": [
+            {
+                "LDAK_ADJUSTGRM": {
+                    "ldak6": 6
+                },
+                "LDAK_CALCKINS": {
+                    "ldak6": 6
+                },
+                "LDAK_HE": {
+                    "ldak6": 6
+                },
+                "LDAK_PCGC": {
+                    "ldak6": 6
+                },
+                "LDAK_REML": {
+                    "ldak6": 6
+                },
+                "NORMALISE_PHENOTYPES": {
+                    "python": "3.14.5"
+                },
+                "PLINK2_MAKEBED": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "Workflow": {
+                    "nf-core/gwas": "v1.0.0dev"
+                }
+            }
+        ],
+        "meta": {
+            "nf-test": "0.9.3",
+            "nextflow": "25.10.4"
+        },
+        "timestamp": "2026-07-30T20:14:19.147861638"
+    },
     "heritability": {
         "content": [
             [
