@@ -64,9 +64,11 @@ workflow {
     def local_gwas_fixture_profiles = [
         'test_gcta_fastgwa',
         'test_gcta_greml_ldms',
+        'test_regenie',
         'test_regenie_standard',
         'test_regenie_chunked',
         'test_regenie_binary',
+        'test_ldak',
         'test_ldak_kvik_all',
         'test_ldak_kvik_thin_common',
         'test_ldak_kvik_provided',
