@@ -214,9 +214,10 @@ nextflow_pipeline {
         }
 
         then {
-            def association = new File("${params.outdir}/association/plink2")
+            def association = new File("${params.outdir}/association")
+            def plink2 = new File(association, 'plink2')
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
-            def linear = new File(association, 'example_pgen_qt/example_pgen_qt.plink2.glm.linear').readLines()
+            def linear = new File(plink2, 'example_pgen_qt/example_pgen_qt.plink2.glm.linear').readLines()
             def header = linear.first().split('\t').toList()
             // The association tree only. The whole-tree snapshot is tests/default.nf.test's job, and
             // a labelled per-area snapshot is what keeps this file's diffs readable as later routes
@@ -244,17 +245,21 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 4 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 1 },
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
-                // Nested by scientific stage, then method, then analysis identifier. Two of the four
-                // demo rows select plink2 and only those two are here.
-                { assert association.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                // Nested by scientific stage, then method, then analysis identifier. The four demo
+                // rows exercise all three association routes: two PLINK 2 analyses plus one fastGWA
+                // and one LDAK-KVIK analysis.
+                { assert association.list().toList().sort() == ['gcta_fastgwa', 'ldak_kvik', 'plink2'] },
+                { assert plink2.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
                 // The extension *is* the Firth assertion: PLINK 2 names the file after the regression
                 // it actually ran, and `.logistic.hybrid` is the hybrid Firth-fallback fit. A binary
                 // trait fitted without the fallback would be `.glm.logistic`.
-                { assert new File(association, 'example_pgen_bt').list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
-                { assert new File(association, 'example_pgen_qt').list().toList() == ['example_pgen_qt.plink2.glm.linear'] },
+                { assert new File(plink2, 'example_pgen_bt').list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
+                { assert new File(plink2, 'example_pgen_qt').list().toList() == ['example_pgen_qt.plink2.glm.linear'] },
+                { assert new File(association, 'gcta_fastgwa/example_bfile_qt').list().toList() == ['example_bfile_qt.gcta_fastgwa.fastGWA'] },
+                { assert new File(association, 'ldak_kvik/example_vcf_qt').list().toList() == ['example_vcf_qt.ldak_kvik.step2.assoc'] },
                 // The filename grammar, stated once as a pattern rather than restated per file:
                 // analysis identifier, then method, then the native suffix.
-                { assert association.listFiles().every { directory ->
+                { assert plink2.listFiles().every { directory ->
                     directory.list().every { name -> name ==~ "\\Q${directory.name}\\E\\.plink2\\.glm\\.(linear|logistic|logistic\\.hybrid|firth)" }
                 } },
                 // Allele frequency and sample count, which the harmonisation ticket that follows

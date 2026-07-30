@@ -12,10 +12,10 @@ nextflow_pipeline {
     // Rows of assets/samplesheet.csv, and therefore of every sheet below before it is mutated:
     //   index 0 -> example_pgen_qt   cohort example_pgen,  quantitative, plink2
     //   index 1 -> example_pgen_bt   cohort example_pgen,  binary,       plink2
-    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes, no association method
-    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes,     no association method
+    //   index 2 -> example_bfile_qt  cohort example_bfile, PLINK 1 genotypes, GCTA fastGWA
+    //   index 3 -> example_vcf_qt    cohort example_vcf,   VCF genotypes,     LDAK-KVIK
     //
-    // Only rows 0 and 1 select plink2, so exactly two of the four analysis units reach harmonisation.
+    // All four rows select one association method, so every analysis unit reaches harmonisation.
 
     // Every file a task wrote or had staged, read out of the run's working directory.
     //
@@ -121,18 +121,19 @@ nextflow_pipeline {
                 // the same files as a re-executed one, so only the trace answers "how many ran".
                 //
                 // The contrast with normalisation is what makes the multiplicity claim mean
-                // anything. Four analysis units exist and all four were normalised; two of them
-                // select an association method, one method each, and harmonisation ran exactly
-                // twice — once per analysis per method actually exercised, not once per analysis.
+                // anything. Four analysis units exist and all four were normalised; every one
+                // selects exactly one association method, and harmonisation ran exactly four times
+                // — once per analysis per method actually exercised, not once per method family.
                 { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 4 },
                 { assert TRACE.count(workflow, 'PLINK2_GLM') == 2 },
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 2 },
-                // The component tags on the analysis identifier alone, so with a second route wired
-                // this set is unchanged while the count above doubles. Asserted as a set for that
-                // reason.
-                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').toSet() == ['example_pgen_bt', 'example_pgen_qt'].toSet() },
+                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 4 },
+                // The harmoniser tags on the analysis identifier. Assert all four routed identities
+                // as a set because process scheduling order is deliberately not part of the contract.
+                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').toSet() == ['example_bfile_qt', 'example_pgen_bt', 'example_pgen_qt', 'example_vcf_qt'].toSet() },
                 // Keyed by analysis identifier, one directory per routed analysis.
-                { assert summary_statistics.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
+                { assert summary_statistics.list().toList().sort() == ['example_bfile_qt', 'example_pgen_bt', 'example_pgen_qt', 'example_vcf_qt'] },
                 // The filename grammar, stated once against the whole method vocabulary rather than
                 // against the one method wired today, so the assertion survives the next route
                 // landing unchanged: analysis identifier, then method, then the GWASLab tool suffix.
@@ -151,6 +152,8 @@ nextflow_pipeline {
                 // output, it does not rewrite it, and publishing changes only the name.
                 { assert new File("${params.outdir}/association/plink2").list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
                 { assert new File("${params.outdir}/association/plink2/example_pgen_bt").list().toList() == ['example_pgen_bt.plink2.glm.logistic.hybrid'] },
+                { assert new File("${params.outdir}/association/gcta_fastgwa/example_bfile_qt").list().toList() == ['example_bfile_qt.gcta_fastgwa.fastGWA'] },
+                { assert new File("${params.outdir}/association/ldak_kvik/example_vcf_qt").list().toList() == ['example_vcf_qt.ldak_kvik.step2.assoc'] },
                 { assert native_published.exists() },
                 { assert native_written != null },
                 { assert native_published.bytes == native_written.bytes },
