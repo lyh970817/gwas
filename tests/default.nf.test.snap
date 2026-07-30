@@ -123,14 +123,14 @@
                 "example_bfile_qt.gcta_fastgwa.gwaslab.tsv.gz:md5,e56779fbcdc3da7bc2d9191e11db935d",
                 "example_pgen_bt.plink2.gwaslab.tsv.gz:md5,ccae9196e519b10d8e913e39923d6ee7",
                 "example_pgen_qt.plink2.gwaslab.tsv.gz:md5,3ffa035c02e5caa6dfb48f0d0f9ea5e5",
-                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,8d5c69474962a52e1fc7d1e3a5052bf3"
+                "example_vcf_qt.ldak_kvik.gwaslab.tsv.gz:md5,c9769c091473179fb7c4590f6beae818"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T05:08:00.581804281"
+        "timestamp": "2026-07-30T09:45:24.394337316"
     },
     "multiqc": {
         "content": [
