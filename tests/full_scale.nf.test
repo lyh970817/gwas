@@ -36,6 +36,18 @@ nextflow_pipeline {
                 relative: true,
                 includeDir: true,
             ).findAll { path -> path.toString() }
+            def stable_path_association = getAllFilesFromDir(
+                association.toString(),
+                ignoreFile: 'tests/.nftignore',
+            )
+            def stable_path_heritability = getAllFilesFromDir(
+                heritability.toString(),
+                ignoreFile: 'tests/.nftignore',
+            )
+            def stable_path_summary_statistics = getAllFilesFromDir(
+                summary_statistics.toString(),
+                ignoreFile: 'tests/.nftignore',
+            )
             def input_pvar = null
             new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
                 if (input_pvar == null && entry.isFile() && entry.name == 'example_all.pvar') {
@@ -47,8 +59,8 @@ nextflow_pipeline {
                 .findAll { line -> line && !line.startsWith('#') }
                 .collect { line -> line.tokenize().first() }
                 .toSet()
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert chromosomes == (1..22).collect { chromosome -> chromosome.toString() }.toSet() },
                 { assert association.list().toList().sort() == ['gcta_fastgwa', 'ldak_kvik', 'plink2', 'regenie'] },
                 { assert heritability.list().toList().sort() == ['gcta_greml', 'gcta_greml_ldms', 'ldak_he', 'ldak_pcgc', 'ldak_reml'] },
@@ -66,9 +78,9 @@ nextflow_pipeline {
                 { assert !new File("${params.outdir}/phenotypes").exists() },
                 { assert !new File("${params.outdir}/quality_control/relatedness_matrices").exists() },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
-                { assert snapshot(stable_name_association).match('association') },
-                { assert snapshot(stable_name_heritability).match('heritability') },
-                { assert snapshot(stable_name_summary_statistics).match('summary_statistics') },
+                { assert snapshot(stable_name_association, stable_path_association).match('association') },
+                { assert snapshot(stable_name_heritability, stable_path_heritability).match('heritability') },
+                { assert snapshot(stable_name_summary_statistics, stable_path_summary_statistics).match('summary_statistics') },
             )
         }
     }

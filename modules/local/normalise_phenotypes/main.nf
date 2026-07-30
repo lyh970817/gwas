@@ -62,20 +62,20 @@ process NORMALISE_PHENOTYPES {
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
-    quant_covariates_stub = quant_covariates
+    def quant_covariates_stub = quant_covariates
         ? """
     touch "${prefix}.qcovar"
     touch "${prefix}.noheader.qcovar"
     """
         : ''
-    cat_covariates_stub = cat_covariates
+    def cat_covariates_stub = cat_covariates
         ? """
     touch "${prefix}.catcovar"
     touch "${prefix}.noheader.catcovar"
     """
         : ''
-    merged_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.covar"\n""" : ''
-    adjustment_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.adjustcovar"\n""" : ''
+    def merged_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.covar"\n""" : ''
+    def adjustment_covariates_stub = quant_covariates || cat_covariates ? """touch "${prefix}.adjustcovar"\n""" : ''
     """
     printf 'FID\\tIID\\tPHENO\\n' > "${prefix}.pheno"
     printf '' > "${prefix}.noheader.pheno"
