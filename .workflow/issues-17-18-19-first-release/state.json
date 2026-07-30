@@ -1,0 +1,83 @@
+{
+  "title": "Issues 17 18 19 first release",
+  "slug": "issues-17-18-19-first-release",
+  "created_at": "2026-07-30T09:18:07+00:00",
+  "status": "completed",
+  "approval": {
+    "required": false,
+    "granted": true,
+    "notes": "User explicitly requested implementation, commits, subagents, and parallel execution."
+  },
+  "packets": [
+    {
+      "id": "17-ldak-routes",
+      "owner": "root",
+      "status": "completed"
+    },
+    {
+      "id": "18-test-profiles",
+      "owner": "issue_18_test_profiles",
+      "status": "completed"
+    },
+    {
+      "id": "19-documentation",
+      "owner": "issue_19_documentation",
+      "status": "completed"
+    },
+    {
+      "id": "review-standards",
+      "owner": "review_standards",
+      "status": "completed"
+    },
+    {
+      "id": "review-spec",
+      "owner": "review_spec",
+      "status": "completed"
+    }
+  ],
+  "verification": {
+    "status": "in_progress",
+    "checks": [
+      {
+        "name": "issue_17_route_test",
+        "status": "passed",
+        "evidence": "2 of 2 real and stub scenarios"
+      },
+      {
+        "name": "issue_17_existing_ldak_tests",
+        "status": "passed",
+        "evidence": "10 of 10 tests across two shards"
+      },
+      {
+        "name": "issue_17_normalisation_compatibility",
+        "status": "passed",
+        "evidence": "functional scenarios passed; expected versions snapshot refreshed"
+      },
+      {
+        "name": "integrated_sharded_suite",
+        "status": "passed_with_retry",
+        "evidence": "119 of 119 tests passed; shard 1 isolated retry after Nextflow reflection flake"
+      },
+      {
+        "name": "sequential_snapshot_audit",
+        "status": "passed",
+        "evidence": "119 of 119 tests; no obsolete snapshots"
+      },
+      {
+        "name": "nf_core_pipeline_lint",
+        "status": "passed",
+        "evidence": "516 passed, 0 failed, 10 pre-existing warnings"
+      },
+      {
+        "name": "standards_review",
+        "status": "passed",
+        "evidence": "four initial findings fixed; reviewer confirmed no remaining finding"
+      },
+      {
+        "name": "spec_review",
+        "status": "passed",
+        "evidence": "REGENIE MLOG10P documentation fixed; ticket-scoped axis clean"
+      }
+    ]
+  }
+}
