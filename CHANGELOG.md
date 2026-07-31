@@ -29,6 +29,7 @@ Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) t
 
 ### `Fixed`
 
+- Removed the retired, unwired PLINK 1 association and VCF-conversion components, and repaired the `GCTA_ADDGRMS` and `GCTA_BIVARIATEREMLLDMS` test setups to use the pipeline-local `GCTA_MAKEGRMPART` process and their installed GAWK dependency.
 - [#96](https://github.com/nf-core/gwas/pull/96) - Bump the `nft-utils` nf-test plugin to `0.0.9` for nf-test 0.9.4 compatibility (fixes `sanitizeOutput()` `MissingMethodException` in module tests after the 4.0.2 template merge).
 
 ### `Dependencies`
