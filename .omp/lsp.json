@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "nextflow-language-server": {
+      "command": "nix-shell",
+      "args": ["--run", "nextflow-language-server"],
+      "fileTypes": [".nf", ".nf.test", ".config"],
+      "rootMarkers": ["nextflow.config", "main.nf", ".git"],
+      "settings": {
+        "nextflow": {
+          "errorReportingMode": "warnings",
+          "files": {
+            "exclude": [".git", ".lineage", ".nf-test", ".pixi", ".venv", "work"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 let
   nextflowVersion = "25.10.4";
+  nextflowLanguageServerVersion = "25.10.3";
   nfCoreSource = "git+https://github.com/nf-core/tools.git@dev";
   waveVersion = "1.8.1";
 
@@ -14,6 +15,19 @@ let
     dontUnpack = true;
     installPhase = ''
       install -Dm755 "$src" "$out/bin/nextflow"
+    '';
+  };
+
+  nextflowLanguageServerJar = pkgs.fetchurl {
+    url = "https://github.com/nextflow-io/language-server/releases/download/v${nextflowLanguageServerVersion}/language-server-all.jar";
+    hash = "sha256-aBaD4Naxand76OaIZ7WnjDkgei8T0rjwohRFRH2Z2FI=";
+  };
+
+  nextflowLanguageServer = pkgs.writeShellApplication {
+    name = "nextflow-language-server";
+    runtimeInputs = [ pkgs.jdk17_headless ];
+    text = ''
+      exec java -jar "${nextflowLanguageServerJar}" "$@"
     '';
   };
 
@@ -213,8 +227,10 @@ sys.stdout.write("\n")
 in
 pkgs.mkShell {
   packages = [
+    pkgs.bash
     pkgs.jdk17_headless
     nextflowCli
+    nextflowLanguageServer
     nfCoreCli
     nfTestCli
     nfTestParallel
@@ -223,4 +239,9 @@ pkgs.mkShell {
     pkgs.pre-commit
     waveCli
   ];
+  shellHook = ''
+    if [[ $- == *i* && -z "''${DIRENV_IN_ENVRC:-}" && "''${SHELL:-}" != */bash ]]; then
+      exec bash
+    fi
+  '';
 }
