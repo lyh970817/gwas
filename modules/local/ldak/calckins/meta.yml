@@ -34,10 +34,10 @@ input:
         description: Required LDAK `--power` value controlling the predictor-scaling heritability model
   - - meta2:
         type: map
-        description: Metadata map paired with optional weights input.
+        description: Matrix metadata carrying the validated weights policy.
     - weights_file:
         type: file
-        description: Optional LDAK weights file passed to `--weights`; provide [] to skip. If absent, module sets `--ignore-weights YES`.
+        description: Optional LDAK weights file for the provided policy; absent equal and default policies are selected through meta2.settings.weights.mode.
         ontologies: []
 output:
   ldak_grm:

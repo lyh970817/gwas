@@ -49,7 +49,7 @@ nextflow_pipeline {
     // exposes profile selection only at suite scope. The configs own immutable matrix-identity rows;
     // `outdir` remains the only parameter assigned in a test body.
     executionModes.each { mode ->
-        test("filtered and unfiltered analyses share one LDAK kinship build${mode.suffix}") {
+        test("filtered and unfiltered analyses have distinct LDAK matrix identities${mode.suffix}") {
 
             config "../conf/test_ldak_relatedness_shared.config"
             tag "ldak_relatedness_shared"
@@ -73,7 +73,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['5f8579a3a568'],
+                        ['5f8579a3a568', 'ede2bfa4c2e8'],
                         ['example_pgen_bt_all', 'example_pgen_bt_unrelated'],
                         [filter: 1, subgrm: 1],
                     ))
@@ -100,28 +100,31 @@ nextflow_pipeline {
                     )
                     assertAll(
                         { assert workflow.success },
-                        // The relatedness filter is outside the key: both rows use one expensive kinship build.
-                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
-                        // Since one row requested an unrelated subset, the one base matrix is filtered and
-                        // subsetted once; the unrestricted row still receives the all-sample emission.
+                        // Filtering is matrix-defining: unrestricted and unrelated-subset rows build under
+                        // distinct content identities, while only the filtered request derives a submatrix.
+                        { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                         { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                        { assert matrices.list().toList() == ['5f8579a3a568'] },
+                        { assert matrices.list().toList().sort() == ['5f8579a3a568', 'ede2bfa4c2e8'] },
                         { assert new File(matrices, '5f8579a3a568').list().toList().sort() == [
                             'example_pgen.ldak_kinship.5f8579a3a568.grm.adjust',
                             'example_pgen.ldak_kinship.5f8579a3a568.grm.bin',
                             'example_pgen.ldak_kinship.5f8579a3a568.grm.details',
                             'example_pgen.ldak_kinship.5f8579a3a568.grm.id',
                         ] },
+                        { assert new File(matrices, 'ede2bfa4c2e8').list().toList().sort() == [
+                            'example_pgen.ldak_kinship.ede2bfa4c2e8.grm.adjust',
+                            'example_pgen.ldak_kinship.ede2bfa4c2e8.grm.bin',
+                            'example_pgen.ldak_kinship.ede2bfa4c2e8.grm.details',
+                            'example_pgen.ldak_kinship.ede2bfa4c2e8.grm.id',
+                        ] },
                         { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
                         { assert value(unrestricted, 'Total_Samples') == '500' },
                         { assert value(restricted, 'Total_Samples') == '222' },
-                        { assert commands.size() == 1 },
-                        { assert commands.first().contains('--ignore-weights YES') },
-                        { assert !commands.first().contains('--weights ') },
-                        { assert snapshot(stable_name_matrices, stable_path_matrices).match('shared-relatedness-matrices') },
-                        { assert snapshot(stable_name_heritability, stable_path_heritability).match('shared-heritability') },
+                        { assert commands.size() == 2 },
+                        { assert commands.every { command -> command.contains('--ignore-weights YES') } },
+                        { assert commands.every { command -> !command.contains('--weights ') } },
                         { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                     )
                 }
@@ -214,7 +217,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['2be27b8074df'],
+                        ['48be9b05b317'],
                         ['example_pgen_bt_first', 'example_pgen_bt_second'],
                         [filter: 0, subgrm: 0],
                     ))
@@ -243,7 +246,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                         // Independently derived from the generated weight bytes and canonical settings string.
-                        { assert matrices.list().toList() == ['2be27b8074df'] },
+                        { assert matrices.list().toList() == ['48be9b05b317'] },
                         { assert commands.size() == 1 },
                         { assert commands.first().contains('--weights example_all.pvar') },
                         { assert !commands.first().contains('--ignore-weights YES') },
@@ -278,7 +281,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['2be27b8074df', 'd75cd202b48d'],
+                        ['48be9b05b317', '9048b62d7d3c'],
                         ['example_pgen_bt_first', 'example_pgen_bt_second'],
                         [filter: 0, subgrm: 0],
                     ))
@@ -307,7 +310,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                         // Same basename, different content digests, therefore two independently derived keys.
-                        { assert matrices.list().toList().sort() == ['2be27b8074df', 'd75cd202b48d'] },
+                        { assert matrices.list().toList().sort() == ['48be9b05b317', '9048b62d7d3c'] },
                         { assert commands.size() == 2 },
                         { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
                         { assert commands.every { command -> !command.contains('--ignore-weights YES') } },

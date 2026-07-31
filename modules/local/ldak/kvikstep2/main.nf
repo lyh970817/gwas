@@ -34,6 +34,12 @@ process LDAK_KVIKSTEP2 {
     def factors_arg = cat_covariates_file ? "--factors ${cat_covariates_file}" : ""
     def keep_arg = keep_file ? "--keep ${keep_file}" : ""
     """
+    if [[ "${step1_root}" != "${prefix}.step1.root" ]]; then
+        ln -s "${step1_root}" "${prefix}.step1.root"
+        ln -s "${step1_loco_details}" "${prefix}.step1.loco.details"
+        ln -s "${step1_loco_prs}" "${prefix}.step1.loco.prs"
+    fi
+
     ldak6 --kvik-step2 ${prefix} \\
         --bfile ${bfile_prefix} \\
         --pheno ${phenotype_file} \\

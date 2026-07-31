@@ -53,12 +53,11 @@ precedence for component tests. This document covers pipeline-level testing and 
   mag is the strictest and the cleanest here: 0 of its 8 pipeline-level test files set anything but `outdir`.
   rnaseq sets `input` in 3 of 19, and sarek sets it in 53 of 60 through the shared scenario maps in
   `tests/lib/UTILS.groovy` — so this is a deliberate choice of mag's discipline, not a consensus.)_
-  - **Exception — `params.input`.** A pipeline-level test whose subject _is_ the input contract may override
-    `params.input`. A samplesheet-driven pipeline cannot exercise input validation without pointing the run
-    at a deliberately malformed or edge-case samplesheet, and minting a `-profile` per bad samplesheet is
-    worse than the override it would avoid. rnaseq does exactly this (`tests/bam_input.nf.test`,
-    `tests/prokaryotic.nf.test`). Override `input` when the samplesheet is the thing under test; keep every
-    other scenario knob in a profile.
+  - **Exception — relational input parameters.** A pipeline-level test whose subject _is_ the input contract
+    may override `params.cohort_manifest`, `params.analysis_manifest` and `params.method_options`. A
+    manifest-driven pipeline cannot exercise relationship validation without pointing the run at deliberately
+    malformed or edge-case manifests, and minting a `-profile` per invalid pair is worse than the override it
+    would avoid. Keep every other scenario knob in a profile.
 - **[MUST]** Wrap assertions in `assertAll(...)`. _(all three)_
 - **[MUST]** Tag every pipeline-level test `tag "pipeline"`, plus one tag naming the scenario or profile.
   _(all three; the three diverge on how much hierarchy to add beyond that)_

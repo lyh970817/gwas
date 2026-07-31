@@ -17,8 +17,8 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
     ch_keep // channel: [ val(meta), path(keep_file) ], use [] for the optional file
 
     main:
-    ch_step1_genotypes_by_analysis = ch_step1_genotypes.map { meta, bed, bim, fam -> tuple(meta.id, tuple(meta, bed, bim, fam)) }
-    ch_genotype_shards_by_analysis = ch_genotype_shards
+    def ch_step1_genotypes_by_analysis = ch_step1_genotypes.map { meta, bed, bim, fam -> tuple(meta.id, tuple(meta, bed, bim, fam)) }
+    def ch_genotype_shards_by_analysis = ch_genotype_shards
         .map { meta, bed, bim, fam -> tuple(meta.id, tuple(meta, bed, bim, fam)) }
         .groupTuple(by: 0)
 
@@ -48,24 +48,43 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
             failOnMismatch: true,
         )
 
-    ch_thin_common_inputs = ch_step1_inputs.filter { _analysis_id, _genotypes, _pheno, _qcovar, _covar, extract_policy -> extract_policy[2] == 'thin_common' }
-    ch_thin_common_genotypes = ch_thin_common_inputs.map { _analysis_id, genotypes, _pheno, _qcovar, _covar, _extract_policy -> genotypes }
+    // Collapse analyses with identical scientific Step 1 inputs to one prediction request. The execution
+    // metadata owns the content key; focal analysis metadata is retained separately for Step 2 attribution.
+    def ch_prediction_requests = ch_step1_inputs
+        .map { _analysis_id, genotypes, pheno, qcovar, covar, extract_policy ->
+            tuple(genotypes[0].kvik_prediction_key, genotypes, pheno, qcovar, covar, extract_policy)
+        }
+        .unique { prediction_key, _genotypes, _pheno, _qcovar, _covar, _extract_policy -> prediction_key }
+        .map { prediction_key, genotypes, pheno, qcovar, covar, extract_policy ->
+            def execution_meta = genotypes[0] + [id: "${genotypes[0].cohort}.ldak_kvik.${prediction_key}"]
+            tuple(
+                prediction_key,
+                tuple(execution_meta, genotypes[1], genotypes[2], genotypes[3]),
+                tuple(execution_meta, pheno[1], pheno[2]),
+                tuple(execution_meta, qcovar[1]),
+                tuple(execution_meta, covar[1]),
+                tuple(execution_meta, extract_policy[1], extract_policy[2]),
+            )
+        }
+
+    ch_thin_common_inputs = ch_prediction_requests.filter { _prediction_key, _genotypes, _pheno, _qcovar, _covar, extract_policy -> extract_policy[2] == 'thin_common' }
+    ch_thin_common_genotypes = ch_thin_common_inputs.map { _prediction_key, genotypes, _pheno, _qcovar, _covar, _extract_policy -> genotypes }
     LDAK_THINCOMMON(ch_thin_common_genotypes)
 
-    ch_direct_step1_inputs = ch_step1_inputs
-        .filter { _analysis_id, _genotypes, _pheno, _qcovar, _covar, extract_policy -> extract_policy[2] in ['all', 'provided'] }
-        .map { _analysis_id, genotypes, pheno, qcovar, covar, extract_policy ->
+    ch_direct_step1_inputs = ch_prediction_requests
+        .filter { _prediction_key, _genotypes, _pheno, _qcovar, _covar, extract_policy -> extract_policy[2] in ['all', 'provided'] }
+        .map { _prediction_key, genotypes, pheno, qcovar, covar, extract_policy ->
             tuple(genotypes, pheno, qcovar, covar, tuple(extract_policy[0], extract_policy[1]))
         }
     ch_thin_step1_inputs = ch_thin_common_inputs
-        .map { analysis_id, genotypes, pheno, qcovar, covar, _extract_policy -> tuple(analysis_id, genotypes, pheno, qcovar, covar) }
+        .map { prediction_key, genotypes, pheno, qcovar, covar, _extract_policy -> tuple(prediction_key, genotypes, pheno, qcovar, covar) }
         .join(
-            LDAK_THINCOMMON.out.predictors.map { meta, extract_file -> tuple(meta.id, tuple(meta, extract_file)) },
+            LDAK_THINCOMMON.out.predictors.map { meta, extract_file -> tuple(meta.kvik_prediction_key, tuple(meta, extract_file)) },
             by: 0,
             failOnDuplicate: true,
             failOnMismatch: true,
         )
-        .map { _analysis_id, genotypes, pheno, qcovar, covar, extract -> tuple(genotypes, pheno, qcovar, covar, extract) }
+        .map { _prediction_key, genotypes, pheno, qcovar, covar, extract -> tuple(genotypes, pheno, qcovar, covar, extract) }
     ch_step1_invocations = ch_direct_step1_inputs
         .mix(ch_thin_step1_inputs)
         .multiMap { genotypes, pheno, qcovar, covar, extract ->
@@ -84,32 +103,34 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
         ch_step1_invocations.extract,
     )
 
-    ch_step2_invocations = ch_step1_inputs
-        .map { analysis_id, genotypes, pheno, qcovar, covar, _extract_policy -> tuple(analysis_id, genotypes, pheno, qcovar, covar) }
+    def ch_analysis_step2_inputs = ch_step1_inputs
+        .map { analysis_id, genotypes, pheno, qcovar, covar, _extract_policy ->
+            tuple(analysis_id, genotypes[0].kvik_prediction_key, genotypes, pheno, qcovar, covar)
+        }
         .join(
             ch_genotype_shards_by_analysis,
             by: 0,
             failOnDuplicate: true,
             failOnMismatch: true,
         )
-        .map { analysis_id, genotypes, pheno, qcovar, covar, genotype_shards ->
-            tuple(analysis_id, genotype_shards, genotypes, pheno, qcovar, covar)
-        }
         .join(
             ch_keep.map { meta, keep_file -> tuple(meta.id, tuple(meta, keep_file)) },
             by: 0,
             failOnDuplicate: true,
             failOnMismatch: true,
         )
-        .join(
+        .map { _analysis_id, prediction_key, genotypes, pheno, qcovar, covar, genotype_shards, keep ->
+            tuple(prediction_key, genotype_shards, genotypes, pheno, qcovar, covar, keep)
+        }
+
+    ch_step2_invocations = ch_analysis_step2_inputs
+        .combine(
             LDAK_KVIKSTEP1.out.predictions.map { meta, step1_root, step1_loco_details, step1_loco_prs ->
-                tuple(meta.id, tuple(meta, step1_root, step1_loco_details, step1_loco_prs))
+                tuple(meta.kvik_prediction_key, tuple(meta, step1_root, step1_loco_details, step1_loco_prs))
             },
             by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: true,
         )
-        .flatMap { _analysis_id, genotype_shards, genotypes, pheno, qcovar, covar, keep, predictions ->
+        .flatMap { _prediction_key, genotype_shards, genotypes, pheno, qcovar, covar, keep, predictions ->
             genotype_shards.collect { genotype_shard ->
                 tuple(
                     tuple(genotypes[0], genotype_shard[1], genotype_shard[2], genotype_shard[3]),

@@ -9,6 +9,7 @@ keywords:
   - genotype
 components:
   - plink_fit_regenie
+  - attribute/regenie/predictions
   - regenie/step2
 input:
   - meta:

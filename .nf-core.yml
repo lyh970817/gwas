@@ -12,6 +12,10 @@ lint:
     - .github/workflows/branch.yml
     - .github/workflows/linting.yml
   modules_config: false
+  # The retired `--input` parameter is exercised only by a migration-diagnostic test. It is intentionally
+  # absent from `nextflow_schema.json`; listing it here keeps the diagnostic without restoring the contract.
+  nextflow_config:
+    - params.input
 nf_core_version: 4.0.2
 repository_type: pipeline
 template:

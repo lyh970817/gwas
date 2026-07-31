@@ -10,18 +10,39 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "required": ["cohort_manifest", "analysis_manifest", "outdir"],
             "properties": {
-                "input": {
+                "cohort_manifest": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "schema": "assets/schema_input.json",
+                    "schema": "assets/schema_cohort_manifest.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to a comma-separated samplesheet describing the analysis units to run.",
-                    "help_text": "One row is one analysis unit: a single cohort paired with a single trait. The samplesheet has 35 columns and a header row covering analysis, cohort and trait identity, trait type, genome build, ancestry, one of the three mutually exclusive genotype encodings (PLINK 2 `pgen`/`psam`/`pvar`, PLINK 1 `bed`/`bim`/`fam`, or `vcf`), the phenotype file and column, control and case source values, quantitative and categorical covariate files, the association and heritability method selector lists, population and sample prevalence, optional LDAK weights, and the LDAK and GCTA construction controls. See [usage docs](https://nf-co.re/gwas/usage#samplesheet-input).",
-                    "fa_icon": "fas fa-file-csv"
+                    "description": "Path to the cohort manifest declaring cohort-owned genotype facts.",
+                    "help_text": "Supply together with `analysis_manifest`. Each unique `cohort_id` declares one complete PLINK 2, PLINK 1 or VCF genotype representation.",
+                    "fa_icon": "fas fa-users"
+                },
+                "analysis_manifest": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "schema": "assets/schema_analysis_manifest.json",
+                    "mimetype": "text/csv",
+                    "pattern": "^\\S+\\.csv$",
+                    "description": "Path to the analysis manifest declaring cohort and trait analysis units.",
+                    "help_text": "Supply together with `cohort_manifest`. Each unique `analysis_id` references one declared `cohort_id`, names the trait and phenotype inputs, and selects association or heritability methods.",
+                    "fa_icon": "fas fa-file-medical-alt"
+                },
+                "method_options": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "mimetype": "application/json",
+                    "pattern": "^\\S+\\.json$",
+                    "description": "Optional structured per-analysis scientific method options and stageable resources.",
+                    "help_text": "The JSON root is keyed by `analysis_id`; each analysis contains optional `gcta` and `ldak` method-family maps. Operational partitioning and task sizing belong to run/profile configuration, not this document.",
+                    "fa_icon": "fas fa-sliders-h"
                 },
                 "outdir": {
                     "type": "string",
@@ -73,6 +94,19 @@
                     "description": "Save the REGENIE Step 1 prediction list and leave-one-chromosome-out predictions.",
                     "help_text": "The reusable prediction bundle is absent from published output by default. Enable this control to publish it under `<outdir>/intermediates/regenie/<analysis_id>/` for inspection or reuse.",
                     "fa_icon": "fas fa-download"
+                }
+            }
+        },
+        "gcta_run_options": {
+            "title": "GCTA run configuration",
+            "type": "object",
+            "fa_icon": "fas fa-cogs",
+            "description": "Configure operational GCTA task partitioning independently of scientific analysis metadata.",
+            "properties": {
+                "gcta_grm_parts": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of operational partitions used to construct each GCTA relatedness matrix."
                 }
             }
         },
@@ -132,7 +166,7 @@
             "type": "object",
             "fa_icon": "fas fa-align-left",
             "description": "Optional reference resources used when standardising summary statistics with GWASLab.",
-            "help_text": "Every association result is standardised by GWASLab whether or not these are supplied. Supplying them additionally allows GWASLab to check and flip alleles against the reference sequence, assign rsIDs, and infer the strand of palindromic variants. They are selected by the genome build an analysis declares in its samplesheet row, so a run mixing builds configures each build independently and an analysis on a build with no configured resource is standardised without one. Indexes are read from the conventional sidecar names next to each file: `<fasta>.fai` for a FASTA, and `<vcf>.tbi` or `<vcf>.csi` for a VCF.",
+            "help_text": "Every association result is standardised by GWASLab whether or not these are supplied. Supplying them additionally allows GWASLab to check and flip alleles against the reference sequence, assign rsIDs, and infer the strand of palindromic variants. They are selected by the genome build declared for the analysis cohort, so a run mixing builds configures each build independently and an analysis on a build with no configured resource is standardised without one. Indexes are resolved automatically as `.fai`, `.tbi` or `.csi` sidecars.",
             "properties": {
                 "gwaslab_reference_fasta_grch37": {
                     "type": "string",
@@ -335,6 +369,9 @@
         },
         {
             "$ref": "#/$defs/save_controls"
+        },
+        {
+            "$ref": "#/$defs/gcta_run_options"
         },
         {
             "$ref": "#/$defs/regenie_options"

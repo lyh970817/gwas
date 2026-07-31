@@ -21,13 +21,13 @@
 
 ## Introduction
 
-**nf-core/gwas** is a bioinformatics pipeline for association and individual-level heritability analysis of prepared human genotype, phenotype and covariate data. Each samplesheet row pairs one cohort with one trait and can select any supported association and heritability methods. The pipeline reuses cohort preparation and relatedness matrices across compatible analyses, retains native results, and produces comparable GWASLab-standardised summary statistics.
+**nf-core/gwas** is a bioinformatics pipeline for association and individual-level heritability analysis of prepared human genotype, phenotype and covariate data. A cohort manifest owns genotype facts and an analysis manifest links traits and selected methods to those cohorts. The pipeline reuses cohort preparation and relatedness matrices across compatible analyses, retains native results, and produces comparable GWASLab-standardised summary statistics.
 
 Genotype quality control is not performed by the pipeline. Input genotypes must already have suitable samples, variants, alleles, coordinates, genome build and analysis filters.
 
 ## Pipeline summary
 
-1. Validate the 35-column analysis-unit samplesheet.
+1. Validate and join the cohort and analysis manifests.
 2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input.
 3. Normalise the selected phenotype and optional quantitative and categorical covariates.
 4. Run selected association routes:
@@ -49,12 +49,21 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 > [!NOTE]
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/get_started/environment_setup/overview) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/get_started/run-your-first-pipeline) with `-profile test` before running the workflow on actual data.
 
-First, prepare a comma-separated samplesheet. One row is one analysis unit: one cohort paired with one trait. The header always contains all 35 columns; this minimal row uses the PLINK 2 encoding and selects PLINK 2 association:
+Prepare a cohort manifest and an analysis manifest linked by `cohort_id`. Advanced per-analysis
+scientific settings and stageable resources may be supplied in an optional method-options JSON
+document.
 
-```csv title="samplesheet.csv"
-analysis_id,cohort_id,trait_id,trait_type,genome_build,ancestry,pgen,psam,pvar,bed,bim,fam,vcf,vcf_index,phenotype,phenotype_column,control_value,case_value,quant_covariates,cat_covariates,association_methods,heritability_methods,population_prevalence,sample_prevalence,ldak_model,ldak_power,ldak_weights,ldak_relatedness_filter,ldak_kvik_step1_subset,ldak_kvik_step1_extract,gcta_grm_parts,gcta_sparse_cutoff,gcta_ld_score_region_kb,gcta_ld_bins,gcta_ldms_maf_edges
-study_height,study_cohort,height,quantitative,GRCh38,EUR,/data/study.pgen,/data/study.psam,/data/study.pvar,,,,,,/data/phenotypes.tsv,height,,,,,plink2,,,,,,,,,,,,,,
+```csv title="cohorts.csv"
+cohort_id,genome_build,ancestry,pgen,psam,pvar,bed,bim,fam,vcf
+my_cohort,GRCh37,EUR,/data/my_cohort.pgen,/data/my_cohort.psam,/data/my_cohort.pvar,,,,
 ```
+
+```csv title="analyses.csv"
+analysis_id,cohort_id,trait_id,trait_type,phenotype,phenotype_column,control_value,case_value,quant_covariates,cat_covariates,association_methods,heritability_methods,population_prevalence
+height,my_cohort,height,quantitative,/data/phenotypes.tsv,height,,,,,plink2,,
+```
+
+Runnable minimal and heterogeneous examples are available under [`assets/examples/relational/`](assets/examples/relational/).
 
 Then run:
 
@@ -62,7 +71,8 @@ Then run:
 nextflow run nf-core/gwas \
     -r <VERSION> \
     -profile docker \
-    --input samplesheet.csv \
+    --cohort_manifest cohorts.csv \
+    --analysis_manifest analyses.csv \
     --outdir results
 ```
 

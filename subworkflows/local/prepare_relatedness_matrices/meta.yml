@@ -15,13 +15,13 @@ components:
   - gcta_prepare_grm_ldms
   - plink_prepare_grm_ldak
   - gcta/makebksparse
-  - canonicalisedeclaredvalue
   - ldakweightsidentity
+  - methodresourceidentity
   - relatednessmatrixkinds
   - relatednessmatrixrequest
 input:
   - ch_analyses:
-      description: One analysis unit per element, carrying its cohort identity, selected heritability methods, genotype files and the optional LDAK weights Path. The Path is carried outside metadata and matrix identity; only its content digest enters the reuse key.
+      description: One analysis unit per element, carrying its cohort identity, selected methods, genotype files and optional LDAK weights Path. Validated GCTA family options, including the optional extraction resource, are carried in meta.method_options.
       structure: "[map meta, list genotype_files, path ldak_weights|[]]"
       pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,weights}"
       ontologies:
@@ -38,6 +38,9 @@ input:
       pattern: "*.{bed,bim,fam}"
       ontologies:
         - edam: "http://edamontology.org/format_3003"
+  - gcta_grm_parts:
+      description: Run/profile partition count used for every GCTA matrix build.
+      structure: integer
 output:
   - gcta_dense:
       description: The merged dense GCTA relatedness matrix of each requesting analysis unit, carrying the focal analysis metadata. One element per analysis unit that selected a method needing a dense GCTA matrix, however many analysis units share the underlying build.

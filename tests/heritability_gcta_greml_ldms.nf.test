@@ -76,7 +76,7 @@ nextflow_pipeline {
                         // edge list and a different LD-bin count each fork the scientific matrix key.
                         { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 3 },
                         { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 3 },
-                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 5 },
+                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 10 },
                         { assert TRACE.count(workflow, 'CUSTOM_GCTACREATEMGRMMANIFEST') == 3 },
                         { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 4 },
                         { assert heritability.list().toList() == ['individual'] },

@@ -14,12 +14,12 @@ The shared result prefix grammar is:
 <analysis_id>.<method>[.<shard>]
 ```
 
-`<analysis_id>` is copied from the samplesheet and identifies one cohort-trait analysis unit. `<method>` is one of the selector tokens documented in [Usage](usage.md#samplesheet-input). A producing tool can add a native result suffix after that prefix. Harmonised files add the tool suffix `.gwaslab` after the method, giving `<analysis_id>.<method>.gwaslab.tsv.gz`.
+`<analysis_id>` is copied from the analysis manifest and identifies one cohort-trait analysis unit. `<method>` is one of the method-selector tokens documented in [Usage](usage.md#linked-manifest-input). A producing tool can add a native result suffix after that prefix. Harmonised files add the tool suffix `.gwaslab` after the method, giving `<analysis_id>.<method>.gwaslab.tsv.gz`.
 
 Use the following provenance chain for any result:
 
 1. Read `<analysis_id>` and `<method>` from its parent directories and filename.
-2. Find the unique `analysis_id` row in the samplesheet supplied to `--input`; that row records `cohort_id`, `trait_id`, `trait_type`, `genome_build`, `ancestry` and the scientific settings used by the route.
+2. Find the unique `analysis_id` row in `--analysis_manifest`, follow its `cohort_id` into `--cohort_manifest`, and inspect any entry for that analysis in `--method_options`.
 3. Map `<method>` to its producing tool using the table below.
 4. Read the tool version from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline release and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
@@ -30,7 +30,7 @@ Use the following provenance chain for any result:
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`  | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc` | LDAK 6         |
 
-Together, the result prefix, retained input samplesheet and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, pipeline release and producing tool version. Preserve all three with an archived result.
+Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline release and producing tool version. Preserve them with an archived result.
 
 This attribution rule applies to analysis results under `association/`, `summary_statistics/` and `heritability/`. Optional prepared genotypes and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id`, while `quality_control/relatedness_matrices/` is attributed to its reuse key and may serve several analysis rows.
 
@@ -94,7 +94,7 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 <details markdown="1">
 <summary>Output files</summary>
 
-[GCTA](https://yanglab.westlake.edu.cn/software/gcta/) runs `--fastGWA-mlm` for quantitative traits and `--fastGWA-mlm-binary` for binary traits. Plain fastGWA linear regression is not a selectable route. The model consumes a sparse GCTA relatedness matrix; `gcta_sparse_cutoff` defaults to `0.05`, following the official fastGWA example. The native table includes marker identity, alleles, allele frequency, sample count, effect, standard error and p-value and is passed unchanged to GWASLab.
+[GCTA](https://yanglab.westlake.edu.cn/software/gcta/) runs `--fastGWA-mlm` for quantitative traits and `--fastGWA-mlm-binary` for binary traits. Plain fastGWA linear regression is not selectable. The method option `gcta.sparse_cutoff` defaults to `0.05`, following the official fastGWA example, and controls construction of its sparse relatedness matrix. The native table is passed unchanged to GWASLab.
 
 - `association/gcta_fastgwa/<analysis_id>/`
   - `<analysis_id>.gcta_fastgwa.fastGWA`: Native GCTA fastGWA-MLM result.
@@ -106,7 +106,7 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 <details markdown="1">
 <summary>Output files</summary>
 
-[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. Each row explicitly chooses `all`, `thin_common` or `provided` for its Step 1 predictor subset because the choice changes the fitted model and has no safe universal default. The native `.assoc` file is published unchanged. Step 1 predictions, thinning progress, summaries, p-value side products and logs remain in the work directory.
+[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. `ldak.kvik_step1_subset` defaults to `all`; `thin_common` requests deterministic thinning and `provided` requires the stageable `ldak.predictor_extract` resource. The choice changes prediction reuse identity. The native `.assoc` file is published unchanged; Step 1 side products and logs remain in the work directory.
 
 - `association/ldak_kvik/<analysis_id>/`
   - `<analysis_id>.ldak_kvik.step2.assoc`: Native LDAK-KVIK Step 2 association table.
@@ -127,7 +127,7 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 
 The common columns are `SNPID`, `CHR`, `POS`, `EA`, `NEA`, `STATUS`, `EAF`, `BETA`, `SE` and `N`. PLINK 2, GCTA fastGWA and LDAK-KVIK tables carry `P`; REGENIE natively reports `LOG10P`, which GWASLab standardises as `MLOG10P` rather than converting to `P`. `EA` and `NEA` are the effect and non-effect alleles. `STATUS` is GWASLab's [seven-digit status code](https://cloufield.github.io/gwaslab/StatusCode/): the first two digits record genome build, followed by one digit each for identifier checking, coordinate checking, allele standardisation, reference alignment, and palindromic-variant/indel handling. A `9` means the corresponding check was not performed.
 
-All build-specific GWASLab reference parameters default to unset because no compact bundled reference is scientifically adequate. With no references, the output is still standardised for names, columns and allele roles. Supplying `--gwaslab_reference_fasta_grch37` or `--gwaslab_reference_fasta_grch38` enables reference-allele checks and flips; the corresponding `--gwaslab_rsid_vcf_*` enables rsID assignment, and `--gwaslab_strand_vcf_*` enables palindromic-strand inference. The samplesheet's `genome_build` chooses the resource set per analysis.
+All build-specific GWASLab reference parameters default to unset because no compact bundled reference is scientifically adequate. With no references, the output is still standardised for names, columns and allele roles. Supplying `--gwaslab_reference_fasta_grch37` or `--gwaslab_reference_fasta_grch38` enables reference-allele checks and flips; the corresponding `--gwaslab_rsid_vcf_*` enables rsID assignment, and `--gwaslab_strand_vcf_*` enables palindromic-strand inference. The cohort manifest's `genome_build` chooses the resource set per analysis.
 
 GWASLab drops variants that fail its sanity checks and duplicated variants. Its log is not published because timestamps and container-local paths make it non-reproducible provenance noise.
 
@@ -149,7 +149,7 @@ Heritability output is method-first and then analysis, under `individual/` becau
 
 </details>
 
-GREML uses one dense matrix. GREML-LDMS partitions variants by LD score and MAF: the `200` kb LD-score region default follows GCTA's official LDMS example, and four LD strata default to quartiles. MAF interval edges have no default and must be declared because they are a scientific partitioning choice.
+GREML uses one dense matrix. GREML-LDMS partitions variants by LD score and MAF. Its method-option defaults are a `200` kb LD-score region, `4` LD strata and MAF boundaries `[0,0.01,0.05,0.2,0.5]`; changing any of them produces a distinct reusable matrix family.
 
 ### LDAK estimators
 
@@ -169,7 +169,7 @@ GREML uses one dense matrix. GREML-LDMS partitions variants by LD score and MAF:
 
 </details>
 
-The LDAK kinship model defaults to `human_default` with power `-0.25`, the documented human-data model; `custom` makes an alternative power explicit. Empty `ldak_weights` means explicit equal predictor weights. `ldak_relatedness_filter` defaults to `false`, preserving the declared analysis population unless you request an unrelated subset. When HE or PCGC has covariates, the pipeline first adjusts the kinship matrix on the same analysis subset and covariates, then passes those covariates to the estimator so phenotype residualisation and matrix projection remain aligned.
+The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `model: custom` before supplying another power. `weights_policy: equal` is the default and explicitly ignores weights; `default` retains LDAK's native policy; `provided` requires the staged `weights` resource. `relatedness_filter` defaults to `false`. When HE or PCGC has covariates, the pipeline first adjusts the kinship matrix on the same analysis subset and covariates, then passes those covariates to the estimator so phenotype residualisation and matrix projection remain aligned.
 
 ## Quality control and optional prepared data
 

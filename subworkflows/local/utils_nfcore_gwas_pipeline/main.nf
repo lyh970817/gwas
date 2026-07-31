@@ -30,13 +30,14 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir //  string: The output directory where the results will be saved
-    input //  string: Path to input samplesheet
+    cohort_manifest // string: Path to the cohort manifest
+    analysis_manifest // string: Path to the analysis manifest
+    method_options // string: Optional per-analysis structured method-options document
     help // boolean: Display help message and exit
     help_full // boolean: Show the full help message
     show_hidden // boolean: Show hidden parameters in the help message
 
     main:
-
     ch_versions = channel.empty()
 
     //
@@ -76,7 +77,7 @@ workflow PIPELINE_INITIALISATION {
         before_text = before_text.replaceAll(/\033\[[0-9;]*m/, '')
     }
 
-    command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input samplesheet.csv --outdir <OUTDIR>"
+    command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --cohort_manifest cohorts.csv --analysis_manifest analyses.csv --outdir <OUTDIR>"
 
     UTILS_NFSCHEMA_PLUGIN(
         workflow,
@@ -98,24 +99,34 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Create channel from input file provided through params.input
+    // Validate both manifests as complete lists before channel construction, so cross-row and
+    // cross-manifest failures cannot submit downstream tasks.
     //
-    // The samplesheet is validated in three passes. The header gate fixes the complete public
-    // contract before defaults can be injected; nf-schema covers everything a per-row JSON Schema
-    // can express; validateInputSamplesheet covers the rest — the fields whose validity depends on
-    // which methods a row selects, and the cross-field and cross-row rules no per-row schema can
-    // reach. Validation runs over the whole list rather than per channel element, because the
-    // cross-row rules need every row in hand before any of them can be decided.
-    //
-    def input_schema = "${projectDir}/assets/schema_input.json"
-    validateSamplesheetHeader(input, input_schema)
-    def ch_samplesheet = channel.fromList(
-        validateInputSamplesheet(samplesheetToList(input, input_schema), input, input_schema)
+    if (!cohort_manifest) {
+        error("[nf-core/gwas] ERROR: --analysis_manifest '${analysis_manifest ?: ''}' was supplied but --cohort_manifest is missing; linked manifests require both")
+    }
+    if (!analysis_manifest) {
+        error("[nf-core/gwas] ERROR: --cohort_manifest '${cohort_manifest}' was supplied but --analysis_manifest is missing; linked manifests require both")
+    }
+    def cohort_schema = "${projectDir}/assets/schema_cohort_manifest.json"
+    def analysis_schema = "${projectDir}/assets/schema_analysis_manifest.json"
+    validateSamplesheetHeader(cohort_manifest, cohort_schema, 'Cohort manifest')
+    validateSamplesheetHeader(analysis_manifest, analysis_schema, 'Analysis manifest')
+    def ch_analyses = channel.fromList(
+        validateRelationalInput(
+            samplesheetToList(cohort_manifest, cohort_schema),
+            samplesheetToList(analysis_manifest, analysis_schema),
+            cohort_manifest,
+            analysis_manifest,
+            cohort_schema,
+            analysis_schema,
+            method_options,
+        )
     )
 
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    analyses = ch_analyses
+    versions = ch_versions
 }
 
 /*
@@ -235,9 +246,6 @@ def associationColumnMappings() {
                 ea: 'A1',
                 nea: 'A2',
                 eaf: 'EAF',
-                // LDAK-KVIK reports a per-variant effective analysis size, which can
-                // be fractional. Load it through GWASLab's Float64 N_EFF role; the
-                // harmoniser promotes it to the pipeline's public N field after QC.
                 neff: 'N',
                 p: 'Wald_P',
             ],
@@ -319,13 +327,9 @@ def heritabilityMethodTokens() {
 //
 // One declared value rendered as text, so that two values of the same meaning render alike.
 //
-// A declared value is a quantity a researcher stated: an entry of a matrix's construction settings, or the
-// partition count. This exists because such a value parsed from a CSV cell and the equivalent value filled in
-// from a schema default are not equal by Groovy object equality even when they mean the same number: a
-// samplesheet cell reaches nf-schema as an Integer, a BigDecimal or a String depending on the column's
-// declared type and on whether the cell was populated at all, while a `default` in assets/schema_input.json
-// arrives as whatever literal the JSON parser produced. Comparing them unrendered would give one matrix two
-// keys and build it twice.
+// A declared value is a quantity a researcher stated in structured method options. JSON numbers may
+// reach Groovy as an Integer or BigDecimal while equivalent values can be represented as strings.
+// Comparing them unrendered would give one matrix two keys and build it twice.
 //
 // Numbers, and strings that spell a number, both render through BigDecimal with trailing zeros stripped, so
 // 4, 4.0, '4' and '4.00' are one value and -0.25 and '-.25' are another. `BigDecimal` is constructed from
@@ -446,9 +450,9 @@ def relatednessMatrixKinds(meta) {
 // published keys machine-specific, would fail to reuse identical files copied elsewhere and would collapse
 // different files sharing one name. The actual Path therefore stays on the build tuple outside this map.
 //
-def ldakWeightsIdentity(weights_file) {
+def ldakWeightsIdentity(weights_file, weights_policy = 'equal') {
     if (!weights_file) {
-        return [mode: 'equal']
+        return [mode: weights_policy]
     }
     def weights_path = weights_file instanceof java.nio.file.Path ? weights_file : weights_file.toPath()
     def digest = java.security.MessageDigest.getInstance('SHA-256')
@@ -459,40 +463,53 @@ def ldakWeightsIdentity(weights_file) {
                 digest.update(buffer, 0, count)
             }
         }
-    return [mode: 'file', sha256: digest.digest().encodeHex().toString()]
+    return [mode: 'provided', sha256: digest.digest().encodeHex().toString()]
 }
 
 //
-// The declared construction settings of one matrix kind: the inputs that change the matrix itself. GCTA
-// dense has no settings beyond cohort identity, while LDMS and sparse matrices name their selectors
-// explicitly. LDAK's model, power and weights are key components, but its per-analysis relatedness filter is
-// deliberately absent: one kinship build supplies both the all-sample and unrelated-subset routes. `weights`
-// is a structured content identity: equal weighting has only its mode, while a supplied file has its mode
-// and full SHA-256 digest, never a path or basename.
+// The declared construction settings of one matrix kind: the inputs that change the matrix itself. Every
+// GCTA matrix family reads its validated per-analysis family map. Dense matrices key the MAF threshold and
+// the content identity of an optional extraction resource; LDMS keys all three stratification settings;
+// sparse matrices key their cutoff. Estimator-only options are deliberately absent. LDAK's model, power,
+// weights and relatedness filter are key components: filtered and all-sample matrices are scientifically
+// different artefacts and therefore cannot share a deduplicated matrix identity.
 //
 // An `if` chain rather than a `switch`: `nextflow lint` aborts on any `switch` statement it is given
 // (`ERROR ~ begin N, end N+1, length N`), so the construct cannot appear in this repository at all.
 //
-def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal']) {
+def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
+    def method_options = meta.method_options
+    def ldak_options = method_options.ldak
     if (kind == 'gcta_dense') {
-        return [:]
+        def settings = [:]
+        if (method_options.gcta.grm_maf != null) {
+            settings.maf = method_options.gcta.grm_maf
+        }
+        if (gcta_extract_identity.mode == 'file') {
+            settings.extract = gcta_extract_identity
+        }
+        return settings
     }
     if (kind == 'gcta_ldms') {
         return [
-            ld_score_region_kb: meta.gcta_ld_score_region_kb,
-            ld_bins: meta.gcta_ld_bins,
-            maf_edges: meta.gcta_ldms_maf_edges,
+            ld_score_region_kb: method_options.gcta.ld_score_region_kb,
+            ld_bins: method_options.gcta.ld_bins,
+            maf_edges: method_options.gcta.ldms_maf_edges,
         ]
     }
     if (kind == 'gcta_sparse') {
-        return [cutoff: meta.gcta_sparse_cutoff]
+        return [cutoff: method_options.gcta.sparse_cutoff]
     }
     if (kind == 'ldak_kinship') {
-        return [
-            model: meta.ldak_model,
-            power: meta.ldak_power,
+        def settings = [
+            model: ldak_options.model,
+            power: ldak_options.power,
             weights: weights_identity,
         ]
+        if (ldak_options.relatedness_filter) {
+            settings.relatedness_filter = true
+        }
+        return settings
     }
     error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
 }
@@ -505,13 +522,13 @@ def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal']) {
 // and the digest is a published path segment, so a path-derived digest would make every published tree
 // machine-specific.
 //
-// `parts` is outside the key because GCTA's --make-grm-part only splits the same computation into more
-// pieces: the merged matrix is byte-identical whatever the count, verified against gcta 1.94.1 at 1, 2 and 3
-// parts. It is a memory control, so two rows declaring different counts are not asking for two matrices —
-// they are contradicting each other about one, which is an error, not a fork.
+// `parts` is deliberately absent because GCTA's --make-grm-part count is run/profile configuration. It
+// changes task partitioning but not matrix content and therefore belongs neither in analysis metadata nor
+// in the reuse key.
 //
-def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal']) {
-    def settings = relatednessMatrixSettings(meta, kind, weights_identity)
+def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
+    def method_options = meta.method_options
+    def settings = relatednessMatrixSettings(meta, kind, weights_identity, gcta_extract_identity)
     def identity = [
         cohort: meta.cohort,
         genotype_format: meta.genotype_format,
@@ -522,11 +539,13 @@ def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mod
         kind: kind,
         cohort: meta.cohort,
         settings: settings,
-        parts: kind.startsWith('gcta_') ? meta.gcta_grm_parts : null,
         key: relatednessMatrixKey(identity, settings),
     ]
+    if (kind == 'gcta_dense') {
+        request.gcta_extract = method_options.gcta.grm_extract
+    }
     if (kind == 'ldak_kinship') {
-        request.filter_relatedness = meta.ldak_relatedness_filter
+        request.filter_relatedness = method_options.ldak.relatedness_filter
     }
     return request
 }
@@ -534,8 +553,6 @@ def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mod
 
 //
 // The three mutually exclusive genotype groups, each mapped to the columns that make it complete.
-// `vcf_index` is deliberately absent: it is declared on the samplesheet for completeness but the
-// VCF converter does not consume it, so requiring it would reject valid input.
 //
 def genotypeGroups() {
     return [
@@ -544,6 +561,7 @@ def genotypeGroups() {
         vcf: ['vcf'],
     ]
 }
+
 
 //
 // The samplesheet columns nf-schema emits positionally after the meta map, in the order it emits
@@ -558,14 +576,12 @@ def samplesheetPositionalColumns(schema) {
 }
 
 //
-// The public samplesheet contract is the complete header, including optional/defaulted cells.
-// JSON Schema deliberately does not make optional cells required, and nf-schema therefore accepts a
-// CSV that omits their headers altogether. That would silently keep the superseded 31-column
-// contract alive, so compare the actual header with the schema's property names before nf-schema
-// injects any defaults. Column order is not significant, but missing, unexpected or repeated names
-// are all contract errors.
+// Each CSV contract requires its complete header, including optional cells. JSON Schema deliberately
+// does not require optional cells and nf-schema would therefore accept a CSV that omitted their
+// columns entirely. Compare the actual header before nf-schema injects defaults. Column order is not
+// significant, but missing, unexpected or repeated names are all contract errors.
 //
-def validateSamplesheetHeader(samplesheet, schema) {
+def validateSamplesheetHeader(samplesheet, schema, role) {
     def expected = new groovy.json.JsonSlurper().parseText(file(schema).text).items.properties.keySet().toList()
     def header_line = file(samplesheet).readLines().find { line -> line.trim() }
     def observed = header_line
@@ -586,7 +602,7 @@ def validateSamplesheetHeader(samplesheet, schema) {
         problems << "repeated column headers: ${repeated.collect { column -> "'${column}'" }.join(', ')}"
     }
     if (problems) {
-        error("[nf-core/gwas] ERROR: Samplesheet header row 1 does not match the mandatory ${expected.size()}-column input contract.\n\n  - ${problems.join('\n  - ')}\n")
+        error("[nf-core/gwas] ERROR: ${role} '${samplesheet}' header row 1 does not match the mandatory ${expected.size()}-column input contract.\n\n  - ${problems.join('\n  - ')}\n")
     }
 }
 
@@ -619,6 +635,9 @@ def tokenizeMethodSelector(selector) {
 def methodRoutes(association_methods, heritability_methods) {
     return [
         runs_heritability: heritability_methods.any { method -> method in heritabilityMethodTokens() },
+        consumes_population_prevalence: heritability_methods.any { method ->
+            method in ['gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_pcgc']
+        },
         runs_ldak_kvik: association_methods.contains('ldak_kvik'),
         runs_ldak_heritability: heritability_methods.any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] },
         runs_ldak_pcgc: heritability_methods.contains('ldak_pcgc'),
@@ -629,34 +648,13 @@ def methodRoutes(association_methods, heritability_methods) {
 }
 
 //
-// The conditional columns of one row, resolved once. The LDAK model and power and the three GCTA
-// construction controls have samplesheet-column defaults rather than pipeline parameters: nf-schema
-// fills them in when the column is present, but a samplesheet may omit the column altogether, so they
-// are resolved here as well before anything is compared against them. The weights path itself remains
-// outside meta and this settings map: only whether weights were provided is registered here, while
-// the Path is carried positionally so a downstream staging seam can derive content identity without
-// using a basename or a machine-specific absolute path.
+// Analysis-manifest trait semantics resolved once before validation and canonical tuple construction.
 //
-def rowSettings(meta, cells = [:]) {
-    def ldak_power = cellValue(meta.ldak_power)
-    def gcta_sparse_cutoff = cellValue(meta.gcta_sparse_cutoff)
-    def gcta_ld_score_region_kb = cellValue(meta.gcta_ld_score_region_kb)
-    def gcta_ld_bins = cellValue(meta.gcta_ld_bins)
+def analysisSettings(meta) {
     return [
-        ldak_model: cellValue(meta.ldak_model) ?: 'human_default',
-        ldak_power: ldak_power != null ? ldak_power : -0.25,
-        ldak_weights_mode: cellValue(cells.ldak_weights) != null ? 'provided' : 'equal',
-        ldak_relatedness_filter: cellValue(meta.ldak_relatedness_filter) ? true : false,
-        ldak_kvik_step1_subset: cellValue(meta.ldak_kvik_step1_subset),
-        gcta_grm_parts: cellValue(meta.gcta_grm_parts),
-        gcta_sparse_cutoff: gcta_sparse_cutoff != null ? gcta_sparse_cutoff : 0.05,
-        gcta_ld_score_region_kb: gcta_ld_score_region_kb != null ? gcta_ld_score_region_kb : 200,
-        gcta_ld_bins: gcta_ld_bins != null ? gcta_ld_bins : 4,
         population_prevalence: cellValue(meta.population_prevalence),
-        sample_prevalence: cellValue(meta.sample_prevalence),
         case_value: cellValue(meta.case_value),
         control_value: cellValue(meta.control_value),
-        gcta_ldms_maf_edges: cellValue(meta.gcta_ldms_maf_edges),
     ]
 }
 
@@ -719,24 +717,6 @@ def validateGenotypeGroup(cells, reject) {
     return populated_groups.size() == 1 ? populated_groups.keySet().first() : null
 }
 
-//
-// Cross-row: every row on one cohort must describe the same genotypes, so a copy-paste error in one
-// row cannot silently apply another cohort's data. The genotype columns of this row are the ones
-// that disagree with the source the cohort already established, so they are what the error names.
-//
-def checkCohortGenotypesAgree(cohort_id, line, genotype_format, genotype_files, source_by_cohort_id, reject) {
-    if (!genotype_format || !genotype_files.every { genotype_file -> genotype_file }) {
-        return null
-    }
-    def cohort_source = [genotype_format, genotype_files.collect { genotype_file -> genotype_file.toString() }]
-    def known_source = source_by_cohort_id[cohort_id]
-    if (!known_source) {
-        source_by_cohort_id[cohort_id] = [line: line, source: cohort_source]
-    }
-    else if (known_source.source != cohort_source) {
-        reject.call(genotypeGroups()[genotype_format], "rows sharing cohort_id '${cohort_id}' declare different genotype sources, row ${known_source.line} declares ${known_source.source[0]} '${known_source.source[1].first()}'")
-    }
-}
 
 //
 // Trait type drives the case, control and prevalence columns. It is the canonical trait
@@ -750,6 +730,9 @@ def validateTraitColumns(is_binary, settings, reject) {
         if (settings.control_value == null) {
             reject.call('control_value', "a binary trait must declare the value used for controls in the phenotype file")
         }
+        if (settings.case_value != null && settings.control_value != null && settings.case_value.toString() == settings.control_value.toString()) {
+            reject.call(['case_value', 'control_value'], "binary case_value and control_value must be distinct source codes")
+        }
     }
     else {
         if (settings.case_value != null) {
@@ -761,203 +744,452 @@ def validateTraitColumns(is_binary, settings, reject) {
         if (settings.population_prevalence != null) {
             reject.call('population_prevalence', "prevalence has no meaning on a quantitative trait, remove it or set trait_type to 'binary'")
         }
-        if (settings.sample_prevalence != null) {
-            reject.call('sample_prevalence', "prevalence has no meaning on a quantitative trait, remove it or set trait_type to 'binary'")
-        }
-    }
-    if (settings.sample_prevalence != null && settings.population_prevalence == null) {
-        reject.call('sample_prevalence', "a sample prevalence corrects ascertainment against a population prevalence, which this row does not declare")
     }
 }
 
 //
-// The thirteen columns whose validity depends on which methods the row selects. Each is consumed by
-// particular methods only, so populating one without selecting its consumer is a typo rather than a
-// harmless no-op, and leaving one empty when its consumer is selected is an under-specified
-// analysis.
+// Population prevalence belongs to heritability analyses and is mandatory for PCGC.
 //
-def validateMethodConditionedColumns(settings, cells, routes, reject) {
-    if (settings.population_prevalence != null && !routes.runs_heritability) {
-        reject.call('population_prevalence', "prevalence is consumed by the heritability methods only, and none are selected on this row")
+def validateMethodConditionedColumns(settings, routes, reject) {
+    if (settings.population_prevalence != null && !routes.consumes_population_prevalence) {
+        reject.call('population_prevalence', "none of the selected estimators consumes it; select GCTA GREML, GCTA GREML-LDMS, LDAK REML or LDAK PCGC, or remove the prevalence")
     }
     if (settings.population_prevalence == null && routes.runs_ldak_pcgc) {
         reject.call('population_prevalence', "'ldak_pcgc' always estimates on the liability scale and requires a population prevalence")
     }
-    if (settings.sample_prevalence != null && !routes.runs_heritability) {
-        reject.call('sample_prevalence', "prevalence is consumed by the heritability methods only, and none are selected on this row")
+}
+
+
+//
+// Portable content identity for a stageable method resource. Paths are deliberately excluded: copied
+// resources with identical bytes reuse one matrix, while changed bytes under one basename do not collide.
+//
+def methodResourceIdentity(resource) {
+    if (!resource) {
+        return [mode: 'all']
     }
-    if (settings.ldak_model != 'human_default' && !routes.runs_ldak_heritability) {
-        reject.call('ldak_model', "the LDAK kinship model is consumed by the LDAK heritability methods only, and none are selected on this row")
-    }
-    if (settings.ldak_model == 'human_default' && settings.ldak_power != -0.25) {
-        reject.call('ldak_power', "the documented human model fixes the power at -0.25, set ldak_model to 'custom' to supply your own")
-    }
-    if (settings.ldak_power != -0.25 && !routes.runs_ldak_heritability) {
-        reject.call('ldak_power', "the LDAK kinship power is consumed by the LDAK heritability methods only, and none are selected on this row")
-    }
-    if (cells.ldak_weights && !routes.runs_ldak_heritability) {
-        reject.call('ldak_weights', "the LDAK weights file is consumed by the LDAK heritability methods only, and none are selected on this row")
-    }
-    if (settings.ldak_relatedness_filter && !routes.runs_ldak_heritability) {
-        reject.call('ldak_relatedness_filter', "the relatedness filter is consumed by the LDAK heritability methods only, and none are selected on this row")
-    }
-    if (settings.ldak_kvik_step1_subset != null && !routes.runs_ldak_kvik) {
-        reject.call('ldak_kvik_step1_subset', "the KVIK step 1 subset control is consumed by 'ldak_kvik' only, which is not selected on this row")
-    }
-    if (settings.ldak_kvik_step1_subset == null && routes.runs_ldak_kvik) {
-        reject.call('ldak_kvik_step1_subset', "'ldak_kvik' is selected but no step 1 predictor subset is declared, there is no implicit resolution")
-    }
-    if (cells.ldak_kvik_step1_extract && !routes.runs_ldak_kvik) {
-        reject.call('ldak_kvik_step1_extract', "a KVIK step 1 extract file is consumed by 'ldak_kvik' only, which is not selected on this row")
-    }
-    if (cells.ldak_kvik_step1_extract && settings.ldak_kvik_step1_subset != 'provided') {
-        reject.call('ldak_kvik_step1_extract', "a KVIK step 1 extract file is only accepted when ldak_kvik_step1_subset is 'provided', this row declares '${settings.ldak_kvik_step1_subset ?: ''}'")
-    }
-    if (settings.ldak_kvik_step1_subset == 'provided' && !cells.ldak_kvik_step1_extract) {
-        reject.call('ldak_kvik_step1_extract', "ldak_kvik_step1_subset is 'provided' but no extract file is supplied")
-    }
-    if (settings.gcta_grm_parts != null && !routes.runs_gcta) {
-        reject.call('gcta_grm_parts', "the GCTA relatedness matrix part count is consumed by the GCTA methods only, and none are selected on this row")
-    }
-    if (settings.gcta_grm_parts == null && routes.runs_gcta) {
-        reject.call('gcta_grm_parts', "a GCTA method is selected but no relatedness matrix part count is declared")
-    }
-    if (canonicaliseDeclaredValue(settings.gcta_sparse_cutoff) != '0.05' && !routes.runs_gcta_fastgwa) {
-        reject.call('gcta_sparse_cutoff', "a non-default sparse cutoff is consumed by 'gcta_fastgwa' only, which is not selected on this row")
-    }
-    if (canonicaliseDeclaredValue(settings.gcta_ld_score_region_kb) != '200' && !routes.runs_greml_ldms) {
-        reject.call('gcta_ld_score_region_kb', "a non-default LD-score region width is consumed by 'gcta_greml_ldms' only, which is not selected on this row")
-    }
-    if (canonicaliseDeclaredValue(settings.gcta_ld_bins) != '4' && !routes.runs_greml_ldms) {
-        reject.call('gcta_ld_bins', "a non-default LD bin count is consumed by 'gcta_greml_ldms' only, which is not selected on this row")
-    }
-    if (settings.gcta_ldms_maf_edges != null && !routes.runs_greml_ldms) {
-        reject.call('gcta_ldms_maf_edges', "MAF bin edges are consumed by 'gcta_greml_ldms' only, which is not selected on this row")
-    }
-    if (settings.gcta_ldms_maf_edges == null && routes.runs_greml_ldms) {
-        reject.call('gcta_ldms_maf_edges', "'gcta_greml_ldms' is selected but no semicolon-delimited MAF bin edges are supplied")
-    }
+    def resource_path = resource instanceof java.nio.file.Path ? resource : resource.toPath()
+    def digest = java.security.MessageDigest.getInstance('SHA-256')
+    java.nio.file.Files
+        .newInputStream(resource_path)
+        .withCloseable { input ->
+            input.eachByte(8192) { buffer, count ->
+                digest.update(buffer, 0, count)
+            }
+        }
+    return [mode: 'file', sha256: digest.digest().encodeHex().toString()]
 }
 
 //
-// MAF bin edges reach here either as the raw semicolon-delimited text or, when a single edge is
-// declared, as the number nf-schema inferred from that lone cell.
+// Parse and validate the advanced method-options document before any channels are constructed. The root is
+// keyed by analysis_id and each value is a method-family map. All GCTA matrix construction and estimator
+// settings share this typed family vocabulary so scientific inputs cannot bypass validation or reuse
+// identity.
 //
-def parseMafEdges(maf_edges, reject) {
-    def parsed_maf_edges = maf_edges != null ? maf_edges.toString().tokenize(';').collect { edge -> edge.trim() as BigDecimal } : []
-    if (parsed_maf_edges != parsed_maf_edges.toSorted() || parsed_maf_edges.unique(false).size() != parsed_maf_edges.size()) {
-        reject.call('gcta_ldms_maf_edges', "MAF bin edges must be strictly increasing, got '${maf_edges}'")
+def validateMethodOptions(method_options, analysis_rows) {
+    def defaults = [
+        gcta: [
+            grm_maf: null,
+            grm_extract: [],
+            reml_no_constrain: false,
+            sparse_cutoff: 0.05,
+            ld_score_region_kb: 200,
+            ld_bins: 4,
+            ldms_maf_edges: [0, 0.01, 0.05, 0.2, 0.5],
+        ],
+        ldak: [
+            model: 'human_default',
+            power: -0.25,
+            weights_policy: 'equal',
+            weights: [],
+            relatedness_filter: false,
+            kvik_step1_subset: 'all',
+            predictor_extract: [],
+        ],
+    ]
+    if (!method_options) {
+        return analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
     }
-    if (maf_edges != null && (parsed_maf_edges.size() < 2 || parsed_maf_edges.first() != 0 || parsed_maf_edges.last() != 0.5)) {
-        reject.call('gcta_ldms_maf_edges', "MAF interval boundaries must start at 0 and end at 0.5, got '${maf_edges}'")
+
+    def document_path = method_options.toString()
+    def fail = { analysis_id, option, reason ->
+        error("[nf-core/gwas] ERROR: Method-options document '${document_path}', analysis_id '${analysis_id}', option '${option}': ${reason}")
     }
-    return parsed_maf_edges
+    def document_file = file(method_options)
+    if (!document_file.exists()) {
+        fail.call('<document>', '<root>', 'file does not exist')
+    }
+
+    def document = null
+    try {
+        document = new groovy.json.JsonSlurper().parseText(document_file.text)
+    }
+    catch (Exception exception) {
+        fail.call('<document>', '<root>', "malformed JSON (${exception.message})")
+    }
+    if (!(document instanceof Map)) {
+        fail.call('<document>', '<root>', 'expected an object keyed by analysis_id')
+    }
+
+    def analyses = analysis_rows.collectEntries { row ->
+        def meta = row[0]
+        [(meta.id): [
+            association_methods: tokenizeMethodSelector(meta.association_methods),
+            heritability_methods: tokenizeMethodSelector(meta.heritability_methods),
+        ]]
+    }
+    def resolved = analyses.collectEntries { analysis_id, _methods -> [(analysis_id): defaults] }
+
+    document.each { analysis_id, families ->
+        if (!analyses.containsKey(analysis_id)) {
+            fail.call(analysis_id, '<analysis>', 'analysis identifier is not declared in the analysis manifest')
+        }
+        if (!(families instanceof Map)) {
+            fail.call(analysis_id, '<analysis>', 'expected a method-family object')
+        }
+        def unknown_families = families.keySet().findAll { family -> !(family in ['gcta', 'ldak']) }
+        if (unknown_families) {
+            fail.call(analysis_id, unknown_families.first().toString(), 'unknown method family; accepted families are gcta and ldak')
+        }
+
+        def gcta = families.containsKey('gcta') ? families.gcta : [:]
+        def ldak = families.containsKey('ldak') ? families.ldak : [:]
+        if (!(gcta instanceof Map)) {
+            fail.call(analysis_id, 'gcta', 'expected an option object')
+        }
+        if (!(ldak instanceof Map)) {
+            fail.call(analysis_id, 'ldak', 'expected an option object')
+        }
+        def accepted_ldak = [
+            'model',
+            'power',
+            'weights_policy',
+            'weights',
+            'relatedness_filter',
+            'kvik_step1_subset',
+            'predictor_extract',
+        ]
+        def unknown_ldak = ldak.keySet().findAll { option -> !(option in accepted_ldak) }
+        if (unknown_ldak) {
+            def option = unknown_ldak.first()
+            def reason = option in ['threads', 'jobs', 'partitions']
+                ? 'operational tuning must be supplied through run/profile configuration'
+                : "unknown option; accepted LDAK options are ${accepted_ldak.join(', ')}"
+            fail.call(analysis_id, "ldak.${option}", reason)
+        }
+
+        def accepted_gcta = [
+            'grm_maf',
+            'grm_extract',
+            'reml_no_constrain',
+            'sparse_cutoff',
+            'ld_score_region_kb',
+            'ld_bins',
+            'ldms_maf_edges',
+        ]
+        def unknown_gcta = gcta.keySet().findAll { option -> !(option in accepted_gcta) }
+        if (unknown_gcta) {
+            def option = unknown_gcta.first()
+            def reason = option == 'gcta_grm_parts'
+                ? 'partition count is operational and must be supplied through run/profile configuration'
+                : "unknown option; accepted GCTA options are ${accepted_gcta.join(', ')}"
+            fail.call(analysis_id, "gcta.${option}", reason)
+        }
+
+        def methods = analyses[analysis_id]
+        def selects_gcta = methods.association_methods.contains('gcta_fastgwa') ||
+            methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }
+        if (gcta && !selects_gcta) {
+            fail.call(analysis_id, "gcta.${gcta.keySet().first()}", 'analysis does not select a GCTA method')
+        }
+        if (gcta.containsKey('reml_no_constrain') &&
+            !methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }) {
+            fail.call(analysis_id, 'gcta.reml_no_constrain', "option is consumed by GCTA GREML estimators only, but this analysis selects neither 'gcta_greml' nor 'gcta_greml_ldms'")
+        }
+        ['grm_maf', 'grm_extract'].each { option ->
+            if (gcta.containsKey(option) && !methods.heritability_methods.contains('gcta_greml')) {
+                fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml' only, which this analysis does not select")
+            }
+        }
+        if (gcta.containsKey('sparse_cutoff') && !methods.association_methods.contains('gcta_fastgwa')) {
+            fail.call(analysis_id, 'gcta.sparse_cutoff', "option is consumed by 'gcta_fastgwa' only, which this analysis does not select")
+        }
+        ['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges'].each { option ->
+            if (gcta.containsKey(option) && !methods.heritability_methods.contains('gcta_greml_ldms')) {
+                fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml_ldms' only, which this analysis does not select")
+            }
+        }
+
+        def grm_maf = gcta.containsKey('grm_maf') ? gcta.grm_maf : null
+        if (grm_maf != null && (!(grm_maf instanceof Number) || grm_maf < 0 || grm_maf > 0.5)) {
+            fail.call(analysis_id, 'gcta.grm_maf', 'expected a number between 0 and 0.5 inclusive')
+        }
+        def sparse_cutoff = gcta.containsKey('sparse_cutoff') ? gcta.sparse_cutoff : 0.05
+        if (!(sparse_cutoff instanceof Number) || sparse_cutoff < 0 || sparse_cutoff > 1) {
+            fail.call(analysis_id, 'gcta.sparse_cutoff', 'expected a number between 0 and 1 inclusive')
+        }
+        def ld_score_region_kb = gcta.containsKey('ld_score_region_kb') ? gcta.ld_score_region_kb : 200
+        if (!(ld_score_region_kb instanceof Number) || ld_score_region_kb < 1 || ld_score_region_kb != ld_score_region_kb.toInteger()) {
+            fail.call(analysis_id, 'gcta.ld_score_region_kb', 'expected one positive integer')
+        }
+        def ld_bins = gcta.containsKey('ld_bins') ? gcta.ld_bins : 4
+        if (!(ld_bins instanceof Number) || ld_bins < 1 || ld_bins != ld_bins.toInteger()) {
+            fail.call(analysis_id, 'gcta.ld_bins', 'expected one positive integer')
+        }
+        def ldms_maf_edges = gcta.containsKey('ldms_maf_edges') ? gcta.ldms_maf_edges : [0, 0.01, 0.05, 0.2, 0.5]
+        if (!(ldms_maf_edges instanceof List) || ldms_maf_edges.size() < 2 || !ldms_maf_edges.every { edge -> edge instanceof Number && edge >= 0 && edge <= 0.5 }) {
+            fail.call(analysis_id, 'gcta.ldms_maf_edges', 'expected a numeric boundary list spanning 0 to 0.5')
+        }
+        if (ldms_maf_edges.first() != 0 || ldms_maf_edges.last() != 0.5) {
+            fail.call(analysis_id, 'gcta.ldms_maf_edges', 'boundaries must start at 0 and end at 0.5')
+        }
+        if ((1..<ldms_maf_edges.size()).any { index -> ldms_maf_edges[index] <= ldms_maf_edges[index - 1] }) {
+            fail.call(analysis_id, 'gcta.ldms_maf_edges', 'boundaries must be strictly increasing')
+        }
+        def reml_no_constrain = gcta.containsKey('reml_no_constrain') ? gcta.reml_no_constrain : false
+        if (!(reml_no_constrain instanceof Boolean)) {
+            fail.call(analysis_id, 'gcta.reml_no_constrain', 'expected a boolean')
+        }
+        def grm_extract = []
+        if (gcta.containsKey('grm_extract')) {
+            if (!(gcta.grm_extract instanceof String) || !gcta.grm_extract.trim()) {
+                fail.call(analysis_id, 'gcta.grm_extract', 'expected a non-empty resource path string')
+            }
+            grm_extract = file(gcta.grm_extract)
+            if (!grm_extract.exists()) {
+                fail.call(analysis_id, 'gcta.grm_extract', "resource path '${gcta.grm_extract}' does not exist")
+            }
+        }
+
+        def model = ldak.containsKey('model') ? ldak.model : 'human_default'
+        if (!(model in ['human_default', 'custom'])) {
+            fail.call(analysis_id, 'ldak.model', "expected 'human_default' or 'custom'")
+        }
+        def power = ldak.containsKey('power') ? ldak.power : -0.25
+        if (!(power instanceof Number) || power < -2 || power > 0) {
+            fail.call(analysis_id, 'ldak.power', 'expected a number between -2 and 0 inclusive')
+        }
+        if (model == 'human_default' && power != -0.25) {
+            fail.call(analysis_id, 'ldak.power', "model 'human_default' fixes power at -0.25; set model to 'custom' to supply another power")
+        }
+        def weights_policy = ldak.containsKey('weights_policy') ? ldak.weights_policy : 'equal'
+        if (!(weights_policy in ['equal', 'default', 'provided'])) {
+            fail.call(analysis_id, 'ldak.weights_policy', "expected 'equal', 'default' or 'provided'")
+        }
+        if (ldak.containsKey('weights') && weights_policy != 'provided') {
+            fail.call(analysis_id, 'ldak.weights', "resource is only accepted when weights_policy is 'provided', got '${weights_policy}'")
+        }
+        if (weights_policy == 'provided' && !ldak.containsKey('weights')) {
+            fail.call(analysis_id, 'ldak.weights', "weights_policy is 'provided' but no resource is supplied")
+        }
+        def weights = []
+        if (ldak.containsKey('weights')) {
+            if (!(ldak.weights instanceof String) || !ldak.weights.trim()) {
+                fail.call(analysis_id, 'ldak.weights', 'expected a non-empty resource path string')
+            }
+            weights = file(ldak.weights)
+            if (!weights.exists()) {
+                fail.call(analysis_id, 'ldak.weights', "resource path '${ldak.weights}' does not exist")
+            }
+        }
+        def relatedness_filter = ldak.containsKey('relatedness_filter') ? ldak.relatedness_filter : false
+        if (!(relatedness_filter instanceof Boolean)) {
+            fail.call(analysis_id, 'ldak.relatedness_filter', 'expected a boolean')
+        }
+        def kvik_step1_subset = ldak.containsKey('kvik_step1_subset') ? ldak.kvik_step1_subset : 'all'
+        if (!(kvik_step1_subset in ['all', 'thin_common', 'provided'])) {
+            fail.call(analysis_id, 'ldak.kvik_step1_subset', "expected 'all', 'thin_common' or 'provided'")
+        }
+        if (ldak.containsKey('predictor_extract') && kvik_step1_subset != 'provided') {
+            fail.call(analysis_id, 'ldak.predictor_extract', "resource is only accepted when kvik_step1_subset is 'provided', got '${kvik_step1_subset}'")
+        }
+        if (kvik_step1_subset == 'provided' && !ldak.containsKey('predictor_extract')) {
+            fail.call(analysis_id, 'ldak.predictor_extract', "kvik_step1_subset is 'provided' but no resource is supplied")
+        }
+        def predictor_extract = []
+        if (ldak.containsKey('predictor_extract')) {
+            if (!(ldak.predictor_extract instanceof String) || !ldak.predictor_extract.trim()) {
+                fail.call(analysis_id, 'ldak.predictor_extract', 'expected a non-empty resource path string')
+            }
+            predictor_extract = file(ldak.predictor_extract)
+            if (!predictor_extract.exists()) {
+                fail.call(analysis_id, 'ldak.predictor_extract', "resource path '${ldak.predictor_extract}' does not exist")
+            }
+        }
+        def selects_ldak_kinship = methods.heritability_methods.any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] }
+        def selects_ldak_kvik = methods.association_methods.contains('ldak_kvik')
+        if (ldak && !selects_ldak_kinship && !selects_ldak_kvik) {
+            fail.call(analysis_id, "ldak.${ldak.keySet().first()}", 'analysis does not select an LDAK method')
+        }
+        if (ldak.containsKey('weights') && !selects_ldak_kinship) {
+            fail.call(analysis_id, 'ldak.weights', 'resource is consumed by LDAK kinship methods only, which this analysis does not select')
+        }
+        ['model', 'power', 'weights_policy', 'relatedness_filter'].each { option ->
+            if (ldak.containsKey(option) && !selects_ldak_kinship) {
+                fail.call(analysis_id, "ldak.${option}", 'option is consumed by LDAK kinship methods only, which this analysis does not select')
+            }
+        }
+        ['kvik_step1_subset', 'predictor_extract'].each { option ->
+            if (ldak.containsKey(option) && !selects_ldak_kvik) {
+                fail.call(analysis_id, "ldak.${option}", "option is consumed by 'ldak_kvik' only, which this analysis does not select")
+            }
+        }
+
+
+        resolved[analysis_id] = [
+            gcta: [
+                grm_maf: grm_maf,
+                grm_extract: grm_extract,
+                reml_no_constrain: reml_no_constrain,
+                sparse_cutoff: sparse_cutoff,
+                ld_score_region_kb: ld_score_region_kb,
+                ld_bins: ld_bins,
+                ldms_maf_edges: ldms_maf_edges,
+            ],
+            ldak: [
+                model: model,
+                power: power,
+                weights_policy: weights_policy,
+                weights: weights,
+                relatedness_filter: relatedness_filter,
+                kvik_step1_subset: kvik_step1_subset,
+                predictor_extract: predictor_extract,
+            ],
+        ]
+    }
+    return resolved
 }
 
 //
-// Validate the samplesheet beyond what the per-row JSON Schema can express, and reshape each row
-// into `[ meta, genotype_files, phenotype, quant_covariates, cat_covariates,
-// ldak_kvik_step1_extract, ldak_weights ]`.
+// Validate the linked manifests as whole lists, join cohort-owned facts to every analysis through
+// cohort_id, and build the canonical tuple consumed by GWAS. The maps retain the first occurrence
+// only long enough to diagnose later duplicates; any error aborts before the list becomes a channel.
 //
-// Every error names the samplesheet row it came from and the column, or set of columns, it is
-// about, so a large samplesheet can be fixed without bisecting it. All errors are collected and
-// reported together rather than failing on the first one. Note that nf-schema numbers data rows
-// from 1 as "Entry N" while this pass counts the header as row 1, so its first data row is row 2.
-//
-// The rules themselves live in the helpers above, one job each; this reads the row, hands each
-// helper what it needs, and reshapes what survives.
-//
-def validateInputSamplesheet(rows, samplesheet, schema) {
-    def positional_columns = samplesheetPositionalColumns(schema)
-    def groups = genotypeGroups()
+def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysis_manifest, cohort_schema, analysis_schema, method_options = null) {
+    def cohort_columns = samplesheetPositionalColumns(cohort_schema)
+    def analysis_columns = samplesheetPositionalColumns(analysis_schema)
 
     def errors = []
+    def cohorts_by_id = [:]
     def line_by_analysis_id = [:]
-    def source_by_cohort_id = [:]
     def validated_rows = []
+    def method_options_by_analysis = validateMethodOptions(method_options, analysis_rows)
 
-    rows.eachWithIndex { row, index ->
-        // The header occupies line 1, so the first data row is line 2.
+    cohort_rows.eachWithIndex { row, index ->
         def line = index + 2
-        def meta = row[0]
-        def cells = [positional_columns, row[1..-1]].transpose().collectEntries()
-
-        // A rule that no single column owns names every column it implicates, rather than picking
-        // one of them and leaving the reader to guess why. The helpers below invoke this as
-        // `reject.call(...)`: `nextflow lint` does not model a closure passed as an argument and
-        // reports bare call syntax as an undefined function.
-        def reject = { column, message ->
-            def named = column instanceof List ? column : [column]
+        def cohort_meta = row[0]
+        def cells = [cohort_columns, row[1..-1]].transpose().collectEntries()
+        def cohort_id = cohort_meta.cohort
+        def reject = { field, message ->
+            def named = field instanceof List ? field : [field]
             def label = named.size() > 1
-                ? "columns ${named.collect { name -> "'${name}'" }.join(', ')}"
-                : "column '${named.first()}'"
-            errors << "  - row ${line} (analysis_id '${meta.id}'), ${label}: ${message}"
+                ? "fields ${named.collect { name -> "'${name}'" }.join(', ')}"
+                : "field '${named.first()}'"
+            errors << "  - ${cohort_manifest} row ${line} (cohort_id '${cohort_id}'), ${label}: ${message}"
         }
 
-        //
-        // Cross-row: `analysis_id` is the focal identifier of every output path, so two rows
-        // sharing one would overwrite each other's results.
-        //
-        if (line_by_analysis_id.containsKey(meta.id)) {
-            reject.call('analysis_id', "duplicate analysis_id, already declared on row ${line_by_analysis_id[meta.id]}")
+        def genotype_format = validateGenotypeGroup(cells, reject)
+        def genotype_files = genotype_format
+            ? genotypeGroups()[genotype_format].collect { column -> cells[column] }
+            : []
+        def definition = [
+            genome_build: cohort_meta.build,
+            ancestry: cohort_meta.ancestry,
+        ] + genotypeGroups()
+            .values()
+            .flatten()
+            .collectEntries { field -> [(field): cellValue(cells[field])?.toString() ?: ''] }
+        def known = cohorts_by_id[cohort_id]
+
+        if (known) {
+            if (known.definition == definition) {
+                reject.call('cohort_id', "duplicate cohort_id '${cohort_id}', identical definition on row ${known.line}")
+            }
+            else {
+                def differing_fields = definition.keySet().findAll { field -> known.definition[field] != definition[field] }
+                reject.call('cohort_id', "duplicate cohort_id '${cohort_id}' conflicts with row ${known.line} in field${differing_fields.size() > 1 ? 's' : ''} ${differing_fields.collect { field -> "'${field}'" }.join(', ')}")
+            }
         }
         else {
-            line_by_analysis_id[meta.id] = line
+            cohorts_by_id[cohort_id] = [
+                line: line,
+                meta: cohort_meta,
+                genotype_format: genotype_format,
+                genotype_files: genotype_files,
+                definition: definition,
+            ]
+        }
+    }
+
+    analysis_rows.eachWithIndex { row, index ->
+        def line = index + 2
+        def analysis_meta = row[0]
+        def cells = [analysis_columns, row[1..-1]].transpose().collectEntries()
+        def analysis_id = analysis_meta.id
+        def cohort_id = analysis_meta.cohort
+
+        def reject = { field, message ->
+            def named = field instanceof List ? field : [field]
+            def label = named.size() > 1
+                ? "fields ${named.collect { name -> "'${name}'" }.join(', ')}"
+                : "field '${named.first()}'"
+            errors << "  - ${analysis_manifest} row ${line} (analysis_id '${analysis_id}'), ${label}: ${message}"
         }
 
-        def association_methods = tokenizeMethodSelector(meta.association_methods)
-        def heritability_methods = tokenizeMethodSelector(meta.heritability_methods)
+        if (line_by_analysis_id.containsKey(analysis_id)) {
+            reject.call('analysis_id', "duplicate analysis_id '${analysis_id}', already declared on row ${line_by_analysis_id[analysis_id]}")
+        }
+        else {
+            line_by_analysis_id[analysis_id] = line
+        }
+
+        def cohort = cohorts_by_id[cohort_id]
+        if (!cohort) {
+            reject.call('cohort_id', "undefined cohort_id '${cohort_id}', not declared in cohort manifest '${cohort_manifest}'")
+        }
+
+        def association_methods = tokenizeMethodSelector(analysis_meta.association_methods)
+        def heritability_methods = tokenizeMethodSelector(analysis_meta.heritability_methods)
         validateMethodSelectors(association_methods, heritability_methods, reject)
 
         def routes = methodRoutes(association_methods, heritability_methods)
-        def settings = rowSettings(meta, cells)
-
-        def genotype_format = validateGenotypeGroup(cells, reject)
-        def genotype_files = genotype_format ? groups[genotype_format].collect { column -> cells[column] } : []
-        checkCohortGenotypesAgree(meta.cohort, line, genotype_format, genotype_files, source_by_cohort_id, reject)
-
-        def is_binary = meta.trait_type == 'binary'
+        def settings = analysisSettings(analysis_meta)
+        def is_binary = analysis_meta.trait_type == 'binary'
         validateTraitColumns(is_binary, settings, reject)
-        validateMethodConditionedColumns(settings, cells, routes, reject)
-        def parsed_maf_edges = parseMafEdges(settings.gcta_ldms_maf_edges, reject)
+        validateMethodConditionedColumns(settings, routes, reject)
 
-        validated_rows << [
-            meta + [
-                association_methods: association_methods,
-                heritability_methods: heritability_methods,
-                genotype_format: genotype_format,
-                is_binary: is_binary,
-                has_covariates: cells.quant_covariates || cells.cat_covariates ? true : false,
-                case_value: settings.case_value == null ? null : settings.case_value.toString(),
-                control_value: settings.control_value == null ? null : settings.control_value.toString(),
-                population_prevalence: settings.population_prevalence,
-                sample_prevalence: settings.sample_prevalence,
-                ldak_model: settings.ldak_model,
-                ldak_power: settings.ldak_power,
-                ldak_weights_mode: settings.ldak_weights_mode,
-                ldak_relatedness_filter: settings.ldak_relatedness_filter,
-                ldak_kvik_step1_subset: settings.ldak_kvik_step1_subset,
-                gcta_grm_parts: settings.gcta_grm_parts,
-                gcta_sparse_cutoff: settings.gcta_sparse_cutoff,
-                gcta_ld_score_region_kb: settings.gcta_ld_score_region_kb,
-                gcta_ld_bins: settings.gcta_ld_bins,
-                gcta_ldms_maf_edges: parsed_maf_edges,
-            ],
-            genotype_files,
-            cells.phenotype,
-            cells.quant_covariates,
-            cells.cat_covariates,
-            cells.ldak_kvik_step1_extract,
-            cells.ldak_weights,
-        ]
+        if (cohort) {
+            validated_rows << [
+                analysis_meta + [
+                    build: cohort.meta.build,
+                    ancestry: cohort.meta.ancestry,
+                    association_methods: association_methods,
+                    heritability_methods: heritability_methods,
+                    genotype_format: cohort.genotype_format,
+                    is_binary: is_binary,
+                    has_covariates: cells.quant_covariates || cells.cat_covariates ? true : false,
+                    case_value: settings.case_value == null ? null : settings.case_value.toString(),
+                    control_value: settings.control_value == null ? null : settings.control_value.toString(),
+                    population_prevalence: settings.population_prevalence,
+                    method_options: method_options_by_analysis[analysis_id],
+                ],
+                cohort.genotype_files,
+                cells.phenotype,
+                cells.quant_covariates,
+                cells.cat_covariates,
+                method_options_by_analysis[analysis_id].ldak.predictor_extract,
+                method_options_by_analysis[analysis_id].ldak.weights,
+            ]
+        }
     }
 
     if (errors) {
-        error("[nf-core/gwas] ERROR: Validation of samplesheet failed!\n\nThe following problems have been detected in ${samplesheet}:\n\n${errors.join('\n')}\n")
+        error("[nf-core/gwas] ERROR: Validation of linked manifests failed!\n\n${errors.join('\n')}\n")
     }
 
     return validated_rows
 }
+
 
 //
 // Generate methods description for MultiQC

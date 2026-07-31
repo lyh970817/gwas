@@ -202,8 +202,8 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   to the four template groups and none to its ten own groups; sarek is the model here.
 - **[MUST]** Every `description` is a capitalised sentence ending in a period. mag violates this in 45 of
   173 descriptions — treat it as a checkable rule, not a suggestion.
-- **[MUST]** Only `input_output_options` declares a group-level `required` array (`["input", "outdir"]`).
-  _(all three)_
+- **[MUST]** Only `input_output_options` declares a group-level `required` array
+  (`["cohort_manifest", "analysis_manifest", "outdir"]`).
 - **[MUST]** `hidden: true` is reserved for `institutional_config_options` and `generic_options`
   boilerplate, plus at most one or two genuinely internal knobs. Never on a user-facing scientific or
   tool parameter, and never on `help`, `help_full`, `show_hidden`, `multiqc_title`, or
@@ -214,9 +214,10 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   `input_output_options` first, `reference_genome_options` early, `institutional_config_options` and
   `generic_options` last, pipeline-stage groups in between.
 - Note: none of the three encodes cross-parameter conditional logic (`if`/`then`, `dependentRequired`) in
-  `nextflow_schema.json` — that lives in runtime validation. Only the samplesheet schema uses it.
+  `nextflow_schema.json` — that lives in runtime validation. Input-manifest schemas use it only for
+  relationships local to one row.
 
-## 7. `assets/schema_input.json`
+## 7. `assets/schema_*_manifest.json`
 
 - **[MUST]** `meta` is always an **array**, even for a single field: `"meta": ["id"]`. rnaseq has one
   bare-string `"meta": "percent_mapped"` and it is a copy-paste defect. _(all three otherwise)_
@@ -236,9 +237,9 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 - **[MUST]** Every property carries a specific, human-readable `errorMessage` quoting the allowed values or
   extensions. mag omits it on two columns and those are the ones that produce unhelpful failures.
 - **[MUST]** Every file-referencing column has `"format": "file-path"` and `"exists": true`. _(all three)_
-- **[MUST]** Each schema file's `$id` and `title` match its own filename and purpose. mag's
-  `schema_assembly_input.json` copies both verbatim from `schema_input.json` — check this explicitly
-  whenever more than one `assets/*.json` schema exists.
+- **[MUST]** Each manifest schema's `$id` and `title` match its own filename and entity role. mag's
+  `schema_assembly_input.json` copies both verbatim from another schema — check this explicitly whenever
+  more than one `assets/*.json` schema exists.
 - **[MUST]** Use `enum` for a closed vocabulary, not an unanchored `pattern`. mag's `assembler` column uses
   a bare alternation regex with no `^`/`$` anchors where an `enum` was correct.
 - **[SHOULD]** `dependentRequired` for "column A requires column B"; `anyOf` for "at least one input family

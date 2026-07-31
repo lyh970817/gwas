@@ -26,6 +26,7 @@ Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) t
 
 - PLINK 2 `--glm` now requests `cols=+a1freq,+beta`, so the binary route reports `BETA`/`SE` instead of `OR`/`LOG(OR)_SE` and one GWASLab column mapping serves both trait types — otherwise the harmonised binary file would carry an odds ratio where every other method carries a log-odds beta. Native output is still published exactly as PLINK 2 wrote it; only the columns PLINK 2 is asked for changed, and the quantitative route is unaffected.
 - Replaced the monolithic `conf/modules.config` with one configuration file per method family under `conf/modules/`, included by name from `nextflow.config`, so a later route ticket adds a file rather than editing a shared one. The process-wide default publish directive — which publishes nothing — now lives in `nextflow.config` itself. `docs/coding-standards/configuration-and-schema.md` §4 and the `.nf-core.yml` lint exemptions were amended in the same change.
+- Replaced the monolithic 35-column `--input` samplesheet with linked `--cohort_manifest` and `--analysis_manifest` inputs plus optional per-analysis `--method_options`. All association and heritability routes now share the relational contract, genotype preparation is cohort-owned and deduplicated, matrix and prediction reuse identities include their scientific inputs, and portable relational examples and test profiles replace the retired monolithic fixtures.
 
 ### `Fixed`
 

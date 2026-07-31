@@ -47,8 +47,8 @@ nextflow_pipeline {
     ]
 
     // Each scenario loads its same-named registered profile config directly because nf-test 0.9.3
-    // exposes profile selection only at suite scope. The configs own immutable 35-column inputs and
-    // the deterministic seed; `outdir` remains the only parameter assigned in a test body.
+    // exposes profile selection only at suite scope. Registered profiles materialise immutable linked
+    // manifests and method options; `outdir` remains the only parameter assigned in a test body.
     execution_modes.each { mode ->
         test("the all-predictors policy runs KVIK and harmonises its native result${mode.suffix}") {
 
@@ -210,7 +210,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
-                        { assert step1.contains('--extract example_vcf_qt.ldak_kvik.step1.in') },
+                        { assert step1 =~ /--extract example_vcf\.ldak_kvik\.[0-9a-f]+\.ldak_kvik\.step1\.in/ },
                         { assert native_result.exists() },
                         { assert harmonised_result.exists() },
                         { assert snapshot(stable_name_native, stable_path_native).match('thin-common-native') },

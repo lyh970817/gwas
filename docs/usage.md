@@ -6,88 +6,131 @@
 
 ## Introduction
 
-nf-core/gwas runs association and individual-level heritability analyses from prepared human genotypes, phenotypes and optional covariates. One samplesheet row is one analysis unit: one cohort paired with one trait. A row can fan out to several methods, while genotype preparation and relatedness matrices are reused where their inputs and construction settings agree.
+nf-core/gwas runs association and individual-level heritability analyses from prepared human genotypes,
+phenotypes and optional covariates. A cohort manifest owns genotype facts; an analysis manifest links
+each trait analysis to one cohort and selects its methods.
 
 > [!IMPORTANT]
-> Genotypes must be prepared before you run the pipeline. In particular, sample and variant identifiers, alleles, coordinates, genome build, missingness, call quality, frequency filters and population selection must already be suitable for analysis. The pipeline converts accepted genotype encodings into the formats required by its methods, but it does not perform genotype quality control.
+> Genotypes must be prepared before you run the pipeline. The pipeline converts accepted genotype
+> encodings into the formats required by its methods, but it does not perform genotype quality control.
 
-## Samplesheet input
+## Linked manifest input
 
-Pass a comma-separated samplesheet to `--input`:
+Every run requires both linked CSV manifests:
 
 ```bash
---input ./samplesheet.csv
+nextflow run nf-core/gwas \
+    -r <VERSION> \
+    -profile docker \
+    --cohort_manifest ./cohorts.csv \
+    --analysis_manifest ./analyses.csv \
+    --outdir ./results
 ```
 
-The header must contain all 35 columns below. Column order is not significant, but every header is mandatory even when its cells are optional; leave an unused cell empty. File paths may be local paths or remote URLs accepted by Nextflow. When a selector contains several methods, quote the comma-delimited CSV cell.
+The cohort manifest owns reusable genotype facts. The analysis manifest owns one cohort–trait analysis and joins to exactly one cohort through `cohort_id`. Each `cohort_id` has one non-conflicting definition; each `analysis_id` is unique; and every analysis references a declared cohort. Cohort preparation and compatible matrices or predictions are reused, while outputs retain `analysis_id`.
 
-Supply exactly one complete genotype encoding per row:
+### Cohort manifest fields
 
-- PLINK 2: populate `pgen`, `psam` and `pvar`.
-- PLINK 1: populate `bed`, `bim` and `fam`.
-- VCF: populate `vcf`; `vcf_index` is optional and is currently declared for completeness but not consumed by conversion.
+| Column         | Required | Description                                                                                                                                             |
+| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cohort_id`    | Yes      | Unique, whitespace-free cohort identifier and analysis-manifest foreign key.                                                                            |
+| `genome_build` | Yes      | `GRCh37` or `GRCh38`; selects build-specific harmonisation resources.                                                                                    |
+| `ancestry`     | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`.                                 |
+| `pgen`         | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                                                    |
+| `psam`         | By group | PLINK 2 sample file.                                                                                                                                     |
+| `pvar`         | By group | PLINK 2 variant file ending in `.pvar` or `.pvar.zst`.                                                                                                   |
+| `bed`          | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                                                       |
+| `bim`          | By group | PLINK 1 variant file.                                                                                                                                    |
+| `fam`          | By group | PLINK 1 sample file.                                                                                                                                     |
+| `vcf`          | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                                                             |
 
-Do not populate fields from two genotype groups on the same row, and do not provide only part of a three-file PLINK bundle. Rows sharing a `cohort_id` must describe the same genotype source.
+Populate exactly one complete genotype representation on each row. PLINK 1 and VCF cohorts are converted once to canonical PLINK 2; PLINK 2 cohorts pass through.
 
-A quantitative-trait analysis using PLINK 2 input may look like this:
+### Analysis manifest fields
 
-```csv title="samplesheet.csv"
-analysis_id,cohort_id,trait_id,trait_type,genome_build,ancestry,pgen,psam,pvar,bed,bim,fam,vcf,vcf_index,phenotype,phenotype_column,control_value,case_value,quant_covariates,cat_covariates,association_methods,heritability_methods,population_prevalence,sample_prevalence,ldak_model,ldak_power,ldak_weights,ldak_relatedness_filter,ldak_kvik_step1_subset,ldak_kvik_step1_extract,gcta_grm_parts,gcta_sparse_cutoff,gcta_ld_score_region_kb,gcta_ld_bins,gcta_ldms_maf_edges
-example_pgen_qt,example_pgen,QT,quantitative,GRCh37,EUR,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pgen,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.psam,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pvar,,,,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno,QT,,,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar,https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar,plink2,gcta_greml,,,,,,,,,1,,,,
+| Column                  | Required | Description                                                                                                                                                                               |
+| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `analysis_id`           | Yes      | Unique, whitespace-free result identifier.                                                                                                                                                |
+| `cohort_id`             | Yes      | A `cohort_id` declared in the cohort manifest.                                                                                                                                            |
+| `trait_id`              | Yes      | Whitespace-free trait identifier retained in provenance.                                                                                                                                  |
+| `trait_type`            | Yes      | `quantitative` or `binary`; never inferred from values.                                                                                                                                    |
+| `phenotype`             | Yes      | Existing headered phenotype file containing the selected trait.                                                                                                                            |
+| `phenotype_column`      | Yes      | Header name of the selected trait column.                                                                                                                                                  |
+| `control_value`         | Binary   | Source value recoded to `0`; required for binary traits, forbidden for quantitative traits, and distinct from `case_value`.                                                                |
+| `case_value`            | Binary   | Source value recoded to `1`; required for binary traits and forbidden for quantitative traits.                                                                                             |
+| `quant_covariates`      | No       | Existing headered quantitative-covariate file.                                                                                                                                             |
+| `cat_covariates`        | No       | Existing headered categorical-covariate file.                                                                                                                                              |
+| `association_methods`   | By row   | Optional comma-delimited selector: `plink2`, `regenie`, `gcta_fastgwa`, or `ldak_kvik`.                                                                                                    |
+| `heritability_methods`  | By row   | Optional comma-delimited selector: `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, or `ldak_pcgc`.                                                                               |
+| `population_prevalence` | By route | Number strictly between `0` and `1`; valid only for binary heritability analyses and required by `ldak_pcgc`.                                                                               |
+
+At least one method selector must be populated. Tokens are comma-delimited without spaces and may appear only once. Association-only and heritability-only rows are both valid.
+
+### Runnable examples
+
+[`assets/examples/relational/cohort_manifest.csv`](../assets/examples/relational/cohort_manifest.csv) is shared by the [minimal quantitative](../assets/examples/relational/analysis_manifest_quantitative.csv), [minimal binary](../assets/examples/relational/analysis_manifest_binary.csv), [association-only](../assets/examples/relational/analysis_manifest_association_only.csv), and [heritability-only](../assets/examples/relational/analysis_manifest_heritability_only.csv) examples. They use standard defaults and do not need `--method_options`.
+
+```bash
+nextflow run nf-core/gwas \
+    -r <VERSION> \
+    -profile docker \
+    --cohort_manifest assets/examples/relational/cohort_manifest.csv \
+    --analysis_manifest assets/examples/relational/analysis_manifest_quantitative.csv \
+    --outdir results
 ```
 
-| Column                    | Description                                                                                                                                                                                                      |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `analysis_id`             | Required unique, whitespace-free identifier for this analysis unit. It is the focal identifier in result paths and filenames.                                                                                    |
-| `cohort_id`               | Required whitespace-free cohort identifier. Several trait rows may share it, but all such rows must declare the same genotype source.                                                                            |
-| `trait_id`                | Required whitespace-free trait identifier.                                                                                                                                                                       |
-| `trait_type`              | Required trait type: `quantitative` or `binary`. The pipeline never infers this from phenotype values or prevalence.                                                                                             |
-| `genome_build`            | Required genotype coordinate system: `GRCh37` or `GRCh38`. It selects any build-specific GWASLab reference resources.                                                                                            |
-| `ancestry`                | Optional case-sensitive ancestry label containing letters, digits, underscores, dots or dashes. It is carried in analysis metadata for provenance.                                                               |
-| `pgen`                    | PLINK 2 genotype file ending in `.pgen`; populate with `psam` and `pvar` only.                                                                                                                                   |
-| `psam`                    | PLINK 2 sample file ending in `.psam`; populate with `pgen` and `pvar` only.                                                                                                                                     |
-| `pvar`                    | PLINK 2 variant file ending in `.pvar` or `.pvar.zst`; populate with `pgen` and `psam` only.                                                                                                                     |
-| `bed`                     | PLINK 1 genotype file ending in `.bed`; populate with `bim` and `fam` only.                                                                                                                                      |
-| `bim`                     | PLINK 1 variant file ending in `.bim`; populate with `bed` and `fam` only.                                                                                                                                       |
-| `fam`                     | PLINK 1 sample file ending in `.fam`; populate with `bed` and `bim` only.                                                                                                                                        |
-| `vcf`                     | VCF genotype file ending in `.vcf`, `.vcf.gz` or `.vcf.bgz`; leave both PLINK groups empty. The pipeline converts it once per cohort.                                                                            |
-| `vcf_index`               | Optional `.tbi` or `.csi` index for `vcf`. It is validated if supplied, but the current VCF converter does not consume it.                                                                                       |
-| `phenotype`               | Required headered phenotype file containing the selected trait. The first two columns must identify family and individual consistently with the genotype sample file.                                            |
-| `phenotype_column`        | Required name of the trait column in `phenotype`, even when that file contains only one trait.                                                                                                                   |
-| `control_value`           | Source value representing controls. Required for `binary` rows and rejected for `quantitative` rows; numeric and text tokens are accepted.                                                                       |
-| `case_value`              | Source value representing cases. Required for `binary` rows and rejected for `quantitative` rows; numeric and text tokens are accepted.                                                                          |
-| `quant_covariates`        | Optional headered file of prepared quantitative covariates.                                                                                                                                                      |
-| `cat_covariates`          | Optional headered file of prepared categorical covariates. Use non-numeric labels for categorical levels with more than two categories so downstream tools cannot interpret their codes as a quantitative scale. |
-| `association_methods`     | Optional comma-delimited list drawn from `plink2`, `regenie`, `gcta_fastgwa`, `ldak_kvik`. There is no run-wide default list.                                                                                    |
-| `heritability_methods`    | Optional comma-delimited list drawn from `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, `ldak_pcgc`. There is no run-wide default list.                                                                |
-| `population_prevalence`   | Optional population prevalence strictly between `0` and `1` for a binary-trait liability-scale estimate. It is always required by `ldak_pcgc` and rejected on quantitative rows.                                 |
-| `sample_prevalence`       | Optional analysed-sample case proportion strictly between `0` and `1`. Supply it only with `population_prevalence`. The current pipeline validates and carries it in analysis metadata but does not pass it to an estimator. |
-| `ldak_model`              | LDAK kinship model: `human_default` or `custom`. It defaults to `human_default`, the documented model for human data.                                                                                            |
-| `ldak_power`              | Predictor-variance power from `-2` to `0`. It defaults to `-0.25`, the documented human-model value; `human_default` requires this value, while `custom` lets you choose another.                                |
-| `ldak_weights`            | Optional LDAK predictor-weights file. An empty cell uses explicit equal weights so the weighting policy is deterministic rather than an implicit programme choice.                                               |
-| `ldak_relatedness_filter` | Boolean selecting an unrelated subset for this analysis's LDAK heritability estimator. It defaults to `false` so the declared analysis population is retained unless you request filtering.                      |
-| `ldak_kvik_step1_subset`  | Required with `ldak_kvik`: `all`, `thin_common` or `provided`. It has no default because predictor selection is a scientific choice.                                                                             |
-| `ldak_kvik_step1_extract` | Predictor list required only when `ldak_kvik_step1_subset` is `provided`.                                                                                                                                        |
-| `gcta_grm_parts`          | Positive integer number of parts for a GCTA relatedness-matrix build. It is required with every GCTA route and has no default because it is an explicit memory-control choice.                                   |
-| `gcta_sparse_cutoff`      | Relatedness cutoff for the sparse fastGWA-MLM matrix. It defaults to `0.05`, following the official GCTA fastGWA example.                                                                                        |
-| `gcta_ld_score_region_kb` | GREML-LDMS LD-score region width in kilobases. It defaults to `200`, following the official GCTA LDMS example.                                                                                                   |
-| `gcta_ld_bins`            | Number of GREML-LDMS individual-SNP LD-score strata. It defaults to `4`, which divides the scores into quartiles.                                                                                                |
-| `gcta_ldms_maf_edges`     | Semicolon-delimited, strictly increasing MAF interval boundaries required for `gcta_greml_ldms`. They must start at `0` and end at `0.5`; semicolons avoid conflicting with the commas used by method lists.     |
+The [heterogeneous multi-method manifest](../assets/examples/relational/analysis_manifest_heterogeneous.csv) pairs with [per-analysis GCTA and LDAK overrides](../assets/examples/relational/method_options_heterogeneous.json), including stageable resources:
 
-At least one of `association_methods` or `heritability_methods` must be non-empty. A method-specific field is accepted only when its corresponding method is selected.
+```bash
+nextflow run nf-core/gwas \
+    -r <VERSION> \
+    -profile docker \
+    --cohort_manifest assets/examples/relational/cohort_manifest.csv \
+    --analysis_manifest assets/examples/relational/analysis_manifest_heterogeneous.csv \
+    --method_options assets/examples/relational/method_options_heterogeneous.json \
+    --outdir results
+```
 
-An [example samplesheet](../assets/samplesheet.csv) containing all three genotype encodings is provided with the pipeline.
+### Advanced method options
+
+`--method_options` is optional. Its JSON root is keyed by `analysis_id`; each value may contain `gcta` and/or `ldak`. Unlisted analyses receive every default. Unknown analyses, families or options, invalid values, missing resources, and options whose consuming method is not selected are rejected before task submission.
+
+| GCTA option          | Type and default                       | Consumer and constraints                                                                                 |
+| -------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `grm_maf`            | Number or `null`; `null`                | Dense `gcta_greml` matrix filter; `0` to `0.5` inclusive when set.                                       |
+| `grm_extract`        | Resource path or absent; absent         | Predictor list staged for dense `gcta_greml` matrix construction.                                        |
+| `reml_no_constrain`  | Boolean; `false`                        | `gcta_greml` and `gcta_greml_ldms`; disables variance-component constraints.                             |
+| `sparse_cutoff`      | Number; `0.05`                          | `gcta_fastgwa` only; `0` to `1` inclusive.                                                               |
+| `ld_score_region_kb` | Positive integer; `200`                 | `gcta_greml_ldms` only; LD-score window in kilobases.                                                    |
+| `ld_bins`            | Positive integer; `4`                   | `gcta_greml_ldms` only; number of LD-score strata.                                                       |
+| `ldms_maf_edges`     | Number array; `[0,0.01,0.05,0.2,0.5]` | `gcta_greml_ldms` only; strictly increasing, at least two values, beginning at `0` and ending at `0.5`. |
+
+| LDAK option          | Type and default                    | Consumer and constraints                                                                                                                                      |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model`              | String; `human_default`             | Kinship routes; `human_default` or `custom`.                                                                                                                   |
+| `power`              | Number; `-0.25`                     | Kinship routes; `-2` to `0`. `human_default` fixes `-0.25`; select `custom` for another value.                                                                  |
+| `weights_policy`     | String; `equal`                     | Kinship routes; `equal` passes `--ignore-weights YES`, `default` retains native weighting, and `provided` requires `weights`.                                  |
+| `weights`            | Resource path or absent; absent     | Kinship routes (`ldak_reml`, `ldak_he`, `ldak_pcgc`); accepted exactly with `weights_policy: provided`.                                                        |
+| `relatedness_filter` | Boolean; `false`                    | Kinship routes; optionally derives an unrelated subset.                                                                                                       |
+| `kvik_step1_subset`  | String; `all`                       | `ldak_kvik` only; `all`, `thin_common`, or `provided`.                                                                                                         |
+| `predictor_extract`  | Resource path or absent; absent     | `ldak_kvik` only; required exactly with `kvik_step1_subset: provided`.                                                                                          |
+
+Resource paths are staged and their contents participate in matrix or prediction reuse identity. `gcta_grm_parts` is operational partitioning and remains configuration/profile-only, never a method option.
+
+The authoritative structural contracts are [`schema_cohort_manifest.json`](../assets/schema_cohort_manifest.json) and [`schema_analysis_manifest.json`](../assets/schema_analysis_manifest.json); relationship-, method-, trait- and resource-aware diagnostics come from the central preflight validator.
+
+### Validation diagnostics
+
+Structural failures name the manifest and invalid column. Cross-row preflight failures additionally name the CSV row and `cohort_id` or `analysis_id`: examples include an incomplete or second genotype group, conflicting duplicate cohorts, duplicate analyses, orphan `cohort_id` references, unknown or repeated method tokens, invalid binary coding, and route-inapplicable prevalence. Method-options failures name the JSON document, `analysis_id` and fully qualified option such as `gcta.sparse_cutoff` or `ldak.weights`; malformed JSON, unknown keys, invalid types/ranges and missing stageable resources all fail before task submission.
 
 ### Phenotype normalisation
 
-The pipeline normalises each selected phenotype to a common two-identifier-plus-trait layout. Binary source values matching `control_value` and `case_value` become `0` and `1`; missing values and unmatched binary values become `NA`. Quantitative values must be numeric. Quantitative and categorical covariates remain distinct for tools with separate native interfaces, and a merged covariate file is also prepared where required.
-
-> [!WARNING]
-> The two validation passes number samplesheet rows differently. nf-schema reports `Entry N`, counting data rows from 1; the pipeline preflight reports `row N`, counting the header as row 1. The same bad CSV line can therefore be reported as `Entry 3` and `row 4`. These messages point to the same data row.
+The pipeline normalises each selected phenotype to a common two-identifier-plus-trait layout. Binary
+source values matching `control_value` and `case_value` become `0` and `1`; missing values and unmatched
+binary values become `NA`. Quantitative values must be numeric. Quantitative and categorical covariates
+remain distinct for tools with separate native interfaces.
 
 ### Run-level defaults
-
-The samplesheet table records all row-level defaults and their rationales. The remaining scientific or storage-affecting run defaults are:
 
 | Parameter or behaviour                                                     | Default and rationale                                                                                                                                                                                                                                                                      |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -116,7 +159,8 @@ The typical command for running the pipeline is:
 nextflow run nf-core/gwas \
     -r <VERSION> \
     -profile docker \
-    --input ./samplesheet.csv \
+    --cohort_manifest ./cohorts.csv \
+    --analysis_manifest ./analyses.csv \
     --outdir ./results
 ```
 
@@ -137,7 +181,8 @@ nextflow run nf-core/gwas -r <VERSION> -profile docker -params-file params.yaml
 ```
 
 ```yaml title="params.yaml"
-input: "./samplesheet.csv"
+cohort_manifest: "./cohorts.csv"
+analysis_manifest: "./analyses.csv"
 outdir: "./results/"
 ```
 
@@ -156,7 +201,7 @@ nextflow pull nf-core/gwas
 
 ## Reproducibility
 
-Pin the release with `-r`, retain the exact samplesheet and parameter file, and archive `pipeline_info/` with your results. Reusing the same release, inputs and parameters also lets `-resume` recover cached tasks.
+Pin the release with `-r`, retain the exact cohort and analysis manifests, optional method-options document and parameter file, and archive `pipeline_info/` with your results. Reusing the same release, inputs and parameters also lets `-resume` recover cached tasks.
 
 Find release numbers on the [nf-core/gwas releases page](https://github.com/nf-core/gwas/releases). The run's pipeline and tool versions are recorded in the published reports described in [Pipeline information](output.md#pipeline-information).
 

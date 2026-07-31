@@ -455,57 +455,6 @@ nextflow_function {
         }
     }
 
-    test("omitted construction controls resolve to the documented first-release defaults") {
-
-        function "rowSettings"
-
-        when {
-            function {
-                """
-                input[0] = [:]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result.ldak_weights_mode == 'equal' },
-                { assert function.result.gcta_sparse_cutoff == 0.05 },
-                { assert function.result.gcta_ld_score_region_kb == 200 },
-                { assert function.result.gcta_ld_bins == 4 },
-            )
-        }
-    }
-
-    test("declared construction controls survive parsing without losing their value or weights mode") {
-
-        function "rowSettings"
-
-        when {
-            function {
-                """
-                input[0] = [
-                    gcta_sparse_cutoff: '0.0250',
-                    gcta_ld_score_region_kb: '500',
-                    gcta_ld_bins: '8',
-                ]
-                input[1] = [ldak_weights: file('cohort.weights')]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result.ldak_weights_mode == 'provided' },
-                { assert !function.result.containsKey('ldak_weights') },
-                { assert function.result.gcta_sparse_cutoff.toString() == '0.0250' },
-                { assert function.result.gcta_ld_score_region_kb.toString() == '500' },
-                { assert function.result.gcta_ld_bins.toString() == '8' },
-            )
-        }
-    }
 
     test("heritability selectors ask for their tool-specific relatedness matrices") {
 
@@ -573,7 +522,7 @@ nextflow_function {
         }
     }
 
-    test("GCTA LDMS and sparse construction settings are explicit key components") {
+    test("GCTA LDMS construction settings are explicit key components") {
 
         function "relatednessMatrixSettings"
 
@@ -582,10 +531,11 @@ nextflow_function {
                 """
                 input[0] = [
                     id: 'analysis',
-                    gcta_ld_score_region_kb: 100,
-                    gcta_ld_bins: 8,
-                    gcta_ldms_maf_edges: [0.0, 0.01, 0.05, 0.5],
-                    gcta_sparse_cutoff: 0.025,
+                    method_options: [gcta: [
+                        ld_score_region_kb: 100,
+                        ld_bins: 8,
+                        ldms_maf_edges: [0.0, 0.01, 0.05, 0.5],
+                    ]],
                 ]
                 input[1] = 'gcta_ldms'
                 """
@@ -604,7 +554,7 @@ nextflow_function {
         }
     }
 
-    test("LDAK kinship settings contain construction inputs but not the analysis filter") {
+    test("LDAK kinship settings include a requested analysis filter") {
 
         function "relatednessMatrixSettings"
 
@@ -613,9 +563,14 @@ nextflow_function {
                 """
                 input[0] = [
                     id: 'example_pgen_bt',
-                    ldak_model: 'human_default',
-                    ldak_power: -0.25,
-                    ldak_relatedness_filter: true,
+                    method_options: [
+                        gcta: [:],
+                        ldak: [
+                            model: 'human_default',
+                            power: -0.25,
+                            relatedness_filter: true,
+                        ],
+                    ],
                 ]
                 input[1] = 'ldak_kinship'
                 """
@@ -625,8 +580,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == [model: 'human_default', power: -0.25, weights: [mode: 'equal']] },
-                { assert !function.result.containsKey('relatedness_filter') },
+                { assert function.result == [model: 'human_default', power: -0.25, weights: [mode: 'equal'], relatedness_filter: true] },
             )
         }
     }
@@ -638,7 +592,7 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = [id: 'analysis', gcta_sparse_cutoff: 0.025]
+                input[0] = [id: 'analysis', method_options: [gcta: [sparse_cutoff: 0.025]]]
                 input[1] = 'gcta_sparse'
                 """
             }
@@ -661,9 +615,13 @@ nextflow_function {
                 """
                 input[0] = [
                     id: 'example_pgen_bt',
-                    ldak_model: 'custom',
-                    ldak_power: -0.5,
-                    ldak_weights_mode: 'provided',
+                    method_options: [
+                        gcta: [:],
+                        ldak: [
+                            model: 'custom',
+                            power: -0.5,
+                        ],
+                    ],
                 ]
                 input[1] = 'ldak_kinship'
                 input[2] = [
@@ -691,7 +649,7 @@ nextflow_function {
         }
     }
 
-    test("an LDAK request has a canonical equal-weight key independent of filtering") {
+    test("an LDAK request has a filter-specific equal-weight key") {
 
         function "relatednessMatrixRequest"
 
@@ -703,9 +661,14 @@ nextflow_function {
                     cohort: 'example_pgen',
                     genotype_format: 'plink2',
                     heritability_methods: ['ldak_reml'],
-                    ldak_model: 'human_default',
-                    ldak_power: '-.2500',
-                    ldak_relatedness_filter: true,
+                    method_options: [
+                        gcta: [:],
+                        ldak: [
+                            model: 'human_default',
+                            power: '-.2500',
+                            relatedness_filter: true,
+                        ],
+                    ],
                 ]
                 input[1] = [
                     file('example_all.pvar'),
@@ -721,8 +684,8 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 // Independently derived from the canonical identity/settings string with `sha256sum`.
-                { assert function.result.key == 'f299aab0058a' },
-                { assert function.result.settings == [model: 'human_default', power: '-.2500', weights: [mode: 'equal']] },
+                { assert function.result.key == 'b93562d2908b' },
+                { assert function.result.settings == [model: 'human_default', power: '-.2500', weights: [mode: 'equal'], relatedness_filter: true] },
                 { assert function.result.filter_relatedness },
             )
         }
@@ -740,7 +703,10 @@ nextflow_function {
                     cohort: 'example_pgen',
                     genotype_format: 'plink2',
                     heritability_methods: ['gcta_greml'],
-                    gcta_grm_parts: 2,
+                    method_options: [
+                        gcta: [grm_maf: null, grm_extract: []],
+                        ldak: [:],
+                    ],
                 ]
                 input[1] = [
                     file('example_all.pvar'),
@@ -763,14 +729,14 @@ nextflow_function {
                     kind: 'gcta_dense',
                     cohort: 'example_pgen',
                     settings: [:],
-                    parts: 2,
                     key: '3b47382e01cd',
+                    gcta_extract: [],
                 ] },
             )
         }
     }
 
-    test("the partition count is carried outside the key") {
+    test("a matrix-defining GCTA override changes the request key") {
 
         function "relatednessMatrixRequest"
 
@@ -782,7 +748,7 @@ nextflow_function {
                     cohort: 'example_pgen',
                     genotype_format: 'plink2',
                     heritability_methods: ['gcta_greml'],
-                    gcta_grm_parts: 3,
+                    method_options: [gcta: [grm_maf: 0.01, grm_extract: [], reml_no_constrain: false], ldak: [:]],
                 ]
                 input[1] = [
                     file('example_all.pgen'),
@@ -797,18 +763,14 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                // A different partition count, the same key as the request above. This is what makes
-                // two rows declaring different counts a contradiction about one matrix rather than a
-                // request for two — GCTA's --make-grm-part only splits the same computation into more
-                // pieces, and the merged matrix is byte-identical whatever the count. The pipeline
-                // refuses the contradiction; tests/relatedness_matrix.nf.test asserts the message.
-                { assert function.result.parts == 3 },
-                { assert function.result.key == '3b47382e01cd' },
+                { assert function.result.settings == [maf: 0.01] },
+                { assert function.result.key != '3b47382e01cd' },
+                { assert !function.result.containsKey('parts') },
             )
         }
     }
 
-    test("a mixed GCTA and LDAK row does not carry the GCTA partition count into its LDAK request") {
+    test("operational GCTA partitioning is absent from every matrix request") {
 
         function "relatednessMatrixRequest"
 
@@ -821,10 +783,14 @@ nextflow_function {
                     genotype_format: 'plink2',
                     association_methods: ['gcta_fastgwa'],
                     heritability_methods: ['ldak_reml'],
-                    gcta_grm_parts: 3,
-                    ldak_model: 'human_default',
-                    ldak_power: -0.25,
-                    ldak_relatedness_filter: false,
+                    method_options: [
+                        gcta: [:],
+                        ldak: [
+                            model: 'human_default',
+                            power: -0.25,
+                            relatedness_filter: false,
+                        ],
+                    ],
                 ]
                 input[1] = [
                     file('example_all.pgen'),
@@ -839,10 +805,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                // The companion GCTA request test above proves the same row-level control is carried
-                // for a GCTA kind. It is not an LDAK build input, so carrying it here would make two
-                // otherwise reusable LDAK requests conflict during request reconciliation.
-                { assert function.result.parts == null },
+                { assert !function.result.containsKey('parts') },
             )
         }
     }
@@ -854,7 +817,7 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = [id: 'example_pgen_qt']
+                input[0] = [id: 'example_pgen_qt', method_options: [gcta: [:], ldak: [:]]]
                 input[1] = 'gcta_unknown'
                 """
             }

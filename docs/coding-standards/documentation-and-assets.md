@@ -37,9 +37,9 @@ not design.
   a 16-item numbered list into Introduction instead)_
 - **[MUST]** Spell it "Contributions and Support", not "Contributions & Support". _(2/3)_
 - **[MUST]** The Usage section contains all four ingredients: a `> [!NOTE]` pointing at the nf-co.re setup
-  docs, a fenced samplesheet CSV example, a fenced `bash` run command using `--input` / `--outdir` /
-  `-profile`, and a `> [!WARNING]` about not using `-c` to set parameters. Preserve the nf-core boilerplate
-  wording verbatim. _(all three; ordering of the four varies and does not matter)_
+  docs, fenced cohort- and analysis-manifest CSV examples, a fenced `bash` run command using
+  `--cohort_manifest` / `--analysis_manifest` / `--outdir` / `-profile`, and a `> [!WARNING]` about not
+  using `-c` to set parameters. Preserve the nf-core boilerplate wording verbatim.
 - **[MUST]** The Citations section ends with the nf-core framework citation (Ewels et al., Nat Biotechnol
   2020, doi:10.1038/s41587-020-0439-x) and a pointer to `CITATIONS.md`. _(all three)_
 - **[MUST]** The contributing link resolves to a file that exists. Prefer `.github/CONTRIBUTING.md`.
@@ -60,12 +60,14 @@ not design.
   _(stricter than all three — verified mixing within a single file in every pipeline: rnaseq 7 GitHub
   alerts against 11 Docusaurus fences, sarek 5 against 2, mag 8 against 4. This is unresolved migration
   debt, not a style choice; GitHub alerts render correctly on GitHub without a Docusaurus site.)_
-- **[MUST]** Every code fence carries a language tag, and the samplesheet/params examples carry a title:
-  ` ```bash `, ` ```csv title="samplesheet.csv" `, ` ```yaml title="params.yaml" `. _(all three)_
-- **[MUST]** Reference params in prose as backticked double-dash flags: `` `--input` ``. _(all three)_
+- **[MUST]** Every code fence carries a language tag, and manifest/params examples carry a title:
+  ` ```bash `, ` ```csv title="cohort_manifest.csv" `, ` ```csv title="analysis_manifest.csv" `,
+  ` ```yaml title="params.yaml" `. _(all three use titled data examples; filenames follow this pipeline's contract)_
+- **[MUST]** Reference params in prose as backticked double-dash flags, for example
+  `` `--cohort_manifest` ``. _(all three)_
 - **[MUST]** No duplicated sections. sarek repeats its custom-configuration and nf-core/configs content
   under two different headings.
-- **[SHOULD]** Ship a complete, valid samplesheet example inline. _(all three)_
+- **[SHOULD]** Ship complete, valid cohort- and analysis-manifest examples inline.
 
 ## 3. docs/output.md
 
@@ -141,10 +143,10 @@ not design.
 
 ## 6. assets/
 
-- **[MUST]** `schema_input.json` present, with `meta` arrays and a per-property `errorMessage`. See
-  [`configuration-and-schema.md`](configuration-and-schema.md) for its full rules. _(all three)_
-- **[MUST]** Ship an example samplesheet that actually validates against `schema_input.json`. mag has none
-  and that is a gap, not a pattern. _(2/3)_
+- **[MUST]** `schema_cohort_manifest.json` and `schema_analysis_manifest.json` are present, with `meta`
+  arrays and a per-property `errorMessage`. See
+  [`configuration-and-schema.md`](configuration-and-schema.md) for their full rules.
+- **[MUST]** Ship example cohort and analysis manifests that validate against those schemas.
 - **[MUST]** If `assets/multiqc_config.yml` exists _(present in sarek and mag; rnaseq has none — verified)_:
   - `report_section_order` pins the three standard keys with negative orders:
     `gwas-methods-description: -1000`, `software_versions: -1001`, `gwas-summary: -1002`;

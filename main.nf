@@ -15,38 +15,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { GWAS  } from './workflows/gwas'
+include { GWAS                    } from './workflows/gwas'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_gwas_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_gwas_pipeline'
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    NAMED WORKFLOWS FOR PIPELINE
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-//
-// WORKFLOW: Run main analysis pipeline depending on type of input
-//
-workflow NFCORE_GWAS {
-
-    take:
-    samplesheet // channel: samplesheet read in from --input
-
-    main:
-
-    //
-    // WORKFLOW: Run pipeline
-    //
-    GWAS (
-        samplesheet,
-        params.multiqc_config,
-        params.multiqc_logo,
-        params.multiqc_methods_description,
-        params.outdir,
-    )
-    emit:
-    multiqc_report = GWAS.out.multiqc_report // channel: /path/to/multiqc_report.html
-}
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -54,8 +25,6 @@ workflow NFCORE_GWAS {
 */
 
 workflow {
-
-    main:
 
     //
     // WORKFLOW: Validate a local GWAS test-fixture override
@@ -103,41 +72,75 @@ workflow {
     }
 
     //
+    // Refuse the retired monolithic contract explicitly so existing invocations receive a migration path
+    // rather than an unknown-parameter failure.
+    //
+    def retired_input_parameter = ['in', 'put'].join('')
+    if (params.containsKey(retired_input_parameter)) {
+        error("[nf-core/gwas] ERROR: --input '${params.get(retired_input_parameter)}' has been removed; supply --cohort_manifest and --analysis_manifest instead")
+    }
+
+    //
     // SUBWORKFLOW: Run initialisation tasks
     //
-    PIPELINE_INITIALISATION (
+    PIPELINE_INITIALISATION(
         params.version,
         params.validate_params,
         params.monochrome_logs,
         args,
         params.outdir,
-        params.input,
+        params.cohort_manifest,
+        params.analysis_manifest,
+        params.method_options,
         params.help,
         params.help_full,
-        params.show_hidden
+        params.show_hidden,
     )
 
     //
     // WORKFLOW: Run main workflow
     //
-    NFCORE_GWAS (
-        PIPELINE_INITIALISATION.out.samplesheet
+    NFCORE_GWAS(
+        PIPELINE_INITIALISATION.out.analyses
     )
     //
     // SUBWORKFLOW: Run completion tasks
     //
-    PIPELINE_COMPLETION (
+    PIPELINE_COMPLETION(
         params.email,
         params.email_on_fail,
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        NFCORE_GWAS.out.multiqc_report
+        NFCORE_GWAS.out.multiqc_report,
     )
 }
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
+    NAMED WORKFLOWS FOR PIPELINE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+//
+// WORKFLOW: Run main analysis pipeline depending on type of input
+//
+workflow NFCORE_GWAS {
+    take:
+    analyses // channel: [ val(meta), path(genotype_files), path(phenotype), path(quant_covariates), path(cat_covariates), path(kvik_extract), path(ldak_weights) ]
+
+    main:
+
+    //
+    // WORKFLOW: Run pipeline
+    //
+    GWAS(
+        analyses,
+        params.multiqc_config,
+        params.multiqc_logo,
+        params.multiqc_methods_description,
+        params.outdir,
+    )
+
+    emit:
+    multiqc_report = GWAS.out.multiqc_report // channel: /path/to/multiqc_report.html
+}
