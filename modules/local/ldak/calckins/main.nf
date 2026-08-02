@@ -21,11 +21,7 @@ process LDAK_CALCKINS {
     script:
     def args = task.ext.args ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
-    def weights_arg = weights_file
-        ? "--weights ${weights_file}"
-        : meta.settings?.weights?.mode == 'default'
-            ? ''
-            : '--ignore-weights YES'
+    def weights_arg = weights_file ? "--weights ${weights_file}" : ''
     """
     ldak6 \\
         --calc-kins-direct ${prefix} \\
