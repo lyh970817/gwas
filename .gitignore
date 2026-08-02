@@ -21,6 +21,8 @@ null/
 !.claude/skills
 SPEC.md
 .scratch/
+.lavish/
+.worktrees/
 CONTEXT.md
 CONTEXT-MAP.md
 docs/agents/
