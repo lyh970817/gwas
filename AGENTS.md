@@ -6,6 +6,11 @@
 `docs/coding-standards/`. It is the standards source for the `code-review` skill. For anything destined for
 upstream `nf-core/modules`, the `nf-core-*` skills under `.agents/skills/` take precedence over it.
 
+The LDAK, GWASLab, GCTA, PLINK and PLINK 2 modules under `modules/local/` are being prepared for future
+upstream submission. They MUST therefore follow current nf-core module standards and the applicable
+`nf-core-*` skills despite their local path; pipeline-specific routing and scientific policy belong in
+subworkflows or `conf/modules/`, not in atomic module metadata or command construction.
+
 ### Reference pipelines
 
 `../sarek`, `../mag` and `../rnaseq` are checkouts of established official nf-core pipelines and are the
