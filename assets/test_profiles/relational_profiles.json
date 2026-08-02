@@ -155,13 +155,7 @@
                     "reml_no_constrain": true,
                     "ld_score_region_kb": 200,
                     "ld_bins": 1,
-                    "ldms_maf_edges": [
-                        0.0,
-                        0.01,
-                        0.05,
-                        0.2,
-                        0.5
-                    ]
+                    "ldms_maf_edges": [0.0, 0.01, 0.05, 0.2, 0.5]
                 }
             },
             "example_vcf_qt": {
@@ -930,44 +924,128 @@
                 "gcta": {
                     "ld_score_region_kb": 50,
                     "ld_bins": 1,
-                    "ldms_maf_edges": [
-                        0.0,
-                        0.5
-                    ]
+                    "ldms_maf_edges": [0.0, 0.5]
                 }
             },
             "ldms_same_2": {
                 "gcta": {
                     "ld_score_region_kb": 50,
                     "ld_bins": 1,
-                    "ldms_maf_edges": [
-                        0.0,
-                        0.5
-                    ]
+                    "ldms_maf_edges": [0.0, 0.5]
                 }
             },
             "ldms_different_edges": {
                 "gcta": {
                     "ld_score_region_kb": 50,
                     "ld_bins": 1,
-                    "ldms_maf_edges": [
-                        0.0,
-                        0.01,
-                        0.5
-                    ]
+                    "ldms_maf_edges": [0.0, 0.01, 0.5]
                 }
             },
             "ldms_different_bins": {
                 "gcta": {
                     "ld_score_region_kb": 50,
                     "ld_bins": 2,
-                    "ldms_maf_edges": [
-                        0.0,
-                        0.5
-                    ]
+                    "ldms_maf_edges": [0.0, 0.5]
                 }
             }
         }
     },
-    "gcta_fastgwa": {"cohorts":[{"cohort_id":"example_pgen","genome_build":"GRCh37","ancestry":"EUR","pgen":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pgen","psam":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.psam","pvar":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pvar","bed":"","bim":"","fam":"","vcf":""}],"analyses":[{"analysis_id":"fastgwa_same_1","cohort_id":"example_pgen","trait_id":"QT","trait_type":"quantitative","phenotype":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno","phenotype_column":"QT","control_value":"","case_value":"","quant_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar","cat_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar","association_methods":"gcta_fastgwa","heritability_methods":"","population_prevalence":""},{"analysis_id":"fastgwa_same_2","cohort_id":"example_pgen","trait_id":"QT","trait_type":"quantitative","phenotype":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno","phenotype_column":"QT","control_value":"","case_value":"","quant_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar","cat_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar","association_methods":"gcta_fastgwa","heritability_methods":"","population_prevalence":""},{"analysis_id":"fastgwa_different","cohort_id":"example_pgen","trait_id":"QT","trait_type":"quantitative","phenotype":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno","phenotype_column":"QT","control_value":"","case_value":"","quant_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar","cat_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar","association_methods":"gcta_fastgwa","heritability_methods":"","population_prevalence":""},{"analysis_id":"fastgwa_and_greml","cohort_id":"example_pgen","trait_id":"QT","trait_type":"quantitative","phenotype":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno","phenotype_column":"QT","control_value":"","case_value":"","quant_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar","cat_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar","association_methods":"gcta_fastgwa","heritability_methods":"gcta_greml","population_prevalence":""},{"analysis_id":"fastgwa_binary","cohort_id":"example_pgen","trait_id":"BT","trait_type":"binary","phenotype":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno","phenotype_column":"BT","control_value":"1","case_value":"2","quant_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar","cat_covariates":"https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar","association_methods":"gcta_fastgwa","heritability_methods":"","population_prevalence":""}],"method_options":{"fastgwa_same_2":{"gcta":{"sparse_cutoff":0.05}},"fastgwa_different":{"gcta":{"sparse_cutoff":0.025}},"fastgwa_and_greml":{"gcta":{"sparse_cutoff":0.05}}}}
+    "gcta_fastgwa": {
+        "cohorts": [
+            {
+                "cohort_id": "example_pgen",
+                "genome_build": "GRCh37",
+                "ancestry": "EUR",
+                "pgen": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pgen",
+                "psam": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.psam",
+                "pvar": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/genotypes/example_all.pvar",
+                "bed": "",
+                "bim": "",
+                "fam": "",
+                "vcf": ""
+            }
+        ],
+        "analyses": [
+            {
+                "analysis_id": "fastgwa_same_1",
+                "cohort_id": "example_pgen",
+                "trait_id": "QT",
+                "trait_type": "quantitative",
+                "phenotype": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno",
+                "phenotype_column": "QT",
+                "control_value": "",
+                "case_value": "",
+                "quant_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar",
+                "cat_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar",
+                "association_methods": "gcta_fastgwa",
+                "heritability_methods": "",
+                "population_prevalence": ""
+            },
+            {
+                "analysis_id": "fastgwa_same_2",
+                "cohort_id": "example_pgen",
+                "trait_id": "QT",
+                "trait_type": "quantitative",
+                "phenotype": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno",
+                "phenotype_column": "QT",
+                "control_value": "",
+                "case_value": "",
+                "quant_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar",
+                "cat_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar",
+                "association_methods": "gcta_fastgwa",
+                "heritability_methods": "",
+                "population_prevalence": ""
+            },
+            {
+                "analysis_id": "fastgwa_different",
+                "cohort_id": "example_pgen",
+                "trait_id": "QT",
+                "trait_type": "quantitative",
+                "phenotype": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno",
+                "phenotype_column": "QT",
+                "control_value": "",
+                "case_value": "",
+                "quant_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar",
+                "cat_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar",
+                "association_methods": "gcta_fastgwa",
+                "heritability_methods": "",
+                "population_prevalence": ""
+            },
+            {
+                "analysis_id": "fastgwa_and_greml",
+                "cohort_id": "example_pgen",
+                "trait_id": "QT",
+                "trait_type": "quantitative",
+                "phenotype": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno",
+                "phenotype_column": "QT",
+                "control_value": "",
+                "case_value": "",
+                "quant_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar",
+                "cat_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar",
+                "association_methods": "gcta_fastgwa",
+                "heritability_methods": "gcta_greml",
+                "population_prevalence": ""
+            },
+            {
+                "analysis_id": "fastgwa_binary",
+                "cohort_id": "example_pgen",
+                "trait_id": "BT",
+                "trait_type": "binary",
+                "phenotype": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.pheno",
+                "phenotype_column": "BT",
+                "control_value": "1",
+                "case_value": "2",
+                "quant_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.qcovar",
+                "cat_covariates": "https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/pheno_cov/example.catcovar",
+                "association_methods": "gcta_fastgwa",
+                "heritability_methods": "",
+                "population_prevalence": ""
+            }
+        ],
+        "method_options": {
+            "fastgwa_same_2": { "gcta": { "sparse_cutoff": 0.05 } },
+            "fastgwa_different": { "gcta": { "sparse_cutoff": 0.025 } },
+            "fastgwa_and_greml": { "gcta": { "sparse_cutoff": 0.05 } }
+        }
+    }
 }

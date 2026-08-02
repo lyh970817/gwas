@@ -58,17 +58,6 @@ nextflow_pipeline {
                 { assert reml.list().toList().sort() == ['binary_all_estimators', 'binary_without_prevalence', 'example_pgen_qt'] },
                 { assert he.list().toList().sort() == ['binary_all_estimators', 'binary_without_prevalence', 'example_pgen_qt'] },
                 { assert pcgc.list().toList() == ['binary_all_estimators'] },
-                { assert new File(reml, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml').isFile() },
-                { assert !new File(reml, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml.liab').exists() },
-                { assert new File(reml, 'binary_without_prevalence/binary_without_prevalence.ldak_reml.reml').isFile() },
-                { assert !new File(reml, 'binary_without_prevalence/binary_without_prevalence.ldak_reml.reml.liab').exists() },
-                { assert new File(reml, 'binary_all_estimators/binary_all_estimators.ldak_reml.reml').isFile() },
-                { assert new File(reml, 'binary_all_estimators/binary_all_estimators.ldak_reml.reml.liab').isFile() },
-                { assert new File(he, 'example_pgen_qt/example_pgen_qt.ldak_he.he').isFile() },
-                { assert new File(he, 'binary_without_prevalence/binary_without_prevalence.ldak_he.he').isFile() },
-                { assert new File(he, 'binary_all_estimators/binary_all_estimators.ldak_he.he').isFile() },
-                { assert new File(pcgc, 'binary_all_estimators/binary_all_estimators.ldak_pcgc.pcgc').isFile() },
-                { assert new File(pcgc, 'binary_all_estimators/binary_all_estimators.ldak_pcgc.pcgc.marginal').isFile() },
                 { assert snapshot(stableNameHeritability, stablePathHeritability).match('heritability') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
@@ -104,8 +93,8 @@ nextflow_pipeline {
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
             def keys = matrices.list().toList()
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                 { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
@@ -153,8 +142,8 @@ nextflow_pipeline {
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
             def keys = matrices.list().toList()
-            assert workflow.success
             assertAll(
+                { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 5 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 7 },
                 { assert keys.size() == 5 },

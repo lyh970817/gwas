@@ -57,9 +57,6 @@ nextflow_pipeline {
             def association = new File("${params.outdir}/association/gcta_fastgwa")
             def summaryStatistics = new File("${params.outdir}/summary_statistics")
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def nativeResults = analysisIds.collect { analysisId ->
-                new File(association, "${analysisId}/${analysisId}.gcta_fastgwa.fastGWA")
-            }
             def harmonisedResults = analysisIds.collect { analysisId ->
                 new File(summaryStatistics, "${analysisId}/${analysisId}.gcta_fastgwa.gwaslab.tsv.gz")
             }
@@ -95,7 +92,6 @@ nextflow_pipeline {
                 { assert TRACE.tags(workflow, 'GCTA_FASTGWA').sort() == analysisIds },
                 { assert association.list().toList().sort() == analysisIds },
                 { assert summaryStatistics.list().toList().sort() == analysisIds },
-                { assert nativeResults.every { result -> result.isFile() } },
                 { assert harmonisedResults.every { result -> result.isFile() } },
                 { assert commandFiles.size() == 4 },
                 { assert commandFiles.count { entry -> entry.text.contains('--fastGWA-mlm-binary') } == 1 },

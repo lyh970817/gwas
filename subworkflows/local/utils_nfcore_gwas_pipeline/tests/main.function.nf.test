@@ -7,7 +7,7 @@ nextflow_function {
 
     test("quantitative fastGWA maps the native beta and sample-count columns") {
 
-        function "associationColumnMappingJson"
+        function "getAssociationColumnMappingJson"
 
         when {
             function {
@@ -39,7 +39,7 @@ nextflow_function {
 
     test("binary fastGWA retains the native beta mapping without inventing an odds-ratio column") {
 
-        function "associationColumnMappingJson"
+        function "getAssociationColumnMappingJson"
 
         when {
             function {
@@ -71,7 +71,7 @@ nextflow_function {
 
     test("quantitative KVIK maps its A1 frequency and effective analysis size without an extra Z field") {
 
-        function "associationColumnMappingJson"
+        function "getAssociationColumnMappingJson"
         tag "kvik_mapping"
 
         when {
@@ -252,7 +252,7 @@ nextflow_function {
 
     test("the reuse key of the demo cohort's dense GCTA matrix") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -278,7 +278,7 @@ nextflow_function {
 
     test("the reuse key does not depend on the order the components were declared in") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -307,7 +307,7 @@ nextflow_function {
 
     test("a cohort whose id spells a number keeps its own reuse key") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -340,7 +340,7 @@ nextflow_function {
 
     test("the reuse key of the cohort that spells the same number differently") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -369,7 +369,7 @@ nextflow_function {
 
     test("a construction setting changes the reuse key") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -400,7 +400,7 @@ nextflow_function {
 
     test("a construction setting reaching the key by another spelling does not fork it") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -430,7 +430,7 @@ nextflow_function {
 
     test("a different construction setting is a different matrix") {
 
-        function "relatednessMatrixKey"
+        function "buildRelatednessMatrixKey"
 
         when {
             function {
@@ -458,7 +458,7 @@ nextflow_function {
 
     test("heritability selectors ask for their tool-specific relatedness matrices") {
 
-        function "relatednessMatrixKinds"
+        function "getRelatednessMatrixKinds"
 
         when {
             function {
@@ -478,7 +478,7 @@ nextflow_function {
 
     test("the GCTA LDMS and fastGWA selectors request their own matrix families") {
 
-        function "relatednessMatrixKinds"
+        function "getRelatednessMatrixKinds"
 
         when {
             function {
@@ -504,7 +504,7 @@ nextflow_function {
 
     test("several LDAK estimators share one LDAK kinship kind") {
 
-        function "relatednessMatrixKinds"
+        function "getRelatednessMatrixKinds"
 
         when {
             function {
@@ -524,7 +524,7 @@ nextflow_function {
 
     test("GCTA LDMS construction settings are explicit key components") {
 
-        function "relatednessMatrixSettings"
+        function "getRelatednessMatrixSettings"
 
         when {
             function {
@@ -556,7 +556,7 @@ nextflow_function {
 
     test("LDAK kinship settings include a requested analysis filter") {
 
-        function "relatednessMatrixSettings"
+        function "getRelatednessMatrixSettings"
 
         when {
             function {
@@ -587,7 +587,7 @@ nextflow_function {
 
     test("the fastGWA sparse cutoff is an explicit matrix key component") {
 
-        function "relatednessMatrixSettings"
+        function "getRelatednessMatrixSettings"
 
         when {
             function {
@@ -608,7 +608,7 @@ nextflow_function {
 
     test("LDAK supplied-weight settings use only the file content identity") {
 
-        function "relatednessMatrixSettings"
+        function "getRelatednessMatrixSettings"
 
         when {
             function {
@@ -651,7 +651,7 @@ nextflow_function {
 
     test("an LDAK request has a filter-specific equal-weight key") {
 
-        function "relatednessMatrixRequest"
+        function "buildRelatednessMatrixRequest"
 
         when {
             function {
@@ -693,7 +693,7 @@ nextflow_function {
 
     test("a request carries the key, the identity behind it and the inputs outside it") {
 
-        function "relatednessMatrixRequest"
+        function "buildRelatednessMatrixRequest"
 
         when {
             function {
@@ -738,7 +738,7 @@ nextflow_function {
 
     test("a matrix-defining GCTA override changes the request key") {
 
-        function "relatednessMatrixRequest"
+        function "buildRelatednessMatrixRequest"
 
         when {
             function {
@@ -772,7 +772,7 @@ nextflow_function {
 
     test("operational GCTA partitioning is absent from every matrix request") {
 
-        function "relatednessMatrixRequest"
+        function "buildRelatednessMatrixRequest"
 
         when {
             function {
@@ -812,7 +812,7 @@ nextflow_function {
 
     test("an unregistered matrix kind is refused rather than silently given no settings") {
 
-        function "relatednessMatrixSettings"
+        function "getRelatednessMatrixSettings"
 
         when {
             function {

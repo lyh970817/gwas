@@ -248,7 +248,7 @@ nextflow_pipeline {
                         // Independently derived from the generated weight bytes and canonical settings string.
                         { assert matrices.list().toList() == ['48be9b05b317'] },
                         { assert commands.size() == 1 },
-                        { assert commands.first().contains('--weights example_all.pvar') },
+                        { assert commands.first().contains('--weights "example_all.pvar"') },
                         { assert !commands.first().contains('--ignore-weights YES') },
                         { assert snapshot(stable_name_matrices, stable_path_matrices).match('same-weights-relatedness-matrices') },
                         { assert snapshot(stable_name_heritability, stable_path_heritability).match('same-weights-heritability') },
@@ -312,7 +312,7 @@ nextflow_pipeline {
                         // Same basename, different content digests, therefore two independently derived keys.
                         { assert matrices.list().toList().sort() == ['48be9b05b317', '9048b62d7d3c'] },
                         { assert commands.size() == 2 },
-                        { assert commands.every { command -> command.contains('--weights example_all.pvar') } },
+                        { assert commands.every { command -> command.contains('--weights "example_all.pvar"') } },
                         { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
                         { assert snapshot(stable_name_matrices, stable_path_matrices).match('different-weights-relatedness-matrices') },
                         { assert snapshot(stable_name_heritability, stable_path_heritability).match('different-weights-heritability') },

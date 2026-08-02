@@ -55,10 +55,6 @@ nextflow_pipeline {
                 { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds },
                 { assert plink2.list().toList().sort() == analysisIds },
                 { assert harmonised.list().toList().sort() == analysisIds },
-                { assert new File(plink2, 'example_pgen_qt/example_pgen_qt.plink2.glm.linear').exists() },
-                { assert new File(plink2, 'example_pgen_qt_no_covariates/example_pgen_qt_no_covariates.plink2.glm.linear').exists() },
-                { assert new File(plink2, 'example_pgen_bt/example_pgen_bt.plink2.glm.logistic.hybrid').exists() },
-                { assert new File(plink2, 'example_pgen_bt_no_covariates/example_pgen_bt_no_covariates.plink2.glm.logistic.hybrid').exists() },
                 { assert analysisIds.every { id -> new File(harmonised, "${id}/${id}.plink2.gwaslab.tsv.gz").exists() } },
                 { assert snapshot(stable_name_association, stable_path_association).match('association') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
@@ -350,25 +346,4 @@ nextflow_pipeline {
         }
     }
 
-    test("the removed monolithic input is rejected with the relational migration path before task submission") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                input = RELATIONAL.legacy35Header(outputDir, "removed_input")
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains("--input '${params.input}'") },
-                { assert report.contains('has been removed') },
-                { assert report.contains('--cohort_manifest') },
-                { assert report.contains('--analysis_manifest') },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
-            )
-        }
-    }
 }

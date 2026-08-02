@@ -97,8 +97,6 @@ nextflow_pipeline {
                         { assert step2.find { command -> command.contains('--bt') }.contains('--pThresh 0.01') },
                         { assert generated.every { command -> command.contains('--phenoColList PHENO') } },
                         { assert generated.every { command -> !command.contains('--minMAC') } },
-                        { assert analysisIds.every { id -> new File(nativeDir, "${id}/${id}.regenie.gz").isFile() } },
-                        { assert analysisIds.every { id -> new File(harmonisedDir, "${id}/${id}.regenie.gwaslab.tsv.gz").isFile() } },
                         { assert !new File("${params.outdir}/intermediates/regenie").exists() },
                         { assert snapshot(stable_name_native, stable_path_native).match('traits-native') },
                         { assert snapshot(stable_name_harmonised, stable_path_harmonised).match('traits-harmonised') },

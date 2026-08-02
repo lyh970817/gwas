@@ -30,7 +30,8 @@
                     "gcta": "1.94.1"
                 },
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "LDAK_ADJUSTGRM": {
                     "ldak6": 6
@@ -92,7 +93,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T20:14:58.209643676"
+        "timestamp": "2026-08-02T08:15:59.60450159"
     },
     "association": {
         "content": [

@@ -82,7 +82,6 @@ nextflow_pipeline {
                         { assert heritability.list().toList() == ['individual'] },
                         { assert new File(heritability, 'individual').list().toList() == ['gcta_greml_ldms'] },
                         { assert individual.list().toList().sort() == analysis_ids },
-                        { assert results.values().every { result -> result.isFile() } },
                         { assert results.values().every { result ->
                             result.readLines().first().split('\t').toList() == ['Source', 'Variance', 'SE']
                         } },

@@ -20,7 +20,8 @@
         "content": [
             {
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
@@ -40,13 +41,14 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-31T20:14:38.615790171"
+        "timestamp": "2026-08-02T08:21:57.233256706"
     },
     "plink2-versions": {
         "content": [
             {
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
@@ -63,7 +65,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-31T20:13:56.28397446"
+        "timestamp": "2026-08-02T08:21:11.735358896"
     },
     "plink2-association": {
         "content": [
@@ -103,7 +105,8 @@
         "content": [
             {
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
@@ -123,6 +126,6 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-31T20:14:17.163522393"
+        "timestamp": "2026-08-02T08:22:41.018229047"
     }
 }

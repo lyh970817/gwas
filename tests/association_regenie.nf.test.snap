@@ -22,7 +22,8 @@
         "content": [
             {
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
@@ -42,7 +43,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-31T19:55:05.043433897"
+        "timestamp": "2026-08-02T08:13:23.1349292"
     },
     "prediction-reuse-harmonised": {
         "content": [

@@ -26,26 +26,23 @@ nextflow_pipeline {
             def stable_path_summary_statistics = getAllFilesFromDir("${params.outdir}/summary_statistics", ignoreFile: 'tests/.nftignore')
             def stable_name_multiqc = getAllFilesFromDir("${params.outdir}/multiqc", relative: true, includeDir: true).findAll { path -> path.toString() }
             def stable_path_multiqc = getAllFilesFromDir(
-                "${params.outdir}/multiqc",
-                ignore: [
-                    'multiqc_data/llms-full.txt',
-                    'multiqc_data/multiqc.log',
-                    'multiqc_data/multiqc.parquet',
-                    'multiqc_data/multiqc_data.json',
-                    'multiqc_data/multiqc_software_versions.txt',
-                    'multiqc_data/multiqc_sources.txt',
-                    'multiqc_report.html',
-                ],
-            )
+                "${params.outdir}",
+                ignoreFile: 'tests/.nftignore',
+                include: ['multiqc/**'],
+            ).findAll { path -> path.toString() }
             def stable_name_pipeline_info = getAllFilesFromDir(
                 "${params.outdir}/pipeline_info",
                 relative: true,
                 includeDir: true,
                 ignore: ['*.{html,json,txt}'],
             ).findAll { path -> path.toString() }
-            def stable_path_pipeline_info = []
-            assert workflow.success
+            def stable_path_pipeline_info = getAllFilesFromDir(
+                "${params.outdir}",
+                ignoreFile: 'tests/.nftignore',
+                include: ['pipeline_info/**'],
+            ).findAll { path -> path.toString() }
             assertAll(
+                { assert workflow.success },
                 // The routine profile deliberately exercises only the fast route set: one PLINK 2
                 // association, its GWASLab harmonisation and one GCTA GREML estimate. Every expensive
                 // route has an individually runnable profile of its own.

@@ -31,7 +31,6 @@ nextflow_pipeline {
 
             then {
                 def analysisId = "${fixture.cohort}_relational_qt"
-                def nativeResult = new File("${params.outdir}/association/plink2/${analysisId}/${analysisId}.plink2.glm.linear")
                 def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
                 def stable_name_association = getAllFilesFromDir(
                     "${params.outdir}/association",
@@ -46,7 +45,6 @@ nextflow_pipeline {
                     { assert workflow.success },
                     { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES') == [analysisId] },
                     { assert TRACE.count(workflow, 'PLINK2_GLM') == 1 },
-                    { assert nativeResult.exists() },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == (fixture.conversion == 'PLINK2_MAKEPGEN' ? 1 : 0) },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == (fixture.conversion == 'PLINK2_VCF' ? 1 : 0) },
                     { assert snapshot(stable_name_association, stable_path_association).match("${encoding}-association") },

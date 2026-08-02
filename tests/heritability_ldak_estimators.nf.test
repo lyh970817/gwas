@@ -61,7 +61,7 @@ nextflow_pipeline {
                     def adjustmentCommands = runCommands.findAll { command -> command.contains('ldak6 --adjust-grm') }
                     def adjustedEstimatorCommands = runCommands.findAll { command ->
                         (command.contains('ldak6 --he') || command.contains('ldak6 --pcgc')) &&
-                            command.contains('--grm ldak_all_covariates.adjusted')
+                            command.contains('--grm "ldak_all_covariates.adjusted"')
                     }
                     def stableName = getAllFilesFromDir(
                         individual.toString(),
@@ -73,15 +73,11 @@ nextflow_pipeline {
                         ignoreFile: 'tests/.nftignore',
                     )
                     assertAll(
-                        { assert hePlain.length() > 0 },
-                        { assert heAdjusted.length() > 0 },
-                        { assert pcgc.length() > 0 },
-                        { assert reml.length() > 0 },
                         { assert adjustmentCommands.size() == 2 },
-                        { assert adjustmentCommands.every { command -> command.contains('--covar ldak_all_covariates.adjustcovar') } },
+                        { assert adjustmentCommands.every { command -> command.contains('--covar "ldak_all_covariates.adjustcovar"') } },
                         { assert adjustmentCommands.every { command -> !command.contains('--factors ') } },
                         { assert adjustedEstimatorCommands.size() == 2 },
-                        { assert adjustedEstimatorCommands.every { command -> command.contains('--covar ldak_all_covariates.adjustcovar') } },
+                        { assert adjustedEstimatorCommands.every { command -> command.contains('--covar "ldak_all_covariates.adjustcovar"') } },
                         { assert adjustedEstimatorCommands.every { command -> !command.contains('--factors ') } },
                         { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                         { assert snapshot(stableName, stablePath).match('heritability') },

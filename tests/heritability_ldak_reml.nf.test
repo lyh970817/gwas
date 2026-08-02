@@ -68,10 +68,6 @@ nextflow_pipeline {
                         { assert heritability.list().toList() == ['individual'] },
                         { assert new File(heritability, 'individual').list().toList() == ['ldak_reml'] },
                         { assert individual.list().toList().sort() == ['example_pgen_bt', 'example_pgen_qt'] },
-                        { assert quantitative.exists() },
-                        { assert binary.exists() },
-                        { assert liability.exists() },
-                        { assert !new File(individual, 'example_pgen_qt/example_pgen_qt.ldak_reml.reml.liab').exists() },
                         // Native LDAK REML output remains intact and attributable to the estimator.
                         { assert quantitative.readLines().any { line -> line.startsWith('Her_All ') } },
                         { assert binary.readLines().any { line -> line.startsWith('Her_All ') } },

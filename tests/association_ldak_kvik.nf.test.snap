@@ -67,7 +67,8 @@
         "content": [
             {
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "LDAK_KVIKSTEP1": {
                     "ldak6": 6
@@ -93,7 +94,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T01:46:41.850811098"
+        "timestamp": "2026-08-02T08:05:45.824818764"
     },
     "all-harmonised": {
         "content": [

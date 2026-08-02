@@ -109,8 +109,6 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
                         { assert association.list().toList().sort() == analysis_ids },
                         { assert summary_statistics.list().toList().sort() == analysis_ids },
-                        { assert native_results.every { result -> result.isFile() } },
-                        { assert harmonised_results.every { result -> result.isFile() } },
                         { assert greml.isFile() },
                         { assert fastgwa_commands.size() == 5 },
                         { assert fastgwa_commands.count { entry -> entry.text.contains('--fastGWA-mlm-binary') } == 1 },

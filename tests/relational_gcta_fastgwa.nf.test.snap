@@ -15,7 +15,8 @@
                     "gcta": "1.94.1"
                 },
                 "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9"
+                    "gwaslab": "4.1.9",
+                    "python": "3.12.13"
                 },
                 "NORMALISE_PHENOTYPES": {
                     "python": "3.14.5"
@@ -29,7 +30,7 @@
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-31T19:58:18.300465716"
+        "timestamp": "2026-08-02T08:19:22.317815409"
     },
     "association": {
         "content": [
