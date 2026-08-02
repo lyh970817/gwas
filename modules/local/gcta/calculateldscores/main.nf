@@ -12,6 +12,7 @@ process GCTA_CALCULATELDSCORES {
 
     output:
     tuple val(meta), path("*_gcta_ld.score.ld"), emit: ld_scores
+    tuple val(meta), path("*_gcta_ld.log"), emit: log
     tuple val("${task.process}"), val("gcta"), eval("gcta --version | sed -En 's/^[*] version v([0-9.]*).*/\\1/p'"), emit: versions_gcta, topic: versions
 
     when:
@@ -19,24 +20,25 @@ process GCTA_CALCULATELDSCORES {
 
     script:
     def args = task.ext.args ?: ''
-    prefix = task.ext.prefix ?: "${meta.id}"
     def bfile_prefix = bed.baseName
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     gcta \\
-        --bfile ${bfile_prefix} \\
-        --ld-score-region ${ld_score_region} \\
-        --out ${prefix}_gcta_ld \\
-        --thread-num ${task.cpus} \\
+        --bfile "${bfile_prefix}" \\
+        --ld-score-region "${ld_score_region}" \\
+        --out "${prefix}_gcta_ld" \\
+        --thread-num "${task.cpus}" \\
         ${args}
     """
 
     stub:
-    prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}"
     """
     printf "%s\\n" \
         "SNP chr bp freq mean_rsq snp_num max_rsq ldscore_SNP ldscore_region" \
         "stub_snp1 1 100 0.10 0.01 10 0.20 1.10 1.20" \
         "stub_snp2 1 200 0.20 0.02 10 0.30 1.20 1.30" \
-        > ${prefix}_gcta_ld.score.ld
+        > "${prefix}_gcta_ld.score.ld"
+    touch "${prefix}_gcta_ld.log"
     """
 }

@@ -38,26 +38,19 @@ process NORMALISE_PHENOTYPES {
     task.ext.when == null || task.ext.when
 
     script:
-    // None of these carries `def`, and both omissions are load-bearing. `prefix` must be visible from
-    // the output block, which interpolates it because a bare `*.pheno` glob would also match the
-    // headerless serialisation — `modules/nf-core/plink2/glm` binds it the same way. The other five
-    // must be visible to the template engine, which resolves names against the task context rather
-    // than against this closure's locals, so a `def` here would render as an unknown-variable error.
+    // `prefix` must remain visible to the output declarations. The other assignments must remain
+    // visible to the template and contain JSON string literals, which are also valid Python syntax.
     prefix = task.ext.prefix ?: "${meta.id}"
-    analysis_id = meta.id
-    phenotype_column = meta.phenotype_column
-    case_value = meta.case_value ?: ''
-    control_value = meta.control_value ?: ''
-    trait_type = meta.is_binary ? 'binary' : 'quantitative'
-    // Template interpolation is textual, so a value carrying a quote or a backslash would corrupt the
-    // generated Python rather than being rejected by it. The samplesheet schema forbids whitespace in
-    // these three columns but not those two characters, so they are refused here, where the message
-    // can name the analysis unit that declared them.
-    [phenotype_column, case_value, control_value].each { value ->
-        if (value.toString() =~ /["\\]/) {
-            error("[nf-core/gwas] ERROR: analysis '${meta.id}' declares a phenotype column or trait value containing a quote or backslash: '${value}'")
-        }
-    }
+    phenotype_literal = groovy.json.JsonOutput.toJson(phenotype.toString())
+    quant_covariates_literal = groovy.json.JsonOutput.toJson(quant_covariates ? quant_covariates.toString() : '')
+    cat_covariates_literal = groovy.json.JsonOutput.toJson(cat_covariates ? cat_covariates.toString() : '')
+    phenotype_column_literal = groovy.json.JsonOutput.toJson(meta.phenotype_column.toString())
+    trait_type_literal = groovy.json.JsonOutput.toJson(meta.is_binary ? 'binary' : 'quantitative')
+    case_value_literal = groovy.json.JsonOutput.toJson((meta.case_value ?: '').toString())
+    control_value_literal = groovy.json.JsonOutput.toJson((meta.control_value ?: '').toString())
+    prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
+    analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
+    task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
     template('normalise_phenotypes.py')
 
     stub:

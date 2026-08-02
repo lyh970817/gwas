@@ -37,38 +37,38 @@ process LDAK_HE {
     def args = task.ext.args ?: ''
     def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     prefix = task.ext.prefix ?: "${meta.id}"
-    def keep_arg = keep_file ? "--keep ${keep_file}" : ''
-    def quant_covar_arg = quant_covariates_file ? "--covar ${quant_covariates_file}" : ''
-    def cat_covar_arg = cat_covariates_file ? "--factors ${cat_covariates_file}" : ''
+    def keep_arg = keep_file ? "--keep \"${keep_file}\"" : ''
+    def quant_covar_arg = quant_covariates_file ? "--covar \"${quant_covariates_file}\"" : ''
+    def cat_covar_arg = cat_covariates_file ? "--factors \"${cat_covariates_file}\"" : ''
 
     """
-    ldak6 --he ${prefix} \\
-        --pheno ${phenotype_file} \\
-        --grm ${grm_prefix} \\
+    ldak6 --he "${prefix}" \\
+        --pheno "${phenotype_file}" \\
+        --grm "${grm_prefix}" \\
         ${keep_arg} \\
         ${quant_covar_arg} \\
         ${cat_covar_arg} \\
-        --max-threads ${task.cpus} \
+        --max-threads "${task.cpus}" \\
         ${args} \\
-        2>&1 | tee ${prefix}.log
+        2>&1 | tee "${prefix}.log"
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.he
-    touch ${prefix}.coeff
-    touch ${prefix}.combined
-    touch ${prefix}.cross
-    touch ${prefix}.progress
-    touch ${prefix}.share
-    touch ${prefix}.he.within
-    touch ${prefix}.he.across
-    touch ${prefix}.he.compare
-    touch ${prefix}.cross.within
-    touch ${prefix}.cross.across
-    touch ${prefix}.share.within
-    touch ${prefix}.share.across
-    touch ${prefix}.log
+    touch "${prefix}.he"
+    touch "${prefix}.coeff"
+    touch "${prefix}.combined"
+    touch "${prefix}.cross"
+    touch "${prefix}.progress"
+    touch "${prefix}.share"
+    touch "${prefix}.he.within"
+    touch "${prefix}.he.across"
+    touch "${prefix}.he.compare"
+    touch "${prefix}.cross.within"
+    touch "${prefix}.cross.across"
+    touch "${prefix}.share.within"
+    touch "${prefix}.share.across"
+    touch "${prefix}.log"
     """
 }

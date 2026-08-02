@@ -1,3 +1,7 @@
+// Estimate heritability with GCTA GREML or GREML-LDMS from prepared relatedness matrices.
+// Both processes report on the run-wide versions topic, so this subworkflow emits no versions.
+
+// MODULE: Local to the pipeline
 include { GCTA_REML     } from '../../../modules/local/gcta/reml/main'
 include { GCTA_REMLLDMS } from '../../../modules/local/gcta/remlldms/main'
 
@@ -12,7 +16,7 @@ workflow GRM_HERITABILITY_GCTA {
     main:
     ch_estimators = ch_estimator.map { meta5, estimator ->
         if (!['greml', 'greml_ldms'].contains(estimator)) {
-            error("GRM_HERITABILITY_GCTA: estimator must be 'greml' or 'greml_ldms', got '${estimator}'")
+            error("[nf-core/gwas] ERROR: GRM_HERITABILITY_GCTA estimator must be 'greml' or 'greml_ldms', got '${estimator}'")
         }
         tuple(meta5.id, estimator)
     }
@@ -40,10 +44,10 @@ workflow GRM_HERITABILITY_GCTA {
         .join(ch_estimators, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .map { analysis_id, grm, pheno, qcovar, covar, estimator ->
             if (estimator == 'greml_ldms' && !grm[1]) {
-                error("GRM_HERITABILITY_GCTA: estimator 'greml_ldms' requires an MGRM manifest, none given for '${analysis_id}'")
+                error("[nf-core/gwas] ERROR: GRM_HERITABILITY_GCTA estimator 'greml_ldms' requires an MGRM manifest, none given for '${analysis_id}'")
             }
             if (estimator == 'greml' && grm[1]) {
-                error("GRM_HERITABILITY_GCTA: estimator 'greml' takes a single GRM bundle, an MGRM manifest was given for '${analysis_id}'")
+                error("[nf-core/gwas] ERROR: GRM_HERITABILITY_GCTA estimator 'greml' takes a single GRM bundle, an MGRM manifest was given for '${analysis_id}'")
             }
             tuple(analysis_id, grm, pheno, qcovar, covar, estimator)
         }
@@ -72,10 +76,8 @@ workflow GRM_HERITABILITY_GCTA {
 
     ch_heritability = GCTA_REML.out.reml_results.mix(GCTA_REMLLDMS.out.reml_results)
     ch_logs = GCTA_REML.out.log.mix(GCTA_REMLLDMS.out.log)
-    ch_versions = GCTA_REML.out.versions_gcta.mix(GCTA_REMLLDMS.out.versions_gcta)
 
     emit:
     heritability = ch_heritability // channel: [ val(meta), path(hsq) ], one record per analysis
     logs         = ch_logs // channel: [ val(meta), path(log) ]
-    versions     = ch_versions.unique() // channel: unique [ val(process), val(tool), val(version) ] route-specific records
 }

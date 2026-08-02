@@ -1,51 +1,43 @@
-//
-// Build each distinct relatedness matrix exactly once and fan it back out to every analysis unit that
-// needs one.
-//
-// A relatedness matrix is the most expensive artefact this pipeline builds, and for analyses that share a
-// cohort and a kinship model it is identical every time, so matrix construction is hoisted out of the
-// heritability routes and up to here. If each route built its own matrix internally, deduplication would be
-// impossible from the pipeline level: the routes cannot see each other.
-//
-// There is no `versions` output: every component below reports on the `versions` topic rather than through a
-// versions file, so there is no version channel to accumulate.
-//
+// Build each distinct relatedness matrix once and fan it out to every analysis unit that needs it.
+// Every component reports on the run-wide versions topic, so this subworkflow emits no versions.
 
-// SUBWORKFLOW: Vendored from the component library
-include { GCTA_PREPARE_GRM_DENSE } from '../gcta_prepare_grm_dense/main'
-include { GCTA_PREPARE_GRM_LDMS  } from '../gcta_prepare_grm_ldms/main'
-include { PLINK_PREPARE_GRM_LDAK } from '../plink_prepare_grm_ldak/main'
+// SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
+include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
+include { GCTA_PREPARE_GRM_LDMS         } from '../gcta_prepare_grm_ldms/main'
+include { PLINK_PREPARE_GRM_LDAK        } from '../plink_prepare_grm_ldak/main'
 
 // MODULE: Local to the pipeline
-include { GCTA_MAKEBKSPARSE } from '../../../modules/local/gcta/makebksparse/main'
+include { GCTA_MAKEBKSPARSE             } from '../../../modules/local/gcta/makebksparse/main'
 
 // FUNCTION: Local to the pipeline
-include { ldakWeightsIdentity      } from '../utils_nfcore_gwas_pipeline'
-include { methodResourceIdentity   } from '../utils_nfcore_gwas_pipeline'
-include { relatednessMatrixKinds   } from '../utils_nfcore_gwas_pipeline'
-include { relatednessMatrixRequest } from '../utils_nfcore_gwas_pipeline'
+include { getLdakWeightsIdentity        } from '../utils_nfcore_gwas_pipeline'
+include { getMethodResourceIdentity     } from '../utils_nfcore_gwas_pipeline'
+include { getRelatednessMatrixKinds     } from '../utils_nfcore_gwas_pipeline'
+include { buildRelatednessMatrixRequest } from '../utils_nfcore_gwas_pipeline'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:
     ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ], path(ldak_weights) ], [] when absent
     ch_cohort_genotypes // channel: [ val(cohort_meta), path(pgen), path(psam), path(pvar) ]
     ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], analyses needing PLINK 1
-    gcta_grm_parts // integer: Run/profile GCTA GRM partition count, never analysis metadata
+    gcta_grm_parts // channel: val(gcta_grm_parts), run/profile GCTA GRM partition count
 
     main:
 
+    // Relatedness matrices are the most expensive artefacts built here. Hoisting construction above the
+    // heritability routes lets analyses with the same cohort and kinship model reuse one matrix.
     //
     // One request per analysis unit per matrix it needs, keyed by the reuse digest. An analysis selecting
     // three estimators that share a matrix contributes three requests carrying one key; an analysis
     // selecting none contributes nothing.
     //
     def ch_requests = ch_analyses.flatMap { meta, genotype_files, ldak_weights ->
-        relatednessMatrixKinds(meta).collect { kind ->
+        getRelatednessMatrixKinds(meta).collect { kind ->
             def weights_policy = meta.method_options.ldak.weights_policy
-            def weights_identity = kind == 'ldak_kinship' ? ldakWeightsIdentity(ldak_weights, weights_policy) : [mode: 'equal']
+            def weights_identity = kind == 'ldak_kinship' ? getLdakWeightsIdentity(ldak_weights, weights_policy) : [mode: 'equal']
             def gcta_extract = kind == 'gcta_dense' ? meta.method_options.gcta.grm_extract : []
-            def extract_identity = kind == 'gcta_dense' ? methodResourceIdentity(gcta_extract) : [mode: 'all']
-            def request = relatednessMatrixRequest(meta, genotype_files, kind, weights_identity, extract_identity)
+            def extract_identity = kind == 'gcta_dense' ? getMethodResourceIdentity(gcta_extract) : [mode: 'all']
+            def request = buildRelatednessMatrixRequest(meta, genotype_files, kind, weights_identity, extract_identity)
             def weights_file = kind == 'ldak_kinship' ? ldak_weights ?: [] : []
             [request.key, meta, request, weights_file]
         }
@@ -106,18 +98,14 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     }
 
     //
-    // GCTA takes its genotypes through a manifest rather than as a prefix argument, so one is written per
-    // matrix. Only the first whitespace-separated token of each line is read, and it is a fileset stem
-    // resolved relative to the task working directory rather than a path: verified against gcta 1.94.1,
-    // which reads `<token>.pgen`, `<token>.psam` and `<token>.pvar` and aborts with
-    // "Error: can't read [<token>.psam]" when a file is named otherwise. `collectFile` rather than a
-    // process, because a one-line manifest does not earn a container, and it caches across a resumed run so
-    // the manifest does not change under the build task and invalidate its cache.
+    // GCTA resolves every manifest entry from one prefix in the task working directory. Derive that
+    // prefix from the staged primary PGEN file; matching PSAM/PVAR basenames are the native caller
+    // contract, so invalid bundles fail in GCTA. `collectFile` keeps the one-line manifest cacheable.
     //
     def ch_dense_builds = ch_by_kind.gcta_dense.mix(ch_by_kind.gcta_sparse)
 
     def ch_dense_manifests = ch_dense_builds
-        .map { matrix_meta, _parts, _gcta_extract, pgen, psam, pvar -> [matrix_meta, gctaFilesetStem(matrix_meta, pgen, psam, pvar)] }
+        .map { matrix_meta, _parts, _gcta_extract, pgen, _psam, _pvar -> [matrix_meta, pgen.baseName] }
         .collectFile { matrix_meta, stem -> ["${matrix_meta.id}.mpfile", "${stem}\n"] }
         .map { manifest -> [manifest.baseName, manifest] }
 
@@ -173,8 +161,9 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .combine(ch_plink1_cohorts, by: 0)
         .map { _cohort, matrix_meta, parts, bed, bim, fam -> [matrix_meta, parts, bed, bim, fam] }
 
+    // Derive the LDMS PLINK 1 prefix from the staged primary BED file under the same native bundle contract.
     def ch_ldms_manifests = ch_ldms_builds
-        .map { matrix_meta, _parts, bed, bim, fam -> [matrix_meta, gctaBfileStem(matrix_meta, bed, bim, fam)] }
+        .map { matrix_meta, _parts, bed, _bim, _fam -> [matrix_meta, bed.baseName] }
         .collectFile { matrix_meta, stem -> ["${matrix_meta.id}.mbfile", "${stem}\n"] }
         .map { manifest -> [manifest.baseName, manifest] }
 
@@ -286,34 +275,4 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     gcta_sparse  = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
     gcta_ldms    = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
     ldak_kinship = ch_ldak_kinship // channel: [ val(meta), path(grm_files), path(keep) ]
-}
-
-//
-// The one stem a GCTA fileset manifest can name.
-//
-// The three PLINK 2 files of a prepared bundle normally share a stem — PLINK 2 writes them that way and
-// PLINK2_MAKEPGEN and PLINK2_VCF name them after the cohort — but a cohort supplied as PLINK 2 is passed
-// through untouched, and the samplesheet does not require the researcher's three files to agree. GCTA cannot
-// express a three-stem fileset, so the disagreement is refused here, where the message can name the cohort,
-// rather than inside GCTA as a missing-file error.
-//
-def gctaFilesetStem(matrix_meta, pgen, psam, pvar) {
-    def stems = [pgen, psam, pvar].collect { genotype_file -> genotype_file.name - ~/\.(pgen|psam|pvar)$/ }.unique()
-    if (stems.size() > 1) {
-        def named = [pgen, psam, pvar].collect { genotype_file -> "'${genotype_file.name}'" }.join(', ')
-        error("[nf-core/gwas] ERROR: cohort '${matrix_meta.cohort}' supplies PLINK 2 files that do not share one stem (${named}). GCTA resolves a fileset from a single stem, so name the three files alike; a compressed '.pvar.zst' is refused for the same reason.")
-    }
-    return stems.first()
-}
-
-//
-// The equivalent single-stem invariant for the PLINK 1 bundle used by GCTA LD-score calculation.
-//
-def gctaBfileStem(matrix_meta, bed, bim, fam) {
-    def stems = [bed, bim, fam].collect { genotype_file -> genotype_file.name - ~/\.(bed|bim|fam)$/ }.unique()
-    if (stems.size() > 1) {
-        def named = [bed, bim, fam].collect { genotype_file -> "'${genotype_file.name}'" }.join(', ')
-        error("[nf-core/gwas] ERROR: cohort '${matrix_meta.cohort}' supplies PLINK 1 files that do not share one stem (${named}). GCTA resolves a bfile from a single stem, so name the three files alike.")
-    }
-    return stems.first()
 }

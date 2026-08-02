@@ -6,7 +6,7 @@ include { GCTA_CALCULATELDSCORES        } from '../../../modules/local/gcta/calc
 include { CUSTOM_GCTASTRATIFYLDSCORES   } from '../../../modules/local/custom/gctastratifyldscores/main'
 include { CUSTOM_GCTACREATEMGRMMANIFEST } from '../../../modules/local/custom/gctacreatemgrmmanifest/main'
 
-// SUBWORKFLOW: Vendored from the component library
+// SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
 
 workflow GCTA_PREPARE_GRM_LDMS {

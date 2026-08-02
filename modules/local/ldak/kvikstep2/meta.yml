@@ -41,7 +41,7 @@ input:
         type: map
         description: |
           Groovy Map containing phenotype information
-          Keep `id` as the phenotype-specific analysis identifier used for the step 2 output prefix
+          Keep `id` as the phenotype-specific analysis identifier used for the native step 2 output prefix
           Keep `is_binary` for trait metadata propagation even though the documented step 2 command does not take `--binary`
           Optional phenotype selection such as `--mpheno 1` is supplied via `task.ext.args`
           e.g. `[ id:'Y1', is_binary:false ]`
@@ -57,6 +57,7 @@ input:
           Groovy Map containing step 1 prediction artifact information
           This tuple is the direct `predictions` output emitted by `ldak/kvikstep1`;
           phenotype and covariate files remain explicit step 2 inputs rather than being bundled into an analysis-unit output.
+          Step 1 retains its reusable genotype/settings prefix; when that differs from the phenotype-specific step 2 prefix, the three staged artifacts are aliased together because `--kvik-step2` uses one prefix for both input discovery and native outputs.
           e.g. `[ id:'Y1', is_binary:false ]`
     - step1_root:
         type: file
@@ -157,6 +158,7 @@ output:
             e.g. `[ id:'plink_multichr' ]`
       - "${prefix}.step2*.pvalues":
           type: file
+          optional: true
           description: Optional LDAK-KVIK step 2 pvalue output
           pattern: "*.step2*.pvalues"
           ontologies:

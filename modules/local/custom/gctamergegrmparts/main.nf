@@ -24,9 +24,9 @@ process CUSTOM_GCTAMERGEGRMPARTS {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.grm.bin
-    touch ${prefix}.grm.N.bin
-    touch ${prefix}.grm.id
+    touch "${prefix}.grm.bin"
+    touch "${prefix}.grm.N.bin"
+    touch "${prefix}.grm.id"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

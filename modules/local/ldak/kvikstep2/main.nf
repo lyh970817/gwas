@@ -30,9 +30,9 @@ process LDAK_KVIKSTEP2 {
     def args = task.ext.args ?: ""
     def bfile_prefix = bed.baseName
     prefix = task.ext.prefix ?: meta2.id
-    def covar_arg = quant_covariates_file ? "--covar ${quant_covariates_file}" : ""
-    def factors_arg = cat_covariates_file ? "--factors ${cat_covariates_file}" : ""
-    def keep_arg = keep_file ? "--keep ${keep_file}" : ""
+    def covar_arg = quant_covariates_file ? "--covar \"${quant_covariates_file}\"" : ""
+    def factors_arg = cat_covariates_file ? "--factors \"${cat_covariates_file}\"" : ""
+    def keep_arg = keep_file ? "--keep \"${keep_file}\"" : ""
     """
     if [[ "${step1_root}" != "${prefix}.step1.root" ]]; then
         ln -s "${step1_root}" "${prefix}.step1.root"
@@ -40,17 +40,17 @@ process LDAK_KVIKSTEP2 {
         ln -s "${step1_loco_prs}" "${prefix}.step1.loco.prs"
     fi
 
-    ldak6 --kvik-step2 ${prefix} \\
-        --bfile ${bfile_prefix} \\
-        --pheno ${phenotype_file} \\
+    ldak6 --kvik-step2 "${prefix}" \\
+        --bfile "${bfile_prefix}" \\
+        --pheno "${phenotype_file}" \\
         ${covar_arg} \\
         ${factors_arg} \\
         ${keep_arg} \\
-        --max-threads ${task.cpus} \\
+        --max-threads "${task.cpus}" \\
         ${args} \\
-        2>&1 | tee ${prefix}.step2.log
+        2>&1 | tee "${prefix}.step2.log"
 
-    for assoc in ${prefix}.step2*.assoc; do
+    for assoc in "${prefix}".step2*.assoc; do
         summary="\${assoc%.assoc}.summaries"
         harmonisation_input="\${assoc%.assoc}.harmonisation.tsv"
         if [[ ! -f "\${summary}" ]]; then
@@ -142,9 +142,10 @@ process LDAK_KVIKSTEP2 {
     stub:
     prefix = task.ext.prefix ?: meta2.id
     """
-    touch ${prefix}.step2.assoc
-    touch ${prefix}.step2.harmonisation.tsv
-    touch ${prefix}.step2.summaries
-    touch ${prefix}.step2.log
+    touch "${prefix}.step2.assoc"
+    touch "${prefix}.step2.harmonisation.tsv"
+    touch "${prefix}.step2.summaries"
+    touch "${prefix}.step2.pvalues"
+    touch "${prefix}.step2.log"
     """
 }

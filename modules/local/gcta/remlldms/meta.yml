@@ -23,12 +23,13 @@ input:
   - - meta:
         type: map
         description: |
-          Groovy map containing MGRM metadata
-          `meta.id` should match the MGRM manifest basename, for example
-          `plink_simulated_ldms` for `plink_simulated_ldms.mgrm`
+          Groovy map containing MGRM analysis metadata
+          e.g. `[ id:'plink_simulated_ldms' ]`
+          `meta.id` supplies the overridable default output prefix, while
+          `mgrm_file` supplies the manifest passed to `--mgrm`.
     - mgrm_file:
         type: file
-        description: MGRM manifest file
+        description: MGRM manifest file passed directly to `--mgrm`
         pattern: "*.mgrm"
         ontologies:
           - edam: "http://edamontology.org/format_2330"
@@ -76,9 +77,8 @@ output:
     - - meta:
           type: map
           description: |
-            Groovy map containing MGRM metadata
-            `meta.id` should match the MGRM manifest basename, for example
-            `plink_simulated_ldms` for `plink_simulated_ldms.mgrm`
+            Groovy map containing the unchanged input MGRM analysis metadata
+            e.g. `[ id:'plink_simulated_ldms' ]`
       - "*.hsq":
           type: file
           description: REML-LDMS result file
@@ -89,9 +89,8 @@ output:
     - - meta:
           type: map
           description: |
-            Groovy map containing MGRM metadata
-            `meta.id` should match the MGRM manifest basename, for example
-            `plink_simulated_ldms` for `plink_simulated_ldms.mgrm`
+            Groovy map containing the unchanged input MGRM analysis metadata
+            e.g. `[ id:'plink_simulated_ldms' ]`
       - "*.log":
           type: file
           description: GCTA REML-LDMS log file

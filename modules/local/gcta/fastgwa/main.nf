@@ -23,34 +23,32 @@ process GCTA_FASTGWA {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def out = prefix
     def genotype_suffix = bed_pgen.name.tokenize('.').last()
-    def genotype_flag = genotype_suffix == 'pgen' ? '--pfile' : '--bfile'
     def genotype_prefix = bed_pgen.baseName
     def sparse_grm_file = sparse_grm_files.find { sparse_grm_file -> sparse_grm_file.name.endsWith('.grm.sp') }
     def sparse_grm_prefix = sparse_grm_file.name - '.grm.sp'
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def genotype_flag = genotype_suffix == 'pgen' ? '--pfile' : '--bfile'
     def analysis_flag = is_binary ? '--fastGWA-mlm-binary' : '--fastGWA-mlm'
-    def qcovar_arg = quant_covariates_file ? "--qcovar ${quant_covariates_file}" : ''
-    def covar_arg = cat_covariates_file ? "--covar ${cat_covariates_file}" : ''
+    def qcovar_arg = quant_covariates_file ? "--qcovar \"${quant_covariates_file}\"" : ''
+    def covar_arg = cat_covariates_file ? "--covar \"${cat_covariates_file}\"" : ''
     """
     gcta \\
-        ${genotype_flag} ${genotype_prefix} \\
-        --grm-sparse ${sparse_grm_prefix} \\
+        ${genotype_flag} "${genotype_prefix}" \\
+        --grm-sparse "${sparse_grm_prefix}" \\
         ${analysis_flag} \\
-        --pheno ${phenotype_file} \\
+        --pheno "${phenotype_file}" \\
         ${qcovar_arg} \\
         ${covar_arg} \\
-        --thread-num ${task.cpus} \\
-        --out ${out} \\
+        --thread-num "${task.cpus}" \\
+        --out "${prefix}" \\
         ${args}
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def out = prefix
     """
-    echo -e "CHR\tSNP\tPOS\tA1\tA2\tN\tAF1\tBETA\tSE\tP" > ${out}.fastGWA
-    echo "GCTA fastGWA stub" > ${out}.log
+    echo -e "CHR\tSNP\tPOS\tA1\tA2\tN\tAF1\tBETA\tSE\tP" > "${prefix}.fastGWA"
+    echo "GCTA fastGWA stub" > "${prefix}.log"
     """
 }

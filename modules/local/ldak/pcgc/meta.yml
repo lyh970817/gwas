@@ -39,6 +39,7 @@ input:
         description: Metadata map paired with optional keep input.
     - keep_file:
         type: file
+        optional: true
         description: Optional keep file for sample filtering; pass [] when GRM is pre-filtered
         ontologies: []
   - - meta4:
@@ -46,6 +47,7 @@ input:
         description: Metadata map paired with optional quantitative covariates input.
     - quant_covariates_file:
         type: file
+        optional: true
         description: Optional quantitative covariates file passed to `--covar`; pass [] when absent
         ontologies: []
   - - meta5:
@@ -53,6 +55,7 @@ input:
         description: Metadata map paired with optional categorical covariates input.
     - cat_covariates_file:
         type: file
+        optional: true
         description: Optional categorical covariates file passed to `--factors`; pass [] when absent
         ontologies: []
 output:
@@ -70,6 +73,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.pcgc.marginal":
           type: file
+          optional: true
           description: Optional marginal PCGC output (`<prefix>.pcgc.marginal`)
           ontologies: []
   coeff:
@@ -78,6 +82,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.coeff":
           type: file
+          optional: true
           description: Optional coefficient output (`<prefix>.coeff`)
           ontologies: []
   combined:
@@ -86,6 +91,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.combined":
           type: file
+          optional: true
           description: Optional combined output (`<prefix>.combined`)
           ontologies: []
   cross:
@@ -94,6 +100,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.cross":
           type: file
+          optional: true
           description: Optional cross output (`<prefix>.cross`)
           ontologies: []
   progress:
@@ -102,6 +109,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.progress":
           type: file
+          optional: true
           description: Optional progress output (`<prefix>.progress`)
           ontologies: []
   share:
@@ -110,6 +118,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.share":
           type: file
+          optional: true
           description: Optional share output (`<prefix>.share`)
           ontologies: []
   log:

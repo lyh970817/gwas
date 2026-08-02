@@ -23,17 +23,17 @@ process LDAK_FILTER {
     def prefix = task.ext.prefix ?: meta.id
     """
     ldak6 \\
-        --filter ${prefix} \\
-        --grm ${grm_prefix} \\
-        --max-threads ${task.cpus} \\
+        --filter "${prefix}" \\
+        --grm "${grm_prefix}" \\
+        --max-threads "${task.cpus}" \\
         ${args}
     """
 
     stub:
     def prefix = task.ext.prefix ?: meta.id
     """
-    touch ${prefix}.keep
-    touch ${prefix}.lose
-    echo "0.0" > ${prefix}.maxrel
+    touch "${prefix}.keep"
+    touch "${prefix}.lose"
+    echo "0.0" > "${prefix}.maxrel"
     """
 }

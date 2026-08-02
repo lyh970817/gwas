@@ -27,11 +27,12 @@ process GWASLAB_HARMONIZE {
     stub:
     def prefix = task.ext.prefix ?: meta.id
     """
-    echo "" | gzip > ${prefix}.gwaslab.tsv.gz
-    touch ${prefix}.gwaslab.log
-    cat <<-END_VERSIONS > versions.yml
+    printf '' | gzip -c > "${prefix}.gwaslab.tsv.gz"
+    touch "${prefix}.gwaslab.log"
+    cat <<-END_VERSIONS > "versions.yml"
     "${task.process}":
         gwaslab: 4.1.9
+        python: \$(python3 --version | sed 's/^Python //')
     END_VERSIONS
     """
 }

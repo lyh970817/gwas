@@ -1,12 +1,5 @@
-//
-// Prepare each distinct cohort's genotypes exactly once into the canonical PLINK 2 bundle, then fan
-// that bundle back out to every analysis unit that named the cohort. For routes that require PLINK 1,
-// derive one compatibility bundle per requesting cohort and fan it out with focal analysis identity.
-//
-// There is no `versions` output: all three PLINK 2 components report their version on the `versions`
-// topic rather than through a versions file, so there is no version channel to accumulate. This
-// matches the GWAS subworkflows in the component library.
-//
+// Prepare each distinct cohort once as canonical PLINK 2 and derive PLINK 1 only for routes that need it.
+// All three processes report on the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULE: Local to the pipeline
 include { PLINK2_MAKEPGEN } from '../../../modules/local/plink2/makepgen/main'
@@ -76,8 +69,8 @@ workflow PREPARE_COHORT_GENOTYPES {
     )
 
     def ch_cohort_genotypes = ch_supplied
-        .mix(PLINK2_MAKEPGEN.out.pgen)
-        .mix(PLINK2_VCF.out.pgen)
+    ch_cohort_genotypes = ch_cohort_genotypes.mix(PLINK2_MAKEPGEN.out.pgen)
+    ch_cohort_genotypes = ch_cohort_genotypes.mix(PLINK2_VCF.out.pgen)
 
     //
     // The cohort-to-analysis seam. `cohort_id` to `analysis_id` is one-to-many, so this is a

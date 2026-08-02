@@ -1,15 +1,15 @@
-//
-// Construct and merge dense GCTA genetic relationship matrix parts
-//
+// Construct and merge dense GCTA genetic relationship matrix parts.
+// Both processes report on the run-wide versions topic, so this subworkflow emits no versions.
 
+// MODULE: Local to the pipeline
 include { GCTA_MAKEGRMPART         } from '../../../modules/local/gcta/makegrmpart/main'
 include { CUSTOM_GCTAMERGEGRMPARTS } from '../../../modules/local/custom/gctamergegrmparts/main'
 
 workflow GCTA_PREPARE_GRM_DENSE {
     take:
-    ch_genotypes // channel (mandatory): [ val(meta), path(mfile), path(bed_pgen), path(bim_pvar), path(fam_psam) ]
-    ch_snp_group_file // channel (optional): [ val(meta2), path(snp_group_file) ]
-    ch_n_parts // channel (mandatory): [ val(meta3), val(requested_parts) ]
+    ch_genotypes // channel: [ val(meta), path(mfile), path(bed_pgen), path(bim_pvar), path(fam_psam) ], mandatory
+    ch_snp_group_file // channel: [ val(meta2), path(snp_group_file) ], optional; use [] when absent
+    ch_n_parts // channel: [ val(meta3), val(requested_parts) ], mandatory
 
     main:
     ch_make_jobs = ch_genotypes

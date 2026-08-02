@@ -21,25 +21,25 @@ process LDAK_CALCKINS {
     script:
     def args = task.ext.args ?: ''
     prefix = task.ext.prefix ?: "${meta.id}"
-    def weights_arg = weights_file ? "--weights ${weights_file}" : ''
+    def weights_arg = weights_file ? "--weights \"${weights_file}\"" : ''
     """
     ldak6 \\
-        --calc-kins-direct ${prefix} \\
-        --bfile ${bed.baseName} \\
-        --power ${power} \\
+        --calc-kins-direct "${prefix}" \\
+        --bfile "${bed.baseName}" \\
+        --power "${power}" \\
         ${weights_arg} \\
-        --max-threads ${task.cpus} \\
+        --max-threads "${task.cpus}" \\
         ${args} \\
-        2>&1 | tee ${prefix}.log
+        2>&1 | tee "${prefix}.log"
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.grm.bin
-    touch ${prefix}.grm.id
-    touch ${prefix}.grm.details
-    touch ${prefix}.grm.adjust
-    touch ${prefix}.log
+    touch "${prefix}.grm.bin"
+    touch "${prefix}.grm.id"
+    touch "${prefix}.grm.details"
+    touch "${prefix}.grm.adjust"
+    touch "${prefix}.log"
     """
 }

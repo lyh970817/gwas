@@ -22,19 +22,19 @@ process LDAK_SUBGRM {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     ldak6 \\
-        --sub-grm ${prefix} \\
-        --grm ${grm_prefix} \\
-        --keep ${keep} \\
-        --max-threads ${task.cpus} \\
+        --sub-grm "${prefix}" \\
+        --grm "${grm_prefix}" \\
+        --keep "${keep}" \\
+        --max-threads "${task.cpus}" \\
         ${args}
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.grm.bin
-    touch ${prefix}.grm.id
-    touch ${prefix}.grm.details
-    touch ${prefix}.grm.adjust
+    touch "${prefix}.grm.bin"
+    touch "${prefix}.grm.id"
+    touch "${prefix}.grm.details"
+    touch "${prefix}.grm.adjust"
     """
 }

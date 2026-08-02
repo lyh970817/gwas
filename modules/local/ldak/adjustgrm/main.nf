@@ -24,27 +24,27 @@ process LDAK_ADJUSTGRM {
     def args = task.ext.args ?: ''
     def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     prefix = task.ext.prefix ?: "${meta.id}"
-    def keep_arg = keep_file ? "--keep ${keep_file}" : ''
-    def covar_arg = adjustment_covariates_file ? "--covar ${adjustment_covariates_file}" : ''
+    def keep_arg = keep_file ? "--keep \"${keep_file}\"" : ''
+    def covar_arg = adjustment_covariates_file ? "--covar \"${adjustment_covariates_file}\"" : ''
     """
-    ldak6 --adjust-grm ${prefix} \\
-        --grm ${grm_prefix} \\
-        --pheno ${phenotype_file} \\
+    ldak6 --adjust-grm "${prefix}" \\
+        --grm "${grm_prefix}" \\
+        --pheno "${phenotype_file}" \\
         ${keep_arg} \\
         ${covar_arg} \\
-        --max-threads ${task.cpus} \\
+        --max-threads "${task.cpus}" \\
         ${args} \\
-        2>&1 | tee ${prefix}.log
+        2>&1 | tee "${prefix}.log"
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.grm.bin
-    touch ${prefix}.grm.id
-    touch ${prefix}.grm.details
-    touch ${prefix}.grm.adjust
-    touch ${prefix}.grm.root
-    touch ${prefix}.log
+    touch "${prefix}.grm.bin"
+    touch "${prefix}.grm.id"
+    touch "${prefix}.grm.details"
+    touch "${prefix}.grm.adjust"
+    touch "${prefix}.grm.root"
+    touch "${prefix}.log"
     """
 }

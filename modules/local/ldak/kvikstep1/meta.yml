@@ -116,6 +116,7 @@ output:
           description: Metadata map carried forward from the focal genotype input
       - "${prefix}.step1.effects":
           type: file
+          optional: true
           description: Optional LDAK-KVIK step 1 effects file produced for quantitative traits
           pattern: "*.step1.effects"
           ontologies: []

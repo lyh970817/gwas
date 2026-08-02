@@ -5,6 +5,7 @@ import math
 import numbers
 import os
 import shlex
+import sys
 
 # The packaged image is read-only at the locations selected by Numba and Matplotlib.
 os.environ.setdefault("NUMBA_CACHE_DIR", os.path.abspath(".numba_cache"))
@@ -119,3 +120,4 @@ sumstats.to_format(
 with open("versions.yml", "w", encoding="utf-8") as versions:
     versions.write(f'"$task.process":\\n')
     versions.write(f"    gwaslab: {gl.__version__}\\n")
+    versions.write(f"    python: {sys.version.split()[0]}\\n")

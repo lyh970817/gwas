@@ -128,7 +128,7 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
             LDAK_KVIKSTEP1.out.predictions.map { meta, step1_root, step1_loco_details, step1_loco_prs ->
                 tuple(meta.kvik_prediction_key, tuple(meta, step1_root, step1_loco_details, step1_loco_prs))
             },
-            by: 0,
+            by: 0
         )
         .flatMap { _prediction_key, genotype_shards, genotypes, pheno, qcovar, covar, keep, predictions ->
             genotype_shards.collect { genotype_shard ->
@@ -163,12 +163,12 @@ workflow PLINK_ASSOCIATION_LDAK_KVIK {
     ch_logs = LDAK_KVIKSTEP1.out.log.mix(LDAK_KVIKSTEP2.out.log)
 
     emit:
-    results     = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ], once per Step 2 shard
+    results             = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ], once per Step 2 shard
     harmonisation_input = LDAK_KVIKSTEP2.out.harmonisation_input // channel: [ val(meta), path(tsv) ], once per Step 2 shard
-    summaries   = LDAK_KVIKSTEP2.out.summaries // channel: [ val(meta), path(summaries) ], once per Step 2 shard
-    pvalues     = LDAK_KVIKSTEP2.out.pvalues // channel: [ val(meta), path(pvalues) ], optional per shard
-    predictions = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ]
-    effects     = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per analysis
-    progress    = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], only for thin_common analyses
-    logs        = ch_logs // channel: [ val(meta), path(log) ]
+    summaries           = LDAK_KVIKSTEP2.out.summaries // channel: [ val(meta), path(summaries) ], once per Step 2 shard
+    pvalues             = LDAK_KVIKSTEP2.out.pvalues // channel: [ val(meta), path(pvalues) ], optional per shard
+    predictions         = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ]
+    effects             = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per analysis
+    progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], only for thin_common analyses
+    logs                = ch_logs // channel: [ val(meta), path(log) ]
 }

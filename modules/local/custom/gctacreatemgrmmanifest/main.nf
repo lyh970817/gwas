@@ -22,7 +22,7 @@ process CUSTOM_GCTACREATEMGRMMANIFEST {
     """
     for grm_id in *.grm.id; do
         echo "\${grm_id%.grm.id}"
-    done | sort -V > ${prefix}.mgrm
+    done | sort -V > "${prefix}.mgrm"
     """
 
     stub:
@@ -30,6 +30,6 @@ process CUSTOM_GCTACREATEMGRMMANIFEST {
     """
     for grm_id in *.grm.id; do
         echo "\${grm_id%.grm.id}"
-    done | sort -V > ${prefix}.mgrm
+    done | sort -V > "${prefix}.mgrm"
     """
 }

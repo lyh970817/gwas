@@ -19,32 +19,33 @@ process GCTA_MAKEGRMPART {
     task.ext.when == null || task.ext.when
 
     script:
-    nparts = nparts_gcta
-    part = part_gcta_job
-    def extract_cmd = snp_group_file ? "--extract ${snp_group_file}" : ''
-    def extra_args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def args = task.ext.args ?: ''
     def genotype_files = bed_pgen instanceof List ? bed_pgen : [bed_pgen]
     def genotype_extension = genotype_files[0].name.tokenize('.').last()
+    def prefix = task.ext.prefix ?: "${meta.id}"
     def multi_file_flag = genotype_extension == 'pgen' ? '--mpfile' : '--mbfile'
+    def extract_cmd = snp_group_file ? "--extract \"${snp_group_file}\"" : ''
+    nparts = nparts_gcta
+    part = part_gcta_job
 
     """
     gcta \\
-        ${multi_file_flag} ${mfile} \\
-        --make-grm-part ${nparts} ${part} \\
+        ${multi_file_flag} "${mfile}" \\
+        --make-grm-part "${nparts}" "${part}" \\
         ${extract_cmd} \\
-        --thread-num ${task.cpus} \\
-        --out ${prefix} ${extra_args}
+        --thread-num "${task.cpus}" \\
+        --out "${prefix}" \\
+        ${args}
     """
 
     stub:
+    def prefix = task.ext.prefix ?: "${meta.id}"
     nparts = nparts_gcta
     part = part_gcta_job
-    def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.part_${nparts}_${part}.grm.id
-    touch ${prefix}.part_${nparts}_${part}.grm.bin
-    touch ${prefix}.part_${nparts}_${part}.grm.N.bin
-    touch ${prefix}.part_${nparts}_${part}.log
+    touch "${prefix}.part_${nparts}_${part}.grm.id"
+    touch "${prefix}.part_${nparts}_${part}.grm.bin"
+    touch "${prefix}.part_${nparts}_${part}.grm.N.bin"
+    touch "${prefix}.part_${nparts}_${part}.log"
     """
 }

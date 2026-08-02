@@ -27,60 +27,6 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_gwas
 workflow {
 
     //
-    // WORKFLOW: Validate a local GWAS test-fixture override
-    //
-    def local_gwas_fixture_root = System.getenv('GWAS_TEST_FIXTURES')
-    def local_gwas_fixture_profiles = [
-        'test_gcta_fastgwa',
-        'test_gcta_greml_ldms',
-        'test_regenie',
-        'test_regenie_standard',
-        'test_regenie_chunked',
-        'test_regenie_binary',
-        'test_ldak',
-        'test_ldak_kvik_all',
-        'test_ldak_kvik_thin_common',
-        'test_ldak_kvik_provided',
-        'test_ldak_kvik_binary',
-        'test_ldak_reml',
-        'test_ldak_relatedness_shared',
-        'test_ldak_relatedness_distinct',
-        'test_ldak_relatedness_same_weights',
-        'test_ldak_relatedness_different_weights',
-    ]
-    def local_gwas_fixture_config_names = [
-        'REGENIE standard Step 1 test profile',
-        'REGENIE chunked Step 1 test profile',
-        'REGENIE binary-trait test profile',
-        'LDAK-KVIK all-predictors test profile',
-        'LDAK-KVIK thin-common test profile',
-        'LDAK-KVIK provided-predictors test profile',
-        'LDAK-KVIK binary-trait test profile',
-        'LDAK REML heritability test profile',
-        'LDAK shared relatedness matrix test profile',
-        'LDAK distinct relatedness matrix test profile',
-        'LDAK same-weight-content test profile',
-        'LDAK different-weight-content test profile',
-    ]
-    def local_gwas_fixture_profile_selected = workflow.profile.tokenize(',').intersect(local_gwas_fixture_profiles)
-    def local_gwas_fixture_config_selected = params.config_profile_name in local_gwas_fixture_config_names
-    if (local_gwas_fixture_root && (local_gwas_fixture_profile_selected || local_gwas_fixture_config_selected)) {
-        def local_gwas_fixture_marker = new File(local_gwas_fixture_root, 'results/fixtures/genotypes/example_all.pgen').absoluteFile
-        if (!local_gwas_fixture_marker.exists()) {
-            error("[nf-core/gwas] ERROR: GWAS_TEST_FIXTURES is set to '${local_gwas_fixture_root}' but ${local_gwas_fixture_marker} does not exist")
-        }
-    }
-
-    //
-    // Refuse the retired monolithic contract explicitly so existing invocations receive a migration path
-    // rather than an unknown-parameter failure.
-    //
-    def retired_input_parameter = ['in', 'put'].join('')
-    if (params.containsKey(retired_input_parameter)) {
-        error("[nf-core/gwas] ERROR: --input '${params.get(retired_input_parameter)}' has been removed; supply --cohort_manifest and --analysis_manifest instead")
-    }
-
-    //
     // SUBWORKFLOW: Run initialisation tasks
     //
     PIPELINE_INITIALISATION(
@@ -142,5 +88,5 @@ workflow NFCORE_GWAS {
     )
 
     emit:
-    multiqc_report = GWAS.out.multiqc_report // channel: /path/to/multiqc_report.html
+    multiqc_report = GWAS.out.multiqc_report // channel: [ [ path(report) ] ]
 }

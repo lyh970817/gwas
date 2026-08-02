@@ -23,23 +23,19 @@ process GCTA_REML {
 
     script:
     def args = task.ext.args ?: ''
+    def dense_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def dense_grm_file = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }
-    if (!dense_grm_file) {
-        error("No '.grm.bin' file found in the GRM bundle for sample ${meta.id}.")
-    }
-    def dense_prefix = dense_grm_file.name - '.grm.bin'
-    def qcovar_param = quant_covariates_file ? "--qcovar ${quant_covariates_file}" : ''
-    def covar_param = cat_covariates_file ? "--covar ${cat_covariates_file}" : ''
+    def qcovar_param = quant_covariates_file ? "--qcovar \"${quant_covariates_file}\"" : ''
+    def covar_param = cat_covariates_file ? "--covar \"${cat_covariates_file}\"" : ''
     """
     gcta \\
         --reml \\
-        --grm ${dense_prefix} \\
-        --pheno ${phenotypes_file} \\
+        --grm "${dense_prefix}" \\
+        --pheno "${phenotypes_file}" \\
         ${qcovar_param} \\
         ${covar_param} \\
         --out "${prefix}" \\
-        --thread-num ${task.cpus} \\
+        --thread-num "${task.cpus}" \\
         ${args}
     """
 

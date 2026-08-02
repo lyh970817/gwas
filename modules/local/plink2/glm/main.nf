@@ -27,16 +27,16 @@ process PLINK2_GLM {
     def args = task.ext.args ?: ''
     def input_prefix = pgen.baseName
     prefix = task.ext.prefix ?: "${meta.id}"
-    def covariates_arg = covariates ? "--covar ${covariates}" : ''
+    def covariates_arg = covariates ? "--covar \"${covariates}\"" : ''
     def mem_mb = task.memory.toMega()
     """
     plink2 \\
-        --pfile ${input_prefix} \\
-        --pheno ${phenotype} \\
+        --pfile "${input_prefix}" \\
+        --pheno "${phenotype}" \\
         ${covariates_arg} \\
-        --threads ${task.cpus} \\
-        --memory ${mem_mb} \\
-        --out ${prefix} \\
+        --threads "${task.cpus}" \\
+        --memory "${mem_mb}" \\
+        --out "${prefix}" \\
         --glm \\
         ${args}
     """
@@ -44,10 +44,10 @@ process PLINK2_GLM {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tBETA\tSE\tT_STAT\tP" > ${prefix}.stub.glm.linear
-    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > ${prefix}.stub.glm.logistic
-    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tFIRTH?\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > ${prefix}.stub.glm.logistic.hybrid
-    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > ${prefix}.stub.glm.firth
-    echo "PLINK 2 GLM stub" > ${prefix}.log
+    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tBETA\tSE\tT_STAT\tP" > "${prefix}.stub.glm.linear"
+    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > "${prefix}.stub.glm.logistic"
+    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tFIRTH?\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > "${prefix}.stub.glm.logistic.hybrid"
+    echo "#CHROM\tPOS\tID\tREF\tALT\tA1\tTEST\tOBS_CT\tOR\tLOG(OR)_SE\tZ_STAT\tP" > "${prefix}.stub.glm.firth"
+    echo "PLINK 2 GLM stub" > "${prefix}.log"
     """
 }

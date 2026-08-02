@@ -67,6 +67,7 @@ output:
             e.g. `[ id:'plink_simulated' ]`
       - ${prefix}.*.glm.linear:
           type: file
+          optional: true
           description: Quantitative-trait linear regression results
           pattern: "*.glm.linear"
           ontologies:
@@ -79,6 +80,7 @@ output:
             e.g. `[ id:'plink_simulated' ]`
       - ${prefix}.*.glm.logistic:
           type: file
+          optional: true
           description: Binary-trait logistic regression results produced with the `no-firth` modifier
           pattern: "*.glm.logistic"
           ontologies:
@@ -91,6 +93,7 @@ output:
             e.g. `[ id:'plink_simulated' ]`
       - ${prefix}.*.glm.logistic.hybrid:
           type: file
+          optional: true
           description: Binary-trait logistic regression results with Firth fallback enabled
           pattern: "*.glm.logistic.hybrid"
           ontologies:
@@ -103,6 +106,7 @@ output:
             e.g. `[ id:'plink_simulated' ]`
       - ${prefix}.*.glm.firth:
           type: file
+          optional: true
           description: Binary-trait Firth regression results produced with the `firth` modifier
           pattern: "*.glm.firth"
           ontologies:

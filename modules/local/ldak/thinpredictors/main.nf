@@ -23,17 +23,17 @@ process LDAK_THINPREDICTORS {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     ldak6 \\
-        --thin ${prefix} \\
-        --bfile ${bed.baseName} \\
-        --window-prune ${window_prune} \\
-        --window-kb ${window_kb} \\
-        --max-threads ${task.cpus} \\
+        --thin "${prefix}" \\
+        --bfile "${bed.baseName}" \\
+        --window-prune "${window_prune}" \\
+        --window-kb "${window_kb}" \\
+        --max-threads "${task.cpus}" \\
         ${args}
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.in
+    touch "${prefix}.in"
     """
 }

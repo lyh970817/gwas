@@ -20,20 +20,12 @@ process PLINK2_MAKEPGEN {
 
     script:
     def args = task.ext.args ?: ''
+    def input_prefix = bed.baseName
     def prefix = task.ext.prefix ?: "${meta.id}"
     def mem_mb = task.memory.toMega()
-    // plink2 resolves a PLINK 1 fileset from a single `--bfile` stem, so deriving that stem from the
-    // .bed alone silently mis-resolves — or fails at runtime — for a bundle whose .bim and .fam are
-    // named differently. Re-staging the trio under one stem in a scratch directory makes the
-    // mismatch unrepresentable; the directory is fresh per task, so it cannot collide with an input.
     """
-    mkdir -p bfile
-    ln -s "\$PWD/${bed}" bfile/input.bed
-    ln -s "\$PWD/${bim}" bfile/input.bim
-    ln -s "\$PWD/${fam}" bfile/input.fam
-
     plink2 \\
-        --bfile bfile/input \\
+        --bfile "${input_prefix}" \\
         --threads "${task.cpus}" \\
         --memory "${mem_mb}" \\
         --make-pgen \\

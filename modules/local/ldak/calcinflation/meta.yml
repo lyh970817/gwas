@@ -23,7 +23,7 @@ input:
         ontologies: []
     - quarter_reml_files:
         type: file
-        description: One or more quarter/chromosome LDAK REML output files used for inflation comparison
+        description: At least two quarter/chromosome LDAK REML output files required by the n - 1 inflation comparison
         ontologies: []
 output:
   inflation_results:

@@ -33,12 +33,14 @@ input:
         description: Groovy Map containing reference FASTA information
     - reference_fasta:
         type: file
+        optional: true
         description: Optional human reference FASTA
         pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
         ontologies:
           - edam: "http://edamontology.org/format_1929" # FASTA
     - reference_fasta_fai:
         type: file
+        optional: true
         description: Optional FASTA index
         pattern: "*.fai"
         ontologies: []
@@ -47,6 +49,7 @@ input:
         description: Groovy Map containing rsID reference information
     - rsid_reference_vcf:
         type: file
+        optional: true
         description: Optional indexed VCF or BCF used to assign rsIDs
         pattern: "*.{vcf,vcf.gz,bcf}"
         ontologies:
@@ -54,6 +57,7 @@ input:
           - edam: "http://edamontology.org/format_3014" # BCF
     - rsid_reference_vcf_index:
         type: file
+        optional: true
         description: Optional rsID-reference VCF or BCF index
         pattern: "*.{tbi,csi}"
         ontologies: []
@@ -62,6 +66,7 @@ input:
         description: Groovy Map containing strand reference information
     - strand_reference_vcf:
         type: file
+        optional: true
         description: Optional indexed VCF or BCF used for strand inference
         pattern: "*.{vcf,vcf.gz,bcf}"
         ontologies:
@@ -69,6 +74,7 @@ input:
           - edam: "http://edamontology.org/format_3014" # BCF
     - strand_reference_vcf_index:
         type: file
+        optional: true
         description: Optional strand-reference VCF or BCF index
         pattern: "*.{tbi,csi}"
         ontologies: []

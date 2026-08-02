@@ -68,6 +68,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.qcovar":
           type: file
+          optional: true
           description: Headered quantitative covariate file, emitted only when the analysis unit supplied one
           pattern: "*.qcovar"
           ontologies:
@@ -78,6 +79,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.noheader.qcovar":
           type: file
+          optional: true
           description: The quantitative covariate file without its header line, for GCTA `--qcovar` and LDAK `--covar`
           pattern: "*.noheader.qcovar"
           ontologies:
@@ -88,6 +90,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.catcovar":
           type: file
+          optional: true
           description: Headered categorical covariate file, emitted only when the analysis unit supplied one
           pattern: "*.catcovar"
           ontologies:
@@ -98,6 +101,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.noheader.catcovar":
           type: file
+          optional: true
           description: The categorical covariate file without its header line, for GCTA `--covar` and LDAK `--factors`
           pattern: "*.noheader.catcovar"
           ontologies:
@@ -108,6 +112,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.covar":
           type: file
+          optional: true
           description: Quantitative and categorical covariates in one headered file, inner-joined on FID and IID, for PLINK 2 `--covar` and REGENIE `--covarFile`
           pattern: "*.covar"
           ontologies:
@@ -118,6 +123,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.adjustcovar":
           type: file
+          optional: true
           description: Headerless numerical covariate design for LDAK matrix adjustment
           pattern: "*.adjustcovar"
           ontologies:
@@ -136,6 +142,7 @@ output:
     - versions.yml:
         type: file
         description: File containing software versions
+        pattern: "versions.yml"
         ontologies:
           - edam: "http://edamontology.org/format_3750"
 topics:
@@ -143,6 +150,7 @@ topics:
     - versions.yml:
         type: file
         description: File containing software versions
+        pattern: "versions.yml"
         ontologies:
           - edam: "http://edamontology.org/format_3750"
 authors:

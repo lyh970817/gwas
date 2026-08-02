@@ -109,8 +109,13 @@ workflow PLINK_FIT_REGENIE {
         }
     REGENIE_RUNL1(ch_runl1.genotypes, ch_runl1.l1, ch_runl1.pheno, ch_runl1.covar, ch_runl1.bsize)
 
+    def ch_logs = REGENIE_STEP1.out.log
+    ch_logs = ch_logs.mix(REGENIE_SPLITL0.out.log)
+    ch_logs = ch_logs.mix(REGENIE_RUNL0.out.log)
+    ch_logs = ch_logs.mix(REGENIE_RUNL1.out.log)
+
     emit:
     predictions = REGENIE_STEP1.out.predictions.mix(REGENIE_RUNL1.out.predictions) // channel: [ val(meta), path(predictions) ]
     loco        = REGENIE_STEP1.out.loco.mix(REGENIE_RUNL1.out.loco) // channel: [ val(meta), path(loco) ]
-    logs        = REGENIE_STEP1.out.log.mix(REGENIE_SPLITL0.out.log, REGENIE_RUNL0.out.log, REGENIE_RUNL1.out.log) // channel: [ val(meta), path(log) ]
+    logs        = ch_logs // channel: [ val(meta), path(log) ]
 }

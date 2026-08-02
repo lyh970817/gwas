@@ -24,13 +24,11 @@ input:
     - bim:
         type: file
         description: PLINK BIM variant file
-        ontologies:
-          - edam: http://edamontology.org/format_3285 # PLINK MAP
+        ontologies: []
     - fam:
         type: file
         description: PLINK FAM sample file
-        ontologies:
-          - edam: http://edamontology.org/format_3286 # PLINK PED
+        ontologies: []
 output:
   predictors:
     - - meta:
@@ -46,6 +44,7 @@ output:
           description: Metadata map carried forward from input
       - "${prefix}.progress":
           type: file
+          optional: true
           description: LDAK progress log
           ontologies: []
   versions_ldak6:

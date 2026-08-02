@@ -25,17 +25,18 @@ dependency would add container weight and a second version to report for no gain
 
 import sys
 
-# Interpolated by Nextflow. An optional `path` input the row did not supply is not staged and
-# renders as the empty string, which is the presence test for the two covariate files.
-PHENOTYPE_FILE = "${phenotype}"
-QUANT_COVARIATES_FILE = "${quant_covariates}"
-CAT_COVARIATES_FILE = "${cat_covariates}"
-PHENOTYPE_COLUMN = "${phenotype_column}"
-TRAIT_TYPE = "${trait_type}"
-CASE_VALUE = "${case_value}"
-CONTROL_VALUE = "${control_value}"
-PREFIX = "${prefix}"
-ANALYSIS_ID = "${analysis_id}"
+# Interpolated as JSON string literals, which are valid Python syntax. Optional paths are
+# serialized as empty strings when the row did not supply them.
+PHENOTYPE_FILE = ${phenotype_literal}
+QUANT_COVARIATES_FILE = ${quant_covariates_literal}
+CAT_COVARIATES_FILE = ${cat_covariates_literal}
+PHENOTYPE_COLUMN = ${phenotype_column_literal}
+TRAIT_TYPE = ${trait_type_literal}
+CASE_VALUE = ${case_value_literal}
+CONTROL_VALUE = ${control_value_literal}
+PREFIX = ${prefix_literal}
+ANALYSIS_ID = ${analysis_id_literal}
+PROCESS_NAME = ${task_process_literal}
 
 MISSING = "NA"
 
@@ -423,4 +424,4 @@ if adjustment is not None:
     write_lines("{}.adjustcovar".format(PREFIX), ["\\t".join(row) for row in adjustment[1]])
 
 # Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
-write_lines("versions.yml", ['"${task.process}":', "    python: {}".format(sys.version.split()[0])])
+write_lines("versions.yml", ['"{}":'.format(PROCESS_NAME), "    python: {}".format(sys.version.split()[0])])

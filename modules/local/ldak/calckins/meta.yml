@@ -37,6 +37,7 @@ input:
         description: Metadata map for the optional weights resource.
     - weights_file:
         type: file
+        optional: true
         description: Optional LDAK predictor weights file; use an empty list when absent.
         ontologies: []
 output:

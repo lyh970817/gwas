@@ -23,17 +23,17 @@ process GCTA_REMLLDMS {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
-    def qcovar_param = quant_covariates_file ? "--qcovar ${quant_covariates_file}" : ''
-    def covar_param = cat_covariates_file ? "--covar ${cat_covariates_file}" : ''
+    def qcovar_param = quant_covariates_file ? "--qcovar \"${quant_covariates_file}\"" : ''
+    def covar_param = cat_covariates_file ? "--covar \"${cat_covariates_file}\"" : ''
     """
     gcta \\
         --reml \\
-        --mgrm ${mgrm_file} \\
-        --pheno ${phenotypes_file} \\
+        --mgrm "${mgrm_file}" \\
+        --pheno "${phenotypes_file}" \\
         ${qcovar_param} \\
         ${covar_param} \\
         --out "${prefix}" \\
-        --thread-num ${task.cpus} \\
+        --thread-num "${task.cpus}" \\
         ${args}
     """
 

@@ -11,27 +11,29 @@ process ATTRIBUTE_REGENIE_PREDICTIONS {
     tuple val(meta), path(predictions), path(loco)
 
     output:
-    tuple val(meta), path("${meta.id}.regenie_step1_pred.list"), path("${meta.id}.regenie_step1_1.loco.gz"), emit: bundle
+    tuple val(meta), path("${prefix}.regenie_step1_pred.list"), path("${prefix}.regenie_step1_1.loco.gz"), emit: bundle
     tuple val("${task.process}"), val("coreutils"), eval("cp --version | head -n 1 | cut -d ' ' -f 4"), emit: versions_coreutils, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
+    prefix = task.ext.prefix ?: "${meta.id}"
     def loco_files = loco instanceof List ? loco : [loco]
     if (loco_files.size() != 1) {
         error("[nf-core/gwas] ERROR: REGENIE prediction attribution for analysis '${meta.id}' expected one LOCO file for canonical phenotype column 'PHENO', got ${loco_files.size()}")
     }
     """
-    cp ${loco_files.first()} ${meta.id}.regenie_step1_1.loco.gz
+    cp "${loco_files.first()}" "${prefix}.regenie_step1_1.loco.gz"
     while IFS='	 ' read -r phenotype _; do
-        printf '%s %s\\n' "\${phenotype}" "${meta.id}.regenie_step1_1.loco.gz"
-    done < ${predictions} > ${meta.id}.regenie_step1_pred.list
+        printf '%s %s\\n' "\${phenotype}" "${prefix}.regenie_step1_1.loco.gz"
+    done < "${predictions}" > "${prefix}.regenie_step1_pred.list"
     """
 
     stub:
+    prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${meta.id}.regenie_step1_1.loco.gz
-    printf '%s %s\\n' 'PHENO' '${meta.id}.regenie_step1_1.loco.gz' > ${meta.id}.regenie_step1_pred.list
+    gzip -c < /dev/null > "${prefix}.regenie_step1_1.loco.gz"
+    printf '%s %s\\n' 'PHENO' "${prefix}.regenie_step1_1.loco.gz" > "${prefix}.regenie_step1_pred.list"
     """
 }

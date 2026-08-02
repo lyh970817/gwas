@@ -1,14 +1,14 @@
 // Run REGENIE Step 1 fitting and Step 2 association across PLINK-format genotype shards.
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
-// SUBWORKFLOW: Vendored from the component library
-include { PLINK_FIT_REGENIE } from '../plink_fit_regenie/main'
+// SUBWORKFLOW: Consisting entirely of nf-core/modules
+include { PLINK_FIT_REGENIE             } from '../plink_fit_regenie/main'
 
 // MODULE: Local to the pipeline
 include { ATTRIBUTE_REGENIE_PREDICTIONS } from '../../../modules/local/attribute_regenie_predictions/main'
 
 // MODULE: Installed directly from nf-core/modules
-include { REGENIE_STEP2 } from '../../../modules/nf-core/regenie/step2/main'
+include { REGENIE_STEP2                 } from '../../../modules/nf-core/regenie/step2/main'
 
 workflow PLINK_GWAS_REGENIE {
     take:
@@ -106,8 +106,8 @@ workflow PLINK_GWAS_REGENIE {
     REGENIE_STEP2(ch_step2.genotypes, ch_step2.predictions, ch_step2.pheno, ch_step2.covar, ch_step2.bsize)
 
     emit:
-    results = REGENIE_STEP2.out.results // channel: [ val(meta), path(regenie_results) ]
-    logs = PLINK_FIT_REGENIE.out.logs.mix(REGENIE_STEP2.out.log) // channel: [ val(meta), path(log) ]
+    results     = REGENIE_STEP2.out.results // channel: [ val(meta), path(regenie_results) ]
+    logs        = PLINK_FIT_REGENIE.out.logs.mix(REGENIE_STEP2.out.log) // channel: [ val(meta), path(log) ]
     predictions = ch_attributed_predictions.map { meta, predictions, _loco -> [meta, predictions] } // channel: [ val(meta), path(predictions) ]
-    loco = ch_attributed_predictions.map { meta, _predictions, loco -> [meta, loco] } // channel: [ val(meta), path(loco) ]
+    loco        = ch_attributed_predictions.map { meta, _predictions, loco -> [meta, loco] } // channel: [ val(meta), path(loco) ]
 }

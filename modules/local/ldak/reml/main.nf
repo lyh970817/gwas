@@ -37,44 +37,45 @@ process LDAK_REML {
     def args = task.ext.args ?: ''
     def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     def prefix = task.ext.prefix ?: meta.id
-    def keep_arg = keep_file ? "--keep ${keep_file}" : ''
-    def quant_covar_arg = quant_covariates_file ? "--covar ${quant_covariates_file}" : ''
-    def cat_covar_arg = cat_covariates_file ? "--factors ${cat_covariates_file}" : ''
-    def prevalence_arg = prevalence ? "--prevalence ${prevalence}" : ''
+    def keep_arg = keep_file ? "--keep \"${keep_file}\"" : ''
+    def quant_covar_arg = quant_covariates_file ? "--covar \"${quant_covariates_file}\"" : ''
+    def cat_covar_arg = cat_covariates_file ? "--factors \"${cat_covariates_file}\"" : ''
+    def prevalence_arg = prevalence ? "--prevalence \"${prevalence}\"" : ''
 
     """
-    ldak6 --reml ${prefix} \\
-        --pheno ${phenotype_file} \\
-        --grm ${grm_prefix} \\
+    ldak6 --reml "${prefix}" \\
+        --pheno "${phenotype_file}" \\
+        --grm "${grm_prefix}" \\
         ${keep_arg} \\
         ${quant_covar_arg} \\
         ${cat_covar_arg} \\
         ${prevalence_arg} \\
-        --max-threads ${task.cpus} \
+        --max-threads "${task.cpus}" \\
         ${args} \\
-        2>&1 | tee ${prefix}.log
+        2>&1 | tee "${prefix}.log"
     """
 
     stub:
     def prefix = task.ext.prefix ?: meta.id
     def liability_outputs = prevalence
         ? """
-    touch ${prefix}.reml.liab
-    touch ${prefix}.coeff.liab
-    touch ${prefix}.indi.blp.liab
-    touch ${prefix}.factor
+    touch "${prefix}.reml.liab"
+    touch "${prefix}.coeff.liab"
+    touch "${prefix}.indi.blp.liab"
+    touch "${prefix}.factor"
     """
         : ''
     """
-    touch ${prefix}.reml
-    touch ${prefix}.coeff
-    touch ${prefix}.cross
-    touch ${prefix}.indi.blp
-    touch ${prefix}.indi.res
-    touch ${prefix}.progress
-    touch ${prefix}.share
-    touch ${prefix}.vars
-    touch ${prefix}.log
+    touch "${prefix}.reml"
+    touch "${prefix}.coeff"
+    touch "${prefix}.combined"
+    touch "${prefix}.cross"
+    touch "${prefix}.indi.blp"
+    touch "${prefix}.indi.res"
+    touch "${prefix}.progress"
+    touch "${prefix}.share"
+    touch "${prefix}.vars"
+    touch "${prefix}.log"
     ${liability_outputs}
     """
 }

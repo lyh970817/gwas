@@ -25,20 +25,20 @@ process PLINK2_MAKEBED {
     def mem_mb = task.memory.toMega()
     """
     plink2 \\
-        --pfile ${input_prefix} \\
-        --threads ${task.cpus} \\
-        --memory ${mem_mb} \\
+        --pfile "${input_prefix}" \\
+        --threads "${task.cpus}" \\
+        --memory "${mem_mb}" \\
         --make-bed \\
-        --out ${prefix} \\
+        --out "${prefix}" \\
         ${args}
     """
 
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.bed
-    touch ${prefix}.bim
-    touch ${prefix}.fam
-    touch ${prefix}.log
+    touch "${prefix}.bed"
+    touch "${prefix}.bim"
+    touch "${prefix}.fam"
+    touch "${prefix}.log"
     """
 }

@@ -22,16 +22,16 @@ process LDAK_THINCOMMON {
     prefix = task.ext.prefix ?: "${meta.id}"
     """
     ldak6 \\
-        --thin-common ${prefix} \\
-        --bfile ${bed.baseName} \\
-        --max-threads ${task.cpus} \\
+        --thin-common "${prefix}" \\
+        --bfile "${bed.baseName}" \\
+        --max-threads "${task.cpus}" \\
         ${args}
     """
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.in
-    touch ${prefix}.progress
+    touch "${prefix}.in"
+    touch "${prefix}.progress"
     """
 }

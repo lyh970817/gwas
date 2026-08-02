@@ -1,6 +1,5 @@
-//
-// Subworkflow with functionality specific to the nf-core/gwas pipeline
-//
+// Pipeline-specific initialisation, relational input validation and completion utilities.
+// These workflows contain no version-producing processes, so they emit no versions.
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -8,14 +7,17 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+// SUBWORKFLOW: Consisting entirely of nf-core/modules
 include { UTILS_NFSCHEMA_PLUGIN   } from '../../nf-core/utils_nfschema_plugin'
-include { paramsSummaryMap        } from 'plugin/nf-schema'
-include { samplesheetToList       } from 'plugin/nf-schema'
-include { paramsHelp              } from 'plugin/nf-schema'
 include { completionEmail         } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary       } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE   } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE } from '../../nf-core/utils_nextflow_pipeline'
+
+// PLUGIN
+include { paramsSummaryMap        } from 'plugin/nf-schema'
+include { samplesheetToList       } from 'plugin/nf-schema'
+include { paramsHelp              } from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -25,20 +27,19 @@ include { UTILS_NEXTFLOW_PIPELINE } from '../../nf-core/utils_nextflow_pipeline'
 
 workflow PIPELINE_INITIALISATION {
     take:
-    version // boolean: Display version and exit
-    validate_params // boolean: Boolean whether to validate parameters against the schema at runtime
-    monochrome_logs // boolean: Do not use coloured log outputs
-    nextflow_cli_args //   array: List of positional nextflow CLI args
-    outdir //  string: The output directory where the results will be saved
-    cohort_manifest // string: Path to the cohort manifest
-    analysis_manifest // string: Path to the analysis manifest
-    method_options // string: Optional per-analysis structured method-options document
-    help // boolean: Display help message and exit
-    help_full // boolean: Show the full help message
-    show_hidden // boolean: Show hidden parameters in the help message
+    version // channel: val(version)
+    validate_params // channel: val(validate_params)
+    monochrome_logs // channel: val(monochrome_logs)
+    nextflow_cli_args // channel: val(nextflow_cli_args)
+    outdir // channel: val(outdir)
+    cohort_manifest // channel: val(cohort_manifest)
+    analysis_manifest // channel: val(analysis_manifest)
+    method_options // channel: val(method_options)
+    help // channel: val(help)
+    help_full // channel: val(help_full)
+    show_hidden // channel: val(show_hidden)
 
     main:
-    ch_versions = channel.empty()
 
     //
     // Print version and exit if required and dump pipeline parameters to JSON file
@@ -125,8 +126,7 @@ workflow PIPELINE_INITIALISATION {
     )
 
     emit:
-    analyses = ch_analyses
-    versions = ch_versions
+    analyses = ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ], path(phenotype), path(quant_covariates), path(cat_covariates), path(kvik_extract), path(ldak_weights) ]
 }
 
 /*
@@ -137,12 +137,12 @@ workflow PIPELINE_INITIALISATION {
 
 workflow PIPELINE_COMPLETION {
     take:
-    email //  string: email address
-    email_on_fail //  string: email address sent on pipeline failure
-    plaintext_email // boolean: Send plain-text email instead of HTML
-    outdir //    path: Path to output directory where results will be published
-    monochrome_logs // boolean: Disable ANSI colour codes in log output
-    multiqc_report //  string: Path to MultiQC report
+    email // channel: val(email)
+    email_on_fail // channel: val(email_on_fail)
+    plaintext_email // channel: val(plaintext_email)
+    outdir // channel: val(outdir)
+    monochrome_logs // channel: val(monochrome_logs)
+    multiqc_report // channel: [ [ path(report) ] ]
 
     main:
     summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
@@ -199,7 +199,7 @@ workflow PIPELINE_COMPLETION {
 // vocabulary is derived from these keys, so a route cannot be selectable without a mapping and a mapping
 // cannot be orphaned.
 //
-def associationColumnMappings() {
+def getAssociationColumnMappings() {
     return [
         plink2: [common: [
             snpid: 'ID',
@@ -260,8 +260,8 @@ def associationColumnMappings() {
 // `input_format`. Serialised here rather than written out by hand so that quoting is the JSON library's
 // problem rather than a reviewer's.
 //
-def associationColumnMappingJson(method, is_binary) {
-    def entry = associationColumnMappings()[method]
+def getAssociationColumnMappingJson(method, is_binary) {
+    def entry = getAssociationColumnMappings()[method]
     if (!entry) {
         error("[nf-core/gwas] ERROR: no GWASLab column mapping is registered for association method '${method}'")
     }
@@ -278,7 +278,7 @@ def associationColumnMappingJson(method, is_binary) {
 // read by convention rather than exposed as six further parameters, and a missing one is a hard error
 // naming the file, because a silently absent index would fail later inside GWASLab.
 //
-def gwaslabReferenceLookup() {
+def getGwaslabReferences() {
     def sidecar = { resource, suffixes ->
         if (!resource) {
             return []
@@ -311,8 +311,8 @@ def gwaslabReferenceLookup() {
 // mapping is a route that fails at harmonisation time. The literal order of that map is preserved, so the
 // vocabulary this reports in a validation error is unchanged.
 //
-def associationMethodTokens() {
-    return associationColumnMappings().keySet().toList()
+def getAssociationMethodTokens() {
+    return getAssociationColumnMappings().keySet().toList()
 }
 
 //
@@ -320,7 +320,7 @@ def associationMethodTokens() {
 // estimators are separate tokens rather than one `ldak` token behind a sub-selector, so a single
 // analysis can request all three.
 //
-def heritabilityMethodTokens() {
+def getHeritabilityMethodTokens() {
     return ['gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc']
 }
 
@@ -401,7 +401,7 @@ def canonicaliseIdentifier(value) {
 // path segment a researcher has to read and quote; twelve characters is 48 bits, which is far beyond
 // collision range for the tens of matrices one run can declare.
 //
-def relatednessMatrixKey(identity, settings) {
+def buildRelatednessMatrixKey(identity, settings) {
     def rendered = identity.collectEntries { name, value -> [(name): canonicaliseIdentifier(value)] } + [settings: canonicaliseDeclaredValue(settings)]
     def canonical = rendered
         .sort { entry -> entry.key }
@@ -423,10 +423,10 @@ def relatednessMatrixKey(identity, settings) {
 // component and two tools can never collide on one key.
 //
 // Registering a route is exactly this: add its method token here and its construction settings in
-// relatednessMatrixSettings below. Adding a route's settings anywhere else silently makes two different
+// getRelatednessMatrixSettings below. Adding a route's settings anywhere else silently makes two different
 // matrices share one key.
 //
-def relatednessMatrixKinds(meta) {
+def getRelatednessMatrixKinds(meta) {
     def kinds = []
     if ('gcta_greml' in meta.heritability_methods) {
         kinds << 'gcta_dense'
@@ -450,7 +450,7 @@ def relatednessMatrixKinds(meta) {
 // published keys machine-specific, would fail to reuse identical files copied elsewhere and would collapse
 // different files sharing one name. The actual Path therefore stays on the build tuple outside this map.
 //
-def ldakWeightsIdentity(weights_file, weights_policy = 'equal') {
+def getLdakWeightsIdentity(weights_file, weights_policy = 'equal') {
     if (!weights_file) {
         return [mode: weights_policy]
     }
@@ -477,7 +477,7 @@ def ldakWeightsIdentity(weights_file, weights_policy = 'equal') {
 // An `if` chain rather than a `switch`: `nextflow lint` aborts on any `switch` statement it is given
 // (`ERROR ~ begin N, end N+1, length N`), so the construct cannot appear in this repository at all.
 //
-def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
+def getRelatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
     def method_options = meta.method_options
     def ldak_options = method_options.ldak
     if (kind == 'gcta_dense') {
@@ -526,9 +526,9 @@ def relatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'], gc
 // changes task partitioning but not matrix content and therefore belongs neither in analysis metadata nor
 // in the reuse key.
 //
-def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
+def buildRelatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
     def method_options = meta.method_options
-    def settings = relatednessMatrixSettings(meta, kind, weights_identity, gcta_extract_identity)
+    def settings = getRelatednessMatrixSettings(meta, kind, weights_identity, gcta_extract_identity)
     def identity = [
         cohort: meta.cohort,
         genotype_format: meta.genotype_format,
@@ -539,7 +539,7 @@ def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mod
         kind: kind,
         cohort: meta.cohort,
         settings: settings,
-        key: relatednessMatrixKey(identity, settings),
+        key: buildRelatednessMatrixKey(identity, settings),
     ]
     if (kind == 'gcta_dense') {
         request.gcta_extract = method_options.gcta.grm_extract
@@ -554,7 +554,7 @@ def relatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mod
 //
 // The three mutually exclusive genotype groups, each mapped to the columns that make it complete.
 //
-def genotypeGroups() {
+def getGenotypeGroups() {
     return [
         plink2: ['pgen', 'psam', 'pvar'],
         plink1: ['bed', 'bim', 'fam'],
@@ -570,7 +570,7 @@ def genotypeGroups() {
 // column is positional exactly when it declares no `meta` key, which today makes the list identical
 // to the columns carrying files.
 //
-def samplesheetPositionalColumns(schema) {
+def getSamplesheetPositionalColumns(schema) {
     def properties = new groovy.json.JsonSlurper().parseText(file(schema).text).items.properties
     return properties.findAll { _column, definition -> !definition.containsKey('meta') }.keySet().toList()
 }
@@ -613,7 +613,7 @@ def validateSamplesheetHeader(samplesheet, schema, role) {
 // edge. So "was this column populated?" is asked through this, and its answer compared against
 // null rather than taken as a truth value.
 //
-def cellValue(value) {
+def normaliseCellValue(value) {
     if (value == null || (value instanceof Collection && value.isEmpty())) {
         return null
     }
@@ -632,9 +632,9 @@ def tokenizeMethodSelector(selector) {
 // Each is membership of a named token set rather than "the selector list is non-empty", so a row
 // naming only an unrecognised method is still treated as selecting nothing.
 //
-def methodRoutes(association_methods, heritability_methods) {
+def getMethodRoutes(association_methods, heritability_methods) {
     return [
-        runs_heritability: heritability_methods.any { method -> method in heritabilityMethodTokens() },
+        runs_heritability: heritability_methods.any { method -> method in getHeritabilityMethodTokens() },
         consumes_population_prevalence: heritability_methods.any { method ->
             method in ['gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_pcgc']
         },
@@ -650,11 +650,11 @@ def methodRoutes(association_methods, heritability_methods) {
 //
 // Analysis-manifest trait semantics resolved once before validation and canonical tuple construction.
 //
-def analysisSettings(meta) {
+def getAnalysisSettings(meta) {
     return [
-        population_prevalence: cellValue(meta.population_prevalence),
-        case_value: cellValue(meta.case_value),
-        control_value: cellValue(meta.control_value),
+        population_prevalence: normaliseCellValue(meta.population_prevalence),
+        case_value: normaliseCellValue(meta.case_value),
+        control_value: normaliseCellValue(meta.control_value),
     ]
 }
 
@@ -665,8 +665,8 @@ def analysisSettings(meta) {
 //
 def validateMethodSelectors(association_methods, heritability_methods, reject) {
     [
-        [column: 'association_methods', methods: association_methods, vocabulary: associationMethodTokens()],
-        [column: 'heritability_methods', methods: heritability_methods, vocabulary: heritabilityMethodTokens()],
+        [column: 'association_methods', methods: association_methods, vocabulary: getAssociationMethodTokens()],
+        [column: 'heritability_methods', methods: heritability_methods, vocabulary: getHeritabilityMethodTokens()],
     ].each { selector ->
         def unknown = selector.methods.findAll { method -> !selector.vocabulary.contains(method) }.unique()
         if (unknown) {
@@ -689,7 +689,7 @@ def validateMethodSelectors(association_methods, heritability_methods, reject) {
 // or null when the row does not have one.
 //
 def validateGenotypeGroup(cells, reject) {
-    def groups = genotypeGroups()
+    def groups = getGenotypeGroups()
     def populated_groups = groups.findAll { _name, columns -> columns.any { column -> cells[column] } }
     if (!populated_groups) {
         // Nothing on the row points at a genotype column, so every genotype column is equally
@@ -764,7 +764,7 @@ def validateMethodConditionedColumns(settings, routes, reject) {
 // Portable content identity for a stageable method resource. Paths are deliberately excluded: copied
 // resources with identical bytes reuse one matrix, while changed bytes under one basename do not collide.
 //
-def methodResourceIdentity(resource) {
+def getMethodResourceIdentity(resource) {
     if (!resource) {
         return [mode: 'all']
     }
@@ -897,13 +897,11 @@ def validateMethodOptions(method_options, analysis_rows) {
         }
 
         def methods = analyses[analysis_id]
-        def selects_gcta = methods.association_methods.contains('gcta_fastgwa') ||
-            methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }
+        def selects_gcta = methods.association_methods.contains('gcta_fastgwa') || methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }
         if (gcta && !selects_gcta) {
             fail.call(analysis_id, "gcta.${gcta.keySet().first()}", 'analysis does not select a GCTA method')
         }
-        if (gcta.containsKey('reml_no_constrain') &&
-            !methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }) {
+        if (gcta.containsKey('reml_no_constrain') && !methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }) {
             fail.call(analysis_id, 'gcta.reml_no_constrain', "option is consumed by GCTA GREML estimators only, but this analysis selects neither 'gcta_greml' nor 'gcta_greml_ldms'")
         }
         ['grm_maf', 'grm_extract'].each { option ->
@@ -1066,8 +1064,8 @@ def validateMethodOptions(method_options, analysis_rows) {
 // only long enough to diagnose later duplicates; any error aborts before the list becomes a channel.
 //
 def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysis_manifest, cohort_schema, analysis_schema, method_options = null) {
-    def cohort_columns = samplesheetPositionalColumns(cohort_schema)
-    def analysis_columns = samplesheetPositionalColumns(analysis_schema)
+    def cohort_columns = getSamplesheetPositionalColumns(cohort_schema)
+    def analysis_columns = getSamplesheetPositionalColumns(analysis_schema)
 
     def errors = []
     def cohorts_by_id = [:]
@@ -1090,15 +1088,12 @@ def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysi
 
         def genotype_format = validateGenotypeGroup(cells, reject)
         def genotype_files = genotype_format
-            ? genotypeGroups()[genotype_format].collect { column -> cells[column] }
+            ? getGenotypeGroups()[genotype_format].collect { column -> cells[column] }
             : []
         def definition = [
             genome_build: cohort_meta.build,
             ancestry: cohort_meta.ancestry,
-        ] + genotypeGroups()
-            .values()
-            .flatten()
-            .collectEntries { field -> [(field): cellValue(cells[field])?.toString() ?: ''] }
+        ] + getGenotypeGroups().values().flatten().collectEntries { field -> [(field): normaliseCellValue(cells[field])?.toString() ?: ''] }
         def known = cohorts_by_id[cohort_id]
 
         if (known) {
@@ -1152,8 +1147,8 @@ def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysi
         def heritability_methods = tokenizeMethodSelector(analysis_meta.heritability_methods)
         validateMethodSelectors(association_methods, heritability_methods, reject)
 
-        def routes = methodRoutes(association_methods, heritability_methods)
-        def settings = analysisSettings(analysis_meta)
+        def routes = getMethodRoutes(association_methods, heritability_methods)
+        def settings = getAnalysisSettings(analysis_meta)
         def is_binary = analysis_meta.trait_type == 'binary'
         validateTraitColumns(is_binary, settings, reject)
         validateMethodConditionedColumns(settings, routes, reject)
@@ -1194,23 +1189,6 @@ def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysi
 //
 // Generate methods description for MultiQC
 //
-def toolCitationText() {
-    // TODO nf-core: Optionally add in-text citation tools to this list.
-    // Can use ternary operators to dynamically construct based conditions, e.g. params["run_xyz"] ? "Tool (Foo et al. 2023)" : "",
-    // Uncomment function in methodsDescriptionText to render in MultiQC report
-    def citation_text = ["Tools used in the workflow included:", "MultiQC (Ewels et al. 2016)", "."].join(' ').trim()
-
-    return citation_text
-}
-
-def toolBibliographyText() {
-    // TODO nf-core: Optionally add bibliographic entries to this list.
-    // Can use ternary operators to dynamically construct based conditions, e.g. params["run_xyz"] ? "<li>Author (2023) Pub name, Journal, DOI</li>" : "",
-    // Uncomment function in methodsDescriptionText to render in MultiQC report
-    def reference_text = ["<li>Ewels, P., Magnusson, M., Lundin, S., & Käller, M. (2016). MultiQC: summarize analysis results for multiple tools and samples in a single report. Bioinformatics , 32(19), 3047–3048. doi: /10.1093/bioinformatics/btw354</li>"].join(' ').trim()
-
-    return reference_text
-}
 
 def methodsDescriptionText(mqc_methods_yaml) {
     // Convert  to a named map so can be used as with familiar NXF ${workflow} variable syntax in the MultiQC YML file
@@ -1238,11 +1216,6 @@ def methodsDescriptionText(mqc_methods_yaml) {
     // Tool references
     meta["tool_citations"] = ""
     meta["tool_bibliography"] = ""
-
-    // TODO nf-core: Only uncomment below if logic in toolCitationText/toolBibliographyText has been filled!
-    // meta["tool_citations"] = toolCitationText().replaceAll(", \\.", ".").replaceAll("\\. \\.", ".").replaceAll(", \\.", ".")
-    // meta["tool_bibliography"] = toolBibliographyText()
-
 
     def methods_text = mqc_methods_yaml.text
 
