@@ -17,11 +17,10 @@ include { GRM_HERITABILITY_GCTA                               } from '../subwork
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_HE   } from '../subworkflows/local/grm_heritability_ldak'
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subworkflows/local/grm_heritability_ldak'
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
-include { PLINK_ASSOCIATION_LDAK_KVIK                         } from '../subworkflows/local/plink_association_ldak_kvik'
 include { PREPARE_COHORT_GENOTYPES                            } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES                        } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_LDAK_KVIK_ASSOCIATIONS                        } from '../subworkflows/local/route_ldak_kvik_associations'
 include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
-include { buildKvikPredictionKey                              } from '../subworkflows/local/utils_prediction_reuse'
 include { getAssociationColumnMappingJson                     } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { methodsDescriptionText                              } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
@@ -141,7 +140,7 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: LDAK-KVIK Step 1 fitting and Step 2 association
+    // PIPELINE ROUTE: LDAK-KVIK association with shared Step 1 predictions
     //
     // LDAK consumes the headerless phenotype serialisation and keeps quantitative and categorical
     // covariates separate. Fold both optional covariate streams onto the total phenotype stream so
@@ -163,36 +162,12 @@ workflow GWAS {
             [meta.id, meta, kvik_extract ?: [], meta.method_options.ldak.kvik_step1_subset]
         }
 
-    def ch_kvik_input = PREPARE_COHORT_GENOTYPES.out.plink1_genotypes
-        .filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in meta.association_methods }
-        .map { meta, bed, bim, fam -> [meta.id, meta, bed, bim, fam] }
-        .join(ch_kvik_phenotypes, by: 0, failOnDuplicate: true, failOnMismatch: true)
-        .join(ch_kvik_extract_policy, by: 0, failOnDuplicate: true, failOnMismatch: true)
-        .multiMap { _analysis_id, meta, bed, bim, fam, _phenotype_meta, phenotype, quant_covariates, cat_covariates, _extract_meta, kvik_extract, subset_policy ->
-            def kvik_meta = meta + [kvik_prediction_key: buildKvikPredictionKey(
-                meta,
-                phenotype,
-                quant_covariates,
-                cat_covariates,
-                subset_policy,
-                kvik_extract,
-            )]
-            genotypes: [kvik_meta, bed, bim, fam]
-            phenotype: [kvik_meta, phenotype, meta.is_binary]
-            qcovariates: [kvik_meta, quant_covariates]
-            covariates: [kvik_meta, cat_covariates]
-            extract_policy: [kvik_meta, kvik_extract, subset_policy]
-            keep: [kvik_meta, []]
-        }
+    def ch_kvik_genotypes = PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in meta.association_methods }
 
-    PLINK_ASSOCIATION_LDAK_KVIK(
-        ch_kvik_input.genotypes,
-        ch_kvik_input.genotypes,
-        ch_kvik_input.phenotype,
-        ch_kvik_input.qcovariates,
-        ch_kvik_input.covariates,
-        ch_kvik_input.extract_policy,
-        ch_kvik_input.keep,
+    ROUTE_LDAK_KVIK_ASSOCIATIONS(
+        ch_kvik_genotypes,
+        ch_kvik_phenotypes.map { _analysis_id, meta, phenotype, quant_covariates, cat_covariates -> [meta, phenotype, quant_covariates, cat_covariates] },
+        ch_kvik_extract_policy.map { _analysis_id, meta, kvik_extract, subset_policy -> [meta, kvik_extract, subset_policy] },
     )
 
     //
@@ -271,7 +246,7 @@ workflow GWAS {
         ROUTE_REGENIE_ASSOCIATIONS.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
-        PLINK_ASSOCIATION_LDAK_KVIK.out.harmonisation_input.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
+        ROUTE_LDAK_KVIK_ASSOCIATIONS.out.harmonisation_input.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
         GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }

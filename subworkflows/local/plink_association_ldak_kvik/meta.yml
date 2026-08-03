@@ -125,6 +125,7 @@ output:
       type: file
       description: Optional LDAK-KVIK Step 2 p-value files
       pattern: "*.step2*.pvalues"
+      optional: true
       ontologies: []
   - predictions:
       type: file
@@ -135,11 +136,13 @@ output:
       type: file
       description: Optional LDAK-KVIK Step 1 effect estimates
       pattern: "*.step1.effects"
+      optional: true
       ontologies: []
   - progress:
       type: file
       description: ThinCommon progress files for analyses using thin_common
       pattern: "*.progress"
+      optional: true
       ontologies: []
   - logs:
       type: file
