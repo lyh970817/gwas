@@ -18,9 +18,10 @@ include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_HE   } from '../subwork
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subworkflows/local/grm_heritability_ldak'
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
 include { PLINK_ASSOCIATION_LDAK_KVIK                         } from '../subworkflows/local/plink_association_ldak_kvik'
-include { PLINK_GWAS_REGENIE                                  } from '../subworkflows/local/plink_gwas_regenie'
 include { PREPARE_COHORT_GENOTYPES                            } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES                        } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
+include { buildKvikPredictionKey                              } from '../subworkflows/local/utils_prediction_reuse'
 include { getAssociationColumnMappingJson                     } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { methodsDescriptionText                              } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
@@ -125,45 +126,18 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: REGENIE Step 1 fitting and Step 2 association
+    // PIPELINE ROUTE: REGENIE association with shared Step 1 predictions
     //
-    // The prepared PGEN bundle is valid at both sides of the reusable subworkflow's PLINK semantic
-    // union. The adapter spells out the prepared PGEN/PSAM/PVAR to component PGEN/PVAR/PSAM
-    // reordering and derives one content identity for every Step 1 scientific input. Distinct analysis
-    // identities carrying the same cohort, trait, normalised phenotype, covariates and block size
-    // therefore fit once while retaining separate Step 2 and output attribution.
-    def ch_regenie_input = ch_analysis_inputs
-        .filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'regenie' in meta.association_methods }
-        .multiMap { meta, pgen, psam, pvar, phenotype, covariates ->
-            if (params.regenie_step1_mode == 'chunked' && params.regenie_step1_jobs == null) {
-                error("[nf-core/gwas] ERROR: --regenie_step1_jobs is required when --regenie_step1_mode is 'chunked'")
-            }
-            def regenie_meta = meta + [
-                regenie_prediction_key: buildRegeniePredictionKey(
-                    meta,
-                    phenotype,
-                    covariates ?: [],
-                    params.regenie_step1_bsize,
-                )
-            ]
-            genotypes: [regenie_meta, pgen, pvar, psam]
-            phenotype: [regenie_meta, phenotype]
-            covariates: [regenie_meta, covariates ?: []]
-            step1_bsize: [regenie_meta, params.regenie_step1_bsize]
-            step2_bsize: [regenie_meta, params.regenie_step2_bsize]
-            step1_mode: [regenie_meta, params.regenie_step1_mode]
-            step1_jobs: [regenie_meta, params.regenie_step1_mode == 'chunked' ? params.regenie_step1_jobs : []]
-        }
+    // The local route owns nf-core/gwas scientific identity, cross-analysis fit reuse and output
+    // attribution. Upstream-ready REGENIE components remain unaware of the relational input contract.
+    def ch_regenie_analyses = ch_analysis_inputs.filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'regenie' in meta.association_methods }
 
-    PLINK_GWAS_REGENIE(
-        ch_regenie_input.genotypes,
-        ch_regenie_input.genotypes,
-        ch_regenie_input.phenotype,
-        ch_regenie_input.covariates,
-        ch_regenie_input.step1_bsize,
-        ch_regenie_input.step2_bsize,
-        ch_regenie_input.step1_mode,
-        ch_regenie_input.step1_jobs,
+    ROUTE_REGENIE_ASSOCIATIONS(
+        ch_regenie_analyses,
+        params.regenie_step1_bsize,
+        params.regenie_step2_bsize,
+        params.regenie_step1_mode,
+        params.regenie_step1_jobs,
     )
 
     //
@@ -195,16 +169,14 @@ workflow GWAS {
         .join(ch_kvik_phenotypes, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .join(ch_kvik_extract_policy, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .multiMap { _analysis_id, meta, bed, bim, fam, _phenotype_meta, phenotype, quant_covariates, cat_covariates, _extract_meta, kvik_extract, subset_policy ->
-            def kvik_meta = meta + [
-                kvik_prediction_key: buildKvikPredictionKey(
-                    meta,
-                    phenotype,
-                    quant_covariates,
-                    cat_covariates,
-                    subset_policy,
-                    kvik_extract,
-                )
-            ]
+            def kvik_meta = meta + [kvik_prediction_key: buildKvikPredictionKey(
+                meta,
+                phenotype,
+                quant_covariates,
+                cat_covariates,
+                subset_policy,
+                kvik_extract,
+            )]
             genotypes: [kvik_meta, bed, bim, fam]
             phenotype: [kvik_meta, phenotype, meta.is_binary]
             qcovariates: [kvik_meta, quant_covariates]
@@ -296,7 +268,7 @@ workflow GWAS {
         ch_plink2_results.map { meta, sumstats -> [meta + [method: 'plink2'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
-        PLINK_GWAS_REGENIE.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
+        ROUTE_REGENIE_ASSOCIATIONS.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
     )
     ch_association_results = ch_association_results.mix(
         PLINK_ASSOCIATION_LDAK_KVIK.out.harmonisation_input.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
@@ -508,75 +480,4 @@ workflow GWAS {
 
     emit:
     multiqc_report = MULTIQC.out.report.map { _meta, report -> [report] }.toList() // channel: [ [ path(report) ] ]
-}
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-// A portable digest of one staged scientific input. Paths themselves are deliberately excluded: two
-// byte-identical normalised files materialised for different analysis IDs are valid reuse candidates,
-// while identically named files with different content are not.
-def digestScientificInput(input_file) {
-    if (!input_file) {
-        return 'absent'
-    }
-    def input_path = input_file instanceof java.nio.file.Path ? input_file : input_file.toPath()
-    def digest = java.security.MessageDigest.getInstance('SHA-256')
-    java.nio.file.Files
-        .newInputStream(input_path)
-        .withCloseable { input ->
-            input.eachByte(8192) { buffer, count ->
-                digest.update(buffer, 0, count)
-            }
-        }
-    return digest.digest().encodeHex().toString()
-}
-
-// Prediction reuse keys share one deterministic map serialisation and the same 12-character
-// SHA-256 prefix. Keeping that pipeline here prevents either route from drifting independently.
-def buildCanonicalPredictionKey(identity) {
-    def canonical = identity
-        .sort { entry -> entry.key }
-        .collect { name, value -> "${name}=${value}" }
-        .join('\n')
-    return java.security.MessageDigest
-        .getInstance('SHA-256')
-        .digest(canonical.getBytes('UTF-8'))
-        .encodeHex()
-        .toString()
-        .substring(0, 12)
-}
-
-// Step 1 reuse requires both cohort identity and every scientific input to agree. Execution-only
-// controls (standard versus chunked and chunk count) are intentionally absent because they materialise
-// the same prediction model; the Step 1 block size remains because it changes the fitted model.
-def buildRegeniePredictionKey(meta, phenotype, covariates, step1_bsize) {
-    def identity = [
-        cohort: meta.cohort,
-        trait: meta.trait,
-        is_binary: meta.is_binary,
-        phenotype: digestScientificInput(phenotype),
-        covariates: digestScientificInput(covariates),
-        step1_bsize: step1_bsize,
-    ]
-    return buildCanonicalPredictionKey(identity)
-}
-
-// LDAK-KVIK Step 1 reuse is content-defined. The predictor policy and optional predictor-list bytes
-// change the fitted prediction model; run/profile tuning and LDAK kinship/estimator options do not.
-def buildKvikPredictionKey(meta, phenotype, quant_covariates, cat_covariates, subset_policy, predictor_extract) {
-    def identity = [
-        cohort: meta.cohort,
-        trait: meta.trait,
-        is_binary: meta.is_binary,
-        phenotype: digestScientificInput(phenotype),
-        quant_covariates: digestScientificInput(quant_covariates),
-        cat_covariates: digestScientificInput(cat_covariates),
-        subset_policy: subset_policy,
-        predictor_extract: digestScientificInput(predictor_extract),
-    ]
-    return buildCanonicalPredictionKey(identity)
 }
