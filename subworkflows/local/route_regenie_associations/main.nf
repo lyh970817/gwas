@@ -12,7 +12,7 @@ include { ATTRIBUTE_REGENIE_PREDICTIONS } from '../../../modules/local/attribute
 include { REGENIE_STEP2                 } from '../../../modules/nf-core/regenie/step2/main'
 
 // FUNCTION: Local to the pipeline
-include { buildRegeniePredictionKey     } from '../utils_prediction_reuse'
+include { buildRegeniePredictionKey     } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_REGENIE_ASSOCIATIONS {
     take:

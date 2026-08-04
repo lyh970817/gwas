@@ -9,7 +9,7 @@ include { LDAK_KVIKSTEP2                  } from '../../../modules/local/ldak/kv
 include { ATTRIBUTE_LDAK_KVIK_PREDICTIONS } from '../../../modules/local/attribute_ldak_kvik_predictions/main'
 
 // FUNCTION: Local to the pipeline
-include { buildKvikPredictionKey          } from '../utils_prediction_reuse'
+include { buildKvikPredictionKey          } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     take:
