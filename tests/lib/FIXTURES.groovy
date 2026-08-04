@@ -8,8 +8,10 @@
 // Resolution order:
 //   1. `$GWAS_TEST_FIXTURES` — an explicit local checkout, e.g.
 //      `GWAS_TEST_FIXTURES=/path/to/test-datasets nf-test test tests/ --profile docker`.
-//   2. A sibling checkout of the pipeline repository, so the common local layout needs no setup.
-//   3. The upstream URL, which is what continuous integration uses once the fixtures are merged.
+//   2. `.references/test-datasets-gwas` in the primary repository, so both it and its worktrees
+//      discover the local bundle without machine-specific configuration.
+//   3. A sibling checkout of the pipeline repository, preserving the former local layout.
+//   4. The upstream URL, which is what continuous integration uses once the fixtures are merged.
 class FIXTURES {
 
     // The prefix every file cell of assets/samplesheet.csv is written against.
@@ -32,6 +34,10 @@ class FIXTURES {
         }
 
         def root = new File(projectDir?.toString() ?: System.getProperty('user.dir')).absoluteFile
+        def projectReference = ([root, *parentFileList(root)])
+            .collect { candidate -> new File(candidate, '.references/test-datasets-gwas') }
+            .find { candidate -> new File(candidate, MARKER).exists() }
+        if (projectReference) return withTrailingSlash(projectReference.absolutePath)
         def sibling = SIBLINGS
             .collect { name -> new File(root.parentFile, name) }
             .find { candidate -> new File(candidate, MARKER).exists() }
@@ -40,5 +46,11 @@ class FIXTURES {
 
     private static String withTrailingSlash(String path) {
         return path.endsWith('/') ? path : path + '/'
+    }
+
+    private static List<File> parentFileList(File directory) {
+        def parents = []
+        for (def parent = directory.parentFile; parent; parent = parent.parentFile) parents << parent
+        return parents
     }
 }

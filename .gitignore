@@ -23,6 +23,9 @@ SPEC.md
 .scratch/
 .lavish/
 .worktrees/
+# Local reference checkouts used for style comparison, component development,
+# and fixture-backed testing. They are intentionally machine-local.
+.references/
 CONTEXT.md
 CONTEXT-MAP.md
 docs/agents/

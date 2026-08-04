@@ -15,9 +15,10 @@ pipeline-specific routing and scientific policy belong in subworkflows or
 
 ### Reference pipelines
 
-`../sarek`, `../mag` and `../rnaseq` are checkouts of established official nf-core pipelines and are the
-style reference for this repository. `CODING_STANDARDS.md` was derived from them, so consult the checkouts
-directly whenever a question is not settled by the written standard — how a `.nf` file is laid out, how
+`.references/sarek`, `.references/mag` and `.references/rnaseq` are local checkouts of established official
+nf-core pipelines and are the style reference for this repository. The companion component library is at
+`.references/modules`. `CODING_STANDARDS.md` was derived from the pipeline references, so consult the
+checkouts directly whenever a question is not settled by the written standard — how a `.nf` file is laid out, how
 `conf/modules.config` selectors are written, how `nextflow_schema.json` is structured, how nf-test files and
 snapshots are organised, how `docs/usage.md` and `docs/output.md` read. Prefer what these three actually do
 over what looks reasonable in the abstract.
@@ -31,24 +32,23 @@ ruled on a point, it wins over a contrary example found in a checkout.
 ## Local GWAS test contract
 
 **Fixtures.** The read-only machine-local GWAS fixture checkout is
-`/home/andongni/Yandex.Disk/Projects/Research/qc_dev/test-datasets-gwas` (the `gwas` branch of
-`nf-core/test-datasets`). It is local-development only: do not hard-code this path in tracked files or make CI
-depend on it. CI retains the upstream fixture URL/fallback. Tests needing modified data must use a private copy.
+`.references/test-datasets-gwas` (the `gwas` branch of `nf-core/test-datasets`). It is local-development only:
+do not hard-code this checkout in pipeline code or make CI depend on it. CI retains the upstream fixture
+URL/fallback. Tests needing modified data must use a private copy.
 
-Fixture-backed tests from a checkout below `.worktrees/` must set `GWAS_TEST_FIXTURES`, because the fixture
-resolver has no sibling checkout there. For a focused route test:
+The fixture resolver automatically discovers `.references/test-datasets-gwas` from both the primary checkout
+and any checkout below `.worktrees/`. Set `GWAS_TEST_FIXTURES` only to override that local bundle, such as for
+a private modified fixture copy. For a focused route test:
 
 ```console
-GWAS_TEST_FIXTURES=/home/andongni/Yandex.Disk/Projects/Research/qc_dev/test-datasets-gwas \
-  nf-test test tests/association_plink2.nf.test --profile +docker
+nf-test test tests/association_gcta_fastgwa.nf.test --profile +docker
 ```
 
 **Broad validation.** When `nf-test-parallel` is available in the local development shell, use it for the
 fixture-backed three-shard suite:
 
 ```console
-GWAS_TEST_FIXTURES=/home/andongni/Yandex.Disk/Projects/Research/qc_dev/test-datasets-gwas \
-  nf-test-parallel 3 --verbose
+nf-test-parallel 3 --verbose
 ```
 
 `nf-test-parallel 3` is a local convenience: it runs three native `--shard i/3` workers and uses `+docker` by
@@ -59,8 +59,7 @@ default; select another profile with `NFT_PROFILE`. When it is unavailable, run 
 After every green sharded run, validate stale snapshots sequentially:
 
 ```console
-GWAS_TEST_FIXTURES=/home/andongni/Yandex.Disk/Projects/Research/qc_dev/test-datasets-gwas \
-  nf-test test --profile=+docker --verbose
+nf-test test --profile=+docker --verbose
 ```
 
 The serial run reports obsolete snapshot entries without failing. Remove confirmed stale entries deliberately;
