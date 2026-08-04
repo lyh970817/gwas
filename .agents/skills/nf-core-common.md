@@ -30,6 +30,19 @@ This fallback policy applies only to the nf-core standards cache. It does not al
 programme documentation: check the relevant programme cache or index under `docs/` before online programme
 research.
 
+## Companion component library
+
+For anything intended for upstream `nf-core/modules`, resolve the decision from the active `nf-core-*` skills
+first. When they do not settle a current convention, inspect the companion checkout at `.references/modules`
+before inventing a repository-local rule. Use its `modules/nf-core/` and `subworkflows/nf-core/` trees as the
+implementation reference for component layout, naming, interfaces, metadata and tests. Format-specific
+data-processing subworkflows normally begin with the primary input file format, followed by concise semantic
+tokens for the operation and, when useful, the tool or tool chain (for example, `fastq_align_bowtie2` or
+`plink_association_ldak_kvik`). Generic orchestration and genuinely co-primary or multi-format workflows may
+use a semantic name. When reviewing a proposed component already mirrored in the companion checkout,
+do not use that component's own work-in-progress name as its precedent; compare established unrelated
+subworkflows instead.
+
 ## Instruction priority
 
 When instructions differ, prioritise:

@@ -32,9 +32,11 @@ If fallback is needed, relevant topic hints are:
 Look for:
 
 - component name, path, and process/workflow naming conformance;
+- format-first naming for format-specific data-processing subworkflows, followed by concise operation tokens and an optional tool/tool-chain discriminator; directory and `meta.yml` use lowercase snake case and the workflow symbol uses the same uppercase tokens, while generic or genuinely multi-format orchestration may use a semantic exception;
 - `main.nf`, `meta.yml`, `environment.yml`, tests, snapshots, and optional config consistency;
 - unnecessary `tests/nextflow.config`: flag a config that only sets a cosmetic `ext.prefix` (no `ext.args`/`module_args`, and no real input/output collision to resolve) — it should be dropped and the `config "./nextflow.config"` line removed from the `.test`;
 - input/output ordering and matching metadata across implementation, docs, tests, and snapshots;
+- every public `take` and named `emit` covered once without duplicate or missing channel documentation and in the same public order as `main.nf`; channel-centric tuple structure, optionality, patterns, scalar constraints, focal/output identity and `components` dependency inventory agree with the implementation rather than a legacy nearby example;
 - atomic interface ownership against the `nf-core-module-create` “Keep the atomic interface native” gate;
 - scatter/gather ownership against the `nf-core-subworkflow-create` “Own scatter/gather state” gate;
 - for GWAS/popgen components, the `nf-core-gwas-module-conventions` genotype contracts, including preservation
@@ -44,10 +46,15 @@ Look for:
 - no custom `meta` map keys (only the nf-core-defined set); multiple metadata-bearing inputs use each map's own `.id`; the `meta` map is not mutated/rebound on outputs (`meta + [id: ...]`); the output prefix derives from `meta.id`/staged basename and stays overridable via `ext.prefix` (not hardcoded from an arbitrary input `baseName`);
 - the optional-args variable is named `args` (not `extra_args`); the resource `label` matches the tool's real needs (not a placeholder `process_medium`); the module is agnostic to fan-out/partitioning (splitting lives in a subworkflow, and any part/nparts selector defaults to 1 when absent);
 - one `emit:` per semantically distinct output file/group (not unrelated globs bundled together); a version reported for every tool invoked including secondary interpreters (R/Python), each `eval` yielding a bare version string (no leading `v`, extension, or extra lines);
+- current module version topics flow through subworkflows without manual collection or a duplicate public versions channel; explicit manual versions aggregation is accepted only when a called legacy component still exposes ordinary version outputs, and metadata must never document a phantom versions emit;
+- composition dataflow preserves focal metadata, removes temporary join/scatter keys before emission, guards expected one-to-one joins against mismatches and duplicates, encodes actual gather cardinality with keyed grouping, and reserves `collect()` for native global-list consumers;
+- workflow-wide optional branches initialise stable public outputs with `channel.empty()`; per-record alternatives use explicit branching and compatible products are reunited without changing the public contract;
 - work-directory name-collision handling (two same-typed input sets, or output vs input) via `stageAs` subfolders or a distinct default `ext.prefix`, covering all companion files — distinct from the anti-`stageAs` caller-basename-contract rule;
 - command construction that is simple and self-evident (no unexplained Groovy such as `findAll`, no cryptic variable names, non-trivial in-script post-processing justified as contract);
 - test cases free of unnecessary conditional logic (nf-test inputs are fixed) and covering each distinct output-file extension the tool can produce;
 - tests for all outputs including optional outputs, success assertions, versions assertions, stable snapshots, and stub behaviour; flag assertions the sanitised snapshot already covers (channel `.size()`, `fileName`, per-file paths, `readLines().size() > 0`) — lint already fails empty-file md5s, so non-emptiness checks are redundant;
+- subworkflow tests carry the three base subworkflow tags plus all directly/dependently exercised component tags; cover every distinct real composition route and behaviour-changing optional/skip/selector path, with at least one representative end-to-end stub unless branch stubs differ materially; snapshot `workflow.out` or a stable semantic projection and assert routing, identity or absence when snapshots obscure them;
+- `tests/nextflow.config` contains only required test overrides and is loaded explicitly, while a component-root `nextflow.config` documents caller integration selectors; fixture inputs use the repository test-data base path and existence checks rather than ad hoc URLs when standard data exists;
 - reuse of existing fixtures or a justified companion test-datasets submission;
 - commands required before PR readiness.
 

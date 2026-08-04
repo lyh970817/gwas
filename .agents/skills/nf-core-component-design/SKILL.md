@@ -25,13 +25,13 @@ item:
 2. Atomic process boundary or reusable composition of at least two genuine modules.
 3. Conceptual metadata-bearing inputs, optional and mutually exclusive roles, and opaque `meta` handling.
 4. Required scalar selectors versus optional `task.ext.args` behaviour.
-5. Fixed named outputs, identity rules, and version reporting for every executed tool or propagation into a
-   subworkflow's combined public `versions` output.
+5. Fixed named outputs, identity rules, and version reporting for every executed tool through the current
+   topic mechanism, or an explicit combined `versions` output only for legacy compatibility.
 6. Source-of-truth package/container strategy and reuse-first fixture decision.
 7. Real and stub validation contract, plus an explicit reusable-versus-pipeline-local boundary.
 
 For subworkflows, also settle conceptual `take`/`emit` contracts, focal identity flow, optional-resource
-absence, scatter/gather cardinality, the combined public `versions` output, and composition-focused tests.
+absence, scatter/gather cardinality, version-topic propagation or a justified legacy versions output, and composition-focused tests.
 Record unresolved items as blockers rather than calling an interface exact.
 
 ## Research order
