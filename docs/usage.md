@@ -222,9 +222,9 @@ nextflow pull nf-core/gwas
 
 ## Reproducibility
 
-Pin the release with `-r`, retain the exact cohort and analysis manifests, optional method-options document and parameter file, and archive `pipeline_info/` with your results. Reusing the same release, inputs and parameters also lets `-resume` recover cached tasks.
+Pin the pipeline revision with `-r`, retain the exact cohort and analysis manifests, optional method-options document and parameter file, and archive `pipeline_info/` with your results. Reusing the same revision, inputs and parameters also lets `-resume` recover cached tasks.
 
-Find release numbers on the [nf-core/gwas releases page](https://github.com/nf-core/gwas/releases). The run's pipeline and tool versions are recorded in the published reports described in [Pipeline information](output.md#pipeline-information).
+Find published version tags on the [nf-core/gwas versions page](https://github.com/nf-core/gwas/tags). The run's pipeline and tool versions are recorded in the published reports described in [Pipeline information](output.md#pipeline-information).
 
 ## Core Nextflow arguments
 

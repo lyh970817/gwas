@@ -3,11 +3,9 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v1.0.0dev - [date]
+## Development
 
-Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) template.
-
-### `Added`
+### Added
 
 - Added the `NORMALISE_PHENOTYPES` local module, which normalises each analysis unit's phenotype and covariates once into a canonical layout: the trait at a fixed third column named `PHENO`, binary traits coded `0`/`1`/`NA` (the only coding PLINK 2, REGENIE, GCTA and LDAK all accept), missing values always the literal `NA`, quantitative and categorical covariates kept in separate files, and every file emitted in both a headered and a headerless serialisation because REGENIE requires a header and GCTA forbids one. The fixed column position makes GCTA's and LDAK's `--mpheno` a constant `1`. A `--save_normalised_phenotypes` save control, default `false`, publishes the headered files under `phenotypes/<analysis_id>/`.
 - Added the `PLINK2_GLM` local module and wired PLINK 2 `--glm` as the pipeline's first end-to-end association route, with Firth fallback on binary traits and allele frequency and sample count columns requested explicitly for the harmonisation that follows. Results are published unmodified under `association/plink2/<analysis_id>/` as `<analysis_id>.plink2.glm.*`.
@@ -19,23 +17,25 @@ Initial release of nf-core/gwas, created with the [nf-core](https://nf-co.re/) t
 - Added `--save_relatedness_matrices`, default `false`, which publishes each merged relatedness matrix under `quality_control/relatedness_matrices/<key>/`, addressed by reuse key rather than by cohort because one cohort can carry several distinct matrices and a shared matrix belongs to no single analysis. Per-partition files and tool logs are never published.
 - Added GCTA GREML as the pipeline's first heritability route, selected by the `gcta_greml` token in `heritability_methods` and built on the shared relatedness matrix mechanism above. Native GREML output is published unmodified under `heritability/individual/gcta_greml/<analysis_id>/` as `<analysis_id>.gcta_greml.hsq`; a binary trait declaring a `population_prevalence` additionally reports the estimate on the liability scale. Heritability estimates are not harmonised, unlike association results. This wires the vendored `gcta/makegrmpart` and `gcta/reml` modules, which until now were exercised by nothing, and vendors `custom/gctamergegrmparts` plus the `plink_prepare_grm_gcta` and `grm_heritability_gcta` subworkflows from the shared component library.
 - Added LDAK REML heritability, selected by `ldak_reml`, using the shared relatedness-matrix reuse mechanism and the vendored `plink_prepare_grm_ldak` and `grm_heritability_ldak` subworkflows. LDAK kinship keys include the declared model, power and weights identity: equal weighting records its mode, while a supplied weights file records a SHA-256 digest of its bytes rather than its path or basename. The per-analysis relatedness filter is excluded, so filtered and unfiltered analyses share one `LDAK_CALCKINS` build. Native `.reml` output publishes under `heritability/individual/ldak_reml/<analysis_id>/`, with an additional `.reml.liab` file for binary rows declaring population prevalence.
+- Added GCTA fastGWA-MLM association for quantitative and binary traits, selected by `gcta_fastgwa`. Each analysis reuses a compatible sparse relatedness matrix, publishes the native result under `association/gcta_fastgwa/<analysis_id>/`, and contributes a registered GWASLab-standardised summary-statistics table.
+- Added GCTA GREML-LDMS heritability, selected by `gcta_greml_ldms`. The route partitions variants by configurable LD-score and MAF strata, reuses each compatible stratified matrix family, and publishes the native `.hsq` result under `heritability/individual/gcta_greml_ldms/<analysis_id>/`.
+- Added LDAK Haseman-Elston and PCGC heritability routes, selected by `ldak_he` and `ldak_pcgc`. Both reuse compatible LDAK kinship matrices; covariate-aware analyses align phenotype residualisation with matrix adjustment, and PCGC requires population prevalence for its binary-trait estimate.
+- Added route-aware MultiQC reporting. The report records the validated analysis plan, joined cohort and trait provenance, requested association and heritability methods, workflow parameters, method descriptions and software versions without representing requested routes as completed results.
 - [#95](https://github.com/nf-core/gwas/pull/95) - Add the `regenie/runl1` module, completing the REGENIE Step 1 module set (`runl0`, `splitl0`, `runl1`, `step1`, `step2`).
 - [#93](https://github.com/nf-core/gwas/pull/93) - Added LDAK local modules (addgrms, adjustgrm, calcgenotypeerrort2, calcinflation, calckins, createthinweights, filterrelatedness, he, kvikstep1, kvikstep2, pcgc, reml, thinpredictors) under `modules/local/ldak/`.
 
-### `Changed`
+### Changed
 
 - PLINK 2 `--glm` now requests `cols=+a1freq,+beta`, so the binary route reports `BETA`/`SE` instead of `OR`/`LOG(OR)_SE` and one GWASLab column mapping serves both trait types — otherwise the harmonised binary file would carry an odds ratio where every other method carries a log-odds beta. Native output is still published exactly as PLINK 2 wrote it; only the columns PLINK 2 is asked for changed, and the quantitative route is unaffected.
-- Replaced the monolithic `conf/modules.config` with one configuration file per method family under `conf/modules/`, included by name from `nextflow.config`, so a later route ticket adds a file rather than editing a shared one. The process-wide default publish directive — which publishes nothing — now lives in `nextflow.config` itself. `docs/coding-standards/configuration-and-schema.md` §4 and the `.nf-core.yml` lint exemptions were amended in the same change.
+- Replaced the monolithic `conf/modules.config` with one configuration file per method family under `conf/modules/`, included by name from `nextflow.config`, so an additional method family adds a file rather than editing a shared one. The process-wide default publish directive — which publishes nothing — now lives in `nextflow.config` itself. `docs/coding-standards/configuration-and-schema.md` §4 and the `.nf-core.yml` lint exemptions were amended in the same change.
 - Replaced the monolithic 35-column `--input` samplesheet with linked `--cohort_manifest` and `--analysis_manifest` inputs plus optional per-analysis `--method_options`. All association and heritability routes now share the relational contract, genotype preparation is cohort-owned and deduplicated, matrix and prediction reuse identities include their scientific inputs, and portable relational examples and test profiles replace the retired monolithic fixtures.
 
-### `Fixed`
+### Fixed
 
 - Removed the retired, unwired PLINK 1 association and VCF-conversion components, and repaired the `GCTA_ADDGRMS` and `GCTA_BIVARIATEREMLLDMS` test setups to use the pipeline-local `GCTA_MAKEGRMPART` process and their installed GAWK dependency.
 - [#96](https://github.com/nf-core/gwas/pull/96) - Bump the `nft-utils` nf-test plugin to `0.0.9` for nf-test 0.9.4 compatibility (fixes `sanitizeOutput()` `MissingMethodException` in module tests after the 4.0.2 template merge).
 
-### `Dependencies`
+### Dependencies
 
 - Updated the `plink/gwas` (`2d5c9c0`) and `plink/vcf` (`6d46786`) modules to the latest nf-core/modules version, preserving the pipeline's local patches (the `plink/vcf` `--pheno`/`--make-bed` phenotype input and the `plink/gwas` split `assoc`/`qassoc` outputs plus resource-label overrides).
 - Synced the vendored `modules/local/ldak/` family to the shared component library: the twelve name-matched modules now match the library byte-for-byte, `ldak/filter`, `ldak/subgrm` and `ldak/thincommon` were added, and `ldak/filterrelatedness` was removed in favour of the library's `filter` + `subgrm` split.
-
-### `Deprecated`

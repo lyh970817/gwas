@@ -160,11 +160,11 @@ For ordinary non-partitioned LDSC, the current official tutorial recommends usin
 
 References must match the GWAS ancestry. The official repository provides European and East Asian 1000 Genomes LD scores; its tutorial says other populations need population-appropriate scores. Genome build and SNP identifiers must also join correctly. GWASLab's reference FASTA/VCFs improve summary-statistic harmonisation but do not replace these LD-score and weight files.
 
-If precomputed ancestry-matched scores are unavailable, the LDSC route must stop with a clear missing-reference error. Calculating reference LD scores with `ldsc.py --l2` is deliberately outside the first pipeline release.
+If precomputed ancestry-matched scores are unavailable, the LDSC route must stop with a clear missing-reference error. Calculating reference LD scores with `ldsc.py --l2` is deliberately outside the initial LDSC integration scope.
 
-## Selected first pipeline boundary
+## Selected LDSC integration boundary
 
-The selected executable is the CBIIT Python 3 LDSC revision in a pinned custom container. The first release is limited to summary-statistics munging, SNP-heritability estimation and pairwise genetic correlation.
+The selected executable is the CBIIT Python 3 LDSC revision in a pinned custom container. The initial LDSC integration is limited to summary-statistics munging, SNP-heritability estimation and pairwise genetic correlation.
 
 ### Components
 

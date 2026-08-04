@@ -21,7 +21,7 @@ Use the following provenance chain for any result:
 1. Read `<analysis_id>` and `<method>` from its parent directories and filename.
 2. Find the unique `analysis_id` row in `--analysis_manifest`, follow its `cohort_id` into `--cohort_manifest`, and inspect any entry for that analysis in `--method_options`.
 3. Map `<method>` to its producing tool using the table below.
-4. Read the tool version from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline release and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
+4. Read the tool version from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline version and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
 | Method token                                     | Producing tool |
 | ------------------------------------------------ | -------------- |
@@ -30,7 +30,7 @@ Use the following provenance chain for any result:
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`  | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc` | LDAK 6         |
 
-Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline release and producing tool version. Preserve them with an archived result.
+Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline version and producing tool version. Preserve them with an archived result.
 
 This attribution rule applies to analysis results under `association/`, `summary_statistics/` and `heritability/`. Optional prepared genotypes and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id`, while `quality_control/relatedness_matrices/` is attributed to its reuse key and may serve several analysis rows.
 
@@ -228,7 +228,7 @@ These files show the exact recoding consumed by downstream tools and are useful 
 <details markdown="1">
 <summary>Output files</summary>
 
-[MultiQC](https://multiqc.info/) combines the validated Analysis plan, workflow parameters, route-aware Methods Description and collected software versions into one report. The Analysis plan has one row per `analysis_id` and records the joined cohort, trait, trait type, genome build, ancestry provenance and requested association and heritability methods. It describes requested routes, not their completion or scientific results. Custom Manhattan and QQ plots and heritability-result panels are outside this release's scope.
+[MultiQC](https://multiqc.info/) combines the validated Analysis plan, workflow parameters, route-aware Methods Description and collected software versions into one report. The Analysis plan has one row per `analysis_id` and records the joined cohort, trait, trait type, genome build, ancestry provenance and requested association and heritability methods. It describes requested routes, not their completion or scientific results. Custom Manhattan and QQ plots and heritability-result panels are outside the current reporting scope.
 
 - `multiqc/`
   - `multiqc_report.html`: Standalone HTML run report.
