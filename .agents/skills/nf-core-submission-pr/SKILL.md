@@ -1,12 +1,13 @@
 ---
 name: nf-core-submission-pr
-description: Prepare an upstream nf-core/modules PR for a module or subworkflow submission from this fork.
+description: Prepare reviewer-facing upstream nf-core PRs for module, subworkflow, pipeline, or companion test-datasets submissions from this workspace.
 ---
 
 Read `../nf-core-common.md` first. Treat this skill as authoritative; use the standards-cache fallback only
 when this guidance is unclear or incomplete, or extra upstream detail is needed.
 
-Use this skill when preparing, opening, updating, or summarizing an upstream `nf-core/modules` PR for a module or subworkflow submission.
+Use this skill when drafting, preparing, opening, updating, or summarizing an upstream nf-core PR for a module,
+subworkflow, pipeline contribution, or companion `nf-core/test-datasets` submission.
 
 ## Standards cache fallback
 
@@ -49,9 +50,40 @@ For new component submissions:
 - Mention reviewer-relevant dependency or risk only when it matters.
 - Avoid module-specific interface minutiae, local migration history, and unchanged-behavior sections.
 
+## Public reviewer boundary
+
+Write the title and body only from information an upstream reviewer can verify from the public target repository,
+the submitted diff, linked public issues or PRs, and public documentation. The body explains what the change adds,
+why it belongs upstream, and any public dependency or review consideration; it is not an execution handoff or a
+record of the author's private development environment.
+
+Before returning or publishing a draft, remove:
+
+- absolute or machine-local paths, checkout names, worktree locations, environment overrides and device details;
+- private, ignored or repository-local tracker references, including `.scratch` issue numbers;
+- personal agent, Claude/Codex, Nix, editor or orchestration details;
+- unpublished branch names, commit hashes or URLs that reviewers cannot access;
+- local-only test setup and local fixture-resolution instructions;
+- implementation diary, handoff, branch-management and publication-plan language.
+
+Validation belongs in the body only when the upstream template requests it or the result is materially useful to a
+reviewer. State portable commands or environment-independent outcomes; do not narrate where they ran, how local
+dependencies were found, or other author-specific setup. Link an issue or companion PR only if it is public and
+reviewers can open it. Audit every URL and reference for public accessibility.
+
+Treat "draft the PR" and "open a draft PR" as different authorization levels. Drafting produces title/body text
+without staging, committing, pushing, opening a PR, assigning reviewers or changing external state. Perform those
+actions only when the user explicitly asks for them.
+
 ## PR template sourcing
 
-- Before drafting, fetch the current upstream PR template from the target checkout (`.github/PULL_REQUEST_TEMPLATE.md`) rather than paraphrasing a checklist from memory. Save a local reusable copy under this skill (e.g. `references/nf-core-modules-pull-request-template.md`) and draft from it.
+- Before drafting, inspect the current target repository and base branch for GitHub-supported templates in the
+  repository root, `docs/`, `.github/`, and their `PULL_REQUEST_TEMPLATE/` directories. Also check whether GitHub
+  supplies an organization-wide default community-health template. Use the actual current template rather than a
+  remembered or locally cached checklist; repository-native structure takes precedence over skill examples.
+- When multiple templates exist, select the one matching the contribution type and say which one was used. When no
+  template exists, do not invent one. Use a concise reviewer-facing title and body informed by recent comparable
+  merged PRs to the same target branch, while preserving the public reviewer boundary above.
 - Tick a checklist box only when the associated item has actually been verified in the current branch state. Do not pre-check boxes based on intention, expectation, or partial evidence. Do not present a PR as ready with the Docker/Singularity/Conda wrapper-test boxes left unchecked — check them only from successful wrapper runs with recorded command evidence.
 - If the repo has no PR template, do not fabricate a "default checklist".
 
