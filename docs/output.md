@@ -224,7 +224,7 @@ These files show the exact recoding consumed by downstream tools and are useful 
 <details markdown="1">
 <summary>Output files</summary>
 
-[MultiQC](https://multiqc.info/) combines the workflow summary and collected software-version information into one report. Custom Manhattan and QQ plots and custom result-summary modules are outside this release's scope.
+[MultiQC](https://multiqc.info/) combines the validated Analysis plan, workflow parameters, route-aware Methods Description and collected software versions into one report. The Analysis plan has one row per `analysis_id` and records the joined cohort, trait, trait type, genome build, ancestry provenance and requested association and heritability methods. It describes requested routes, not their completion or scientific results. Custom Manhattan and QQ plots and heritability-result panels are outside this release's scope.
 
 - `multiqc/`
   - `multiqc_report.html`: Standalone HTML run report.

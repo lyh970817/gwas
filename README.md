@@ -25,6 +25,8 @@
 
 Genotype quality control is not performed by the pipeline. Input genotypes must already have suitable samples, variants, alleles, coordinates, genome build and analysis filters.
 
+![Overview of the nf-core/gwas analysis routes](docs/images/nf-core-gwas_metro_map.svg)
+
 ## Pipeline summary
 
 1. Validate and join the cohort and analysis manifests.
@@ -93,7 +95,7 @@ nf-core/gwas was originally written by Chris Wyatt, Fernando Duarte, Maxime Laur
 
 We thank the following people for their extensive assistance in the development of this pipeline:
 
-<!-- TODO nf-core: If applicable, make list of people who have also contributed -->
+- [lyh970817](https://github.com/lyh970817)
 
 ## Contributions and Support
 
