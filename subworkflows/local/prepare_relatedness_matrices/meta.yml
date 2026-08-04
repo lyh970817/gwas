@@ -11,8 +11,8 @@ keywords:
 # lowercasing the entry it is matched against — so a camel-cased function name here is reported as
 # missing. Function entries are therefore spelled lowercase.
 components:
-  - gcta_prepare_grm_dense
-  - gcta_prepare_grm_ldms
+  - plink_prepare_grm_gcta
+  - plink_prepare_grm_ldms_gcta
   - plink_prepare_grm_ldak
   - gcta/makebksparse
   - ldakweightsidentity

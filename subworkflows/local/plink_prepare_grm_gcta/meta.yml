@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
-name: "gcta_prepare_grm_dense"
+name: "plink_prepare_grm_gcta"
 description: Construct and merge dense GCTA genetic relationship matrix parts
 keywords:
   - gcta

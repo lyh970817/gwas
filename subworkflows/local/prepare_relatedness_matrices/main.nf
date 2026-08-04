@@ -2,8 +2,8 @@
 // Every component reports on the run-wide versions topic, so this subworkflow emits no versions.
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
-include { GCTA_PREPARE_GRM_LDMS         } from '../gcta_prepare_grm_ldms/main'
+include { PLINK_PREPARE_GRM_GCTA        } from '../plink_prepare_grm_gcta/main'
+include { PLINK_PREPARE_GRM_LDMS_GCTA   } from '../plink_prepare_grm_ldms_gcta/main'
 include { PLINK_PREPARE_GRM_LDAK        } from '../plink_prepare_grm_ldak/main'
 
 // MODULE: Local to the pipeline
@@ -121,7 +121,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     //
     // SUBWORKFLOW: Build the dense GCTA relatedness matrix in partitions and merge them
     //
-    GCTA_PREPARE_GRM_DENSE(
+    PLINK_PREPARE_GRM_GCTA(
         ch_dense_inputs.genotypes,
         ch_dense_inputs.snp_group,
         ch_dense_inputs.n_parts,
@@ -133,7 +133,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // The sparse cutoff lives inside the matrix identity and reaches the component as an explicit input.
     // It is not hidden in ext.args, so changing it necessarily changes both the reuse key and the command.
     //
-    def ch_sparse_inputs = GCTA_PREPARE_GRM_DENSE.out.grm_files
+    def ch_sparse_inputs = PLINK_PREPARE_GRM_GCTA.out.grm_files
         .filter { matrix_meta, _grm_files -> matrix_meta.kind == 'gcta_sparse' }
         .multiMap { matrix_meta, grm_files ->
             grm: [matrix_meta, grm_files]
@@ -178,7 +178,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
             n_parts: [matrix_meta, parts]
         }
 
-    GCTA_PREPARE_GRM_LDMS(
+    PLINK_PREPARE_GRM_LDMS_GCTA(
         ch_ldms_inputs.genotypes,
         ch_ldms_inputs.ld_score_region_kb,
         ch_ldms_inputs.ld_bins,
@@ -220,7 +220,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .filter { _key, _meta, request, _weights_file -> request.kind == 'gcta_dense' }
         .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
-            GCTA_PREPARE_GRM_DENSE.out.grm_files.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
+            PLINK_PREPARE_GRM_GCTA.out.grm_files.map { matrix_meta, grm_files -> [matrix_meta.key, grm_files] },
             by: 0
         )
         .map { _key, meta, grm_files -> [meta, grm_files] }
@@ -238,7 +238,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .filter { _key, _meta, request, _weights_file -> request.kind == 'gcta_ldms' }
         .map { key, meta, _request, _weights_file -> [key, meta] }
         .combine(
-            GCTA_PREPARE_GRM_LDMS.out.mgrm_bundle.map { matrix_meta, mgrm, grm_files -> [matrix_meta.key, mgrm, grm_files] },
+            PLINK_PREPARE_GRM_LDMS_GCTA.out.mgrm_bundle.map { matrix_meta, mgrm, grm_files -> [matrix_meta.key, mgrm, grm_files] },
             by: 0
         )
         .map { _key, meta, mgrm, grm_files -> [meta, mgrm, grm_files] }

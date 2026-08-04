@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
-name: "gcta_prepare_grm_ldms"
+name: "plink_prepare_grm_ldms_gcta"
 description: Build LD-by-MAF-stratified GCTA genetic relationship matrices and an MGRM manifest
 keywords:
   - gcta
@@ -11,7 +11,7 @@ keywords:
 components:
   - gcta/calculateldscores
   - custom/gctastratifyldscores
-  - gcta_prepare_grm_dense
+  - plink_prepare_grm_gcta
   - custom/gctacreatemgrmmanifest
 input:
   - ch_genotypes:

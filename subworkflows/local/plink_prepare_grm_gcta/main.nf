@@ -5,7 +5,7 @@
 include { GCTA_MAKEGRMPART         } from '../../../modules/local/gcta/makegrmpart/main'
 include { CUSTOM_GCTAMERGEGRMPARTS } from '../../../modules/local/custom/gctamergegrmparts/main'
 
-workflow GCTA_PREPARE_GRM_DENSE {
+workflow PLINK_PREPARE_GRM_GCTA {
     take:
     ch_genotypes // channel: [ val(meta), path(mfile), path(bed_pgen), path(bim_pvar), path(fam_psam) ], mandatory
     ch_snp_group_file // channel: [ val(meta2), path(snp_group_file) ], optional; use [] when absent

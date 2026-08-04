@@ -7,9 +7,9 @@ include { CUSTOM_GCTASTRATIFYLDSCORES   } from '../../../modules/local/custom/gc
 include { CUSTOM_GCTACREATEMGRMMANIFEST } from '../../../modules/local/custom/gctacreatemgrmmanifest/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { GCTA_PREPARE_GRM_DENSE        } from '../gcta_prepare_grm_dense/main'
+include { PLINK_PREPARE_GRM_GCTA        } from '../plink_prepare_grm_gcta/main'
 
-workflow GCTA_PREPARE_GRM_LDMS {
+workflow PLINK_PREPARE_GRM_LDMS_GCTA {
     take:
     ch_genotypes // channel: [ val(meta), path(mfile), path(bed), path(bim), path(fam) ], focal genotypes
     ch_ld_score_region_kb // channel: [ val(meta2), val(ld_score_region_kb) ], LD-score region size
@@ -61,9 +61,9 @@ workflow GCTA_PREPARE_GRM_LDMS {
         restore: tuple(work_meta.id, focal_meta, stratum_count)
         strata: tuple(focal_meta, provenance.model_key, provenance.stratum_key, provenance)
     }
-    GCTA_PREPARE_GRM_DENSE(ch_dense_inputs.genotypes, ch_dense_inputs.snp_group, ch_dense_inputs.n_parts)
+    PLINK_PREPARE_GRM_GCTA(ch_dense_inputs.genotypes, ch_dense_inputs.snp_group, ch_dense_inputs.n_parts)
 
-    ch_mgrm_inputs = GCTA_PREPARE_GRM_DENSE.out.grm_files
+    ch_mgrm_inputs = PLINK_PREPARE_GRM_GCTA.out.grm_files
         .map { work_meta, grm_files -> tuple(work_meta.id, grm_files) }
         .join(ch_dense_inputs.restore, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .map { _work_id, grm_files, focal_meta, stratum_count -> tuple(groupKey(focal_meta, stratum_count), grm_files) }
