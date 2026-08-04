@@ -133,7 +133,6 @@ workflow GWAS {
 
     ROUTE_REGENIE_ASSOCIATIONS(
         ch_regenie_analyses,
-        params.regenie_step1_bsize,
         params.regenie_step2_bsize,
         params.regenie_step1_mode,
         params.regenie_step1_jobs,

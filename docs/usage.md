@@ -93,7 +93,7 @@ nextflow run nf-core/gwas \
 
 ### Advanced method options
 
-`--method_options` is optional. Its JSON root is keyed by `analysis_id`; each value may contain `gcta` and/or `ldak`. Unlisted analyses receive every default. Unknown analyses, families or options, invalid values, missing resources, and options whose consuming method is not selected are rejected before task submission.
+`--method_options` is optional. Its JSON root is keyed by `analysis_id`; each value may contain `gcta`, `ldak` and/or `regenie`. Unlisted analyses receive every default. Unknown analyses, families or options, invalid values, missing resources, and options whose consuming method is not selected are rejected before task submission.
 
 | GCTA option          | Type and default                       | Consumer and constraints                                                                                 |
 | -------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -114,6 +114,28 @@ nextflow run nf-core/gwas \
 | `relatedness_filter` | Boolean; `false`                    | Kinship routes; optionally derives an unrelated subset.                                                                                                       |
 | `kvik_step1_subset`  | String; `all`                       | `ldak_kvik` only; `all`, `thin_common`, or `provided`.                                                                                                         |
 | `predictor_extract`  | Resource path or absent; absent     | `ldak_kvik` only; required exactly with `kvik_step1_subset: provided`.                                                                                          |
+
+| REGENIE option       | Type and default              | Consumer and constraints                                                                                  |
+| -------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `step1_bsize`        | Positive integer; `1000`      | Step 1 fitted-model block size; participates in prediction-reuse identity.                               |
+| `firth`              | Boolean; `true`               | Binary traits only; enable Firth fallback in Step 2.                                                      |
+| `firth_approx`       | Boolean; `true`               | Binary traits only; requires `firth` when explicitly enabled.                                            |
+| `firth_p_threshold`  | Number; `0.01`                | Binary traits only; greater than `0` and at most `1`, and requires `firth` when explicitly supplied.      |
+| `min_mac`            | Number or `null`; `null`      | Optional Step 2 minimum minor allele count; `null` leaves REGENIE's built-in behavior in effect.          |
+
+For example, this changes the fitted-model block size and Step 2 policy for one binary REGENIE analysis while every unlisted analysis retains the defaults:
+
+```json
+{
+  "disease": {
+    "regenie": {
+      "step1_bsize": 2000,
+      "firth": false,
+      "min_mac": 10
+    }
+  }
+}
+```
 
 Resource paths are staged and their contents participate in matrix or prediction reuse identity. `gcta_grm_parts` is operational partitioning and remains configuration/profile-only, never a method option.
 
@@ -137,8 +159,7 @@ remain distinct for tools with separate native interfaces.
 | PLINK 2 binary association                                                 | Firth fallback is enabled so separated or sparse binary-trait tests can still produce estimates. Binary phenotypes are passed with `--1` because the common normalised coding is `0`/`1`/`NA`; covariates are variance-standardised to prevent numerical failure when their scales differ. |
 | `--regenie_step1_mode`                                                     | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                                                                                           |
 | `--regenie_lowmem`                                                         | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                                                                                                      |
-| `--regenie_firth`, `--regenie_firth_approx`, `--regenie_firth_p_threshold` | `true`, `true`, and `0.01`. Binary Step 2 uses the faster approximate Firth correction for tests crossing the configured significance threshold, reducing separation bias without applying the cost to every variant.                                                                      |
-| `--regenie_min_mac`                                                        | Unset, so REGENIE's own versioned minimum-minor-allele-count policy applies instead of the pipeline silently imposing a scientific filter.                                                                                                                                                 |
+| REGENIE scientific method options                                          | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                                                                                                     |
 | GWASLab reference parameters                                               | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource.                                                                           |
 | Save controls                                                              | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                                                                                            |
 
@@ -147,7 +168,7 @@ The four opt-in save controls are:
 - `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
 - `--save_normalised_phenotypes`: publish headered normalised phenotype and covariate files under `phenotypes/<analysis_id>/`.
 - `--save_relatedness_matrices`: publish merged GCTA or LDAK matrix bundles under `quality_control/relatedness_matrices/<key>/`.
-- `--save_regenie_predictions`: publish the reusable REGENIE Step 1 prediction bundle under `intermediates/regenie/<analysis_id>/`.
+- `--save_association_predictions`: publish reusable REGENIE and LDAK-KVIK Step 1 bundles under `intermediates/association_predictions/<method>/<analysis_id>/`.
 
 See the [output documentation](output.md) for the exact files and publication exceptions.
 

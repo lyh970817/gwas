@@ -3,12 +3,13 @@
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULES: Upstream-ready components used inside a pipeline-local route
-include { LDAK_THINCOMMON } from '../../../modules/local/ldak/thincommon/main'
-include { LDAK_KVIKSTEP1  } from '../../../modules/local/ldak/kvikstep1/main'
-include { LDAK_KVIKSTEP2  } from '../../../modules/local/ldak/kvikstep2/main'
+include { LDAK_THINCOMMON                 } from '../../../modules/local/ldak/thincommon/main'
+include { LDAK_KVIKSTEP1                  } from '../../../modules/local/ldak/kvikstep1/main'
+include { LDAK_KVIKSTEP2                  } from '../../../modules/local/ldak/kvikstep2/main'
+include { ATTRIBUTE_LDAK_KVIK_PREDICTIONS } from '../../../modules/local/attribute_ldak_kvik_predictions/main'
 
 // FUNCTION: Local to the pipeline
-include { buildKvikPredictionKey } from '../utils_prediction_reuse'
+include { buildKvikPredictionKey          } from '../utils_prediction_reuse'
 
 workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     take:
@@ -66,6 +67,14 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
         .map { fit_meta, root, loco_details, loco_prs -> [fit_meta.id, fit_meta, root, loco_details, loco_prs] }
         .join(ch_fit_keys, failOnDuplicate: true, failOnMismatch: true)
         .map { _fit_id, fit_meta, root, loco_details, loco_prs, prediction_key -> [prediction_key, [fit_meta, root, loco_details, loco_prs]] }
+
+    def ch_attributed_predictions = ch_requests
+        .map { prediction_key, meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, _subset_policy -> [prediction_key, meta.id, meta] }
+        .unique { _prediction_key, analysis_id, _meta -> analysis_id }
+        .combine(ch_prediction_bundles, by: 0)
+        .map { _prediction_key, _analysis_id, meta, predictions -> [meta, predictions[1], predictions[2], predictions[3]] }
+
+    ATTRIBUTE_LDAK_KVIK_PREDICTIONS(ch_attributed_predictions)
 
     def ch_step2 = ch_requests
         .combine(ch_prediction_bundles, by: 0)

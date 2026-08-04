@@ -60,6 +60,7 @@ nextflow_pipeline {
     }
 
     test("KVIK predictor policies and resource content define prediction reuse without changing focal identity") {
+        tag "association_predictions"
         when {
             params {
                 outdir = "$outputDir"
@@ -89,11 +90,13 @@ nextflow_pipeline {
                     provided_b: [ldak: [kvik_step1_subset: 'provided', predictor_extract: RELATIONAL.predictors(projectDir, outputDir, 'provided-b.in', 8)]],
                     provided_changed: [ldak: [kvik_step1_subset: 'provided', predictor_extract: RELATIONAL.predictors(projectDir, outputDir, 'provided-changed.in', 9)]],
                 ])
+                save_association_predictions = true
             }
         }
 
         then {
             def nativeRoot = new File("${params.outdir}/association/ldak_kvik")
+            def predictionRoot = new File("${params.outdir}/intermediates/association_predictions/ldak_kvik")
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
@@ -101,6 +104,8 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 6 },
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 6 },
                 { assert nativeRoot.list().toList().sort() == ['all_reuse', 'example_bfile_qt', 'provided_a', 'provided_b', 'provided_changed', 'thin_common'] },
+                { assert predictionRoot.list().toList().sort() == ['all_reuse', 'example_bfile_qt', 'provided_a', 'provided_b', 'provided_changed', 'thin_common'] },
+                { assert predictionRoot.listFiles().every { directory -> directory.list().size() == 3 } },
             )
         }
     }
