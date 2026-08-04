@@ -1187,10 +1187,44 @@ def validateRelationalInput(cohort_rows, analysis_rows, cohort_manifest, analysi
 
 
 //
-// Generate methods description for MultiQC
+// Build the MultiQC analysis-plan table from validated, joined manifest metadata.
 //
 
-def methodsDescriptionText(mqc_methods_yaml) {
+def analysisPlanJson(mqc_analysis_plan_yaml, analysis_metadata) {
+    def static_config = new org.yaml.snakeyaml.Yaml().load(mqc_analysis_plan_yaml.text)
+    def header_keys = static_config.headers.keySet()
+    def data = analysis_metadata
+        .toSorted { meta -> meta.id }
+        .collectEntries { meta ->
+            def raw = [
+                cohort: meta.cohort,
+                trait: meta.trait,
+                trait_type: meta.trait_type,
+                genome_build: meta.build,
+                ancestry: meta.ancestry,
+                association_methods: meta.association_methods ? meta.association_methods.join(', ') : '-',
+                heritability_methods: meta.heritability_methods ? meta.heritability_methods.join(', ') : '-',
+            ]
+            def undeclared = raw.keySet() - header_keys
+            def unpopulated = header_keys - raw.keySet()
+            if (undeclared || unpopulated) {
+                error("multiqc_analysis_plan.yml contract mismatch; generated columns missing from headers: ${undeclared}; declared headers without generated data: ${unpopulated}")
+            }
+
+            def cells = [:]
+            header_keys.each { key -> cells[key] = raw[key] }
+            [(meta.id): cells]
+        }
+
+    return groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(static_config + [data: data]))
+}
+
+
+//
+// Generate a route-aware methods description for MultiQC.
+//
+
+def methodsDescriptionText(mqc_methods_yaml, selected_methods = [association: [], heritability: []]) {
     // Convert  to a named map so can be used as with familiar NXF ${workflow} variable syntax in the MultiQC YML file
     def meta = [:]
     meta.workflow = workflow.toMap()
@@ -1211,11 +1245,12 @@ def methodsDescriptionText(mqc_methods_yaml) {
     else {
         meta["doi_text"] = ""
     }
-    meta["nodoi_text"] = meta.manifest_map.doi ? "" : "<li>If available, make sure to update the text to include the Zenodo DOI of version of the pipeline used. </li>"
+    meta["nodoi_text"] = meta.manifest_map.doi ? "" : "<li>No version-specific pipeline DOI was declared for this build.</li>"
 
     // Tool references
-    meta["tool_citations"] = ""
-    meta["tool_bibliography"] = ""
+    meta["tool_citations"] = toolCitationText(selected_methods)
+    meta["tool_bibliography"] = toolBibliographyText(selected_methods)
+    meta["command_line"] = escapeHtml(workflow.commandLine)
 
     def methods_text = mqc_methods_yaml.text
 
@@ -1223,4 +1258,110 @@ def methodsDescriptionText(mqc_methods_yaml) {
     def description_html = engine.createTemplate(methods_text).make(meta)
 
     return description_html.toString()
+}
+
+
+def selectedCitationKeys(selected_methods) {
+    def association = (selected_methods.association ?: []) as Set
+    def heritability = (selected_methods.heritability ?: []) as Set
+    def known_association = ['plink2', 'regenie', 'gcta_fastgwa', 'ldak_kvik'] as Set
+    def known_heritability = ['gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc'] as Set
+    def unknown = (association - known_association) + (heritability - known_heritability)
+    if (unknown) {
+        error("Cannot generate methods citations for unknown method selectors: ${unknown.toList().sort().join(', ')}")
+    }
+
+    def keys = []
+    if ('plink2' in association) {
+        keys << 'plink2'
+    }
+    if ('regenie' in association) {
+        keys << 'regenie'
+    }
+    if ('gcta_fastgwa' in association) {
+        keys << 'gcta_fastgwa'
+    }
+    if ('gcta_greml' in heritability) {
+        keys << 'gcta_greml'
+    }
+    if ('gcta_greml_ldms' in heritability) {
+        keys << 'gcta_greml_ldms'
+    }
+    if ('ldak_kvik' in association) {
+        keys << 'ldak_kvik'
+    }
+    if (heritability.intersect(['ldak_reml', 'ldak_he', 'ldak_pcgc'])) {
+        keys << 'ldak'
+    }
+    if (association) {
+        keys << 'gwaslab'
+    }
+    keys << 'multiqc'
+    return keys
+}
+
+
+def toolCitationText(selected_methods) {
+    def keys = selectedCitationKeys(selected_methods)
+    def association_labels = [
+        plink2: 'PLINK 2 (Chang <em>et al.</em>, 2015)',
+        regenie: 'REGENIE (Mbatchou <em>et al.</em>, 2021)',
+        gcta_fastgwa: 'GCTA fastGWA (Jiang <em>et al.</em>, 2019)',
+        ldak_kvik: 'LDAK-KVIK (Hof and Speed, 2025)',
+    ]
+    def heritability_labels = [
+        gcta_greml: 'GCTA GREML (Yang <em>et al.</em>, 2011)',
+        gcta_greml_ldms: 'GCTA GREML-LDMS (Yang <em>et al.</em>, 2015)',
+        ldak: 'LDAK (Speed <em>et al.</em>, 2012)',
+    ]
+    def sentences = []
+    def selected_association = keys.findAll { key -> association_labels.containsKey(key) }.collect { key -> association_labels[key] }
+    def selected_heritability = keys.findAll { key -> heritability_labels.containsKey(key) }.collect { key -> heritability_labels[key] }
+    if (selected_association) {
+        sentences << "Association testing was performed with ${joinProseList(selected_association)}."
+        sentences << "Association summary statistics were harmonised with GWASLab."
+    }
+    if (selected_heritability) {
+        sentences << "SNP-based heritability was estimated with ${joinProseList(selected_heritability)}."
+    }
+    sentences << "The run report was generated with MultiQC (Ewels <em>et al.</em>, 2016)."
+    return sentences.join(' ')
+}
+
+
+def toolBibliographyText(selected_methods) {
+    def bibliography = [
+        plink2: '<li>Chang CC, Chow CC, Tellier LCAM, Vattikuti S, Purcell SM, Lee JJ. Second-generation PLINK: rising to the challenge of larger and richer datasets. <em>GigaScience</em>. 2015;4:7. doi: <a href="https://doi.org/10.1186/s13742-015-0047-8">10.1186/s13742-015-0047-8</a>.</li>',
+        regenie: '<li>Mbatchou J, Barnard L, Backman J, et al. Computationally efficient whole-genome regression for quantitative and binary traits. <em>Nature Genetics</em>. 2021;53:1097-1103. doi: <a href="https://doi.org/10.1038/s41588-021-00870-7">10.1038/s41588-021-00870-7</a>.</li>',
+        gcta_fastgwa: '<li>Jiang L, Zheng Z, Qi T, et al. A resource-efficient tool for mixed model association analysis of large-scale data. <em>Nature Genetics</em>. 2019;51:1749-1755. doi: <a href="https://doi.org/10.1038/s41588-019-0530-8">10.1038/s41588-019-0530-8</a>.</li>',
+        gcta_greml: '<li>Yang J, Lee SH, Goddard ME, Visscher PM. GCTA: a tool for genome-wide complex trait analysis. <em>American Journal of Human Genetics</em>. 2011;88:76-82. doi: <a href="https://doi.org/10.1016/j.ajhg.2010.11.011">10.1016/j.ajhg.2010.11.011</a>.</li>',
+        gcta_greml_ldms: '<li>Yang J, Bakshi A, Zhu Z, et al. Genetic variance estimation with imputed variants finds negligible missing heritability for human height and body mass index. <em>Nature Genetics</em>. 2015;47:1114-1120. doi: <a href="https://doi.org/10.1038/ng.3390">10.1038/ng.3390</a>.</li>',
+        ldak_kvik: '<li>Hof JP, Speed D. LDAK-KVIK performs fast and powerful mixed-model association analysis of quantitative and binary phenotypes. <em>Nature Genetics</em>. 2025;57:2116-2123. doi: <a href="https://doi.org/10.1038/s41588-025-02286-z">10.1038/s41588-025-02286-z</a>.</li>',
+        ldak: '<li>Speed D, Hemani G, Johnson MR, Balding DJ. Improved heritability estimation from genome-wide SNPs. <em>American Journal of Human Genetics</em>. 2012;91:1011-1021. doi: <a href="https://doi.org/10.1016/j.ajhg.2012.10.010">10.1016/j.ajhg.2012.10.010</a>.</li>',
+        gwaslab: '<li>GWASLab. <a href="https://cloufield.github.io/gwaslab/">https://cloufield.github.io/gwaslab/</a>.</li>',
+        multiqc: '<li>Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. <em>Bioinformatics</em>. 2016;32:3047-3048. doi: <a href="https://doi.org/10.1093/bioinformatics/btw354">10.1093/bioinformatics/btw354</a>.</li>',
+    ]
+    return selectedCitationKeys(selected_methods).collect { key -> bibliography[key] }.join('\n    ')
+}
+
+
+def joinProseList(items) {
+    if (items.size() == 1) {
+        return items[0]
+    }
+    if (items.size() == 2) {
+        return items.join(' and ')
+    }
+    return "${items[0..-2].join(', ')}, and ${items[-1]}"
+}
+
+
+def escapeHtml(value) {
+    return value
+        .toString()
+        .replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+        .replace('"', '&quot;')
+        .replace("'", '&#39;')
 }

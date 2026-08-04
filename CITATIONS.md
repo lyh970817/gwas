@@ -14,6 +14,14 @@
 
   > Yang J, Lee SH, Goddard ME, Visscher PM. GCTA: a tool for genome-wide complex trait analysis. Am J Hum Genet. 2011;88(1):76-82. doi: 10.1016/j.ajhg.2010.11.011. PubMed PMID: 21167468; PubMed Central PMCID: PMC3014363.
 
+- [GCTA fastGWA](https://doi.org/10.1038/s41588-019-0530-8)
+
+  > Jiang L, Zheng Z, Qi T, et al. A resource-efficient tool for mixed model association analysis of large-scale data. Nat Genet. 2019;51(12):1749-1755. doi: 10.1038/s41588-019-0530-8. PubMed PMID: 31740819.
+
+- [GCTA GREML-LDMS](https://doi.org/10.1038/ng.3390)
+
+  > Yang J, Bakshi A, Zhu Z, et al. Genetic variance estimation with imputed variants finds negligible missing heritability for human height and body mass index. Nat Genet. 2015;47(10):1114-1120. doi: 10.1038/ng.3390. PubMed PMID: 26323059.
+
 - [GWASLab](https://cloufield.github.io/gwaslab/)
 
 - [LDAK](https://doi.org/10.1016/j.ajhg.2012.10.010)

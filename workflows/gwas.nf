@@ -23,6 +23,7 @@ include { ROUTE_LDAK_KVIK_ASSOCIATIONS                        } from '../subwork
 include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
 include { getAssociationColumnMappingJson                     } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+include { analysisPlanJson                                    } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { methodsDescriptionText                              } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
@@ -49,6 +50,9 @@ workflow GWAS {
     main:
 
     def ch_multiqc_files = channel.empty()
+    def ch_analysis_metadata = ch_analyses
+        .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights -> meta }
+        .collect()
 
     // One element per analysis unit carrying the genotype files it declared. Cohort preparation collapses
     // this to the distinct cohorts.
@@ -430,13 +434,22 @@ workflow GWAS {
     // MODULE: MultiQC
     //
     ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
+    def multiqc_analysis_plan = file("${projectDir}/assets/multiqc_analysis_plan.yml", checkIfExists: true)
+    def ch_analysis_plan = ch_analysis_metadata.map { analysis_metadata -> analysisPlanJson(multiqc_analysis_plan, analysis_metadata) }
+    ch_multiqc_files = ch_multiqc_files.mix(ch_analysis_plan.collectFile(name: 'analysis_plan_mqc.json', sort: true))
     def summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
     def ch_workflow_summary = channel.value(paramsSummaryMultiqc(summary_params))
     ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
     def multiqc_custom_methods_description = multiqc_methods_description
         ? file(multiqc_methods_description, checkIfExists: true)
         : file("${projectDir}/assets/methods_description_template.yml", checkIfExists: true)
-    def ch_methods_description = channel.value(methodsDescriptionText(multiqc_custom_methods_description))
+    def ch_methods_description = ch_analysis_metadata.map { analysis_metadata ->
+        def selected_methods = [
+            association: analysis_metadata.collectMany { meta -> meta.association_methods }.unique().sort(),
+            heritability: analysis_metadata.collectMany { meta -> meta.heritability_methods }.unique().sort(),
+        ]
+        methodsDescriptionText(multiqc_custom_methods_description, selected_methods)
+    }
     ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml', sort: true))
     MULTIQC(
         ch_multiqc_files.flatten().collect().map { files ->
@@ -446,7 +459,9 @@ workflow GWAS {
                 multiqc_config
                     ? file(multiqc_config, checkIfExists: true)
                     : file("${projectDir}/assets/multiqc_config.yml", checkIfExists: true),
-                multiqc_logo ? file(multiqc_logo, checkIfExists: true) : [],
+                multiqc_logo
+                    ? file(multiqc_logo, checkIfExists: true)
+                    : file("${projectDir}/assets/nf-core-gwas_logo_light.png", checkIfExists: true),
                 [],
                 [],
             ]

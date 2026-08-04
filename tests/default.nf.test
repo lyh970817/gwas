@@ -18,6 +18,8 @@ nextflow_pipeline {
 
         then {
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
+            def multiqc_report = new File("${params.outdir}/multiqc/multiqc_report.html")
+            def analysis_plan = new File("${params.outdir}/multiqc/multiqc_data/multiqc_nf-core-gwas-analysis-plan-table.txt")
             def stable_name_association = getAllFilesFromDir("${params.outdir}/association", relative: true, includeDir: true).findAll { path -> path.toString() }
             def stable_path_association = getAllFilesFromDir("${params.outdir}/association", ignoreFile: 'tests/.nftignore')
             def stable_name_heritability = getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true).findAll { path -> path.toString() }
@@ -57,6 +59,16 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'LDAK_REML') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_HE') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_PCGC') == 0 },
+                { assert analysis_plan.text.readLines() == [
+                    'Sample\tcohort\ttrait\ttrait_type\tgenome_build\tancestry\tassociation_methods\theritability_methods',
+                    'example_chr1_qt\texample_chr1\tQT\tquantitative\tGRCh37\tEUR\tplink2\tgcta_greml',
+                ] },
+                { assert multiqc_report.text.contains('This table describes the run plan, not per-method completion or scientific results.') },
+                { assert multiqc_report.text.contains('Analysis ID') },
+                { assert multiqc_report.text.contains('Association testing was performed with PLINK 2') },
+                { assert multiqc_report.text.contains('SNP-based heritability was estimated with GCTA GREML') },
+                { assert multiqc_report.text.contains('title="nf-core/gwas"') },
+                { assert multiqc_report.text.contains('class="custom_logo') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                 { assert snapshot(stable_name_association, stable_path_association).match('association') },
                 { assert snapshot(stable_name_heritability, stable_path_heritability).match('heritability') },

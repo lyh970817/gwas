@@ -74,19 +74,28 @@
                 "multiqc_data/multiqc.parquet",
                 "multiqc_data/multiqc_citations.txt",
                 "multiqc_data/multiqc_data.json",
+                "multiqc_data/multiqc_nf-core-gwas-analysis-plan-table.txt",
                 "multiqc_data/multiqc_software_versions.txt",
                 "multiqc_data/multiqc_sources.txt",
+                "multiqc_plots",
+                "multiqc_plots/pdf",
+                "multiqc_plots/pdf/nf-core-gwas-analysis-plan-table.pdf",
+                "multiqc_plots/png",
+                "multiqc_plots/png/nf-core-gwas-analysis-plan-table.png",
+                "multiqc_plots/svg",
+                "multiqc_plots/svg/nf-core-gwas-analysis-plan-table.svg",
                 "multiqc_report.html"
             ],
             [
-                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f"
+                "multiqc_citations.txt:md5,4c806e63a283ec1b7e78cdae3a923d4f",
+                "multiqc_nf-core-gwas-analysis-plan-table.txt:md5,35ad285e8f9738defb689dc110b27784"
             ]
         ],
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
         },
-        "timestamp": "2026-07-30T05:11:18.573807381"
+        "timestamp": "2026-08-04T22:30:08.330471846"
     },
     "heritability": {
         "content": [
