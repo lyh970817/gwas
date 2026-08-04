@@ -36,6 +36,29 @@ If new fixtures are required:
 - Keep fixture files as small as possible while still sufficient for stable tests.
 - Do not push or open the fixture PR unless the user explicitly asks.
 
+## Test-datasets pre-submission gate
+
+Before pushing or opening any `nf-core/test-datasets` PR, inspect the workflow files on the current target branch
+under `.github/workflows/` and reproduce every applicable CI job locally against the complete submission worktree.
+The target branch's live workflow definitions are authoritative; do not substitute remembered commands, validate
+only the newly added files, or assume the workflow is unchanged from a previous submission.
+
+For each workflow:
+
+1. Record the action, tool and version or version selector that CI installs, including matrix values.
+2. Run the same command over the same repository scope. A whole-repository CI command such as
+   `prettier --check .` must be run over the whole repository, not a selected path list.
+3. Run every declared test-matrix entry with the workflow's exact Nextflow version, profile and flags.
+4. Treat formatter and linter checks as required even when all scientific tests pass.
+5. If an action hides its command, reproduce its documented check mode or run it in a local action runner; do not
+   mark the gate green from a different linter.
+6. Stop before submission if any equivalent local job is red. Fix it, rerun the complete gate, and record the
+   successful commands and versions in the private worktree handoff, not necessarily in the public PR body.
+
+For the `gwas` branch as currently configured, this includes the whole-repository Prettier check, the Black check,
+and every `TEST_FILE` entry in the nf-test matrix with the declared `NXF_VER`, `--profile test`, `--verbose`, and
+TAP-report arguments. Re-read the workflows before every submission rather than treating this list as pinned.
+
 ## Completion
 
 Report the fixture choice, existing paths reused or new paths proposed, commands used to inspect datasets, and whether a companion fixture PR is required.
