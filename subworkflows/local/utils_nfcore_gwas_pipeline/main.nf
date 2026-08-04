@@ -831,7 +831,7 @@ def validateMethodOptions(method_options, analysis_rows) {
     try {
         document = new groovy.json.JsonSlurper().parseText(document_file.text)
     }
-    catch (exception: Exception) {
+    catch (Exception exception) {
         fail.call('<document>', '<root>', "malformed JSON (${exception.message})")
     }
     if (!(document instanceof Map)) {
