@@ -806,6 +806,13 @@ def validateMethodOptions(method_options, analysis_rows) {
             kvik_step1_subset: 'all',
             predictor_extract: [],
         ],
+        regenie: [
+            step1_bsize: 1000,
+            firth: true,
+            firth_approx: true,
+            firth_p_threshold: 0.01,
+            min_mac: null,
+        ],
     ]
     if (!method_options) {
         return analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
@@ -824,7 +831,7 @@ def validateMethodOptions(method_options, analysis_rows) {
     try {
         document = new groovy.json.JsonSlurper().parseText(document_file.text)
     }
-    catch (Exception exception) {
+    catch (exception: Exception) {
         fail.call('<document>', '<root>', "malformed JSON (${exception.message})")
     }
     if (!(document instanceof Map)) {
@@ -836,6 +843,7 @@ def validateMethodOptions(method_options, analysis_rows) {
         [(meta.id): [
             association_methods: tokenizeMethodSelector(meta.association_methods),
             heritability_methods: tokenizeMethodSelector(meta.heritability_methods),
+            is_binary: meta.trait_type == 'binary',
         ]]
     }
     def resolved = analyses.collectEntries { analysis_id, _methods -> [(analysis_id): defaults] }
@@ -847,18 +855,31 @@ def validateMethodOptions(method_options, analysis_rows) {
         if (!(families instanceof Map)) {
             fail.call(analysis_id, '<analysis>', 'expected a method-family object')
         }
-        def unknown_families = families.keySet().findAll { family -> !(family in ['gcta', 'ldak']) }
+        def unknown_families = families.keySet().findAll { family -> !(family in ['gcta', 'ldak', 'regenie']) }
         if (unknown_families) {
-            fail.call(analysis_id, unknown_families.first().toString(), 'unknown method family; accepted families are gcta and ldak')
+            fail.call(analysis_id, unknown_families.first().toString(), 'unknown method family; accepted families are gcta, ldak and regenie')
         }
 
         def gcta = families.containsKey('gcta') ? families.gcta : [:]
         def ldak = families.containsKey('ldak') ? families.ldak : [:]
+        def regenie = families.containsKey('regenie') ? families.regenie : [:]
         if (!(gcta instanceof Map)) {
             fail.call(analysis_id, 'gcta', 'expected an option object')
         }
         if (!(ldak instanceof Map)) {
             fail.call(analysis_id, 'ldak', 'expected an option object')
+        }
+        if (!(regenie instanceof Map)) {
+            fail.call(analysis_id, 'regenie', 'expected an option object')
+        }
+        def accepted_regenie = ['step1_bsize', 'firth', 'firth_approx', 'firth_p_threshold', 'min_mac']
+        def unknown_regenie = regenie.keySet().findAll { option -> !(option in accepted_regenie) }
+        if (unknown_regenie) {
+            def option = unknown_regenie.first()
+            def reason = option in ['step2_bsize', 'step1_mode', 'step1_jobs', 'lowmem']
+                ? 'operational tuning must be supplied through run/profile configuration'
+                : "unknown option; accepted REGENIE options are ${accepted_regenie.join(', ')}"
+            fail.call(analysis_id, "regenie.${option}", reason)
         }
         def accepted_ldak = [
             'model',
@@ -897,6 +918,41 @@ def validateMethodOptions(method_options, analysis_rows) {
         }
 
         def methods = analyses[analysis_id]
+        def selects_regenie = methods.association_methods.contains('regenie')
+        if (regenie && !selects_regenie) {
+            fail.call(analysis_id, "regenie.${regenie.keySet().first()}", "analysis does not select 'regenie'")
+        }
+        def step1_bsize = regenie.containsKey('step1_bsize') ? regenie.step1_bsize : 1000
+        if (!(step1_bsize instanceof Number) || step1_bsize < 1 || step1_bsize != step1_bsize.toInteger()) {
+            fail.call(analysis_id, 'regenie.step1_bsize', 'expected one positive integer')
+        }
+        def firth = regenie.containsKey('firth') ? regenie.firth : true
+        def firth_approx = regenie.containsKey('firth_approx') ? regenie.firth_approx : true
+        def firth_p_threshold = regenie.containsKey('firth_p_threshold') ? regenie.firth_p_threshold : 0.01
+        def min_mac = regenie.containsKey('min_mac') ? regenie.min_mac : null
+        if (!(firth instanceof Boolean)) {
+            fail.call(analysis_id, 'regenie.firth', 'expected a boolean')
+        }
+        if (!(firth_approx instanceof Boolean)) {
+            fail.call(analysis_id, 'regenie.firth_approx', 'expected a boolean')
+        }
+        if (regenie.containsKey('firth_approx') && firth_approx && !firth) {
+            fail.call(analysis_id, 'regenie.firth_approx', "requires 'regenie.firth' to be true")
+        }
+        if (!(firth_p_threshold instanceof Number) || firth_p_threshold <= 0 || firth_p_threshold > 1) {
+            fail.call(analysis_id, 'regenie.firth_p_threshold', 'expected a number greater than 0 and at most 1')
+        }
+        if (min_mac != null && (!(min_mac instanceof Number) || min_mac < 0)) {
+            fail.call(analysis_id, 'regenie.min_mac', 'expected a non-negative number or null')
+        }
+        ['firth', 'firth_approx', 'firth_p_threshold'].each { option ->
+            if (regenie.containsKey(option) && !methods.is_binary) {
+                fail.call(analysis_id, "regenie.${option}", 'option is consumed by binary-trait REGENIE analyses only')
+            }
+        }
+        if (regenie.containsKey('firth_p_threshold') && !firth) {
+            fail.call(analysis_id, 'regenie.firth_p_threshold', "requires 'regenie.firth' to be true")
+        }
         def selects_gcta = methods.association_methods.contains('gcta_fastgwa') || methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }
         if (gcta && !selects_gcta) {
             fail.call(analysis_id, "gcta.${gcta.keySet().first()}", 'analysis does not select a GCTA method')
@@ -1052,6 +1108,13 @@ def validateMethodOptions(method_options, analysis_rows) {
                 relatedness_filter: relatedness_filter,
                 kvik_step1_subset: kvik_step1_subset,
                 predictor_extract: predictor_extract,
+            ],
+            regenie: [
+                step1_bsize: step1_bsize.toInteger(),
+                firth: firth,
+                firth_approx: firth_approx,
+                firth_p_threshold: firth_p_threshold,
+                min_mac: min_mac,
             ],
         ]
     }

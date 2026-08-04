@@ -17,7 +17,6 @@ include { buildRegeniePredictionKey     } from '../utils_prediction_reuse'
 workflow ROUTE_REGENIE_ASSOCIATIONS {
     take:
     ch_analyses // channel: [ val(meta), path(pgen), path(psam), path(pvar), path(phenotype), path(covariates) ], covariates is [] when absent
-    step1_bsize // channel: val(step1_bsize)
     step2_bsize // channel: val(step2_bsize)
     step1_mode // channel: val(step1_mode), 'standard' or 'chunked'
     step1_jobs // channel: val(step1_jobs), use null for standard mode
@@ -31,14 +30,15 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
     // The reuse key is a private routing value rather than a custom meta field. One canonical request
     // drives each fit; the original analysis metadata stays beside every consumer and is restored below.
     def ch_requests = ch_analyses.map { meta, pgen, psam, pvar, phenotype, covariates ->
+        def step1_bsize = meta.method_options.regenie.step1_bsize
         def prediction_key = buildRegeniePredictionKey(meta, phenotype, covariates ?: [], step1_bsize)
         def fit_meta = meta + [id: "${meta.cohort}.regenie.${prediction_key}"]
-        [prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates ?: []]
+        [prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates ?: [], step1_bsize]
     }
 
-    def ch_fit_requests = ch_requests.unique { prediction_key, _meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates -> prediction_key }
+    def ch_fit_requests = ch_requests.unique { prediction_key, _meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates, _step1_bsize -> prediction_key }
 
-    def ch_fit = ch_fit_requests.multiMap { _prediction_key, _meta, fit_meta, pgen, pvar, psam, phenotype, covariates ->
+    def ch_fit = ch_fit_requests.multiMap { _prediction_key, _meta, fit_meta, pgen, pvar, psam, phenotype, covariates, step1_bsize ->
         genotypes: [fit_meta, pgen, pvar, psam]
         pheno: [fit_meta, phenotype]
         covar: [fit_meta, covariates]
@@ -51,7 +51,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 
     // PLINK_FIT_REGENIE returns only opaque fit metadata. Reattach the private key through the fit id
     // side channel, then combine one fitted bundle with every analysis request that consumes it.
-    def ch_fit_keys = ch_fit_requests.map { prediction_key, _meta, fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates ->
+    def ch_fit_keys = ch_fit_requests.map { prediction_key, _meta, fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates, _step1_bsize ->
         [fit_meta.id, prediction_key]
     }
 
@@ -66,7 +66,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
         .map { _fit_id, predictions, loco, prediction_key -> [prediction_key, predictions, loco] }
 
     def ch_attributed_predictions = ch_requests
-        .map { prediction_key, meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates -> [prediction_key, meta.id, meta] }
+        .map { prediction_key, meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates, _step1_bsize -> [prediction_key, meta.id, meta] }
         .unique { _prediction_key, analysis_id, _meta -> analysis_id }
         .combine(ch_prediction_bundles, by: 0)
         .map { _prediction_key, _analysis_id, meta, predictions, loco -> [meta, predictions, loco] }
@@ -75,7 +75,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 
     def ch_step2 = ch_requests
         .combine(ch_prediction_bundles, by: 0)
-        .multiMap { _prediction_key, meta, _fit_meta, pgen, pvar, psam, phenotype, covariates, predictions, loco ->
+        .multiMap { _prediction_key, meta, _fit_meta, pgen, pvar, psam, phenotype, covariates, _step1_bsize, predictions, loco ->
             genotypes: [meta, pgen, pvar, psam]
             predictions: [meta, predictions, loco]
             pheno: [meta, phenotype]
