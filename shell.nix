@@ -237,6 +237,7 @@ pkgs.mkShell {
     condaCli
     pkgs.apptainer
     pkgs.pre-commit
+    pkgs.python3Packages.cairosvg
     waveCli
   ];
   shellHook = ''
