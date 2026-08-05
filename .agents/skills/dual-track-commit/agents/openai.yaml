@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dual-track commits"
+  short_description: "Route personal and public commits correctly"
+  default_prompt: "Use $dual-track-commit to commit these changes to the correct personal and public branches."
