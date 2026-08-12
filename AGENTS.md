@@ -37,3 +37,7 @@ the exact boundary.
 `.references/test-datasets-gwas` is read-only machine-local state. Never hard-code it in tracked code or make CI
 depend on it. Use a private copy for modified fixtures. The live resolver mechanisms own exact source
 resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and reporting.
+
+Automatic `.references/test-datasets-gwas` discovery is personal-track behavior. A portable upstream PR
+checkout uses the public remote fallback unless `GWAS_FIXTURE_SOURCE` is explicitly supplied. Run local
+compact-fixture benchmarks on the personal track, or explicitly pin and verify the local source.
