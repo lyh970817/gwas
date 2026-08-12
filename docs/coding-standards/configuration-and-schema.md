@@ -138,9 +138,7 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 
 - **[MUST]** Order the `includeConfig` lines by pipeline stage and say so in a comment: a later file's
   `withName` selector wins where two match the same process. _(rnaseq's wording, worth copying verbatim)_
-- **[MUST]** Each file opens with the same two-tier banner as every other config file (§1), followed by a
-  `// STAGE NAME` banner comment. _(sarek repeats the full banner, including the `ext.*` key legend, in
-  every one of its 39 files; rnaseq has no banner at all and its files are harder to place)_
+- **[MUST]** Each file uses the config banner defined in §1, followed by a `// STAGE NAME` comment.
 - **[MUST]** Build multi-flag `ext.args` as a list joined and trimmed, never by string concatenation:
 
   ```groovy

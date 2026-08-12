@@ -1,55 +1,31 @@
 ---
 name: nf-core-component-design
-description: Design or audit a proposed nf-core component portfolio before implementation. Use when an issue, specification, research task, or Wayfinder ticket decides module versus subworkflow boundaries, executable ownership, names, execution paths, public interfaces, metadata roles, selectors, outputs, containers, fixtures, validation, or pipeline-local boundaries.
+description: Design or audit a proposed nf-core component portfolio before implementation. Use when an issue, specification, research task, or Wayfinder question decides module/subworkflow boundaries, executable ownership, public interfaces, containers, fixtures, validation, or pipeline-local scope.
 ---
 
-Read `../references/nf-core-guidance-sources.md`. Treat the routed lifecycle skills below as authoritative.
+# Design an nf-core component portfolio
 
-Use nf-core standards as design inputs before external programme research. Route to the applicable skills:
+Read the component and contribution topics indexed by `CODING_STANDARDS.md`, then use the lifecycle skills as
+procedures:
 
-- `nf-core-module-create` for each proposed atomic module.
-- `nf-core-subworkflow-create` for each proposed reusable subworkflow.
-- `nf-core-submission-review` to audit planned interfaces before declaring them settled.
-- `nf-core-gwas-module-conventions` for GWAS or population-genetics contracts.
-- `nf-core-containers` for executable ownership, packaging, templates, environments, or containers.
-- `nf-core-fixtures` for fixtures, generated prerequisites, or validation matrices.
+- `nf-core-module-create` for each atomic component;
+- `nf-core-subworkflow-create` for each reusable composition;
+- `nf-core-containers` and `nf-core-fixtures` for package/data decisions;
+- `nf-core-submission-review` for an independent contract audit.
 
-## Design gate
+## Design procedure
 
-Do not declare the portfolio resolved until every proposed component has a checkable answer for each applicable
-item:
+1. Extract every applicable stable constraint from the canonical topics. Consult only the cache topics needed
+   for a specific unresolved upstream question.
+2. Check the relevant programme documentation cache or index under `docs/`, then use primary programme, API,
+   CLI, release, packaging, test, and container sources for unresolved details.
+3. For each proposed component, record executable ownership, reproducible execution path, public name, atomic or
+   reusable boundary, metadata/file/scalar roles, outputs and identity, package/container route, fixture decision,
+   real/stub validation, and pipeline-local exclusions.
+4. For composition, additionally trace take/emit shapes, focal identity, optional absence, scatter/gather
+   cardinality, version flow, and dependency graph.
+5. Audit the provisional portfolio with `nf-core-submission-review`. Record unresolved contract items as blockers
+   rather than calling an interface exact.
 
-1. Executable owner, reproducible execution path, namespace, and component name.
-2. Atomic process boundary or reusable composition of at least two genuine modules.
-3. Conceptual metadata-bearing inputs, optional and mutually exclusive roles, and opaque `meta` handling.
-4. Required scalar selectors versus optional `task.ext.args` behaviour.
-5. Fixed named outputs, identity rules, and version reporting for every executed tool through the current
-   topic mechanism, or an explicit combined `versions` output only for legacy compatibility.
-6. Source-of-truth package/container strategy and reuse-first fixture decision.
-7. Real and stub validation contract, plus an explicit reusable-versus-pipeline-local boundary.
-
-For subworkflows, also settle conceptual `take`/`emit` contracts, focal identity flow, optional-resource
-absence, scatter/gather cardinality, version-topic propagation or a justified legacy versions output, and composition-focused tests.
-Record unresolved items as blockers rather than calling an interface exact.
-
-## Research order
-
-1. Extract applicable nf-core constraints from the routed skills. Consult the standards cache only for a
-   specific unresolved question or needed extra detail.
-2. Check the relevant programme documentation cache or index under `docs/`, then research unresolved details in
-   the official programme, API, CLI, releases, packaging, tests, and container sources.
-3. Map native and adapter-owned execution paths onto component boundaries.
-4. Define provisional interfaces and audit them with `nf-core-submission-review`.
-5. Publish the decision only when every applicable design-gate item is answered or explicitly blocked.
-
-## Completion
-
-Report the skills read and any standards-cache topics deliberately consulted, proposed components and executable owners, public contract decisions,
-packaging and fixture decisions, pipeline-local boundaries, and remaining blockers.
-
-## Trigger examples
-
-Trigger for “define the first-release component portfolio”, “decide module versus subworkflow”, “research the
-official CLI and nf-core execution path”, or “specify inputs, outputs, fixtures, and validation without
-implementing”. Do not trigger for biological-method explanation that makes no nf-core interface, packaging,
-testing, or submission decision.
+Report canonical and fallback sources consulted, proposed components and executable owners, contract and
+packaging/fixture decisions, pipeline-local boundaries, and remaining blockers.

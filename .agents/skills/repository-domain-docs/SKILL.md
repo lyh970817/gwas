@@ -1,6 +1,6 @@
 ---
 name: repository-domain-docs
-description: Route design, naming, architecture, or domain-model work through this repository's local CONTEXT.md and docs/adr/ decisions. Use when a task introduces or changes domain terminology, boundaries, invariants, or architecture. Do not use for mechanical edits, test execution, formatting, or component submission rules already owned by an nf-core skill.
+description: Route design, naming, architecture, or domain-model work through this repository's local CONTEXT.md and docs/adr/ decisions. Use when a task introduces or changes domain terminology, boundaries, invariants, or architecture. Do not use for mechanical edits, tests, formatting, or component contracts already owned by canonical standards.
 ---
 
 # Consult repository domain documentation

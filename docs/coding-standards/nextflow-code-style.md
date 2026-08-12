@@ -1,6 +1,7 @@
 # Nextflow & Groovy code style
 
-Applies to `main.nf`, `workflows/*.nf`, `subworkflows/local/**/*.nf`, and `modules/local/**/*.nf`.
+Applies to `main.nf`, `workflows/*.nf`, and pipeline-owned local composition selected by the descendant
+instructions. Upstream-bound module and reusable-subworkflow bodies use their canonical component topics.
 
 Evidence tags cite the three reference pipelines (`nf-core/rnaseq`, `nf-core/sarek`, `nf-core/mag`). Counts
 marked "measured" were verified directly against the checked-out sources, not inferred.
@@ -9,28 +10,19 @@ marked "measured" were verified directly against the checked-out sources, not in
 
 ## 1. Formatting mechanics
 
-- **[TOOLING]** Run the repo formatter after any `.nf` edit; it owns indentation, alignment, brace and
+- **[TOOLING]** Run the repo formatter after any `.nf` edit; it owns indentation, alignment, commas, brace, and
   `else` placement:
 
   ```bash
   nextflow lint -format -sort-declarations -spaces 4 -harshil-alignment
   ```
 
-  Do not raise review findings for anything this command would fix. Do raise a finding if a changed `.nf`
-  file is visibly unformatted (a sign the command was never run).
+  Review the evidence that this command ran, not each mechanically repairable instance.
 
 - **[SHOULD]** No enforced maximum line length for `.nf` files. Prettier's `printWidth: 120` does not apply —
   Prettier has no Nextflow parser and never touches `.nf`. Break multi-argument process calls one argument
   per line and use backslash continuation in shell blocks; otherwise let a single-purpose line run long
   rather than wrapping it awkwardly. _(all three; lines over 200 chars exist in all three)_
-
-- **[SHOULD]** Trailing commas on multi-line argument lists and list literals whose closing bracket is on its
-  own line; none on single-line calls. _(mag dominant, sarek at top level; rnaseq mostly omits — chosen for
-  cleaner diffs)_
-
-- **[TOOLING]** Brace and `else` placement. `{` opens on the statement line in all three. `} else {` vs a
-  line-initial `else` genuinely diverges (measured: rnaseq 44 same-line, sarek 25, mag 1) — take whatever
-  the formatter emits and never flag it.
 
 ## 2. File layout and section banners
 
@@ -159,24 +151,7 @@ marked "measured" were verified directly against the checked-out sources, not in
 
   _(rnaseq and sarek: 323 and 369 `// channel:` comments measured; mag only 22 — follow rnaseq/sarek)_
 
-- **[MUST]** `emit:` entries align their `=` signs, and `versions` is the last entry when present.
-  _(all three; 5 sarek subworkflows put it first — the minority to avoid)_
-- **[MUST]** Version reporting is a _process_ obligation, not a subworkflow one. Every local process declares
-  its tools on the `versions` topic (§9), and the pipeline collects them centrally from
-  `channel.topic("versions")` in `workflows/gwas.nf` — so a subworkflow composed only of topic-reporting
-  local modules has no version channel in scope, and must not invent one. Emitting `versions =
-  channel.empty()`, or accumulating a `ch_versions` variable purely to satisfy the letter of an emit
-  contract, is exactly the `.mix()` threading §9 forbids. A subworkflow emits `versions` only when it
-  genuinely composes something that produces a version channel — an installed nf-core module still on the
-  file-based `versions.yml` pattern, or a nested subworkflow that emits one — and then it is last in the
-  `emit:` block. A subworkflow that deliberately emits no `versions` says so in its header comment, as
-  `subworkflows/local/prepare_cohort_genotypes/main.nf` does.
-  _(1/3 — chosen. This amends an earlier rule that required every subworkflow to emit `versions`; that rule
-  contradicted §9 and its cited counts did not reproduce. Measured against the checked-out sources: rnaseq —
-  which §9 already names as the migration target — emits `versions` from 0 of its 5 local subworkflows; mag
-  emits from 23 of 23 and sarek from 54 of 65, but both are still on the classic per-module `versions.yml`
-  pattern, which is what makes those emits carry anything. This pipeline is fully on topic channels, so it
-  follows rnaseq. A deliberate decision for this pipeline, not a majority observation.)_
+- **[MUST]** `versions` is the last `emit:` entry when present. Alignment is formatter-owned.
 - **[SHOULD]** One blank line before each step banner inside `main:`. Whether a blank line follows `main:`
   is split roughly 50/50 in all three — do not flag it.
 
@@ -208,36 +183,16 @@ marked "measured" were verified directly against the checked-out sources, not in
 - Constructs absent from all three, and which should stay absent: `switch`, classes, `@CompileStatic`, type
   annotations, safe navigation `?.`, semicolon terminators, and `lib/*.groovy` static-utility classes.
 
-## 8. Local module bodies
+## 8. Component boundary
 
-The `nf-core-module-create`, `nf-core-gwas-module-conventions`, `nf-core-containers`, and
-`nf-core-submission-test` skills own module directives, script/stub variables, interfaces, containers, and tests
-for upstream-bound local candidates. Apply this file only to their surrounding pipeline composition.
+[`nf-core-modules.md`](nf-core-modules.md) and [`nf-core-subworkflows.md`](nf-core-subworkflows.md) own stable
+component contracts. This file governs only surrounding pipeline composition. The applicable `nf-core-*`
+skills provide task procedure.
 
-## 9. Version reporting
+## 9. Pipeline version collection
 
-The three pipelines are split across a live migration, so this is a deliberate choice rather than a
-majority vote:
-
-- **[MUST]** Use Nextflow **topic channels** with `eval()` for version capture in local modules:
-
-  ```groovy
-  tuple val("${task.process}"), val('plink2'), eval('plink2 --version | sed "s/^PLINK v//"'), topic: versions
-  ```
-
-  Do not write `cat <<-END_VERSIONS > versions.yml` heredocs in new local modules, and do not thread
-  `ch_versions = ch_versions.mix(...)` through subworkflows for tools already reporting on the topic
-  channel.
-
-  _(rnaseq has fully migrated — measured 4 topic declarations, 0 heredocs, 0 `.mix()` accumulations. sarek
-  and mag are still on the classic pattern: 6/216 and 29/128. This repo's existing
-  `nf-core-submission-review` skill already assumes `eval`-based versions, so rnaseq is the consistent
-  target.)_
-
-- **[MUST]** Each `eval` yields a bare version string — no leading `v`, no tool name, no trailing newline
-  noise. Report a version for every tool invoked, including secondary interpreters (R, Python).
-- **[MUST]** Keep `emit:` and `topic:` key order consistent across modules; rnaseq varies it between its own
-  three local modules.
+- **[MUST]** Collect component version topics centrally from `channel.topic("versions")`. Do not manually mix
+  version channels through pipeline composition for components already reporting on the topic.
 
 ## 10. Comments
 

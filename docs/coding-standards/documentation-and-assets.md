@@ -140,9 +140,8 @@ not design.
 
 ## 6. assets/
 
-- **[MUST]** `schema_cohort_manifest.json` and `schema_analysis_manifest.json` are present, with `meta`
-  arrays and a per-property `errorMessage`. See
-  [`configuration-and-schema.md`](configuration-and-schema.md) for their full rules.
+- **[MUST]** `schema_cohort_manifest.json` and `schema_analysis_manifest.json` are present. Their field contracts
+  are owned by [`configuration-and-schema.md`](configuration-and-schema.md).
 - **[MUST]** Ship example cohort and analysis manifests that validate against those schemas.
 - **[MUST]** If `assets/multiqc_config.yml` exists _(present in sarek and mag; rnaseq has none — verified)_:
   - `report_section_order` pins the three standard keys with negative orders:
@@ -185,9 +184,8 @@ not design.
 
 ## 8. Prose style
 
-- **[TOOLING]** Line wrapping. Markdown is left unwrapped, one paragraph per source line — measured lines of
-  618, 566, and 501 characters in the three repos. Prettier runs with `proseWrap: preserve` and will not
-  rewrap. Never raise a finding about markdown line length. _(all three)_
+- **[TOOLING]** Prettier configuration owns Markdown wrapping and layout. Review its execution evidence rather
+  than source line length.
 - **[MUST]** Inline links only — `[text](url)`. Reference-style `[text][ref]` links appear zero times
   across README, usage, output, and CITATIONS in all three repos. This is the cleanest rule in the set.
   _(all three)_
