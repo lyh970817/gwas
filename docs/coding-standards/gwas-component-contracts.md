@@ -62,14 +62,13 @@ phasing, imputation, GRM construction, association, summary statistics, referenc
 - Assign `prefix` without `def` when an `output:` declaration resolves it. Use `def prefix` only when it is local
   to the script/stub body. Stub variable eligibility remains governed by the generic module contract.
 
-## Versions, tags, and consistency
+## GWAS identity tags and template versions
 
-- Inline components report each invoked executable and interpreter on the `versions` topic. Template-backed
-  helpers may emit a version file on that topic when the template owns the capture.
-- Every extraction yields only the bare version. Do not emit a leading `v`, tool name, archive suffix, or extra
-  line.
-- Tags identify runtime identities, commonly `${meta.id}_${meta2.id}` for two active roles. Do not prefix a tag
-  with redundant tool/subcommand text.
-- Treat `main.nf`, `meta.yml`, and tests as one contract. Review all three when an interface changes.
-- Prefer deterministic setup-generated prerequisites over an additional fixture when an existing component can
-  create the artifact cheaply and stably.
+- Generic version reporting and tag contracts are owned by
+  [`nf-core-modules.md`](nf-core-modules.md). A template-backed GWAS helper may emit a version file on the
+  `versions` topic when the template owns capture.
+- With two active GWAS identity roles, a tag commonly uses `${meta.id}_${meta2.id}`; it does not add redundant
+  tool or subcommand text.
+
+Fixture reuse and setup-generated prerequisite policy is owned by
+[`component-fixtures-and-testing.md`](component-fixtures-and-testing.md).

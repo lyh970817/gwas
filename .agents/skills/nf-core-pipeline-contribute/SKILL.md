@@ -1,6 +1,6 @@
 ---
 name: nf-core-pipeline-contribute
-description: Prepare a contribution to this existing nf-core/gwas pipeline, including component installation/wiring, schema or method configuration, public docs, pipeline lint/tests, and a PR targeting dev. Do not use for submitting a component to nf-core/modules.
+description: Implement or prepare a contribution to this existing nf-core/gwas pipeline. Use for component installation or wiring, schema or method configuration, public pipeline docs, relevant lint/tests, or a PR targeting dev. Apply only the procedure steps relevant to the requested delta. Do not use for submitting a component to nf-core/modules.
 ---
 
 # Contribute to the pipeline
@@ -12,23 +12,26 @@ synchronization in this repository.
 
 ## Procedure
 
-1. Resolve or claim the public pipeline issue when required and create a descriptive PR branch from the
-   applicable public base in the contribution standard.
-2. Install components with `nf-core modules install <component>` or
+1. Classify the requested delta and its public target. Resolve or claim a public issue and create a public PR
+   branch only when the task actually includes that external contribution stage.
+2. When installing or updating a shared component, use `nf-core modules install <component>` or
    `nf-core subworkflows install <component>` so `modules.json` records provenance; do not hand-copy installed
-   components.
-3. Wire inputs and outputs in pipeline composition. Put per-process extension arguments, prefixes, resources,
-   and publication in the relevant method-family `conf/modules/*.config`, not the installed component.
-4. Surface parameters through `nextflow_schema.json` with the current schema builder and update public docs for
-   user-visible behavior.
-5. Add the required `CHANGELOG.md` entry under the current development/unreleased section using this pipeline's
-   established format.
-6. Run the changed route through the pipeline test procedure and run `nf-core pipelines lint`; add a direct
-   smoke run when the change warrants it.
-7. Apply `dual-track-commit`, update against the current public base using the authorized synchronization mode,
-   and prepare the PR with the pipeline's live template and the canonical public reviewer boundary.
-8. Request review only after the required CI and local gates are green and the user authorizes the external
+   components. Skip this step for changes that do not install or update a component.
+3. When composition changes, wire the affected inputs and outputs. Put per-process extension arguments,
+   prefixes, resources, and publication in the relevant method-family `conf/modules/*.config`, not an installed
+   component.
+4. When user-visible parameters change, update `nextflow_schema.json` with the current schema builder and revise
+   the affected public documentation. Do not manufacture schema or documentation churn for an unrelated delta.
+5. Add a `CHANGELOG.md` entry only when the requested contribution and the pipeline's live release convention
+   require one; use the current development or unreleased section.
+6. Select validation from the changed surface: use the pipeline test procedure for affected routes, run the
+   relevant configured lint gates, and add a direct smoke run only when the change warrants it. Record skipped
+   gates rather than implying that every contribution has the same test surface.
+7. For commits or branch synchronization, apply `dual-track-commit`. Prepare a public PR only when requested,
+   using the live template, current authorized base-update mode, and canonical reviewer boundary.
+8. Request review only after the applicable CI and local gates are green and the user authorizes the external
    action.
 
-Report repository, branch and target, installed/wired components, schema/config/docs/changelog changes,
-fallback topics consulted, exact smoke/lint/nf-test results, CI state, and skipped tests or profiles.
+Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
+wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;
+CI state; and skipped tests or profiles.

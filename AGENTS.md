@@ -35,5 +35,5 @@ the exact boundary.
 ## Local fixture safety
 
 `.references/test-datasets-gwas` is read-only machine-local state. Never hard-code it in tracked code or make CI
-depend on it. Use a private copy for modified fixtures. The `gwas-pipeline-test` skill owns fixture resolution
-and execution for pipeline tests.
+depend on it. Use a private copy for modified fixtures. The live resolver mechanisms own exact source
+resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and reporting.

@@ -6,8 +6,7 @@ module-file-structure.md	module	https://nf-co.re/docs/specifications/components/
 module-file-structure.md	module	https://nf-co.re/docs/specifications/components/modules/naming-conventions
 module-main-nf.md	module	https://nf-co.re/docs/specifications/components/modules/input-output-options
 module-meta-yml.md	module	https://nf-co.re/docs/specifications/components/modules/documentation
-module-containers.md	module	https://nf-co.re/docs/specifications/components/modules/resource-requirements
-module-containers.md	module	https://nf-co.re/docs/specifications/components/modules/software
+module-containers.md	module	https://nf-co.re/docs/specifications/components/modules/software-requirements
 module-testing.md	module	https://nf-co.re/docs/specifications/components/modules/testing
 module-main-nf.md	module	https://nf-co.re/docs/specifications/components/modules/formatting
 module-args-params.md	module	https://nf-co.re/docs/specifications/components/modules/module-parameters
@@ -38,10 +37,10 @@ pipeline-contributing.md	pipeline	https://nf-co.re/docs/specifications/reviews/c
 pipeline-contributing.md	pipeline	https://nf-co.re/docs/specifications/reviews/request-reviewers
 pipeline-adding-components.md	pipeline	https://nf-co.re/docs/developing/pipelines/adding-modules
 pipeline-adding-components.md	pipeline	https://nf-co.re/docs/developing/pipelines/template-files
-pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/modules/install
-pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/modules/update
+pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/cli/modules/install
+pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/cli/modules/update
 pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/cli/modules/patch
-pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/subworkflows/install
+pipeline-adding-components.md	pipeline	https://nf-co.re/docs/nf-core-tools/cli/subworkflows/install
 pipeline-schema-config.md	pipeline	https://nf-co.re/docs/nf-core-tools/cli/pipelines/schema
 pipeline-schema-config.md	pipeline	https://nf-co.re/docs/specifications/pipelines/requirements/parameters
 pipeline-testing.md	pipeline	https://nf-co.re/docs/developing/testing/overview

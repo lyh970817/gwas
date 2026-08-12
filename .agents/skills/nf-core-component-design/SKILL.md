@@ -5,12 +5,14 @@ description: Design or audit a proposed nf-core component portfolio before imple
 
 # Design an nf-core component portfolio
 
-Read the component and contribution topics indexed by `CODING_STANDARDS.md`, then use the lifecycle skills as
-procedures:
+Read the component and contribution topics indexed by `CODING_STANDARDS.md`. Keep a design-only request
+read-only. Use the specialized skills at the appropriate lifecycle point:
 
-- `nf-core-module-create` for each atomic component;
-- `nf-core-subworkflow-create` for each reusable composition;
-- `nf-core-containers` and `nf-core-fixtures` for package/data decisions;
+- after design acceptance and an implementation request, `nf-core-module-create` for each atomic component;
+- after design acceptance and an implementation request, `nf-core-subworkflow-create` for each reusable
+  composition;
+- after design acceptance and a package or fixture implementation request, `nf-core-containers` and
+  `nf-core-fixtures` respectively;
 - `nf-core-submission-review` for an independent contract audit.
 
 ## Design procedure

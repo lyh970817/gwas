@@ -1,6 +1,6 @@
 ---
 name: nf-core-module-create
-description: Design, create, wire, review, or upstream an nf-core module, including upstream-bound candidates under modules/local/. Use for an atomic component's execution path, interface, metadata, outputs, versions, tests, fixtures, or containers. Do not use for pipeline-only processes with no component-library contract.
+description: Create, maintain, or transfer an nf-core module, including an upstream-bound candidate under modules/local/. Use when implementing an atomic component's native interface, metadata, outputs, versions, tests, fixtures, or containers. Use nf-core-component-design for design-only work and nf-core-submission-review for review-only work. Do not use for a pipeline-only process with no component-library contract.
 ---
 
 # Create or maintain an nf-core module
@@ -26,8 +26,10 @@ examples, but a conflict with a canonical repository contract must be surfaced a
 5. Generate or maintain the standard component surface, then reconcile `main.nf`, `meta.yml`, environment,
    tests, configuration, and snapshots against every applicable canonical contract.
 6. Resolve containers with `nf-core-containers` and fixtures with `nf-core-fixtures` when applicable.
-7. Run `nf-core-submission-test`; use its quick loop while iterating and its full profile gate before declaring
-   PR readiness.
+7. Validate at the level supported by the actual location. Use `gwas-pipeline-test` for candidate integration and
+   regression in this checkout. Use `nf-core-submission-test` only for the portable copy in its actual writable
+   submission worktree, and require its full profile gate before declaring PR readiness. Pipeline evidence is not
+   component-submission evidence.
 
 ## Completion
 

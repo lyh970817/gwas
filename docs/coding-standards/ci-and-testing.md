@@ -11,6 +11,10 @@ submission tests use
 own their exact commands, versions, matrices, formatting, excludes, and file contents. Inspect those live files;
 do not duplicate their complete configuration in prose.
 
+The fixture resolver implementations in pipeline configuration and the test helpers own their exact search and
+validation behavior. They must select the same fixture source for one launch context; treat disagreement as a
+pipeline defect rather than letting guidance or a skill invent a third resolution algorithm.
+
 Run the configured formatter, pre-commit hooks, Nextflow lint, and pipeline lint as applicable. Report missing or
 failed mechanism evidence rather than hand-policing mechanically repairable formatting.
 

@@ -1,6 +1,6 @@
 ---
 name: nf-core-subworkflow-create
-description: Design, create, wire, review, or upstream an nf-core subworkflow, including upstream-bound candidates under subworkflows/local/. Use for reusable composition, take/emit contracts, identity flow, scatter/gather, optional resources, versions, tests, or pipeline-local boundaries. Do not use for pipeline-only routing with no component-library contract.
+description: Create, maintain, or transfer an nf-core subworkflow, including an upstream-bound candidate under subworkflows/local/. Use when implementing reusable composition, take/emit contracts, identity flow, scatter/gather, optional resources, versions, or tests. Use nf-core-component-design for design-only work and nf-core-submission-review for review-only work. Do not use for pipeline-only routing with no component-library contract.
 ---
 
 # Create or maintain an nf-core subworkflow
@@ -25,7 +25,9 @@ examples, but a conflict with a canonical repository contract must be surfaced a
    snapshots against every applicable canonical contract.
 5. Trace focal identity, optional-resource absence, scatter/gather cardinality, version flow, and every public
    take/emit across the whole dependency graph. Record unresolved interface questions as blockers.
-6. Resolve fixtures with `nf-core-fixtures` and validate with `nf-core-submission-test`.
+6. Resolve fixtures with `nf-core-fixtures`. Use `gwas-pipeline-test` for candidate integration and regression in
+   this checkout. Use `nf-core-submission-test` only for the portable copy in its actual writable submission
+   worktree; pipeline evidence is not component-submission evidence.
 
 ## Completion
 
