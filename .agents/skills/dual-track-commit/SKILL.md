@@ -24,9 +24,20 @@ Read the track classification and public boundary in
    machine paths, agent tooling, and Nix/development material.
 3. Propagate the portable commits to `personal` in logical order. Compare stable patch IDs or resulting files
    when equivalent work may already exist; history alone is insufficient.
-4. Treat a cherry-pick, merge, rebase, or patch-application conflict as a pause boundary. Preserve the conflict
-   state and wait for explicit instructions before resolving, continuing, aborting, or changing strategy.
-5. Commit personal-only hunks separately after their public dependencies are present.
+4. On a propagation conflict, preserve the conflict state while inspecting the index stages, worktree result,
+   relevant history, and hunk ledger. Derive the intended `personal` result from the canonical invariant:
+   portable PR behavior plus already-classified personal-only additions. Do not decide from path names or
+   `ours`/`theirs` labels alone.
+5. Resolve and continue without asking only when classification and intent are unambiguous and the resolution
+   is mechanically implied by that invariant: keep the PR version of portable, generated, or reviewer-facing
+   content; or combine the portable behavior with an established personal-only extension, retaining that
+   extension only on `personal` without changing its scope or precedence. Before continuing, inspect the staged
+   resolution and verify equivalence to the PR's portable behavior and the unchanged personal-only boundary.
+6. Keep the conflict state intact and request explicit instructions when classification is ambiguous, product
+   behavior is incompatible, personal-only semantics would be lost or expanded, the public boundary is
+   uncertain, the strategy is destructive or history-changing, or the intended result is not mechanically
+   implied by the track invariant. Never feed personal-only resolution content back into the public diff.
+7. Commit personal-only hunks separately after their public dependencies are present.
 
 ## Verify and report
 
