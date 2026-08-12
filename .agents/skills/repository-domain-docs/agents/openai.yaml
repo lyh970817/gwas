@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repository domain docs"
+  short_description: "Route work through local context and ADRs"
+  default_prompt: "Use $repository-domain-docs to consult the repository domain context for this task."

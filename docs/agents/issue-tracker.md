@@ -1,8 +1,14 @@
-# Issue tracker: Local Markdown
+# Local Markdown record types
 
-Issues and specs (you may know a spec as a PRD) for this repo live as markdown files in `.scratch/`.
+This repository stores two record types under `.scratch/`. Identify the record type before reading or changing
+status; their fields and status vocabularies are intentionally different and must not be translated between
+them.
 
-## Conventions
+## Implementation issues and specs
+
+Use this record type for ordinary feature planning, implementation, triage, and closure.
+
+### Conventions
 
 - One feature per directory: `.scratch/<feature-slug>/`
 - The spec is `.scratch/<feature-slug>/spec.md`
@@ -10,15 +16,15 @@ Issues and specs (you may know a spec as a PRD) for this repo live as markdown f
 - Triage state is recorded as a bolded `**Status:**` line in each issue file, directly after the `**Blocked by:**` line and before the acceptance criteria (see `triage-labels.md` for the role strings)
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
-## When a skill says "publish to the issue tracker"
+### When a skill says "publish to the issue tracker"
 
 Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
 
-## When a skill says "fetch the relevant ticket"
+### When a skill says "fetch the relevant ticket"
 
 Read the file at the referenced path. The user will normally pass the path or the issue number directly.
 
-## Closing a completed ticket
+### Closing a completed ticket
 
 Closing a local ticket mirrors closing a GitHub issue, with Git history retaining
 the completed record instead of leaving finished files in the active tracker:
@@ -37,13 +43,15 @@ history. Active tracker scans should not retain ticket files whose completed
 record has already been committed. Preserve the feature spec, map, handoff, and
 unfinished sibling tickets unless their own lifecycle says otherwise.
 
-## Wayfinding operations
+## Wayfinder maps and child questions
 
-Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+Use this record type only for a Wayfinder operation. The **map** is a file with one **child** file per question.
+Wayfinder `claimed`/`resolved` state is not an implementation-ticket triage label and does not use the bolded
+`**Status:**` convention above.
 
 - **Map**: `.scratch/<effort>/map.md` — the Notes / Decisions-so-far / Fog body.
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
-- **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
+- **Child question**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the question type (`research`/`prototype`/`grilling`/`task`); a plain `Status:` line records `claimed`/`resolved`.
+- **Blocking**: a `Blocked by: NN, NN` line near the top. A child question is unblocked when every child it lists has `Status: resolved`.
+- **Frontier**: scan `.scratch/<effort>/issues/` for child questions that are open, unblocked, and unclaimed; first by number wins.
 - **Claim**: set `Status: claimed` and save before any work.
 - **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Local issue tracker"
+  short_description: "Operate the repository local Markdown tracker"
+  default_prompt: "Use $local-issue-tracker to work with the requested local issue or tracker record."
