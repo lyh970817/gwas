@@ -3,8 +3,8 @@ name: nf-core-fixtures
 description: Decide, prepare, or review nf-core/test-datasets fixtures for upstream module and subworkflow submissions.
 ---
 
-Read `../nf-core-common.md` first. Treat this skill as authoritative; use the standards-cache fallback only
-when this guidance is unclear or incomplete, or extra upstream detail is needed.
+Read `../references/nf-core-guidance-sources.md`. When preparing an upstream component submission, also read
+`../references/nf-core-component-workspaces.md`.
 
 Use this skill when a module or subworkflow submission needs test data, when existing fixtures may be reused, or when a companion `nf-core/test-datasets` PR may be required. In design work, record the reuse-first search as an unresolved prerequisite rather than declaring a new fixture family warranted before that search.
 

@@ -3,9 +3,8 @@ name: nf-core-containers
 description: Container-directive and provenance rules for nf-core modules — environment.yml as source of truth, Singularity/Apptainer directive branching, and Wave/Seqera URI verification. Use when selecting, writing, or reviewing a module container directive or environment.yml.
 ---
 
-Read `../nf-core-common.md` first. This skill is authoritative for routine container decisions. If its guidance
-is unclear or incomplete, or extra upstream detail is needed, follow the standards-cache fallback and use
-`docs/nf-core-standards/module-containers.md` as the relevant topic hint.
+Read `../references/nf-core-guidance-sources.md`. This skill is authoritative for routine container decisions.
+If extra upstream detail is needed, use `docs/nf-core-standards/module-containers.md` as the cache topic hint.
 
 Use this skill when selecting or reviewing a module container strategy, editing `environment.yml`, or resolving Wave/Seqera Container URIs. During component design, identify the executable owner and how it enters `environment.yml` before accepting a module namespace or an embedded adapter path. Apply every bullet below by default; in reviews, surface each deviation as a finding unless a stricter specification overrides it.
 

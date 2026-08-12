@@ -3,8 +3,8 @@ name: nf-core-submission-pr
 description: Prepare reviewer-facing upstream nf-core PRs for module, subworkflow, pipeline, or companion test-datasets submissions from this workspace.
 ---
 
-Read `../nf-core-common.md` first. Treat this skill as authoritative; use the standards-cache fallback only
-when this guidance is unclear or incomplete, or extra upstream detail is needed.
+Read `../references/nf-core-guidance-sources.md` and `../references/nf-core-component-workspaces.md`. Treat this
+skill as authoritative for reviewer-facing component PR preparation.
 
 Use this skill when drafting, preparing, opening, updating, or summarizing an upstream nf-core PR for a module,
 subworkflow, pipeline contribution, or companion `nf-core/test-datasets` submission.
@@ -96,7 +96,7 @@ actions only when the user explicitly asks for them.
   git config user.email "lyh970817@yandex.com"
   ```
 
-- For modules upstreamed from this fork, set `meta.yml` `authors` and `maintainers` to `@lyh970817` unless the user says otherwise.
+- For modules upstreamed by the user, set `meta.yml` `authors` and `maintainers` to `@lyh970817` unless the user says otherwise.
 - Make each commit subject describe the concrete change it contains (a specific output contract, test, or metadata item). Avoid process subjects like `address review suggestions`, `Fix reviewer suggestions`, or `Apply feedback`.
 - Do not include PR numbers, reviewer names, or `(#12345)` references in commit subjects — PR linkage belongs in GitHub metadata.
 - Split review follow-up into conceptual commits rather than one catch-all commit. Before pushing, inspect `git status --short --branch`, `git diff --stat @{u}...HEAD`, and `git log --oneline --decorate -5`, and confirm the branch is actually ahead (do not trust an `Everything up-to-date` message blindly).

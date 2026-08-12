@@ -1,0 +1,4 @@
+interface:
+  display_name: "GWAS pipeline test"
+  short_description: "Run the local fixture-backed GWAS nf-test contract"
+  default_prompt: "Use $gwas-pipeline-test to validate the requested GWAS pipeline route or suite."

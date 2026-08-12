@@ -2,9 +2,6 @@
 
 Applies to `nextflow.config`, `conf/*.config`, `nextflow_schema.json`, `assets/*.json`, and `.nf-core.yml`.
 
-Rule tags: **[MUST]** violation is a review finding · **[SHOULD]** strong default, deviation needs a stated
-reason · **[TOOLING]** a linter owns this.
-
 ---
 
 ## 1. `nextflow.config`

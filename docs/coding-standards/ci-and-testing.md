@@ -2,9 +2,6 @@
 
 Applies to `nf-test.config`, `tests/**`, `**/tests/*.nf.test`, `.github/**`, and the repo-hygiene dotfiles.
 
-Rule tags: **[MUST]** violation is a review finding · **[SHOULD]** strong default, deviation needs a stated
-reason · **[TOOLING]** a linter owns this.
-
 Module- and subworkflow-submission testing for upstream `nf-core/modules` is owned by
 `.agents/skills/nf-core-submission-test/` and `.agents/skills/nf-core-submission-review/`; those take
 precedence for component tests. This document covers pipeline-level testing and repo tooling.

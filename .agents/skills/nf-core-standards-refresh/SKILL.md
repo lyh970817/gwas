@@ -3,7 +3,7 @@ name: nf-core-standards-refresh
 description: Refresh the ignored local cache of distilled nf-core module, subworkflow, test, PR, and fixture standards for this repository.
 ---
 
-Read `../nf-core-common.md` first.
+Read `../references/nf-core-guidance-sources.md` for this repository's identity and cache precedence.
 
 Use this skill when the user asks to fetch, refresh, update, or verify nf-core standards documentation for module or subworkflow submissions.
 
@@ -35,7 +35,7 @@ Pipeline-contribution topics (PRs against an existing pipeline; not new-pipeline
 
 - `pipeline-contributing.md`: fork/`dev`-branch model, commit strategy, reviewer requests, review gating.
 - `pipeline-adding-components.md`: installing/updating/patching and wiring modules & subworkflows into a pipeline.
-- `pipeline-schema-config.md`: `nextflow_schema.json`, parameters, and `conf/modules.config`.
+- `pipeline-schema-config.md`: `nextflow_schema.json`, parameters, and pipeline module configuration.
 - `pipeline-testing.md`: pipeline nf-test organisation, assertions/stabilisers, and `nf-core pipelines lint`.
 
 Recommended source URLs:

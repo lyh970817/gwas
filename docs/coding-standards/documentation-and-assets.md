@@ -3,9 +3,6 @@
 Applies to `README.md`, `docs/usage.md`, `docs/output.md`, `CHANGELOG.md`, `CITATIONS.md`, `assets/`, and
 `bin/`.
 
-Rule tags: **[MUST]** violation is a review finding · **[SHOULD]** strong default, deviation needs a stated
-reason · **[TOOLING]** a formatter owns this.
-
 This is the one area where the three reference pipelines are least consistent with each other, and each
 carries verifiable defects. Several rules below are therefore **stricter than any of the three actually
 achieve** — they are marked `(stricter than all three)` and exist because the observed variance is drift,

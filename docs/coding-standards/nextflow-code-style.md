@@ -2,9 +2,6 @@
 
 Applies to `main.nf`, `workflows/*.nf`, `subworkflows/local/**/*.nf`, and `modules/local/**/*.nf`.
 
-Rule tags: **[MUST]** violation is a review finding · **[SHOULD]** strong default, deviation needs a stated
-reason · **[TOOLING]** a formatter/linter owns this, do not hand-police it in review.
-
 Evidence tags cite the three reference pipelines (`nf-core/rnaseq`, `nf-core/sarek`, `nf-core/mag`). Counts
 marked "measured" were verified directly against the checked-out sources, not inferred.
 
@@ -21,14 +18,6 @@ marked "measured" were verified directly against the checked-out sources, not in
 
   Do not raise review findings for anything this command would fix. Do raise a finding if a changed `.nf`
   file is visibly unformatted (a sign the command was never run).
-
-- **[MUST]** 4-space indentation, spaces only, never tabs. _(all three; measured: 0 tab-indented `.nf`
-  files across 132 files)_
-
-- **[MUST]** "Harshil alignment" — column-aligned `=`, `from`, and trailing comments — applied wherever two
-  or more sibling lines of the same shape appear: `include` blocks, `take:`/`emit:` blocks, `output:`
-  blocks, and consecutive `ch_x = ch_x.mix(...)` reassignments. _(all three)_ The `-harshil-alignment` flag
-  above produces this; the rule exists so hand-written additions are not left ragged.
 
 - **[SHOULD]** No enforced maximum line length for `.nf` files. Prettier's `printWidth: 120` does not apply —
   Prettier has no Nextflow parser and never touches `.nf`. Break multi-argument process calls one argument
@@ -221,31 +210,9 @@ marked "measured" were verified directly against the checked-out sources, not in
 
 ## 8. Local module bodies
 
-Module-submission standards are owned by `.agents/skills/nf-core-gwas-module-conventions/` and
-`.agents/skills/nf-core-submission-review/`; those take precedence. What follows is the stylistic subset the
-reference pipelines agree on.
-
-- **[MUST]** Directive order, with a blank line between each group:
-  `tag` → `label` → `conda` → `container` → `input:` → `output:` → `when:` → `script:` → `stub:`.
-  _(all three, zero deviations)_
-- **[MUST]** `tag "${meta.id}"` with braces, or a `-`-joined compound of meta fields. Never bare
-  `tag "$meta.id"`. _(mag dominant; the bare form only survives in unrefreshed legacy modules)_
-- **[MUST]** `when: task.ext.when == null || task.ext.when`, verbatim. _(sarek universal; mag omits it in
-  most local modules — follow sarek)_
-- **[MUST]** Declare `def args = task.ext.args ?: ''` and `def prefix = task.ext.prefix ?: "${meta.id}"` at
-  the top of both `script:` and `stub:`, in that order, and actually use them. sarek has a module that
-  assigns `args` and never references it. _(all three where the idiom is used at all)_
-- **[MUST]** Align the `output:` block (comma before `emit:` column-aligned). Applied inconsistently in
-  mag (3 of 10 modules ragged) and sarek — treat as a hard rule here.
-- **[MUST]** Every command block starts on the line after `"""` — no leading blank line inside `script:`
-  or `stub:`.
-- **[MUST]** Quote interpolated shell arguments: `"${task.cpus}"`, `"${prefix}.log"`. Newer modules in all
-  three do this; older ones interpolate bare.
-- **[SHOULD]** Backslash continuation with one flag per line for any invocation with more than about three
-  flags. _(all three)_
-- **[SHOULD]** Format the container ternary with leading `?` and `:` on their continuation lines and no
-  space inside `${...}` — the newer of the two live styles in mag and rnaseq. Match whatever
-  `nf-core modules create` emits at the pinned tools version if the two disagree.
+The `nf-core-module-create`, `nf-core-gwas-module-conventions`, `nf-core-containers`, and
+`nf-core-submission-test` skills own module directives, script/stub variables, interfaces, containers, and tests
+for upstream-bound local candidates. Apply this file only to their surrounding pipeline composition.
 
 ## 9. Version reporting
 

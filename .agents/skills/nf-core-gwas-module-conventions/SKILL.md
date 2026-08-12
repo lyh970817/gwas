@@ -3,7 +3,7 @@ name: nf-core-gwas-module-conventions
 description: Design or review nf-core contracts for GWAS and population-genetics components. Use for portfolios, summary-statistics interfaces, association outputs, genotype or reference bundles, tuple roles, selectors, identity, versions, or implementations involving GWAS/popgen tools and harmonisation.
 ---
 
-Read `../nf-core-common.md` first.
+Read `../references/nf-core-guidance-sources.md`.
 
 Use this skill whenever planning, researching, specifying, creating, wiring, or reviewing an nf-core component
 that handles PLINK/PLINK2, phasing, imputation, GRM construction, association or summary-statistics outputs,
@@ -90,7 +90,10 @@ if (bed) {
 - `task.ext.args` for optional non-file CLI behaviour; `task.ext.args2` only when the tool syntax genuinely requires a second argument segment (e.g. plugin args after `--`); suffix overrides only when the contract truly exposes multiple output-suffix behaviours. Do not turn extension seams into substitutes for required interface-defining inputs.
 - Do not add `set -euo pipefail` to inline command blocks unless a reviewer explicitly requests it for a concrete shell-pipeline failure mode. Put `${args}` on its own command line, usually after the required options.
 - Order `script:` local variables by dependency: (1) `def args = task.ext.args ?: ''` first, `def args2` immediately after when genuinely needed; (2) staged input basename variables (`input_prefix`, `bfile_prefix`, `grm_prefix`); (3) the emitted output basename `prefix = task.ext.prefix ?: <active identity>`; (4) names derived from `prefix` (e.g. `run_prefix`); (5) tool-mode flags and optional CLI fragments in consumption order; (6) scalar fallback/default variables close to the fragment they support.
-- Assign `prefix` without `def` when `output:` declarations reference `path("${prefix}...")` so the declaration can resolve it; use `def prefix` only when `prefix` is used solely inside the script/stub body (e.g. outputs declared with broad globs like `path("*.log")`). Order `stub:` variables the same way but include only what the stub outputs require; do not define `args` in a stub unless it derives filenames/behaviour from `task.ext.args`.
+- Assign `prefix` without `def` when `output:` declarations reference `path("${prefix}...")` so the declaration
+  can resolve it; use `def prefix` only when `prefix` is used solely inside the script/stub body (e.g. outputs
+  declared with broad globs like `path("*.log")`). `nf-core-module-create` owns which variables may appear in a
+  stub; order the variables it permits by the same dependency rule used for `script:`.
 
 ## Optional support-file absence
 

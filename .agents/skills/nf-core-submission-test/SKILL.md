@@ -3,8 +3,8 @@ name: nf-core-submission-test
 description: Validate or debug nf-core module and subworkflow submissions with nf-core lint/test and nf-test commands.
 ---
 
-Read `../nf-core-common.md` first. Treat this skill as authoritative; use the standards-cache fallback only
-when this guidance is unclear or incomplete, or extra upstream detail is needed.
+Read `../references/nf-core-guidance-sources.md` and, for upstream submission work,
+`../references/nf-core-component-workspaces.md`. Treat this skill as authoritative for component validation.
 
 Use this skill when the user asks to run, debug, update, or summarize tests for an upstream module or subworkflow submission.
 
@@ -20,11 +20,17 @@ If fallback is needed, relevant topic hints are:
 
 1. Identify whether the target is a module or subworkflow and run commands from its submission worktree root.
 2. Inspect recent changes and existing `tests/main.nf.test`, snapshots, and `nextflow.config` before running expensive checks.
-3. For quick debugging, use direct `nf-test test ... --profile=docker --verbose` on the target test file.
-4. For standard validation, run the matching `nf-core modules lint/test` or `nf-core subworkflows lint/test`.
-5. Update snapshots only when output changes are intentional and understood.
-6. For PR readiness, require Docker, Singularity, and Conda wrapper tests to pass.
-7. If a profile cannot run due to missing local runtime support, report the exact blocker and leave the PR readiness state incomplete.
+3. After a `.nf` edit, format with
+   `nextflow lint -format -sort-declarations -spaces 4 -harshil-alignment`.
+4. For quick debugging, run `nf-test test <test-file> --profile=docker --verbose`.
+5. For standard validation, run `nf-core modules lint <tool[/subtool]>` or
+   `nf-core subworkflows lint <name>`, then the matching wrapper test.
+6. For PR readiness, run the target wrapper test under Docker, Singularity, and Conda, for example
+   `nf-core modules test <tool[/subtool]> --profile docker` and the corresponding two profile commands.
+   Use `nf-core subworkflows test <name>` for a subworkflow.
+7. Update snapshots only when output changes are intentional and understood.
+8. If a profile cannot run due to missing local runtime support, report the exact blocker and leave the PR
+   readiness state incomplete.
 
 ## Snapshot and assertion pattern
 

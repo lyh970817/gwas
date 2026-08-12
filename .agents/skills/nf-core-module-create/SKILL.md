@@ -1,14 +1,11 @@
 ---
 name: nf-core-module-create
-description: Design, create, wire, or upstream an nf-core module in this repo. Use when defining its execution path, name, public interface, selectors, metadata roles, outputs, versions, tests, fixtures, or container strategy before or during implementation.
+description: Design, create, wire, review, or upstream an nf-core module, including upstream-bound candidates under modules/local/. Use when defining an atomic component's execution path, name, public interface, selectors, metadata roles, outputs, versions, tests, fixtures, or container strategy before or during implementation. Do not use for pipeline-only processes with no intended component-library contract.
 ---
 
-Read `../nf-core-common.md` first. Treat this skill and the applicable routed skills as authoritative; use the
-standards-cache fallback only when they are unclear or incomplete, or extra upstream detail is needed.
-
-Use this skill when planning, specifying, creating, wiring, reviewing, or upstreaming a module under
-`modules/nf-core/<tool>` or `modules/nf-core/<tool>/<subtool>`, including issue work that decides its
-executable ownership or public contract before code exists.
+Read `../references/nf-core-guidance-sources.md`. For an upstream submission, also read
+`../references/nf-core-component-workspaces.md`. Treat this skill and the applicable routed skills as
+authoritative.
 
 ## Standards cache fallback
 
@@ -36,8 +33,9 @@ Also apply, when relevant:
 
 1. Confirm the upstream component name and target path.
 2. Check whether an equivalent module already exists with `nf-core modules list`, repository search, open PRs, or local inspection as appropriate.
-3. Ensure work happens in a dedicated submission branch/worktree under `.worktrees/modules/`.
-4. If starting from `modules/local/`, migrate only the minimal files and behaviour needed for an upstream submission.
+3. Keep local-candidate work in a pipeline worktree; place an actual upstream submission in the component-library
+   workspace described by `nf-core-component-workspaces.md`.
+4. If starting from `modules/local/`, transfer only the minimal portable files and behaviour needed upstream.
 5. Ensure the module has `main.nf`, `meta.yml`, `environment.yml`, and `tests/main.nf.test`; add or update `tests/main.nf.test.snap` only for intentional snapshot changes.
 6. Keep process names uppercase and module directories lowercase. Use four-space Nextflow indentation and two-space YAML indentation.
 7. Within each metadata-bearing tuple, declare `val(metaN)` first, followed by its file/path members and then any scalar `val(...)` members that are _mandatory_ for that tuple's analysis or file role (a required value, or a mandatory mutually-exclusive mode selector — optional flags go to `task.ext.args`; see `nf-core-gwas-module-conventions` "Scalar selectors vs. file identity"). Those tuple-local scalars remain inside the tuple and are not keys in the `meta` map. Put metadata-bearing input tuples before genuinely standalone, process-global `val(...)` inputs, and keep input/output ordering consistent between `main.nf`, `meta.yml`, tests, and snapshots.
@@ -52,13 +50,17 @@ Also apply, when relevant:
 10. Emit versions using the current topic output pattern expected by nf-core.
 11. Add stub behaviour that creates valid files for every output channel, including valid gzip files where applicable.
 12. Reuse existing `nf-core/test-datasets` fixtures where possible. Use setup-generated intermediates from existing modules instead of synthesizing branch-local helper files when practical.
-13. Run formatting, lint, and tests using the commands in `nf-core-common.md`. Use Docker during iteration; run Docker, Singularity, and Conda before PR readiness.
+13. Apply `nf-core-submission-test`. Use Docker during iteration; run Docker, Singularity, and Conda before PR readiness.
 
 ## main.nf and environment.yml rules
 
-- `main.nf` defines exactly one `process`; the only directives allowed are `tag`, `label`, `conda`, and `container`.
-- Do not edit a `when:` block if present. Do not remove the `args`/`prefix` definitions unless clearly unnecessary; you may set a sensible default `prefix` as long as it still respects `task.ext.prefix`.
-- No leading blank line inside `script:`/`stub:` command blocks: the first line after the opening `"""` is the first command, and the block ends `\\\n        ${args}\n    """`. Collapse mutually exclusive CLI fragments into a single ternary rather than pairing an "on" and an "off" variable (`def weights_arg = weights_file ? "--weights ${weights_file}" : "--ignore-weights YES"`, not a separate `weights_arg`/`ignore_weights_arg`).
+- `main.nf` defines exactly one `process`; the only process directives are `tag`, `label`, `conda`, and
+  `container`. Do not add or retain a process-level `when:` block in a new or upstream-bound module.
+- Define `args`, `args2`, and `prefix` only when the command or an output declaration consumes them. In `stub:`,
+  define only variables needed to construct stub outputs; never retain an unused `args` declaration. Follow
+  `nf-core-gwas-module-conventions` for dependency order and prefix scope.
+- No leading blank line inside `script:`/`stub:` command blocks. Collapse mutually exclusive CLI fragments into
+  one ternary rather than pairing separate "on" and "off" variables.
 - Every file-type entry in `meta.yml` (inputs and outputs) MUST carry an `ontologies:` key — a list of `- edam: <url> # label` terms when a matching EDAM format term exists, or `ontologies: []` when none applies (e.g. PLINK `.bed/.bim/.fam`). Current nf-core lint/schema expects the key on every file entry; reviewers ask for it explicitly when missing.
 - `environment.yml`: pin each dependency with its channel and version but not the build number; do not add channels unless strictly necessary and never add `defaults`; if pip dependencies are used, pin the `pip` version as well.
 - GPU-capable modules must follow https://nf-co.re/docs/developing/components/gpu-modules.

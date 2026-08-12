@@ -2,7 +2,8 @@
 
 1. Run four independent research packets against the companion subworkflow tree.
 2. Integrate repeated conventions, rejecting observations that are isolated, stale, or already covered.
-3. Update `nf-core-common.md`, `nf-core-subworkflow-create/SKILL.md`, and/or `nf-core-submission-review/SKILL.md` only where their decision responsibilities require it.
+3. Update the applicable shared references under `.agents/skills/references/` and the owning lifecycle skills
+   only where their decision responsibilities require it.
 4. Run a separate review pass over the integrated skill changes.
 5. Validate Markdown diffs, repository status, and the original GCTA rename tests.
 

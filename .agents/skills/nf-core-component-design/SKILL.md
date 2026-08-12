@@ -3,9 +3,7 @@ name: nf-core-component-design
 description: Design or audit a proposed nf-core component portfolio before implementation. Use when an issue, specification, research task, or Wayfinder ticket decides module versus subworkflow boundaries, executable ownership, names, execution paths, public interfaces, metadata roles, selectors, outputs, containers, fixtures, validation, or pipeline-local boundaries.
 ---
 
-Read `../nf-core-common.md` first. Treat the routed lifecycle skills below as authoritative. Use the
-standards-cache fallback only when they leave a relevant question unclear or incomplete, or extra upstream
-detail is needed.
+Read `../references/nf-core-guidance-sources.md`. Treat the routed lifecycle skills below as authoritative.
 
 Use nf-core standards as design inputs before external programme research. Route to the applicable skills:
 
@@ -38,7 +36,8 @@ Record unresolved items as blockers rather than calling an interface exact.
 
 1. Extract applicable nf-core constraints from the routed skills. Consult the standards cache only for a
    specific unresolved question or needed extra detail.
-2. Research the official programme, API, CLI, releases, packaging, tests, and container paths.
+2. Check the relevant programme documentation cache or index under `docs/`, then research unresolved details in
+   the official programme, API, CLI, releases, packaging, tests, and container sources.
 3. Map native and adapter-owned execution paths onto component boundaries.
 4. Define provisional interfaces and audit them with `nf-core-submission-review`.
 5. Publish the decision only when every applicable design-gate item is answered or explicitly blocked.
