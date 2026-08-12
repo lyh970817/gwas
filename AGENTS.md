@@ -9,21 +9,31 @@ Ask for the user's explicit approval before deciding to patch an existing progra
 
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
 
-## Repository identity
+## Repository identity and routing
 
-This is an `nf-core/gwas` pipeline checkout. `.references/modules` is a reference-only companion checkout of
-`nf-core/modules`, not an upstream submission workspace; do not treat this repository or its `master` branch as
-a component-library fork.
+This is an `nf-core/gwas` pipeline checkout. `.references/modules` is a read-only companion checkout of
+`nf-core/modules`, not a submission workspace or an ancestry source for this repository's branches.
 
-Pipeline coding standards are routed by `CODING_STANDARDS.md`. For modules and subworkflows intended for
-upstream `nf-core/modules`, the applicable `nf-core-*` skills under `.agents/skills/` are authoritative.
+[`CODING_STANDARDS.md`](CODING_STANDARDS.md) indexes the canonical tracked standards. Skills under
+`.agents/skills/` own task procedures, gates, evidence, and reporting; they do not override stable contracts in
+the canonical standards.
 
-The LDAK, GWASLab, GCTA, PLINK, and PLINK 2 modules and subworkflows under `modules/local/` and
-`subworkflows/local/` are upstream-bound candidates despite their local paths. Keep atomic components free of
-pipeline routing and scientific policy; those belong in composition or the relevant `conf/modules/*.config`.
+Before changing a governed subtree, read every `AGENTS.md` from this root through the closest containing
+directory. A task started at the repository root must discover and apply descendant instructions before acting
+in that subtree.
 
-## Local fixture boundary
+Repository-local agent guidance and development infrastructure are personal-only. Use `dual-track-commit` for
+any commit or synchronization task that may mix those changes with the portable pipeline or a public PR.
 
-`.references/test-datasets-gwas` is a read-only, machine-local fixture checkout. Never hard-code it in pipeline
-code or make CI depend on it. Use a private copy for modified fixtures. The `gwas-pipeline-test` skill owns the
-local fixture resolver and nf-test procedure.
+## Upstream-bound local components
+
+The LDAK, GWASLab, GCTA, PLINK, and PLINK 2 modules and reusable subworkflows under `modules/local/` and
+`subworkflows/local/` are upstream-bound candidates despite their local paths. Keep portable atomic components
+free of pipeline routing, scientific policy, publication, and reuse identity; the descendant instructions route
+the exact boundary.
+
+## Local fixture safety
+
+`.references/test-datasets-gwas` is read-only machine-local state. Never hard-code it in tracked code or make CI
+depend on it. Use a private copy for modified fixtures. The `gwas-pipeline-test` skill owns fixture resolution
+and execution for pipeline tests.

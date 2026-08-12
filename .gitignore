@@ -23,6 +23,7 @@ SPEC.md
 .scratch/
 .lavish/
 .worktrees/
+.workflow/nested-agent-guidance-v2/
 # Local reference checkouts used for style comparison, component development,
 # and fixture-backed testing. They are intentionally machine-local.
 .references/

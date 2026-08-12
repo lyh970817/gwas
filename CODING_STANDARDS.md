@@ -1,7 +1,7 @@
 # Coding standards — nf-core/gwas
 
-This file routes pipeline-level review to the normative topic files. Component-contract scope and precedence are
-defined in `AGENTS.md`; the applicable `nf-core-*` skills own those rules.
+This file indexes the canonical tracked standards. The `AGENTS.md` chain selects the applicable scope; skills
+own task procedure, gates, evidence, and reporting rather than stable contracts.
 
 ## Topics
 
@@ -11,6 +11,12 @@ defined in `AGENTS.md`; the applicable `nf-core-*` skills own those rules.
 | [`docs/coding-standards/configuration-and-schema.md`](docs/coding-standards/configuration-and-schema.md) | Configuration, parameters, schema, assets, and `.nf-core.yml`                         |
 | [`docs/coding-standards/ci-and-testing.md`](docs/coding-standards/ci-and-testing.md)                     | Pipeline nf-test, CI, lint/format tooling, and repository hygiene                     |
 | [`docs/coding-standards/documentation-and-assets.md`](docs/coding-standards/documentation-and-assets.md) | Public documentation, assets, citations, changelog, and scripts                       |
+| [`docs/coding-standards/contribution-boundaries.md`](docs/coding-standards/contribution-boundaries.md) | Repository/workspace identity, personal/public tracks, and reviewer-facing boundaries |
+| [`docs/coding-standards/nf-core-modules.md`](docs/coding-standards/nf-core-modules.md) | Atomic upstream-bound module contracts |
+| [`docs/coding-standards/nf-core-subworkflows.md`](docs/coding-standards/nf-core-subworkflows.md) | Reusable upstream-bound composition contracts |
+| [`docs/coding-standards/gwas-component-contracts.md`](docs/coding-standards/gwas-component-contracts.md) | GWAS/population-genetics tuple, identity, selector, and bundle contracts |
+| [`docs/coding-standards/component-containers.md`](docs/coding-standards/component-containers.md) | Component packages, runtime directives, and container metadata |
+| [`docs/coding-standards/component-fixtures-and-testing.md`](docs/coding-standards/component-fixtures-and-testing.md) | Component fixture, assertion, snapshot, and readiness contracts |
 
 ## Severity
 
@@ -24,9 +30,10 @@ chosen rule is a deliberate pipeline decision and remains binding.
 
 ## Precedence and provenance
 
-Apply the user's current request, then `AGENTS.md`, active `nf-core-*` skills for upstream-bound components,
-and these pipeline topic files. Consult the ignored cache under `docs/nf-core-standards/` only through the
-fallback described by the active skill.
+Apply the user's current request, the `AGENTS.md` chain for the target, these canonical topics, and the active
+skill's task procedure. Consult the ignored cache under `docs/nf-core-standards/` only through the fallback in
+the active skill. If current upstream requirements conflict with a canonical contract, update the owning topic
+deliberately rather than allowing skill prose or an example to override it.
 
 These topics were derived on 2026-07-27 from `.references/rnaseq` (template 3.26.0), `.references/sarek`
 (template 3.9.0), and `.references/mag` (template 5.4.2). Where the references disagree because a convention is
