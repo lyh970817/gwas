@@ -45,13 +45,23 @@ source_has_canonical_files() {
     [[ -f "$candidate/results/fixtures/genotypes/example_all.vcf.gz" ]] &&
         [[ -f "$candidate/results/fixtures/pheno_cov/example.pheno" ]] &&
         [[ -f "$candidate/results/fixtures/pheno_cov/example.qcovar" ]] &&
-        [[ -f "$candidate/results/fixtures/pheno_cov/example.catcovar" ]]
+        [[ -f "$candidate/results/fixtures/pheno_cov/example.catcovar" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/cohort_manifest.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_quantitative.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_binary.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_association_only.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_heritability_only.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_heterogeneous.csv" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/method_options_heterogeneous.json" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/resources/gcta_grm_extract.txt" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/resources/ldak_predictor_extract.txt" ]] &&
+        [[ -f "$candidate/results/fixtures/relational/resources/ldak_weights.txt" ]]
 }
 
 source_is_compact_canonical() {
     local candidate=$1
     source_has_canonical_files "$candidate" || return 1
-    [[ $(find "$candidate/results/fixtures" -type f | wc -l) -eq 4 ]]
+    [[ $(find "$candidate/results/fixtures" -type f | wc -l) -eq 14 ]]
 }
 
 compact_source_from_worktrees() {
