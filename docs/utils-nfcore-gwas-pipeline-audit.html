@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>nf-core/gwas pipeline utility audit</title>
+  <style>
+    :root {
+      --ink: #16222b;
+      --muted: #5d6d75;
+      --paper: #f5f3ed;
+      --panel: #fffdf8;
+      --line: #d6d3c8;
+      --navy: #173b4e;
+      --teal: #087f78;
+      --teal-soft: #d9efea;
+      --amber: #a76008;
+      --amber-soft: #fff0d2;
+      --red: #9e3e35;
+      --red-soft: #f9e2dd;
+      --blue-soft: #dfeaf4;
+      --code: #edf0ed;
+      --shadow: 0 14px 36px rgba(22, 34, 43, 0.09);
+      --radius: 16px;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 3%, rgba(8, 127, 120, 0.10), transparent 24rem),
+        radial-gradient(circle at 92% 9%, rgba(167, 96, 8, 0.10), transparent 21rem),
+        var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.58;
+    }
+    a { color: #006d77; text-underline-offset: 0.18em; }
+    a:hover { color: #004d55; }
+    code, kbd {
+      padding: 0.08em 0.34em;
+      border-radius: 5px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+    }
+    pre code { padding: 0; background: transparent; }
+    h1, h2, h3, h4 { line-height: 1.17; letter-spacing: -0.025em; }
+    h1 { margin: 0; font-size: clamp(2.35rem, 6vw, 4.8rem); max-width: 13ch; }
+    h2 { margin: 0 0 1rem; font-size: clamp(1.7rem, 3.4vw, 2.5rem); }
+    h3 { margin: 1.5rem 0 0.55rem; font-size: 1.28rem; }
+    h4 { margin: 1.2rem 0 0.4rem; font-size: 1.02rem; }
+    p { margin: 0.65rem 0 1rem; }
+    ul, ol { padding-left: 1.25rem; }
+    li + li { margin-top: 0.34rem; }
+    .skip-link {
+      position: absolute;
+      left: 1rem;
+      top: -5rem;
+      z-index: 20;
+      padding: 0.65rem 0.9rem;
+      color: white;
+      background: var(--navy);
+      border-radius: 8px;
+    }
+    .skip-link:focus { top: 1rem; }
+    .wrap { width: min(calc(100% - 2rem), var(--max)); margin-inline: auto; }
+    header.hero { padding: clamp(2rem, 7vw, 6.5rem) 0 2.2rem; }
+    .eyebrow {
+      display: inline-flex;
+      gap: 0.45rem;
+      align-items: center;
+      margin-bottom: 1.1rem;
+      color: var(--teal);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 2.4rem; height: 3px; background: currentColor; }
+    .deck { max-width: 720px; margin-top: 1.35rem; font-size: 1.16rem; color: var(--muted); }
+    .meta-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 2rem;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--line);
+    }
+    .meta-strip div { padding: 0.95rem 1rem; background: rgba(255, 253, 248, 0.87); }
+    .meta-strip b { display: block; font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .meta-strip span { display: block; margin-top: 0.2rem; font-weight: 750; overflow-wrap: anywhere; }
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-block: 1px solid var(--line);
+      background: rgba(245, 243, 237, 0.92);
+      backdrop-filter: blur(12px);
+    }
+    nav.toc .wrap { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: thin; padding-block: 0.45rem; }
+    nav.toc a { flex: 0 0 auto; padding: 0.4rem 0.72rem; border-radius: 999px; color: var(--ink); text-decoration: none; font-size: 0.84rem; font-weight: 700; }
+    nav.toc a:hover { background: var(--teal-soft); color: #005e58; }
+    main { padding-block: 2rem 5rem; }
+    section { scroll-margin-top: 4.7rem; margin-top: 4.8rem; }
+    .panel {
+      padding: clamp(1.1rem, 3vw, 2rem);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .verdict {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.7fr);
+      gap: 1.4rem;
+      border-top: 7px solid var(--teal);
+    }
+    .verdict .decision {
+      margin: 0.15rem 0 0.8rem;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(1.55rem, 3.2vw, 2.45rem);
+      line-height: 1.24;
+    }
+    .verdict aside { padding: 1rem; border-radius: 12px; background: var(--teal-soft); }
+    .verdict aside strong { color: #005f59; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.85rem; margin-top: 1.1rem; }
+    .metric { min-height: 128px; padding: 1rem; border: 1px solid var(--line); border-radius: 13px; background: rgba(255,255,255,0.52); }
+    .metric .num { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 2.35rem; line-height: 1; color: var(--navy); }
+    .metric .label { display: block; margin-top: 0.55rem; color: var(--muted); font-size: 0.89rem; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.73rem;
+      font-weight: 800;
+      letter-spacing: 0.025em;
+      white-space: nowrap;
+    }
+    .tag.keep { color: #006159; background: var(--teal-soft); }
+    .tag.extract { color: #774400; background: var(--amber-soft); }
+    .tag.fix { color: #843329; background: var(--red-soft); }
+    .tag.internal { color: #294b68; background: var(--blue-soft); }
+    .callout { margin: 1.1rem 0; padding: 0.8rem 1rem; border-left: 4px solid var(--amber); background: var(--amber-soft); border-radius: 0 10px 10px 0; }
+    .callout.good { border-color: var(--teal); background: var(--teal-soft); }
+    .callout strong { color: var(--navy); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 13px; background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    caption { padding: 0.9rem 1rem; text-align: left; color: var(--muted); font-size: 0.84rem; font-weight: 700; }
+    th, td { padding: 0.76rem 0.8rem; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+    thead th { border-top: 0; background: #e8ece8; color: #30424b; font-size: 0.76rem; letter-spacing: 0.045em; text-transform: uppercase; }
+    tbody tr:nth-child(even) { background: rgba(237, 240, 237, 0.35); }
+    tbody tr:hover { background: rgba(217, 239, 234, 0.56); }
+    td code { white-space: nowrap; }
+    .inventory td:first-child { font-weight: 780; }
+    .inventory td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .inventory td:nth-child(4), .inventory td:nth-child(5) { min-width: 190px; }
+    .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .finding { padding: 1.05rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.52); }
+    .finding h3 { margin-top: 0; }
+    .finding ul { margin-bottom: 0; }
+    figure.diagram { margin: 1.2rem 0 0; padding: 0.7rem; border: 1px solid var(--line); border-radius: var(--radius); background: #fbfaf5; overflow-x: auto; }
+    figure.diagram svg { display: block; min-width: 880px; width: 100%; height: auto; }
+    figcaption { padding: 0.65rem 0.55rem 0.2rem; color: var(--muted); font-size: 0.84rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.65rem 1.1rem; margin: 0.75rem 0 0; color: var(--muted); font-size: 0.82rem; }
+    .legend i { display: inline-block; width: 0.78rem; height: 0.78rem; margin-right: 0.3rem; border-radius: 3px; vertical-align: -0.08rem; }
+    .steps { counter-reset: phase; display: grid; gap: 0.8rem; padding: 0; list-style: none; }
+    .steps li { position: relative; padding: 1rem 1rem 1rem 4rem; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .steps li::before { counter-increment: phase; content: counter(phase); position: absolute; left: 1rem; top: 1rem; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--navy); font-weight: 850; }
+    .steps strong { display: block; color: var(--navy); }
+    .source-list { display: grid; gap: 0.7rem; padding: 0; list-style: none; }
+    .source-list li { padding: 0.75rem 0.9rem; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.52); overflow-wrap: anywhere; }
+    footer { padding: 2rem 0 4rem; color: var(--muted); font-size: 0.83rem; }
+    .print-note { display: none; }
+
+    @media (max-width: 860px) {
+      .meta-strip, .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .verdict, .two-col { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .wrap { width: min(calc(100% - 1rem), var(--max)); }
+      .meta-strip, .metric-grid { grid-template-columns: 1fr; }
+      th, td { padding: 0.6rem; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #edf2ef;
+        --muted: #b7c3bf;
+        --paper: #101817;
+        --panel: #182321;
+        --line: #354642;
+        --navy: #b8d9e6;
+        --teal: #6ed6cc;
+        --teal-soft: #173d39;
+        --amber: #f2b75f;
+        --amber-soft: #45351f;
+        --red: #ff9e91;
+        --red-soft: #472c29;
+        --blue-soft: #243b4d;
+        --code: #26312f;
+        --shadow: 0 14px 36px rgba(0, 0, 0, 0.25);
+      }
+      body { background: radial-gradient(circle at 8% 3%, rgba(8,127,120,.14), transparent 24rem), var(--paper); }
+      .meta-strip div, .metric, .finding, .source-list li { background: rgba(24,35,33,.9); }
+      nav.toc { background: rgba(16, 24, 23, 0.92); }
+      thead th { background: #253532; color: #d8e2de; }
+      tbody tr:nth-child(even) { background: rgba(38,49,47,.4); }
+      figure.diagram { background: #17201f; }
+      figure.diagram svg text { fill: #edf2ef; }
+      figure.diagram svg .box { fill: #1f302d; stroke: #66837c; }
+      figure.diagram svg .box-accent { fill: #173d39; stroke: #61bdb4; }
+      figure.diagram svg .box-warn { fill: #45351f; stroke: #d59a43; }
+      figure.diagram svg .edge { stroke: #a8bab5; }
+      figure.diagram svg marker path { fill: #a8bab5; }
+    }
+    @media print {
+      :root { --paper: white; --panel: white; --ink: black; --muted: #444; --line: #bbb; }
+      body { background: white; font-size: 10pt; }
+      nav.toc { position: static; }
+      section { break-inside: avoid-page; margin-top: 2rem; }
+      .panel { box-shadow: none; }
+      a { color: black; text-decoration: none; }
+      a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 7.5pt; overflow-wrap: anywhere; }
+      .print-note { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to report</a>
+
+  <header class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Architecture audit · design only</div>
+      <h1>The utility file is conventional. Its ownership is not uniformly so.</h1>
+      <p class="deck">A function-by-function audit of <code>utils_nfcore_gwas_pipeline</code>, compared with RNA-seq, MAG, Sarek, the live nf-core pipeline template, and shared nf-core utilities. The conclusion is a narrow responsibility split—not a line-count rewrite.</p>
+      <div class="meta-strip" aria-label="Report metadata">
+        <div><b>Audited source</b><span><a href="https://github.com/lyh970817/gwas/tree/609bc234e33904637684d344384cac668124f6b3">609bc234</a></span></div>
+        <div><b>Source snapshot</b><span>13 Aug 2026</span></div>
+        <div><b>Upstream evidence frozen</b><span>17 Aug 2026, 09:24 UTC</span></div>
+        <div><b>Scope</b><span>Design; no programme patch</span></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Report sections">
+    <div class="wrap">
+      <a href="#decision">Decision</a>
+      <a href="#shape">Current shape</a>
+      <a href="#comparison">Reference comparison</a>
+      <a href="#inventory">Complete inventory</a>
+      <a href="#findings">Findings</a>
+      <a href="#target">Target design</a>
+      <a href="#plan">Refactor plan</a>
+      <a href="#evidence">Evidence</a>
+    </div>
+  </nav>
+
+  <main id="main" class="wrap">
+    <section id="decision" aria-labelledby="decision-title">
+      <div class="panel verdict">
+        <div>
+          <span class="tag keep">Recommended</span>
+          <h2 id="decision-title" class="decision">Keep <code>utils_nfcore_gwas_pipeline</code>, but stop treating it as the default owner of every pure helper.</h2>
+          <p>Established nf-core pipelines deliberately keep a single pipeline-specific utility component containing <code>PIPELINE_INITIALISATION</code>, <code>PIPELINE_COMPLETION</code>, validation, diagnostics, and methods/report helpers. RNA-seq and MAG confirm that a long file is normal. A wholesale split, a <code>lib/</code> migration, or one helper directory per concern would be less conventional and would not create better boundaries by itself.</p>
+          <p>The GWAS file nevertheless crosses three real ownership seams. The linked-manifest contract is an independently named pipeline responsibility; relatedness identity belongs to <code>PREPARE_RELATEDNESS_MATRICES</code>; route-specific prediction builders belong to their route workflows. Those are design reasons to extract. Line count is only corroborating evidence.</p>
+        </div>
+        <aside>
+          <strong>Short answer to “other pipelines keep one long file”</strong>
+          <p>Yes—and GWAS should keep that conventional file. The recommendation is not “split the utility.” It is “retain the lifecycle utility, then relocate policy that already has a clearer owner.”</p>
+          <p><b>Do not:</b> create function-only direct children under <code>subworkflows/local/</code>. Each new direct child should expose a real named workflow.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="shape" aria-labelledby="shape-title">
+      <h2 id="shape-title">Current shape</h2>
+      <p>The audited file is <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/subworkflows/local/utils_nfcore_gwas_pipeline/main.nf"><code>subworkflows/local/utils_nfcore_gwas_pipeline/main.nf</code></a> at commit <code>609bc234</code>.</p>
+
+      <div class="metric-grid" aria-label="Utility file metrics">
+        <div class="metric"><span class="num">1,495</span><span class="label">physical lines, including detailed invariant comments</span></div>
+        <div class="metric"><span class="num">2 + 37</span><span class="label">named workflows plus helper definitions</span></div>
+        <div class="metric"><span class="num">12</span><span class="label">definitions imported by production callers</span></div>
+        <div class="metric"><span class="num">5</span><span class="label">distinct production caller files</span></div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:1rem">
+        <table>
+          <caption>Responsibility distribution by source region</caption>
+          <thead><tr><th>Region</th><th>Lines</th><th>Approx. span</th><th>Assessment</th></tr></thead>
+          <tbody>
+            <tr><td>Lifecycle orchestration</td><td>1–176</td><td>176</td><td><span class="tag keep">Keep</span> Exact peer/template responsibility.</td></tr>
+            <tr><td>Association registry and GWASLab references</td><td>182–325</td><td>144</td><td><span class="tag keep">Keep contract</span> Cross-cutting method vocabulary and harmonisation seam.</td></tr>
+            <tr><td>Relatedness identity and request construction</td><td>328–551, 763–781</td><td>243</td><td><span class="tag extract">Co-locate</span> One production owner already exists.</td></tr>
+            <tr><td>Linked-manifest and method-option contract</td><td>554–762, 782–1,249</td><td>677</td><td><span class="tag extract">Named boundary</span> Independent input contract, not generic lifecycle glue.</td></tr>
+            <tr><td>Analysis-plan and methods reporting</td><td>1,252–1,430</td><td>179</td><td><span class="tag keep">Keep</span> Matches current nf-core utility practice.</td></tr>
+            <tr><td>Prediction reuse identity</td><td>1,433–1,495</td><td>63</td><td><span class="tag extract">Partial</span> Keep shared primitives; co-locate route-specific builders.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="diagram" aria-labelledby="current-graph-caption">
+        <svg viewBox="0 0 1120 560" role="img" aria-labelledby="current-graph-title current-graph-desc">
+          <title id="current-graph-title">Current production call graph</title>
+          <desc id="current-graph-desc">Five production callers import twelve definitions from one utility file. Internal helper clusters feed those definitions, and lifecycle workflows also compose shared nf-core utilities and the nf-schema plugin.</desc>
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#52656d"/></marker>
+          </defs>
+          <style>
+            .box{fill:#fffdf8;stroke:#8a9a9f;stroke-width:1.5}.box-accent{fill:#d9efea;stroke:#087f78;stroke-width:2}.box-warn{fill:#fff0d2;stroke:#a76008;stroke-width:2}.edge{fill:none;stroke:#52656d;stroke-width:1.6;marker-end:url(#arrow)}.dash{stroke-dasharray:6 5}.t{font:700 15px Inter,system-ui,sans-serif;fill:#16222b}.s{font:12px Inter,system-ui,sans-serif;fill:#4d5f67}.mono{font:12px ui-monospace,SFMono-Regular,monospace;fill:#16222b}
+          </style>
+          <rect class="box" x="20" y="56" rx="12" width="215" height="68"/><text class="t" x="38" y="82">Root main.nf</text><text class="s" x="38" y="105">initialisation + completion</text>
+          <rect class="box" x="20" y="155" rx="12" width="215" height="82"/><text class="t" x="38" y="181">workflows/gwas.nf</text><text class="s" x="38" y="204">mapping, references,</text><text class="s" x="38" y="221">analysis plan, methods</text>
+          <rect class="box" x="20" y="268" rx="12" width="215" height="82"/><text class="t" x="38" y="294">prepare relatedness</text><text class="s" x="38" y="317">4 imported identity /</text><text class="s" x="38" y="334">request helpers</text>
+          <rect class="box" x="20" y="381" rx="12" width="215" height="68"/><text class="t" x="38" y="407">REGENIE route</text><text class="s" x="38" y="430">prediction key builder</text>
+          <rect class="box" x="20" y="480" rx="12" width="215" height="68"/><text class="t" x="38" y="506">LDAK-KVIK route</text><text class="s" x="38" y="529">prediction key builder</text>
+
+          <rect class="box-accent" x="350" y="25" rx="16" width="470" height="510"/>
+          <text class="t" x="375" y="55">utils_nfcore_gwas_pipeline/main.nf</text><text class="s" x="375" y="76">one component · 39 definitions · 12 production exports</text>
+          <rect class="box" x="375" y="96" rx="10" width="420" height="58"/><text class="mono" x="392" y="120">PIPELINE_INITIALISATION / COMPLETION</text><text class="s" x="392" y="140">2 exported workflows</text>
+          <rect class="box" x="375" y="170" rx="10" width="420" height="58"/><text class="t" x="392" y="194">Association + GWASLab contract</text><text class="s" x="392" y="214">5 helpers; 2 exported</text>
+          <rect class="box-warn" x="375" y="244" rx="10" width="420" height="70"/><text class="t" x="392" y="269">Relatedness identity</text><text class="s" x="392" y="289">8 helpers; 4 exported to one owner</text><text class="s" x="392" y="305">plus one resource-hash helper later in file</text>
+          <rect class="box-warn" x="375" y="330" rx="10" width="420" height="70"/><text class="t" x="392" y="355">Linked-manifest contract</text><text class="s" x="392" y="375">13 helpers; 0 direct external imports</text><text class="s" x="392" y="391">called through initialisation</text>
+          <rect class="box" x="375" y="416" rx="10" width="420" height="54"/><text class="t" x="392" y="440">Reporting</text><text class="s" x="392" y="459">7 helpers; 2 exported</text>
+          <rect class="box-warn" x="375" y="486" rx="10" width="420" height="38"/><text class="t" x="392" y="510">Prediction identity · 4 helpers; 2 exported</text>
+
+          <rect class="box" x="905" y="95" rx="12" width="190" height="85"/><text class="t" x="924" y="121">Shared utilities</text><text class="s" x="924" y="143">nf-core pipeline</text><text class="s" x="924" y="160">Nextflow + nf-schema</text>
+
+          <path class="edge" d="M235 90 H350"/><path class="edge" d="M235 196 H350"/><path class="edge" d="M235 309 H350"/><path class="edge" d="M235 415 H350"/><path class="edge" d="M235 514 H350"/>
+          <path class="edge dash" d="M820 125 H905"/>
+        </svg>
+        <figcaption id="current-graph-caption">Current graph. The issue is not circularity or hidden coupling; it is that a conventional lifecycle component is also the namespace for policy with more specific owners.</figcaption>
+      </figure>
+    </section>
+
+    <section id="comparison" aria-labelledby="comparison-title">
+      <h2 id="comparison-title">Reference comparison</h2>
+      <div class="callout good"><strong>Primary observation:</strong> all three maintained pipelines and the current nf-core template retain one pipeline-specific utility file with two lifecycle workflows followed by ordinary <code>def</code> helpers. No inspected pipeline has a function-only direct child under <code>subworkflows/local/</code>, and none uses production <code>lib/</code> helpers for this role.</div>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Official current default-branch files, frozen 17 August 2026</caption>
+          <thead><tr><th>Source</th><th>Commit / date</th><th>File shape</th><th>What it establishes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><a href="https://github.com/nf-core/rnaseq/blob/1f03b53ef799e298f60c813440e961e867017043/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf">nf-core/rnaseq utility</a></td>
+              <td><a href="https://github.com/nf-core/rnaseq/commit/1f03b53ef799e298f60c813440e961e867017043"><code>1f03b53</code></a><br>24 Jul 2026</td>
+              <td>889 lines<br>2 workflows + 25 helpers</td>
+              <td>A broad single file can own lifecycle, validation, warnings, QC selection, strand classification, publication mapping, methods text, and run summary.</td>
+            </tr>
+            <tr>
+              <td><a href="https://github.com/nf-core/mag/blob/56abab5b023ce953c9c43fe21090d156ad0e18af/subworkflows/local/utils_nfcore_mag_pipeline/main.nf">nf-core/mag utility</a></td>
+              <td><a href="https://github.com/nf-core/mag/commit/56abab5b023ce953c9c43fe21090d156ad0e18af"><code>56abab5</code></a><br>1 Aug 2026</td>
+              <td>746 lines<br>2 workflows + 7 helpers</td>
+              <td>Large validation and bibliography bodies remain together when they still serve pipeline lifecycle.</td>
+            </tr>
+            <tr>
+              <td><a href="https://github.com/nf-core/sarek/blob/8ccac7ad37b05dd792447763bf9671b719824587/subworkflows/local/utils_nfcore_sarek_pipeline/main.nf">nf-core/sarek utility</a></td>
+              <td><a href="https://github.com/nf-core/sarek/commit/8ccac7ad37b05dd792447763bf9671b719824587"><code>8ccac7a</code></a><br>12 Aug 2026</td>
+              <td>365 lines<br>2 workflows + 7 helpers</td>
+              <td>The same convention at smaller scale; workflow-specific helpers remain in their owning workflow.</td>
+            </tr>
+            <tr>
+              <td><a href="https://github.com/nf-core/tools/blob/eb2f709090f4054f45437c34049ea2068567c339/nf_core/pipeline-template/subworkflows/local/utils_nfcore_pipeline_pipeline/main.nf">nf-core/tools live template</a></td>
+              <td><a href="https://github.com/nf-core/tools/commit/eb2f709090f4054f45437c34049ea2068567c339"><code>eb2f709</code></a><br>29 Jul 2026</td>
+              <td>about 343 lines<br>2 workflows + 7 helpers</td>
+              <td>The single utility file is current template policy, not historical residue.</td>
+            </tr>
+            <tr>
+              <td><a href="https://github.com/nf-core/modules/blob/fa506994bc44f45c9b76f42b6b021973a9f343f1/subworkflows/nf-core/utils_nfcore_pipeline/main.nf">nf-core/modules shared utility</a></td>
+              <td><a href="https://github.com/nf-core/modules/commit/fa506994bc44f45c9b76f42b6b021973a9f343f1"><code>fa50699</code></a><br>17 Aug 2026</td>
+              <td>355 lines<br>1 workflow + 11 helpers</td>
+              <td>Generic config, versions, report, email, and completion behavior already has separate shared ownership.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Active development branches tell the same structural story</h3>
+      <p>Official <code>dev</code> was also checked because default branches are release lines: RNA-seq <a href="https://github.com/nf-core/rnaseq/blob/a4ed3abe93e06ed5bd12644e90449938d43a7f7f/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf"><code>a4ed3ab</code></a> (24 Jul 2026) is 896 lines; MAG <a href="https://github.com/nf-core/mag/blob/034af2b60718f2272c5daefb333c450ff4037bdc/subworkflows/local/utils_nfcore_mag_pipeline/main.nf"><code>034af2b</code></a> (14 Aug 2026) is 750; Sarek <a href="https://github.com/nf-core/sarek/blob/2721e635ed5c6240732fc97729dcaa1b7966ebd6/subworkflows/local/utils_nfcore_sarek_pipeline/main.nf"><code>2721e63</code></a> (13 Aug 2026) is 365. Each still uses one file and two lifecycle workflows.</p>
+
+      <h3>Local comparison snapshots</h3>
+      <div class="table-wrap">
+        <table>
+          <caption>Read-only local references used for detailed caller tracing; not presented as current upstream</caption>
+          <thead><tr><th>Pipeline</th><th>Snapshot</th><th>Date</th><th>Utility state</th><th>Drift to official default</th></tr></thead>
+          <tbody>
+            <tr><td>RNA-seq</td><td><a href="https://github.com/nf-core/rnaseq/commit/e7ca46272c8f9d5ceee3f71759f4ba551d3217a4"><code>e7ca462</code></a></td><td>7 May 2026</td><td>Clean; 889 lines; 2 + 25</td><td>Utility content unchanged at current default.</td></tr>
+            <tr><td>MAG</td><td><a href="https://github.com/nf-core/mag/commit/5dabb0159ac0104885e09f301db22126e8fcb394"><code>5dabb01</code></a></td><td>31 Mar 2026</td><td>Clean; 731 lines; 2 + 7</td><td>Current default is 746 lines; same component shape.</td></tr>
+            <tr><td>Sarek</td><td><a href="https://github.com/nf-core/sarek/commit/b97952e5bac68d5deb93d4a3349a45f146be9830"><code>b97952e</code></a></td><td>30 Jun 2026</td><td>Clean; 369 lines; 2 + 7</td><td>Current default is 365 lines; same component shape.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="callout">The companion modules checkout was on a custom, dirty integration branch and was not used as current-upstream authority. The specific installed <code>utils_nfcore_pipeline/main.nf</code> file was unmodified and byte-identical (SHA-256 <code>ccc3a5f…</code>) to official <code>nf-core/modules@fa50699</code>.</p>
+    </section>
+
+    <section id="inventory" aria-labelledby="inventory-title">
+      <h2 id="inventory-title">Complete definition inventory</h2>
+      <p>“External caller” means a production file imports the definition. “Internal” means it is reached through another definition in the same component. Lines include the comments immediately following each definition up to the next definition, so they describe review span rather than executable LOC.</p>
+
+      <div class="table-wrap">
+        <table class="inventory">
+          <caption>Every workflow and helper in source order</caption>
+          <thead><tr><th>Definition</th><th>Lines</th><th>Responsibility</th><th>Internal dependencies</th><th>Production caller / reachability</th></tr></thead>
+          <tbody>
+            <tr><td><code>PIPELINE_INITIALISATION</code></td><td>28–137</td><td>Framework boot, help/parameter checks, mandatory linked manifests, schema conversion, canonical analysis channel.</td><td>Shared nf-core utilities; nf-schema plugin; <code>validateSamplesheetHeader</code>; <code>validateRelationalInput</code>.</td><td><span class="tag internal">Export</span> root <code>main.nf</code>.</td></tr>
+            <tr><td><code>PIPELINE_COMPLETION</code></td><td>138–201</td><td>Parameter summary, completion email/summary, failure troubleshooting message.</td><td><code>paramsSummaryMap</code>, shared <code>completionEmail</code> / <code>completionSummary</code>.</td><td><span class="tag internal">Export</span> root <code>main.nf</code>.</td></tr>
+            <tr><td><code>getAssociationColumnMappings</code></td><td>202–262</td><td>Canonical GWASLab input-column registry for PLINK 2, REGENIE, GCTA fastGWA, and LDAK-KVIK.</td><td>None.</td><td>Internal via mapping JSON and method vocabulary.</td></tr>
+            <tr><td><code>getAssociationColumnMappingJson</code></td><td>263–280</td><td>Selects trait-aware mapping and serialises it as component input JSON.</td><td><code>getAssociationColumnMappings</code>.</td><td><span class="tag internal">Export</span> <code>workflows/gwas.nf</code>.</td></tr>
+            <tr><td><code>getGwaslabReferences</code></td><td>281–313</td><td>Resolves build-keyed FASTA/VCF resources and required index sidecars.</td><td>Nested <code>sidecar</code> and <code>resources</code> closures.</td><td><span class="tag internal">Export</span> <code>workflows/gwas.nf</code>.</td></tr>
+            <tr><td><code>getAssociationMethodTokens</code></td><td>314–322</td><td>Association selector vocabulary, derived from the harmonisation registry.</td><td><code>getAssociationColumnMappings</code>.</td><td>Internal validation.</td></tr>
+            <tr><td><code>getHeritabilityMethodTokens</code></td><td>323–342</td><td>Heritability selector vocabulary.</td><td>None.</td><td>Internal validation and route capabilities.</td></tr>
+            <tr><td><code>canonicaliseDeclaredValue</code></td><td>343–376</td><td>Stable numeric/boolean/map/list rendering for declared scientific settings.</td><td>Recursive self-call.</td><td>Internal relatedness key; direct function tests.</td></tr>
+            <tr><td><code>canonicaliseIdentifier</code></td><td>377–403</td><td>Verbatim stable rendering for identity values, preserving <code>01</code> vs <code>1</code>.</td><td>Recursive self-call.</td><td>Internal relatedness key; direct function test.</td></tr>
+            <tr><td><code>buildRelatednessMatrixKey</code></td><td>404–428</td><td>Twelve-hex SHA-256 key over cohort identity and matrix settings.</td><td>Both canonicalisers.</td><td>Internal request builder; direct function tests.</td></tr>
+            <tr><td><code>getRelatednessMatrixKinds</code></td><td>429–452</td><td>Maps selected methods to required GCTA/LDAK matrix families.</td><td>None.</td><td><span class="tag internal">Export</span> <code>prepare_relatedness_matrices</code>.</td></tr>
+            <tr><td><code>getLdakWeightsIdentity</code></td><td>453–479</td><td>Content identity for optional LDAK weights, with policy-aware absence.</td><td>Inline SHA-256 stream.</td><td><span class="tag internal">Export</span> <code>prepare_relatedness_matrices</code>.</td></tr>
+            <tr><td><code>getRelatednessMatrixSettings</code></td><td>480–528</td><td>Matrix-kind-specific scientific settings; excludes estimator-only and execution-only controls.</td><td>None.</td><td>Internal request builder; direct function tests.</td></tr>
+            <tr><td><code>buildRelatednessMatrixRequest</code></td><td>529–556</td><td>Builds deduplication key and reconciliable construction request for one analysis/kind.</td><td><code>getRelatednessMatrixSettings</code>; <code>buildRelatednessMatrixKey</code>.</td><td><span class="tag internal">Export</span> <code>prepare_relatedness_matrices</code>.</td></tr>
+            <tr><td><code>getGenotypeGroups</code></td><td>557–572</td><td>Defines mutually exclusive PLINK 2, PLINK 1, and VCF column groups.</td><td>None.</td><td>Internal input contract.</td></tr>
+            <tr><td><code>getSamplesheetPositionalColumns</code></td><td>573–583</td><td>Derives non-meta positional fields from JSON Schema.</td><td>JSON parser; schema file.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>validateSamplesheetHeader</code></td><td>584–615</td><td>Requires the complete ordered-independent CSV header contract; diagnoses missing, extra, duplicate fields.</td><td>JSON parser; manifest header.</td><td>Internal initialisation.</td></tr>
+            <tr><td><code>normaliseCellValue</code></td><td>616–625</td><td>Distinguishes absent nf-schema values from legal falsey values such as zero.</td><td>None.</td><td>Internal settings and relational validator.</td></tr>
+            <tr><td><code>tokenizeMethodSelector</code></td><td>626–634</td><td>Normalises comma-delimited method selectors.</td><td>None.</td><td>Internal option and relational validation.</td></tr>
+            <tr><td><code>getMethodRoutes</code></td><td>635–652</td><td>Computes capability flags used by conditional input-column rules.</td><td><code>getHeritabilityMethodTokens</code>.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>getAnalysisSettings</code></td><td>653–665</td><td>Normalises prevalence/case/control settings once.</td><td><code>normaliseCellValue</code>.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>validateMethodSelectors</code></td><td>666–690</td><td>Rejects unknown/duplicate tokens and rows selecting no method.</td><td>Both method-token functions.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>validateGenotypeGroup</code></td><td>691–724</td><td>Enforces exactly one complete genotype representation.</td><td><code>getGenotypeGroups</code>.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>validateTraitColumns</code></td><td>725–752</td><td>Enforces binary/quantitative case-control-prevalence semantics.</td><td>None.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>validateMethodConditionedColumns</code></td><td>753–766</td><td>Gates prevalence by selected estimators and requires it for PCGC.</td><td>Route capability map.</td><td>Internal relational validator.</td></tr>
+            <tr><td><code>getMethodResourceIdentity</code></td><td>767–788</td><td>Content identity for an optional stageable method resource.</td><td>Inline SHA-256 stream.</td><td><span class="tag internal">Export</span> <code>prepare_relatedness_matrices</code>.</td></tr>
+            <tr><td><code>validateMethodOptions</code></td><td>789–1,128</td><td>Parses JSON, validates family/option types and route compatibility, resolves GCTA/LDAK/REGENIE defaults/resources.</td><td><code>tokenizeMethodSelector</code>; file resolution; local <code>fail</code> closure.</td><td>Internal relational validator; indirect pipeline tests.</td></tr>
+            <tr><td><code>validateRelationalInput</code></td><td>1,129–1,255</td><td>Whole-list cohort/analysis validation, join, duplicate diagnosis, and canonical tuple construction.</td><td>Eleven input-contract helpers, including <code>validateMethodOptions</code>.</td><td>Internal initialisation; indirect pipeline tests.</td></tr>
+            <tr><td><code>analysisPlanJson</code></td><td>1,256–1,289</td><td>Deterministic MultiQC analysis-plan table with header/data contract check.</td><td>YAML and JSON renderers.</td><td><span class="tag internal">Export</span> <code>workflows/gwas.nf</code>.</td></tr>
+            <tr><td><code>methodsDescriptionText</code></td><td>1,290–1,326</td><td>Renders DOI, selected-method citations, bibliography, and escaped command line into the MultiQC template.</td><td><code>toolCitationText</code>; <code>toolBibliographyText</code>; <code>escapeHtml</code>.</td><td><span class="tag internal">Export</span> <code>workflows/gwas.nf</code>.</td></tr>
+            <tr><td><code>selectedCitationKeys</code></td><td>1,327–1,366</td><td>Validates selectors and resolves ordered bibliography keys.</td><td>None.</td><td>Internal reporting.</td></tr>
+            <tr><td><code>toolCitationText</code></td><td>1,367–1,394</td><td>Human-readable selected association/heritability methods prose.</td><td><code>selectedCitationKeys</code>; <code>joinProseList</code>.</td><td>Internal methods renderer.</td></tr>
+            <tr><td><code>toolBibliographyText</code></td><td>1,395–1,410</td><td>HTML bibliography entries for selected method keys.</td><td><code>selectedCitationKeys</code>.</td><td>Internal methods renderer.</td></tr>
+            <tr><td><code>joinProseList</code></td><td>1,411–1,421</td><td>One-, two-, or Oxford-comma list rendering.</td><td>None.</td><td>Internal citation prose.</td></tr>
+            <tr><td><code>escapeHtml</code></td><td>1,422–1,434</td><td>Escapes the command line for HTML output.</td><td>None.</td><td>Internal methods renderer.</td></tr>
+            <tr><td><code>digestScientificInput</code></td><td>1,435–1,452</td><td>Full SHA-256 content digest for optional scientific file inputs.</td><td>Inline SHA-256 stream.</td><td>Internal prediction builders.</td></tr>
+            <tr><td><code>buildCanonicalPredictionKey</code></td><td>1,453–1,468</td><td>Sorted identity serialisation and twelve-hex SHA-256 prediction key.</td><td>Inline short SHA-256.</td><td>Internal prediction builders.</td></tr>
+            <tr><td><code>buildRegeniePredictionKey</code></td><td>1,469–1,482</td><td>REGENIE Step 1 identity over cohort, trait, phenotype, covariates, and scientific block size.</td><td><code>digestScientificInput</code>; <code>buildCanonicalPredictionKey</code>.</td><td><span class="tag internal">Export</span> REGENIE route.</td></tr>
+            <tr><td><code>buildKvikPredictionKey</code></td><td>1,483–1,495</td><td>LDAK-KVIK Step 1 identity including both covariate kinds and predictor-subset policy/resource.</td><td><code>digestScientificInput</code>; <code>buildCanonicalPredictionKey</code>.</td><td><span class="tag internal">Export</span> LDAK-KVIK route.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Direct and indirect test surface</h3>
+      <p>The 836-line function suite declares 27 cases for seven helpers: association mapping JSON, both canonicalisation rules, relatedness key, matrix kinds, matrix settings, and request construction. Fourteen of the 17 pipeline <code>*.nf.test</code> files mention linked manifests or method options, so the large validation contract is exercised primarily through route-level behavior rather than as directly isolated functions. This is adequate regression evidence, but it also shows that the current file boundary is not the test boundary.</p>
+    </section>
+
+    <section id="findings" aria-labelledby="findings-title">
+      <h2 id="findings-title">Uncommon is not the same as unjustified</h2>
+      <div class="two-col">
+        <article class="finding">
+          <h3><span class="tag keep">Uncommon, justified</span></h3>
+          <ul>
+            <li><b>1,495 lines:</b> larger than the references, but nearly half is a real relational-input authority plus invariant comments. Size is evidence of accumulated responsibility, not proof of bad design.</li>
+            <li><b>Two canonicalisers:</b> numeric equivalence for declared settings and verbatim identity for cohort-like names deliberately answer different questions. Merging them would erase a scientific identity boundary.</li>
+            <li><b>Explicit association column mappings:</b> the four methods do not share a safe generic format-book assumption; the mapping also anchors the selectable association vocabulary.</li>
+            <li><b>Content-derived reuse:</b> hashing scientific resources before task submission is appropriate because file bytes, not machine paths, decide reusable identity.</li>
+            <li><b>Dense comments:</b> most explain what must not enter an identity, why null differs from empty, or how method policy gates inputs. These comments carry design constraints and should remain near their owners.</li>
+            <li><b>Lifecycle + report helpers together:</b> directly aligned with RNA-seq, MAG, Sarek, and the live template.</li>
+          </ul>
+        </article>
+        <article class="finding">
+          <h3><span class="tag fix">Redundant or unjustified</span></h3>
+          <ul>
+            <li><b>Three byte-stream SHA-256 bodies:</b> <code>getLdakWeightsIdentity</code>, <code>getMethodResourceIdentity</code>, and <code>digestScientificInput</code> duplicate the same low-level operation. Absence policy should remain in wrappers; byte hashing should have one primitive.</li>
+            <li><b>Repeated method capability knowledge:</b> heritability tokens and method-family subsets recur in route flags, matrix kinds, option compatibility, and citation selection. A small token capability registry would reduce independent truth sources.</li>
+            <li><b>Defaults declared twice:</b> <code>validateMethodOptions</code> defines a defaults map, then repeats the same literals in per-family fallback expressions. Resolvers should read one defaults authority.</li>
+            <li><b>One 340-line validator:</b> parsing/root validation, three family schemas, route compatibility, resource staging, and resolved model construction have independent reasons to change. Named family resolvers are warranted even before a physical split.</li>
+            <li><b>Twelve-export generic namespace:</b> six exported helpers have exactly one workflow owner. Their generic location broadens the API without creating reuse beyond that owner.</li>
+          </ul>
+        </article>
+      </div>
+
+      <h3>What would be over-engineering</h3>
+      <div class="panel">
+        <ul>
+          <li>Splitting at an arbitrary line threshold or creating one source file per helper group.</li>
+          <li>Creating function-only sibling directories under <code>subworkflows/local/</code>; this contradicts the observed component convention and previously triggers component discovery as if a named workflow existed.</li>
+          <li>Turning pure orchestration hashes into Nextflow processes or upstream components. They are pipeline-specific identity policy, not executable tools.</li>
+          <li>Building a fully declarative “mega registry” that encodes every validation rule in nested maps. Centralise stable method capabilities and defaults; keep non-trivial validation as readable code.</li>
+          <li>Moving the entire utility into production <code>lib/</code> classes. The inspected pipelines do not use that pattern here, and workflow globals such as <code>file</code>, <code>workflow</code>, and <code>error</code> belong naturally in Nextflow source.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="target" aria-labelledby="target-title">
+      <h2 id="target-title">Convention-aligned target design</h2>
+      <p>The target retains the conventional component and reduces its authority deliberately. It adds only one new direct child, and that child has a real workflow contract.</p>
+
+      <figure class="diagram" aria-labelledby="target-graph-caption">
+        <svg viewBox="0 0 1120 610" role="img" aria-labelledby="target-graph-title target-graph-desc">
+          <title id="target-graph-title">Recommended target ownership graph</title>
+          <desc id="target-graph-desc">The lifecycle utility remains. A named validate GWAS input workflow owns linked manifests. Relatedness helpers move to the relatedness workflow and route-specific builders move into their route workflows. Shared identity primitives remain small cross-cutting helpers.</desc>
+          <defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#52656d"/></marker></defs>
+          <style>.box{fill:#fffdf8;stroke:#8a9a9f;stroke-width:1.5}.box-accent{fill:#d9efea;stroke:#087f78;stroke-width:2}.box-warn{fill:#fff0d2;stroke:#a76008;stroke-width:2}.edge{fill:none;stroke:#52656d;stroke-width:1.6;marker-end:url(#arrow2)}.dash{stroke-dasharray:6 5}.t{font:700 15px Inter,system-ui,sans-serif;fill:#16222b}.s{font:12px Inter,system-ui,sans-serif;fill:#4d5f67}.mono{font:12px ui-monospace,SFMono-Regular,monospace;fill:#16222b}</style>
+          <rect class="box" x="25" y="35" rx="12" width="215" height="70"/><text class="t" x="43" y="63">Root main.nf</text><text class="s" x="43" y="86">stable public lifecycle calls</text>
+
+          <rect class="box-accent" x="335" y="20" rx="14" width="435" height="180"/>
+          <text class="mono" x="355" y="50">utils_nfcore_gwas_pipeline/main.nf</text>
+          <text class="s" x="355" y="76">KEEP: PIPELINE_INITIALISATION / COMPLETION</text>
+          <text class="s" x="355" y="99">KEEP: GWASLab references + pipeline reporting</text>
+          <text class="s" x="355" y="122">KEEP: small shared SHA/key primitives</text>
+          <text class="s" x="355" y="145">DELEGATE: linked-manifest contract workflow</text>
+          <text class="s" x="355" y="174">Stable file and lifecycle API; narrower policy ownership</text>
+
+          <rect class="box-warn" x="335" y="245" rx="14" width="435" height="130"/>
+          <text class="mono" x="355" y="277">validate_gwas_input/main.nf</text>
+          <text class="t" x="355" y="303">workflow VALIDATE_GWAS_INPUT</text>
+          <text class="s" x="355" y="327">linked manifests · schemas · method vocabulary/options</text>
+          <text class="s" x="355" y="349">canonical analysis tuple · real pipeline-local contract</text>
+
+          <rect class="box" x="25" y="245" rx="12" width="215" height="95"/><text class="t" x="43" y="273">Input assets</text><text class="s" x="43" y="296">cohort + analysis schemas</text><text class="s" x="43" y="317">method-options document</text>
+
+          <rect class="box-accent" x="25" y="430" rx="12" width="310" height="125"/>
+          <text class="mono" x="43" y="460">prepare_relatedness_matrices</text>
+          <text class="s" x="43" y="485">ABSORB: kinds, settings, request, key,</text>
+          <text class="s" x="43" y="506">weights/resource identity, canonicalisers</text>
+          <text class="s" x="43" y="532">One policy owner and its functions</text>
+
+          <rect class="box-accent" x="405" y="430" rx="12" width="310" height="125"/>
+          <text class="mono" x="423" y="460">route_regenie_associations</text>
+          <text class="mono" x="423" y="483">route_ldak_kvik_associations</text>
+          <text class="s" x="423" y="508">ABSORB: each route-specific builder</text>
+          <text class="s" x="423" y="531">IMPORT: small shared digest/key primitives</text>
+
+          <rect class="box" x="825" y="35" rx="12" width="265" height="105"/><text class="t" x="843" y="63">Shared nf-core utilities</text><text class="s" x="843" y="87">config · versions · email</text><text class="s" x="843" y="108">Nextflow + nf-schema mechanics</text>
+          <rect class="box" x="825" y="245" rx="12" width="265" height="95"/><text class="t" x="843" y="273">workflows/gwas.nf</text><text class="s" x="843" y="296">association harmonisation</text><text class="s" x="843" y="317">MultiQC orchestration</text>
+
+          <path class="edge" d="M240 69 H335"/><path class="edge dash" d="M770 82 H825"/><path class="edge" d="M552 200 V245"/><path class="edge" d="M240 292 H335"/><path class="edge" d="M770 292 H825"/><path class="edge" d="M552 375 V408 H180 V430"/><path class="edge" d="M552 375 V430"/><path class="edge dash" d="M552 200 V415"/>
+        </svg>
+        <figcaption id="target-graph-caption">Target graph. One new named input-contract workflow is justified by its interface. Existing workflows absorb their private helpers. The generic lifecycle utility remains the stable façade.</figcaption>
+      </figure>
+
+      <div class="table-wrap" style="margin-top:1rem">
+        <table>
+          <caption>Definition movement by authority</caption>
+          <thead><tr><th>Target owner</th><th>Definitions</th><th>Why this boundary</th></tr></thead>
+          <tbody>
+            <tr><td><code>utils_nfcore_gwas_pipeline</code></td><td>Both lifecycle workflows; GWASLab references; analysis-plan/methods reporting; small shared digest/key primitives.</td><td>Exact pipeline-template role plus genuinely cross-cutting helpers.</td></tr>
+            <tr><td><code>validate_gwas_input</code> with <code>VALIDATE_GWAS_INPUT</code></td><td>Method registry/mapping, genotype groups, header/cell helpers, all selector/trait/method-option validators, relational join and tuple construction.</td><td>A named, independently testable input contract with explicit manifest-to-analysis output.</td></tr>
+            <tr><td><code>prepare_relatedness_matrices</code></td><td>Both canonicalisers; relatedness key/kinds/settings/request; LDAK weights and method resource identity.</td><td>Every production consumer is already inside this workflow; the local instructions identify it as a reuse-identity owner.</td></tr>
+            <tr><td>REGENIE and LDAK-KVIK route files</td><td><code>buildRegeniePredictionKey</code> and <code>buildKvikPredictionKey</code>, respectively.</td><td>Each builder has one route owner. Shared byte-digest and short-key primitives remain common.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout"><strong>One design choice to resolve during implementation:</strong> the association mapping currently also defines the association selector vocabulary. Keep those together. If the mapping moves with the input contract, <code>workflows/gwas.nf</code> should import the mapping function from that component; do not copy a second token list into the lifecycle utility.</div>
+    </section>
+
+    <section id="plan" aria-labelledby="plan-title">
+      <h2 id="plan-title">Refactor plan and gates</h2>
+      <p>This report does not authorise a programme patch. If approved, the safest review sequence is also the cleanest design sequence:</p>
+      <ol class="steps">
+        <li><strong>Refactor inside the existing file first.</strong> Introduce one byte-digest primitive, one short-text-digest primitive, one defaults authority, and family-specific method-option resolvers. Preserve all public definitions and behavior. This makes later movement mechanical and exposes semantic disagreements before file boundaries change.</li>
+        <li><strong>Create the real input-contract component.</strong> Add <code>validate_gwas_input/main.nf</code> with a named <code>VALIDATE_GWAS_INPUT</code> workflow, move the linked-manifest authority and its function tests, and let <code>PIPELINE_INITIALISATION</code> delegate to it.</li>
+        <li><strong>Co-locate single-owner reuse helpers.</strong> Move relatedness functions into <code>prepare_relatedness_matrices/main.nf</code>; move each route builder into its route. Keep only generic digest/key primitives shared.</li>
+        <li><strong>Narrow imports and tests.</strong> Update external imports to the owning files. Keep contract tests adjacent to the new component, relatedness tests adjacent to relatedness preparation, and route-key tests adjacent to routes. Do not create function-only component directories.</li>
+        <li><strong>Validate invariants, not only syntax.</strong> Prove canonical tuples, error attribution/order, resolved defaults, resource identities, matrix/prediction keys, analysis-plan JSON, methods text, and pipeline lifecycle outputs remain equivalent. Then run targeted nf-tests, the intended pipeline suite, Nextflow lint, nf-core pipeline lint, formatting, and <code>git diff --check</code>.</li>
+      </ol>
+
+      <h3>Non-negotiable behavior invariants</h3>
+      <div class="two-col">
+        <div class="finding"><ul>
+          <li>Association tokens remain coupled to registered harmonisation mappings.</li>
+          <li>Unknown/duplicate selectors and empty method rows fail before tasks submit.</li>
+          <li>Case/control/prevalence semantics and row-level error attribution remain unchanged.</li>
+          <li>Method options remain scientific per-analysis inputs; operational tuning stays outside them.</li>
+        </ul></div>
+        <div class="finding"><ul>
+          <li>Identifier canonicalisation never numerically collapses names.</li>
+          <li>Scientific files remain content-addressed; paths never enter published reuse keys.</li>
+          <li>Execution-only partition controls remain outside scientific identity.</li>
+          <li>Methods/citations remain derived from validated selected routes, not tool-version inventory.</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <section id="evidence" aria-labelledby="evidence-title">
+      <h2 id="evidence-title">Evidence ledger and limitations</h2>
+      <ul class="source-list">
+        <li><b>Audited GWAS source:</b> <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/subworkflows/local/utils_nfcore_gwas_pipeline/main.nf">immutable source file</a>; callers in <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/main.nf#L18-L62">root main</a>, <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/workflows/gwas.nf#L24-L27">GWAS workflow</a>, <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/subworkflows/local/prepare_relatedness_matrices/main.nf#L12-L40">relatedness preparation</a>, <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/subworkflows/local/route_regenie_associations/main.nf#L14-L35">REGENIE route</a>, and <a href="https://github.com/lyh970817/gwas/blob/609bc234e33904637684d344384cac668124f6b3/subworkflows/local/route_ldak_kvik_associations/main.nf#L11-L29">LDAK-KVIK route</a>.</li>
+        <li><b>Official maintained comparators:</b> immutable RNA-seq <a href="https://github.com/nf-core/rnaseq/blob/1f03b53ef799e298f60c813440e961e867017043/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf"><code>1f03b53</code></a>, MAG <a href="https://github.com/nf-core/mag/blob/56abab5b023ce953c9c43fe21090d156ad0e18af/subworkflows/local/utils_nfcore_mag_pipeline/main.nf"><code>56abab5</code></a>, and Sarek <a href="https://github.com/nf-core/sarek/blob/8ccac7ad37b05dd792447763bf9671b719824587/subworkflows/local/utils_nfcore_sarek_pipeline/main.nf"><code>8ccac7a</code></a> files.</li>
+        <li><b>Current convention authority:</b> nf-core/tools template at <a href="https://github.com/nf-core/tools/blob/eb2f709090f4054f45437c34049ea2068567c339/nf_core/pipeline-template/subworkflows/local/utils_nfcore_pipeline_pipeline/main.nf"><code>eb2f709</code></a>.</li>
+        <li><b>Generic ownership boundary:</b> official nf-core/modules <a href="https://github.com/nf-core/modules/blob/fa506994bc44f45c9b76f42b6b021973a9f343f1/subworkflows/nf-core/utils_nfcore_pipeline/main.nf">framework utility</a>, <a href="https://github.com/nf-core/modules/blob/fa506994bc44f45c9b76f42b6b021973a9f343f1/subworkflows/nf-core/utils_nextflow_pipeline/main.nf">Nextflow utility</a>, and <a href="https://github.com/nf-core/modules/blob/fa506994bc44f45c9b76f42b6b021973a9f343f1/subworkflows/nf-core/utils_nfschema_plugin/main.nf">nf-schema utility</a> at <code>fa50699</code>.</li>
+      </ul>
+
+      <h3>Method</h3>
+      <p>The audit enumerated every top-level workflow/function, mapped exact production imports and internal calls, inspected the direct function suite and pipeline tests, traced file history, compared clean local reference snapshots, and then re-checked official GitHub default and development branch heads. Official upstream links are immutable commit URLs; branch-head claims are dated because they will drift.</p>
+
+      <h3>Limits</h3>
+      <ul>
+        <li>This is a source-architecture audit, not a runtime profile or performance benchmark.</li>
+        <li>No programme source was changed and no proposed target was compiled; implementation details such as exact <code>take</code>/<code>emit</code> shape remain an approval-stage design task.</li>
+        <li>“Unjustified” means the current placement or duplication lacks a separate design reason; it does not mean behavior is incorrect.</li>
+        <li>Reference prevalence is evidence of convention, not proof of optimality. The recommendation uses ownership and contract boundaries as the deciding criteria.</li>
+      </ul>
+
+      <p class="print-note">This report is self-contained. External links are printed inline in print/PDF output.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">Prepared 17 August 2026 · nf-core/gwas utility architecture audit · evidence snapshot is explicit so later readers can refresh rather than silently treating branch state as timeless.</div>
+  </footer>
+</body>
+</html>
