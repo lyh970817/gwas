@@ -2,9 +2,10 @@
 
 > [!IMPORTANT]
 > **Design status:** the scientific and component-boundary design was accepted for first-release implementation
-> on 2026-08-23; implementation readiness remains subject to the contract-completion gates below. This document
-> describes the intended contract and does not claim that every route is implemented. Q47 remains provisional,
-> Q27 and Q52 were withdrawn, and Q44 plus post-release argument curation are deferred to linked issues.
+> on 2026-08-23, and the remaining summary/input-organization contract was reconciled on 2026-08-24. This
+> document describes the intended contract and does not claim that every route is implemented. Q47 remains
+> provisional, Q27 and Q52 were withdrawn, and Q44 plus post-release argument curation are deferred to linked
+> issues.
 
 > [!NOTE]
 > This is a tracked personal-workflow specification, not reviewer-facing pipeline documentation. Public
@@ -50,16 +51,32 @@ canonical summary-statistics contract while retaining distinct provenance.
 
 User-facing structure is divided into six items with one owner per entity. The field names and examples below
 translate the accepted HTML architecture; future changes to input files, IDs, option organization, output
-names, or publication paths must update this specification as one coherent contract.
+names, or publication paths must update this specification and the canonical configuration/schema standard as
+one coherent contract.
 
 | Item                              | Owns                                                                                                                                                     | Links to                                                                                                    | Does not own                                                  |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `cohort_manifest.csv`             | One genotype representation, genome build, and declared ancestry provenance.                                                                             | A PGEN/PSAM/PVAR, BED/BIM/FAM, or VCF genotype bundle.                                                      | Traits, pair relationships, or estimators.                    |
 | `analysis_manifest.csv`           | One focal trait analysis, phenotype and covariate inputs, trait metadata, and pipeline-generated association or unary individual-level method selection. | One `cohort_id` and its phenotype/covariate files.                                                          | External summary results, pair identity, or estimator tuning. |
-| `summary_statistics_manifest.csv` | One externally supplied summary result, intrinsic provenance, and unary summary-method selection.                                                        | A raw source table or an already-canonical table.                                                           | Estimator-specific reference selection.                       |
+| `summary_statistics_manifest.csv` | One external or pipeline-generated summary result, its origin/provenance, and unary summary-method selection.                                            | A raw/canonical external table or an explicit producing analysis/method pair.                               | Estimator-specific reference selection.                       |
 | `relationship_manifest.csv`       | One exact oriented binding of two distinct declared trait endpoints, pair-method selection, and GCTA pair matrix/covariate context.                      | Explicit analysis and/or summary-statistics endpoint IDs.                                                   | Estimator tuning or implicit all-by-all expansion.            |
 | `reference_catalog.json`          | Named family-specific LDSC and LDAK resource bundles and their declared metadata.                                                                        | HapMap3 allele lists, LD scores, regression weights, or supplied LDAK tagging files and model declarations. | Method selection or automatic ancestry inference.             |
 | `method_options.json`             | Namespaced configuration of selected analysis, unary-request, and pair-request methods, including named additional requests.                             | Existing entity/request IDs and selected methods.                                                           | Selecting an otherwise unselected method.                     |
+
+### Run-level input families
+
+Only `outdir` is unconditionally required by the top-level parameter schema. Scientific inputs form conditional
+families resolved together by linked-manifest validation:
+
+- individual-level work supplies both `cohort_manifest` and `analysis_manifest`; neither is valid alone;
+- summary-only work supplies `summary_statistics_manifest` without needing cohort or analysis manifests;
+- one run may supply both families, including internal summary declarations that point back to producer
+  analyses;
+- at least the linked cohort/analysis family or the summary-statistics family is required;
+- `relationship_manifest` is optional and creates only its explicit pairs; no missing relationship file implies
+  an all-by-all expansion; and
+- `reference_catalog` and `method_options` are optional at the top level but become request requirements when a
+  selected estimator needs a reference or explicit configuration.
 
 ### Analysis declarations
 
@@ -78,9 +95,25 @@ ukb_t2d,ukb,t2d,binary,cases.tsv,t2d,0,1,qcov.tsv,catcov.tsv,regenie,"gcta_greml
 
 ### Summary-statistics declarations and canonicalization
 
-Every scientific summary result has a stable `summary_statistics_id`. A pipeline-generated ID may be derived
-deterministically from its `analysis_id` and association method. An external result declares its own ID and
-records source study, release, method, build, population, and trait metadata separately.
+Every summary result exposed as a first-class unary or pair endpoint has one row in the same manifest and one
+stable `summary_statistics_id`, whether its origin is external or pipeline-generated. A pipeline-generated ID
+is exactly `<producer_analysis_id>--<producer_association_method>`; the producer analysis must exist and must
+select that association method. An external result declares its own ID, which must not collide with any
+deterministic internal ID.
+
+The origin families are mutually exclusive:
+
+- an external row supplies `source`, `source_mode`, and `source_format`, plus its own trait, build, ancestry,
+  method, release, and available prevalence metadata; or
+- an internal row supplies `producer_analysis_id` and `producer_association_method`. It leaves `trait_id`,
+  `trait_type`, `genome_build`, `ancestry`, `source_method`, `source_release`, `population_prevalence`, and
+  `sample_prevalence` blank. Trait identity/type, build, ancestry, and both prevalence values are inherited from
+  the producer analysis; source method is derived from the association method, and no release is invented.
+
+The unified row's `heritability_methods` field is the sole selector for summary-level unary methods such as
+`ldak_sumher` and `ldsc_h2`, for both external and internal results. The analysis row's `heritability_methods`
+continues to select individual-level unary estimators and does not implicitly select summary methods for every
+association result it produces.
 
 External input supports two modes:
 
@@ -93,13 +126,18 @@ release, source and canonical checksums, transformation mode, harmonization vers
 It must not record credentials or machine-local absolute paths.
 
 ```csv title="summary_statistics_manifest.csv"
-summary_statistics_id,trait_id,trait_type,source,source_mode,source_format,genome_build,ancestry,source_method,source_release,heritability_methods,population_prevalence,sample_prevalence
-giant_height_2025,height_giant,quantitative,giant_height.tsv.gz,raw,ssf,GRCh37,EUR,published_gwas,2025,"ldak_sumher,ldsc_h2",,
-consortium_t2d_2026,t2d_consortium,binary,t2d.canonical.tsv.gz,canonical,nfcore_gwas_canonical_v1,GRCh37,EUR,regenie,4.1,ldsc_h2,0.08,0.19
+summary_statistics_id,trait_id,trait_type,source,source_mode,source_format,producer_analysis_id,producer_association_method,genome_build,ancestry,source_method,source_release,heritability_methods,population_prevalence,sample_prevalence,access_constraints
+giant_height_2025,height_giant,quantitative,giant_height.tsv.gz,raw,ssf,,,GRCh37,EUR,published_gwas,2025,"ldak_sumher,ldsc_h2",,,public
+consortium_t2d_2026,t2d_consortium,binary,t2d.canonical.tsv.gz,canonical,nfcore_gwas_canonical_v1,,,GRCh37,EUR,regenie,4.1,ldsc_h2,0.08,0.19,consortium
+ukb_t2d--regenie,,,,,,ukb_t2d,regenie,,,,,"ldak_sumher,ldsc_h2",,,controlled
 ```
 
 Pipeline-generated and external results must converge before estimator-specific munging or conversion. The
-canonical result is independent of the LDSC or LDAK reference selected by a later request.
+canonical result is independent of the LDSC or LDAK reference selected by a later request. In the third example,
+the internal row inherits binary trait metadata and the analysis row's `population_prevalence = 0.08` and
+`sample_prevalence = 0.21`; duplicating those values in the summary row is invalid. `sample_prevalence` always
+means the observed sample case fraction, is never substituted for population prevalence, and is blank for a
+quantitative trait.
 
 ### Relationship declarations
 
@@ -115,10 +153,13 @@ producer provenance.
 
 ```csv title="relationship_manifest.csv"
 relationship_id,left_analysis_id,right_analysis_id,left_summary_statistics_id,right_summary_statistics_id,relationship_methods,pair_quant_covariates,pair_cat_covariates
-ukb_height_bmi,ukb_height,ukb_bmi,,,"gcta_bivariate_reml,gcta_bivariate_reml_ldms",pair.qcov.tsv,pair.catcov.tsv
-published_height_t2d,,,giant_height_2025,consortium_t2d_2026,"ldak_sumcors,ldsc_rg",,
-ukb_height_t2d_all,ukb_height,ukb_t2d,ukb_height_regenie,ukb_t2d_regenie,"gcta_bivariate_reml,ldak_sumcors,ldsc_rg",pair.qcov.tsv,pair.catcov.tsv
+ukb_height--ukb_bmi,ukb_height,ukb_bmi,,,"gcta_bivariate_reml,gcta_bivariate_reml_ldms",pair.qcov.tsv,pair.catcov.tsv
+giant_height_2025--consortium_t2d_2026,,,giant_height_2025,consortium_t2d_2026,"ldak_sumcors,ldsc_rg",,
+ukb_height--ukb_t2d,ukb_height,ukb_t2d,ukb_height--regenie,ukb_t2d--regenie,"gcta_bivariate_reml,ldak_sumcors,ldsc_rg",pair.qcov.tsv,pair.catcov.tsv
 ```
+
+The examples use `left--right` as a readable relationship-ID convention. `relationship_id` remains opaque:
+validation does not parse it to discover endpoints, and the four typed endpoint columns remain authoritative.
 
 The relationship rules are:
 
@@ -151,8 +192,8 @@ The accepted examples are:
 
 ```text
 ldsc_h2--giant_height_2025
-ldsc_rg--published_height_t2d
-ldak_sumcors--published_height_t2d
+ldsc_rg--giant_height_2025--consortium_t2d_2026
+ldak_sumcors--giant_height_2025--consortium_t2d_2026
 ```
 
 The options document may configure the primary request and may declare independently resolved, explicitly
@@ -186,10 +227,10 @@ The accepted options namespaces are `analyses`, `unary_requests`, and `pair_requ
     }
   },
   "pair_requests": {
-    "ldsc_rg--published_height_t2d": {
+    "ldsc_rg--giant_height_2025--consortium_t2d_2026": {
       "reference_bundle_id": "ldsc_eur_grch37_hm3"
     },
-    "ldak_sumcors--published_height_t2d": {
+    "ldak_sumcors--giant_height_2025--consortium_t2d_2026": {
       "reference_bundle_id": "ldak_eur_grch37_ldak_thin"
     }
   }
@@ -516,11 +557,11 @@ summary_statistics/
 
 requests/
 ├── gcta_bivariate_reml/
-│   └── gcta_bivariate_reml--ukb_height_bmi/
+│   └── gcta_bivariate_reml--ukb_height--ukb_bmi/
 │       ├── native.hsq
 │       └── provenance.json
 └── ldak_sumcors/
-    └── ldak_sumcors--published_height_t2d/
+    └── ldak_sumcors--giant_height_2025--consortium_t2d_2026/
         ├── native.sumcors
         └── provenance.json
 
@@ -530,23 +571,23 @@ heritability/
 ├── ldak_sumher/
 │   └── ldak_sumher--giant_height_2025/
 ├── ldak_sumcors/
-│   └── ldak_sumcors--published_height_t2d/
+│   └── ldak_sumcors--giant_height_2025--consortium_t2d_2026/
 └── gcta_bivariate_reml/
-    └── gcta_bivariate_reml--ukb_height_bmi/
+    └── gcta_bivariate_reml--ukb_height--ukb_bmi/
 
 genetic_correlation/
 ├── ldsc_rg/
-│   └── ldsc_rg--published_height_t2d/
+│   └── ldsc_rg--giant_height_2025--consortium_t2d_2026/
 ├── ldak_sumcors/
-│   └── ldak_sumcors--published_height_t2d/
+│   └── ldak_sumcors--giant_height_2025--consortium_t2d_2026/
 └── gcta_bivariate_reml/
-    └── gcta_bivariate_reml--ukb_height_bmi/
+    └── gcta_bivariate_reml--ukb_height--ukb_bmi/
 
 genetic_covariance/
 ├── ldak_sumcors/
-│   └── ldak_sumcors--published_height_t2d/
+│   └── ldak_sumcors--giant_height_2025--consortium_t2d_2026/
 └── gcta_bivariate_reml/
-    └── gcta_bivariate_reml--ukb_height_bmi/
+    └── gcta_bivariate_reml--ukb_height--ukb_bmi/
 ```
 
 Every request provenance record includes request and endpoint identity, relationship and orientation where
@@ -626,10 +667,11 @@ packaging:
 ```text
 1. Shared declaration and request foundation
    ├── 2A. Dense GCTA bivariate vertical slice
-   ├── 2B. External canonical-summary seam
-   │   ├── LDAK 6.3 SumHer/SumCors atoms and routes
-   │   └── pinned CBIIT LDSC munging/H2/RG atoms and routes
-   └── 2C. Internal-summary unary routing after its HTML-owned selector gate
+   └── 2B. Unified canonical-summary seam
+       ├── External raw/canonical ingress
+       ├── Internal producer declarations and summary-level unary selectors
+       ├── LDAK 6.3 SumHer/SumCors atoms and routes
+       └── pinned CBIIT LDSC munging/H2/RG atoms and routes
 
 3. Cross-cutting diagnostics and publication contracts
 4. Integrated wrapper and pipeline gates
@@ -642,10 +684,12 @@ contracts. Dense GCTA is the preferred first vertical slice because its atomic m
 exercise relationship identity, pair phenotype composition, matrix attribution, endpoint-aware prevalence,
 diagnostics, and publication without a new program runtime.
 
-The external-summary lane versions the canonical seam before wiring its estimator adapters. The LDAK lane then
-resolves the exact 6.3 delivery route and implements/tests atomic SumHer and SumCors operations; the LDSC lane
-pins CBIIT Python 3 and implements/tests separate munging, H2, and RG operations. Identical munged results may be
-reused only under the accepted derivation rule.
+The unified summary lane validates external and internal declarations into one identity/metadata contract before
+wiring estimator adapters. Internal declarations use the deterministic producer-derived ID and place their unary
+selectors on the same summary row as external declarations. The LDAK lane then resolves the exact 6.3 delivery
+route and implements/tests atomic SumHer and SumCors operations; the LDSC lane pins CBIIT Python 3 and
+implements/tests separate munging, H2, and RG operations. Identical munged results may be reused only under the
+accepted derivation rule.
 
 Cross-cutting work makes the four result states and method-specific evidence durable, stores native artifacts
 once, and publishes normalized views with complete request provenance. Integrated gates then cover route, stub,
@@ -654,47 +698,23 @@ tests. Public usage/output documentation changes only when a route becomes imple
 
 No step authorizes patching GCTA, LDAK, LDSC, or GWASLab source.
 
-## Remaining architecture and implementation-contract gates
+## Resolved input architecture and remaining gates
 
-The reviewed HTML explicitly left one user-input placement unresolved: where unary `ldak_sumher` and `ldsc_h2`
-selection belongs for a summary result generated by a pipeline association route. The possibilities recorded in
-the HTML were the producing analysis row, a synthesized internal-summary declaration, or a unified summary
-manifest capable of referencing internal producers.
+The HTML's previously open internal-summary selector question is resolved: internal and external results use the
+same `summary_statistics_manifest` row shape, with mutually exclusive origin fields. Internal rows explicitly
+name their producing analysis/method, use the deterministic `<analysis_id>--<association_method>` identity,
+inherit producer metadata, and select SumHer/LDSC H2 in their own `heritability_methods` field. No summary-level
+unary selector is inferred from the analysis row.
 
-This specification does not choose among them because the user made the reviewed architecture—not further
-verbal grilling—the authority for all input-file and selector organization. Resolve this by revising the
-architecture coherently before wiring declaration/schema routing for pipeline-generated SumHer or LDSC H2.
+The top-level versus input-family requirements, sample-prevalence placement, namespaced primary/additional
+requests, typed relationship endpoints, and readable `left--right` pair examples are likewise exact in this
+specification and in the canonical configuration/schema standard. The ignored HTML remains the historical review
+artifact; it has no tracked source and is not a second contract owner.
 
-This gate does **not** block:
-
-- atomic SumHer, SumCors, LDSC munging/H2/RG wrapper implementation;
-- external-summary unary routing that already has a selected `summary_statistics_id`;
-- relationship/request identity foundations; or
-- atomic GCTA component use and pair-phenotype adapter work.
-
-Production GCTA relationship routing remains blocked until relationship-owned matrix settings have a defined
-encoding, or until the first dense route explicitly adopts a complete deterministic primary default with no
-undeclared inheritance from either unary endpoint.
-
-The reviewed HTML also marked several exact contracts as unfinished even though their ownership and scientific
-behavior are accepted. They are implementation contract-completion gates, not invitations to reopen the
-scientific grilling:
-
-- the final canonical summary minimum columns, optionality, allele-orientation fields, effective-sample-size
-  semantics, contract version, and checksum semantics;
-- the exact normalized estimand table columns, scale vocabulary, unavailable-value representation, and stable
-  link from each lightweight estimand view to the request-owned native artifact;
-- the exact relationship fields that encode dense/LDMS matrix requests, reuse identity, and pair covariate
-  resources;
-- the final reference-catalog URI/checksum representation and whether one physical resource may satisfy two
-  distinct LDSC semantic roles; and
-- the exact serialized primary/additional-request syntax, while preserving the already accepted identities,
-  independent resolution, and single method-selection authority.
-
-The relevant implementation owner must make each contract exact in this specification and the associated
-schema/component metadata before exposing that route. These items do not block atomic wrappers whose native
-file/scalar contracts are already independently definable, but they do block claiming that the corresponding
-public pipeline input or normalized-output contract is complete.
+Remaining route gates are implementation and release evidence—atomic/component tests, integrated real and stub
+routes, runtime/container publication, diagnostics, public documentation, and regression/lint results—not
+unresolved ownership of user-supplied input fields. Portable schemas and component metadata own the exact
+serialized file/column contracts once implemented; this personal design records their architectural invariants.
 
 ## Deferred work
 
@@ -711,21 +731,21 @@ public pipeline input or normalized-output contract is complete.
 | Question | Status                                               | Accepted decision or disposition                                                                                                                                                      |
 | -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Q1       | Accepted                                             | Implement the complete initial surface: retain current unary methods and add GCTA bivariate, SumHer/SumCors, and standalone LDSC H2/RG.                                               |
-| Q2       | Accepted                                             | Treat pipeline-generated and external summary statistics as first-class inputs that converge canonically.                                                                             |
+| Q2       | Accepted and reconciled                              | Declare pipeline-generated and external summary statistics in one manifest with mutually exclusive origins, then converge them canonically.                                           |
 | Q3       | Accepted                                             | Use estimator-specific method tokens and explicit pair declarations; never form implicit all-by-all pairs.                                                                            |
 | Q4       | Accepted                                             | Preserve one entity per manifest plus a separate reference catalog.                                                                                                                   |
 | Q5       | Accepted                                             | Use pinned standalone CBIIT Python 3 LDSC, not GenomicSEM or GWASLab's beta path.                                                                                                     |
 | Q6       | Accepted                                             | Allow raw and already-canonical external summary input modes.                                                                                                                         |
 | Q7       | Accepted                                             | Keep unary phenotype normalization and build a pair-specific GCTA phenotype artifact.                                                                                                 |
 | Q8       | Accepted                                             | Select references explicitly by stable family-specific ID; never infer them from ancestry.                                                                                            |
-| Q9       | Accepted                                             | Distinguish population from sample prevalence and preserve valid observed-scale results without liability metadata.                                                                   |
+| Q9       | Accepted and reconciled                              | Distinguish population from sample prevalence; internal summaries inherit both from their producer analysis, while external binary rows declare available values.                     |
 | Q10      | Accepted, refined by Q21 and final architecture      | Keep publication estimand-first; retain existing individual-level unary paths, while new summary/pair routes use the normative request store and normalized views.                    |
-| Q11      | Accepted                                             | Give every canonical result a stable `summary_statistics_id` independent of source provenance.                                                                                        |
+| Q11      | Accepted and reconciled                              | Give every canonical result a stable ID; an internal result must use `<producer_analysis_id>--<producer_association_method>`.                                                          |
 | Q12      | Accepted                                             | Preserve declared left/right orientation but detect reversed duplicates as unordered pairs.                                                                                           |
 | Q13      | Accepted                                             | Make GCTA matrix kind/settings relationship-owned and reuse only an exactly compatible derivation.                                                                                    |
 | Q14      | Accepted                                             | Full-join normalized pair phenotypes and write a missing side as `NA`.                                                                                                                |
 | Q15      | Accepted                                             | Make one shared quantitative and one shared categorical covariate input relationship-owned.                                                                                           |
-| Q16      | Accepted, represented by HTML                        | Use one namespaced options document; manifests select methods and options configure them. Final namespaces are `analyses`, `unary_requests`, and `pair_requests`.                     |
+| Q16      | Accepted and reconciled                              | Use one namespaced options document; manifests select methods and options configure them. Final namespaces are `analyses`, `unary_requests`, and `pair_requests`.                     |
 | Q17      | Accepted                                             | One reference ID names a complete estimator-family bundle with distinct semantic roles.                                                                                               |
 | Q18      | Accepted                                             | One relationship may carry analysis endpoints, summary endpoints, or both, as required by selected methods.                                                                           |
 | Q19      | Accepted after revision                              | References are method-request-owned rather than permanently result-owned.                                                                                                             |
@@ -736,7 +756,7 @@ public pipeline input or normalized-output contract is complete.
 | Q24      | Accepted after user correction                       | Use declared `trait_id` only; reject equal IDs; permit different IDs; do not create or infer `biological_trait_id`.                                                                   |
 | Q25      | Accepted after clarification                         | Permit several distinct methods for one pair; reject reversed/repeated bindings rather than merging; use `pair_request_id` for repeated same-method configurations.                   |
 | Q26      | Accepted                                             | Each selected pair method creates a deterministic primary request; named additions resolve independently.                                                                             |
-| Q27      | Withdrawn                                            | All input/output files, fields, identities, option organization, paths, and names are owned by the reviewed architecture rather than further verbal grilling.                         |
+| Q27      | Withdrawn and reconciled                             | The reviewed HTML informed the contract; this tracked specification and the canonical configuration/schema standard are now the durable owners.                                      |
 | Q28      | Accepted                                             | Allow overlapping/same-study pairs and use native LDSC/SumCors nuisance estimation by default.                                                                                        |
 | Q29      | Accepted                                             | Limit SumHer to total common-SNP H2.                                                                                                                                                  |
 | Q30      | Accepted                                             | Consume supplied/precomputed tagging only; do not construct it.                                                                                                                       |

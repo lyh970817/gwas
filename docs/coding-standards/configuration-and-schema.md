@@ -197,8 +197,10 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   to the four template groups and none to its ten own groups; sarek is the model here.
 - **[MUST]** Every `description` is a capitalised sentence ending in a period. mag violates this in 45 of
   173 descriptions — treat it as a checkable rule, not a suggestion.
-- **[MUST]** Only `input_output_options` declares a group-level `required` array
-  (`["cohort_manifest", "analysis_manifest", "outdir"]`).
+- **[MUST]** Only `input_output_options` declares a group-level `required` array, and it requires only
+  `["outdir"]`. The top-level schema describes individually optional input paths; the linked input-family
+  rules below are cross-parameter runtime validation and must not be misrepresented as unconditional JSON-Schema
+  requirements.
 - **[MUST]** `hidden: true` is reserved for `institutional_config_options` and `generic_options`
   boilerplate, plus at most one or two genuinely internal knobs. Never on a user-facing scientific or
   tool parameter, and never on `help`, `help_full`, `show_hidden`, `multiqc_title`, or
@@ -213,6 +215,39 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   relationships local to one row.
 
 ## 7. `assets/schema_*_manifest.json`
+
+### Pipeline relational-input contract
+
+- **[MUST]** A run supplies either the linked `cohort_manifest` plus `analysis_manifest` family, a
+  `summary_statistics_manifest`, or both. `cohort_manifest` and `analysis_manifest` are an inseparable pair.
+  `relationship_manifest`, `reference_catalog`, and `method_options` are optional at the parameter layer and
+  become necessary only when selected requests need them. Enforce these relationships in the linked-manifest
+  validation pass so summary-only runs remain valid.
+- **[MUST]** `summary_statistics_manifest` is the single declaration surface for both external and
+  pipeline-generated summary results. Every row has one `summary_statistics_id` and exactly one origin family:
+  either complete external `source` / `source_mode` / `source_format` fields plus declared trait, build,
+  ancestry, and source-method metadata, or a complete `producer_analysis_id` /
+  `producer_association_method` pair. The two origin families are mutually exclusive.
+- **[MUST]** An internal summary ID is exactly
+  `<producer_analysis_id>--<producer_association_method>`. The producer analysis must exist and must select that
+  association method. An external ID may be researcher-defined but may not collide with an internal deterministic
+  ID.
+- **[MUST]** An internal-summary row leaves `trait_id`, `trait_type`, `genome_build`, `ancestry`,
+  `source_method`, `source_release`, `population_prevalence`, and `sample_prevalence` blank. The validator
+  inherits trait/build/ancestry and both prevalence values from the producer analysis, derives `source_method`
+  from the producer association method, and records no invented release. External rows declare their own values.
+- **[MUST]** Summary-level unary selectors live in the unified row's `heritability_methods` field for both
+  origins. The analysis manifest's `heritability_methods` remains the selector for individual-level unary
+  estimators; it does not implicitly select SumHer or LDSC H2 for every association result an analysis produces.
+- **[MUST]** `sample_prevalence` means the binary-trait sample case fraction and is distinct from
+  `population_prevalence`. Quantitative analyses and summaries leave both blank. An internal summary inherits
+  both values from its producer; an external binary summary declares whichever values are known. Method-specific
+  routing decides whether either value is consumed and must not fabricate the missing one.
+- **[MUST]** Relationship examples use readable `left--right` IDs, for example
+  `giant_height_2025--consortium_t2d_2026`, while treating `relationship_id` as an opaque user identity. The
+  endpoint columns—not parsing the ID—define the pair. Pair request IDs remain
+  `<method>--<relationship_id>`, for example
+  `ldsc_rg--giant_height_2025--consortium_t2d_2026`.
 
 - **[MUST]** `meta` is always an **array**, even for a single field: `"meta": ["id"]`. rnaseq has one
   bare-string `"meta": "percent_mapped"` and it is a copy-paste defect. _(all three otherwise)_
