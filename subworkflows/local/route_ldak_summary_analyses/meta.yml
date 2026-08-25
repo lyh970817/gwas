@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: route_ldak_summary_analyses
+description: Route nf-core/gwas summary-scale LDAK SumHer and SumCors requests through one shared canonical-to-LDAK preparation to normalized results
+keywords:
+  - ldak
+  - sumher
+  - sumcors
+  - heritability
+  - genetic correlation
+  - summary statistics
+components:
+  - prepare_ldak_summary_statistics
+  - ldak/sumher
+  - ldak/sumcors
+  - normalise_ldak_sumher
+  - normalise_ldak_sumcors
+input:
+  - ch_sumher_requests:
+      description: Every validated ldak_sumher unary request with its request-owned reference-bundle resources; an LDAK-family bundle supplies the tagging file and `[]` for the three LDSC-family resources
+      structure: "[map meta, path hapmap3_snplist|[], path reference_ld_scores|[], path regression_weights|[], path tagging_file]"
+      pattern: "*.{tagging,txt,tsv}"
+      ontologies: []
+  - ch_sumcors_requests:
+      description: Every validated ldak_sumcors pair request with the same request-owned reference-bundle resources; meta carries the declared left and right summary-statistics identities and their binariness and prevalence fields
+      structure: "[map meta, path hapmap3_snplist|[], path reference_ld_scores|[], path regression_weights|[], path tagging_file]"
+      pattern: "*.{tagging,txt,tsv}"
+      ontologies: []
+  - ch_canonical_summary_statistics:
+      description: The canonical summary statistics, exactly one element per distinct summary_statistics_id
+      structure: "[map meta, path canonical_summary_statistics]"
+      pattern: "*.canonical.tsv.gz"
+      ontologies: []
+output:
+  - sumher_heritability:
+      description: Normalized SumHer heritability table, one per ldak_sumher request
+      structure: "[map meta, path heritability]"
+      pattern: "heritability.tsv"
+      ontologies: []
+  - sumher_diagnostics:
+      description: Normalized SumHer diagnostic metrics, one per ldak_sumher request
+      structure: "[map meta, path diagnostics]"
+      pattern: "diagnostics.tsv"
+      ontologies: []
+  - sumher_provenance:
+      description: Normalized SumHer provenance record, embedding the shared preparation record for the request's summary statistics
+      structure: "[map meta, path provenance]"
+      pattern: "provenance.json"
+      ontologies: []
+  - sumcors_heritability:
+      description: Normalized SumCors endpoint heritability table, one per ldak_sumcors request carrying both declared endpoints
+      structure: "[map meta, path heritability]"
+      pattern: "heritability.tsv"
+      ontologies: []
+  - sumcors_genetic_correlation:
+      description: Normalized SumCors genetic correlation table, one per ldak_sumcors request
+      structure: "[map meta, path genetic_correlation]"
+      pattern: "genetic_correlation.tsv"
+      ontologies: []
+  - sumcors_genetic_covariance:
+      description: Normalized SumCors genetic covariance table, one per ldak_sumcors request
+      structure: "[map meta, path genetic_covariance]"
+      pattern: "genetic_covariance.tsv"
+      ontologies: []
+  - sumcors_diagnostics:
+      description: Normalized SumCors diagnostic metrics, one per ldak_sumcors request
+      structure: "[map meta, path diagnostics]"
+      pattern: "diagnostics.tsv"
+      ontologies: []
+  - sumcors_provenance:
+      description: Normalized SumCors provenance record, embedding the shared left and right preparation records
+      structure: "[map meta, path provenance]"
+      pattern: "provenance.json"
+      ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"
