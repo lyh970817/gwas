@@ -26,7 +26,6 @@ include { PREPARE_LDAK_SUMMARY_STATISTICS                     } from '../modules
 // MODULE: Installed directly from nf-core/modules
 include { GCTA_BIVARIATEREML                                  } from '../modules/nf-core/gcta/bivariatereml/main'
 include { GCTA_BIVARIATEREMLLDMS                              } from '../modules/nf-core/gcta/bivariateremlldms/main'
-include { MULTIQC                                             } from '../modules/nf-core/multiqc/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { GRM_HERITABILITY_GCTA                               } from '../subworkflows/local/grm_heritability_gcta'
@@ -35,18 +34,16 @@ include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subwork
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
 include { PREPARE_COHORT_GENOTYPES                            } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES                        } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_GWAS_REPORTING                                } from '../subworkflows/local/route_gwas_reporting'
 include { ROUTE_LDAK_KVIK_ASSOCIATIONS                        } from '../subworkflows/local/route_ldak_kvik_associations'
 include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
 include { getAssociationColumnMappingJson                     } from '../subworkflows/local/validate_gwas_input'
 include { getInternalSummaryMetadata                          } from '../subworkflows/local/validate_gwas_input'
 include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
-include { analysisPlanJson                                    } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { digestFileBytes                                     } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 include { digestIdentityText                                  } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
-include { methodsDescriptionText                              } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
-include { paramsSummaryMultiqc                                } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML                              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 
 // PLUGIN
@@ -72,7 +69,6 @@ workflow GWAS {
 
     main:
 
-    def ch_multiqc_files = channel.empty()
     def ch_analysis_metadata = ch_analyses
         .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights -> meta }
         .collect()
@@ -967,51 +963,29 @@ workflow GWAS {
         )
 
     //
-    // MODULE: MultiQC
+    // SUBWORKFLOW: Render the run report from the analysis plan, workflow summary, methods description and versions
     //
-    ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
-    def multiqc_analysis_plan = file("${projectDir}/assets/multiqc_analysis_plan.yml", checkIfExists: true)
-    def ch_analysis_plan = ch_analysis_metadata.map { analysis_metadata -> analysisPlanJson(multiqc_analysis_plan, analysis_metadata) }
-    ch_multiqc_files = ch_multiqc_files.mix(ch_analysis_plan.collectFile(name: 'analysis_plan_mqc.json', sort: true))
+    // The reporting controller owns MultiQC assembly but reads no parent scope: the run parameter summary is
+    // evaluated here and every pipeline-default asset is resolved here, then passed in explicitly.
     def summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
-    def ch_workflow_summary = channel.value(paramsSummaryMultiqc(summary_params))
-    ch_multiqc_files = ch_multiqc_files.mix(ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
-    def multiqc_custom_methods_description = multiqc_methods_description
-        ? file(multiqc_methods_description, checkIfExists: true)
-        : file("${projectDir}/assets/methods_description_template.yml", checkIfExists: true)
-    def ch_methods_description = ch_method_metadata.map { method_metadata ->
-        def analysis_metadata = method_metadata.findAll { record -> record.domain == 'analysis' }.collect { record -> record.meta }
-        def summary_unary_metadata = method_metadata.findAll { record -> record.domain == 'summary_unary' }.collect { record -> record.meta }
-        def relationship_metadata = method_metadata.findAll { record -> record.domain == 'pairwise' }.collect { record -> record.meta }
-        def selected_methods = [
-            association: analysis_metadata.collectMany { meta -> meta.association_methods }.unique().sort(),
-            heritability: (analysis_metadata.collectMany { meta -> meta.heritability_methods } + summary_unary_metadata.collect { meta -> meta.method }).unique().sort(),
-            pairwise: relationship_metadata.collectMany { meta -> meta.relationship_methods }.unique().sort(),
-        ]
-        methodsDescriptionText(multiqc_custom_methods_description, selected_methods)
-    }
-    ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml', sort: true))
-    MULTIQC(
-        ch_multiqc_files.flatten().collect().map { files ->
-            [
-                [id: 'gwas'],
-                files,
-                multiqc_config
-                    ? file(multiqc_config, checkIfExists: true)
-                    : file("${projectDir}/assets/multiqc_config.yml", checkIfExists: true),
-                multiqc_logo
-                    ? file(multiqc_logo, checkIfExists: true)
-                    : file("${projectDir}/assets/nf-core-gwas_logo_light.png", checkIfExists: true),
-                [],
-                [],
-            ]
-        }
+    ROUTE_GWAS_REPORTING(
+        ch_collated_versions,
+        ch_analysis_metadata,
+        ch_method_metadata,
+        summary_params,
+        multiqc_config,
+        multiqc_logo,
+        multiqc_methods_description,
+        file("${projectDir}/assets/multiqc_analysis_plan.yml", checkIfExists: true),
+        file("${projectDir}/assets/multiqc_config.yml", checkIfExists: true),
+        file("${projectDir}/assets/nf-core-gwas_logo_light.png", checkIfExists: true),
+        file("${projectDir}/assets/methods_description_template.yml", checkIfExists: true),
     )
 
     emit:
     canonical_summary_statistics  = CANONICALISE_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(canonical_summary_statistics) ]
     summary_statistics_provenance = CANONICALISE_SUMMARY_STATISTICS.out.provenance // channel: [ val(meta), path(provenance) ]
-    multiqc_report                = MULTIQC.out.report.map { _meta, report -> [report] }.toList() // channel: [ [ path(report) ] ]
+    multiqc_report                = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
 }
 
 /*

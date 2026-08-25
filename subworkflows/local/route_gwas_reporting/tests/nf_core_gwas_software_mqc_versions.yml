@@ -1,0 +1,5 @@
+PLINK2_GLM:
+  plink2: 2.0.0-a.6.9LM
+Workflow:
+  nf-core/gwas: v1.0.0dev
+  Nextflow: 25.10.4
