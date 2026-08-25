@@ -25,6 +25,12 @@ in that subtree.
 Repository-local agent guidance and development infrastructure are personal-only. Use `dual-track-commit` for
 any commit or synchronization task that may mix those changes with the portable pipeline or a public PR.
 
+Local `personal` is the primary branch, and the repository-root checkout normally remains on it. Use linked
+worktrees for other branches.
+
+Remove a temporary worktree after verifying that it is clean, unused by live processes, and fully integrated
+into every intended destination. Worktree removal does not authorize branch deletion.
+
 ## Upstream-bound local components
 
 The LDAK, GWASLab, GCTA, PLINK, and PLINK 2 modules and reusable subworkflows under `modules/local/` and
