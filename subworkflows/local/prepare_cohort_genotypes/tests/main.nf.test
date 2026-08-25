@@ -21,11 +21,11 @@ nextflow_workflow {
                 def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
 
                 input[0] = channel.fromList([
-                    [[id: 'vcf_qt1', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt2', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt3', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt4', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle(['example_all.vcf.gz'])],
-                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
+                    [[id: 'vcf_qt1', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt2', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt3', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt4', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
                 ])
                 """
             }
@@ -58,9 +58,9 @@ nextflow_workflow {
                 def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
 
                 input[0] = channel.fromList([
-                    [[id: 'plink2_qt', cohort: 'cohort_plink2', genotype_format: 'plink2'], bundle(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])],
-                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
-                    [[id: 'vcf_qt', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle(['example_all.vcf.gz'])],
+                    [[id: 'plink2_qt', cohort: 'cohort_plink2', genotype_format: 'plink2'], bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])],
+                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
+                    [[id: 'vcf_qt', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
                 ])
                 """
             }
@@ -100,7 +100,7 @@ nextflow_workflow {
                 """
                 def fixtures = '${FIXTURES.base(projectDir)}results/fixtures/genotypes/'
                 def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
-                def genotypes = bundle(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
+                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
 
                 input[0] = channel.fromList([
                     [[id: 'ldak_kvik', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['ldak_kvik'], heritability_methods: []], genotypes],
