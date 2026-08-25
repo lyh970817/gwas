@@ -4,6 +4,10 @@ let
   nextflowLanguageServerVersion = "26.04.3";
   nfCoreSource = "git+https://github.com/nf-core/tools.git@dev";
   waveVersion = "1.8.1";
+  # nixpkgs still ships 0.9.3. 0.9.4 added strict-syntax support, which Nextflow
+  # 26.04 needs because the v2 parser is now the default, so pin upstream directly
+  # and keep this in step with NFT_VER in .github/workflows/nf-test.yml.
+  nfTestVersion = "0.9.5";
 
   nextflowCli = pkgs.stdenvNoCC.mkDerivation {
     pname = "nextflow";
@@ -76,11 +80,24 @@ PY
     '';
   };
 
+  nfTestJar = pkgs.stdenvNoCC.mkDerivation {
+    pname = "nf-test-jar";
+    version = nfTestVersion;
+    src = pkgs.fetchurl {
+      url = "https://github.com/askimed/nf-test/releases/download/v${nfTestVersion}/nf-test-${nfTestVersion}.tar.gz";
+      sha256 = "0h8nzhs7d17lwbq5xlrswnfnjvnf0bdk95lym2zl55nw1jwrwrxp";
+    };
+    sourceRoot = ".";
+    installPhase = ''
+      install -Dm644 nf-test.jar "$out/share/nf-test/nf-test.jar"
+    '';
+  };
+
   nfTestCli = pkgs.writeShellApplication {
     name = "nf-test";
     runtimeInputs = [ pkgs.jdk17_headless nextflowCli ];
     text = ''
-      exec java -jar "${pkgs.nf-test}/share/nf-test/nf-test.jar" "$@"
+      exec java -jar "${nfTestJar}/share/nf-test/nf-test.jar" "$@"
     '';
   };
 
