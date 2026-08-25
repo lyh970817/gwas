@@ -1,0 +1,142 @@
+### 25.10.4 formatter output vs original
+745c745
+<     catch (Exception exception) {
+---
+>     catch (exception: Exception) {
+776c776
+<         return analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
+---
+>         return analysis_rows.collectEntries { row -> [row[0].id: defaults] }
+788c788
+<         [(meta.id): [
+---
+>         [meta.id: [
+850c850
+<     catch (Exception exception) {
+---
+>     catch (exception: Exception) {
+1125c1125
+<     def primaries = primary_requests.collectEntries { primary -> [(primary.request_id): primary] }
+---
+>     def primaries = primary_requests.collectEntries { primary -> [primary.request_id: primary] }
+1382,1410c1382,1397
+<     def pair_prevalence_analysis_ids = relationship_rows
+<         .findAll { row ->
+<             tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+<                 def capability = getMethodCapabilities()[method]
+<                 capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+<             }
+<         }
+<         .collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }
+<         .findAll { analysis_id -> analysis_id }
+<         .collect { analysis_id -> analysis_id.toString() } as Set
+<     def pair_prevalence_summary_statistics_ids = relationship_rows
+<         .findAll { row ->
+<             tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+<                 def capability = getMethodCapabilities()[method]
+<                 capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+<             }
+<         }
+<         .collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }
+<         .findAll { summary_statistics_id -> summary_statistics_id }
+<         .collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
+<     def summary_prevalence_analysis_ids = summary_statistics_rows
+<         .findAll { row ->
+<             def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
+<             normaliseCellValue(row[0].producer_analysis_id) && (
+<                 tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } ||
+<                 summary_statistics_id in pair_prevalence_summary_statistics_ids
+<             )
+<         }
+<         .collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
+---
+>     def pair_prevalence_analysis_ids = relationship_rows.findAll { row ->
+>         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+>             def capability = getMethodCapabilities()[method]
+>             capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+>         }
+>     }.collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }.findAll { analysis_id -> analysis_id }.collect { analysis_id -> analysis_id.toString() } as Set
+>     def pair_prevalence_summary_statistics_ids = relationship_rows.findAll { row ->
+>         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+>             def capability = getMethodCapabilities()[method]
+>             capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+>         }
+>     }.collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }.findAll { summary_statistics_id -> summary_statistics_id }.collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
+>     def summary_prevalence_analysis_ids = summary_statistics_rows.findAll { row ->
+>         def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
+>         normaliseCellValue(row[0].producer_analysis_id) && (tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } || summary_statistics_id in pair_prevalence_summary_statistics_ids)
+>     }.collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
+
+### 25.10.4: does the formatted file re-parse?
+Linting Nextflow code..
+Linting: main.nf
+Error main.nf:776:64: Unexpected input: ':'
+│ 776 | ectEntries { row -> [row[0].id: defaults] }
+╰     |                               ^
+
+
+Nextflow linting complete!
+ ❌ 1 file had 1 error
+
+### 26.04.6 formatter output vs original
+745c745
+<     catch (Exception exception) {
+---
+>     catch (exception: Exception) {
+850c850
+<     catch (Exception exception) {
+---
+>     catch (exception: Exception) {
+1382,1410c1382,1397
+<     def pair_prevalence_analysis_ids = relationship_rows
+<         .findAll { row ->
+<             tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+<                 def capability = getMethodCapabilities()[method]
+<                 capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+<             }
+<         }
+<         .collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }
+<         .findAll { analysis_id -> analysis_id }
+<         .collect { analysis_id -> analysis_id.toString() } as Set
+<     def pair_prevalence_summary_statistics_ids = relationship_rows
+<         .findAll { row ->
+<             tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+<                 def capability = getMethodCapabilities()[method]
+<                 capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+<             }
+<         }
+<         .collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }
+<         .findAll { summary_statistics_id -> summary_statistics_id }
+<         .collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
+<     def summary_prevalence_analysis_ids = summary_statistics_rows
+<         .findAll { row ->
+<             def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
+<             normaliseCellValue(row[0].producer_analysis_id) && (
+<                 tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } ||
+<                 summary_statistics_id in pair_prevalence_summary_statistics_ids
+<             )
+<         }
+<         .collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
+---
+>     def pair_prevalence_analysis_ids = relationship_rows.findAll { row ->
+>         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+>             def capability = getMethodCapabilities()[method]
+>             capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+>         }
+>     }.collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }.findAll { analysis_id -> analysis_id }.collect { analysis_id -> analysis_id.toString() } as Set
+>     def pair_prevalence_summary_statistics_ids = relationship_rows.findAll { row ->
+>         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+>             def capability = getMethodCapabilities()[method]
+>             capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+>         }
+>     }.collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }.findAll { summary_statistics_id -> summary_statistics_id }.collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
+>     def summary_prevalence_analysis_ids = summary_statistics_rows.findAll { row ->
+>         def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
+>         normaliseCellValue(row[0].producer_analysis_id) && (tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } || summary_statistics_id in pair_prevalence_summary_statistics_ids)
+>     }.collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
+
+### 26.04.6: does the formatted file re-parse?
+Linting Nextflow code..
+Linting: main.nf
+Nextflow linting complete!
+ ✅ 1 file had no errors
