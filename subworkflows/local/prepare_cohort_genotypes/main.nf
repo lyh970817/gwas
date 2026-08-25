@@ -2,9 +2,12 @@
 // All three processes report on the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULE: Local to the pipeline
-include { PLINK2_MAKEPGEN } from '../../../modules/local/plink2/makepgen/main'
-include { PLINK2_MAKEBED  } from '../../../modules/local/plink2/makebed/main'
-include { PLINK2_VCF      } from '../../../modules/local/plink2/vcf/main'
+include { PLINK2_MAKEPGEN               } from '../../../modules/local/plink2/makepgen/main'
+include { PLINK2_MAKEBED                } from '../../../modules/local/plink2/makebed/main'
+include { PLINK2_VCF                    } from '../../../modules/local/plink2/vcf/main'
+
+// FUNCTION: Local to the pipeline
+include { getPlink1GenotypeMethodTokens } from '../validate_gwas_input'
 
 workflow PREPARE_COHORT_GENOTYPES {
     take:
@@ -89,13 +92,18 @@ workflow PREPARE_COHORT_GENOTYPES {
         .map { _cohort_id, meta, pgen, psam, pvar -> [meta, pgen, psam, pvar] }
 
     //
-    // LDAK, GCTA GREML-LDMS and GCTA bivariate REML-LDMS consume PLINK 1. The derivative is lazy — only
-    // a cohort with a route that needs it is converted — and cohort-keyed, so unary and pair requests
-    // share one conversion. It is always derived from the canonical PLINK 2 bundle, even when the
-    // researcher supplied PLINK 1, so every input encoding crosses the same compatibility seam.
+    // LDAK, GCTA GREML-LDMS and GCTA bivariate REML-LDMS consume PLINK 1. The method registry, not a list
+    // repeated here, decides which selectors need the compatibility bundle. The derivative is lazy — only a
+    // cohort with a route that needs it is converted — and cohort-keyed, so unary and pair requests share one
+    // conversion. It is always derived from the canonical PLINK 2 bundle, even when the researcher supplied
+    // PLINK 1, so every input encoding crosses the same compatibility seam.
     //
+    def plink1_methods = getPlink1GenotypeMethodTokens()
     def ch_plink1_analyses = ch_analyses.filter { meta, _genotype_files ->
-        'ldak_kvik' in (meta.association_methods ?: []) || (meta.heritability_methods ?: []).any { method -> method in ['ldak_reml', 'ldak_he', 'ldak_pcgc'] } || 'gcta_greml_ldms' in (meta.heritability_methods ?: []) || (meta.relationship_id && meta.matrix_kind == 'gcta_ldms')
+        def selected = meta.relationship_id
+            ? [meta.method]
+            : (meta.association_methods ?: []) + (meta.heritability_methods ?: [])
+        selected.any { method -> method in plink1_methods }
     }
 
     def ch_plink1_cohort_genotypes = ch_plink1_analyses
