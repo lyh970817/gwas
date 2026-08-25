@@ -4,8 +4,6 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // MODULE: Local to the pipeline
-include { CANONICALISE_SUMMARY_STATISTICS                     } from '../modules/local/canonicalise_summary_statistics/main'
-include { GWASLAB_HARMONIZE                                   } from '../modules/local/gwaslab/harmonize/main'
 include { GCTA_FASTGWA                                        } from '../modules/local/gcta/fastgwa/main'
 include { NORMALISE_PHENOTYPES                                } from '../modules/local/normalise_phenotypes/main'
 include { NORMALISE_GCTA_BIVARIATE                            } from '../modules/local/normalise_gcta_bivariate/main'
@@ -23,13 +21,12 @@ include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subwork
 include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
 include { PREPARE_COHORT_GENOTYPES                            } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES                        } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_CANONICAL_SUMMARY_STATISTICS                  } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_GWAS_REPORTING                                } from '../subworkflows/local/route_gwas_reporting'
 include { ROUTE_LDAK_KVIK_ASSOCIATIONS                        } from '../subworkflows/local/route_ldak_kvik_associations'
 include { ROUTE_LDAK_SUMMARY_ANALYSES                         } from '../subworkflows/local/route_ldak_summary_analyses'
 include { ROUTE_LDSC_SUMMARY_ANALYSES                         } from '../subworkflows/local/route_ldsc_summary_analyses'
 include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
-include { getAssociationColumnMappingJson                     } from '../subworkflows/local/validate_gwas_input'
-include { getInternalSummaryMetadata                          } from '../subworkflows/local/validate_gwas_input'
 include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
@@ -297,7 +294,7 @@ workflow GWAS {
     )
 
     //
-    // MODULE: GWASLab harmonisation of every association result
+    // Association result fan-in ahead of canonical serialisation
     //
     // One record per analysis per association method actually exercised. Each route contributes an
     // adapter that names its method on the meta map and normalises whatever emissions the programme
@@ -328,50 +325,21 @@ workflow GWAS {
         GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }
     )
 
-    // Internal association results and external raw inputs converge before GWASLab. The producer-specific
-    // internal mappings remain explicit and unchanged; an external row supplies a named GWASLab format.
-    // Already-canonical external inputs bypass GWASLab and enter only the canonical contract validator.
-    def ch_harmonise_records = ch_association_results
-        .map { meta, source ->
-            def summary_meta = getInternalSummaryMetadata(meta, meta.method) + [
-                method: meta.method,
-                source_name: source.name,
-                gwaslab_input_format: getAssociationColumnMappingJson(meta.method, meta.is_binary),
-            ]
-            [summary_meta, source]
-        }
-        .mix(
-            ch_external_summary_statistics.filter { meta, _source -> meta.source_mode == 'raw' }.map { meta, source -> [meta + [method: 'external', gwaslab_input_format: meta.source_format], source] }
-        )
-
-    // The optional GWASLab resources remain build-keyed pipeline parameters. This is independent from the
-    // request-owned LDSC/LDAK reference catalog and does not infer a scientific analysis reference.
+    //
+    // PIPELINE ROUTE: canonical summary statistics from every internal and external origin
+    //
+    // The controller owns the internal producer metadata, the producer-specific GWASLab mappings, the
+    // raw/canonical convergence, the strict source reattribution and the canonical serialisation. The spine
+    // keeps the fan-in of the association routes above and the fan-out of the canonical stream to the LDAK and
+    // LDSC summary routes below, and resolves the build-keyed GWASLab resources here because they are pipeline
+    // parameters rather than request-owned references.
     def gwaslab_references = getGwaslabReferences()
-    def ch_harmonise_input = ch_harmonise_records.multiMap { meta, source ->
-        def references = gwaslab_references[meta.build]
-        sumstats: [meta, source, meta.gwaslab_input_format, meta.build]
-        reference_fasta: [[id: meta.build], references.fasta, references.fasta_index]
-        rsid_reference: [[id: meta.build], references.rsid_vcf, references.rsid_vcf_index]
-        strand_reference: [[id: meta.build], references.strand_vcf, references.strand_vcf_index]
-    }
 
-    GWASLAB_HARMONIZE(
-        ch_harmonise_input.sumstats,
-        ch_harmonise_input.reference_fasta,
-        ch_harmonise_input.rsid_reference,
-        ch_harmonise_input.strand_reference,
+    ROUTE_CANONICAL_SUMMARY_STATISTICS(
+        ch_association_results,
+        ch_external_summary_statistics,
+        gwaslab_references,
     )
-
-    def ch_harmonise_sources = ch_harmonise_records.map { meta, source -> [meta.summary_statistics_id, source] }
-    def ch_canonical_candidates = GWASLAB_HARMONIZE.out.sumstats
-        .map { meta, candidate -> [meta.summary_statistics_id, meta, candidate] }
-        .join(ch_harmonise_sources, failOnDuplicate: true, failOnMismatch: true)
-        .map { _summary_statistics_id, meta, candidate, source -> [meta, candidate, source] }
-        .mix(
-            ch_external_summary_statistics.filter { meta, _source -> meta.source_mode == 'canonical' }.map { meta, source -> [meta, source, source] }
-        )
-
-    CANONICALISE_SUMMARY_STATISTICS(ch_canonical_candidates)
 
     //
     // PIPELINE ROUTE: LDAK SumHer and SumCors from canonical summary statistics
@@ -387,7 +355,7 @@ workflow GWAS {
     ROUTE_LDAK_SUMMARY_ANALYSES(
         ch_sumher_requests,
         ch_sumcors_requests,
-        CANONICALISE_SUMMARY_STATISTICS.out.summary_statistics,
+        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
     )
 
     //
@@ -405,7 +373,7 @@ workflow GWAS {
     ROUTE_LDSC_SUMMARY_ANALYSES(
         ch_ldsc_h2_requests,
         ch_ldsc_rg_requests,
-        CANONICALISE_SUMMARY_STATISTICS.out.summary_statistics,
+        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
     )
 
     //
@@ -705,7 +673,7 @@ workflow GWAS {
     )
 
     emit:
-    canonical_summary_statistics  = CANONICALISE_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(canonical_summary_statistics) ]
-    summary_statistics_provenance = CANONICALISE_SUMMARY_STATISTICS.out.provenance // channel: [ val(meta), path(provenance) ]
+    canonical_summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(canonical_summary_statistics) ]
+    summary_statistics_provenance = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.provenance // channel: [ val(meta), path(provenance) ]
     multiqc_report                = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
 }
