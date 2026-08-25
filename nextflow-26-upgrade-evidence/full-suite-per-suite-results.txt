@@ -1,0 +1,41 @@
+TOTAL                                                      338     0
+pipeline                                                     1     0
+subworkflow VALIDATE_GWAS_INPUT                              7     0
+subworkflow PREPARE_COHORT_GENOTYPES                         3     0
+static public profiles                                       3     0
+standalone LDSC production routes                            3     0
+relational REGENIE association route                        14     0
+relational LDAK-KVIK method configuration                   17     0
+relational LDAK heritability method configuration            6     0
+relational GCTA GREML method configuration                  11     0
+relational GCTA GREML-LDMS method configuration              8     0
+relational GCTA fastGWA method configuration                 4     0
+relatedness matrix identity functions                       29     0
+REGENIE prediction identity                                  1     0
+Process PREPARE_BIVARIATE_TRAITS                             2     0
+Process NORMALISE_LDAK_SUMHER                                1     0
+Process NORMALISE_LDAK_SUMCORS                               2     0
+Process NORMALISE_GCTA_BIVARIATE                            14     0
+Process LDSC_RG                                              3     0
+Process LDSC_MUNGESUMSTATS                                   3     0
+Process LDSC_H2                                              3     0
+Process CANONICALISE_SUMMARY_STATISTICS                      4     0
+Process ATTRIBUTE_LDAK_KVIK_PREDICTIONS                      2     0
+primary GCTA bivariate REML-LDMS relationship route          3     0
+primary dense GCTA bivariate REML relationship route         9     0
+pipeline-generated summaries across downstream summary routes     1     0
+nf-core LDAK_SUMHER module                                   3     0
+nf-core LDAK_SUMCORS module                                  3     0
+linked-manifest cohort genotype representations              9     0
+linked GWAS input contract functions                       114     0
+linked cohort and analysis manifests                        20     0
+LDAK SumHer and SumCors summary-statistics routes            8     0
+LDAK REML heritability route                                 2     0
+LDAK relatedness matrix build and reuse                      8     0
+LDAK-KVIK prediction identity                                1     0
+LDAK-KVIK association route                                  8     0
+LDAK HE and PCGC heritability routes                         2     0
+GCTA GREML-LDMS heritability route                           2     0
+GCTA fastGWA-MLM association route                           2     0
+full-scale profile                                           1     0
+external summary-statistics ingress                          1     0
