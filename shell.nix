@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 let
-  nextflowVersion = "25.10.4";
-  nextflowLanguageServerVersion = "25.10.3";
+  nextflowVersion = "26.04.6";
+  nextflowLanguageServerVersion = "26.04.3";
   nfCoreSource = "git+https://github.com/nf-core/tools.git@dev";
   waveVersion = "1.8.1";
 
@@ -10,7 +10,7 @@ let
     version = nextflowVersion;
     src = pkgs.fetchurl {
       url = "https://github.com/nextflow-io/nextflow/releases/download/v${nextflowVersion}/nextflow";
-      sha256 = "0mjl71im82pm2s5jj5fxy6nm5gph187nmm040y5cgj31yipzi2ln";
+      sha256 = "10c2jqc17rcm8b6gyvadd8pilj38mxknqflgasxwyhyppvnmb9v1";
     };
     dontUnpack = true;
     installPhase = ''
@@ -20,7 +20,7 @@ let
 
   nextflowLanguageServerJar = pkgs.fetchurl {
     url = "https://github.com/nextflow-io/language-server/releases/download/v${nextflowLanguageServerVersion}/language-server-all.jar";
-    hash = "sha256-aBaD4Naxand76OaIZ7WnjDkgei8T0rjwohRFRH2Z2FI=";
+    hash = "sha256-IM+jT24gLWuLq9jXhiAs4A4NObcMzsMpDiqz+9ArwBY=";
   };
 
   nextflowLanguageServer = pkgs.writeShellApplication {
