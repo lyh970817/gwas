@@ -125,16 +125,6 @@ topics:
         pattern: "versions.yml"
         ontologies:
           - edam: "http://edamontology.org/format_3750" # YAML
-containers:
-  conda:
-    linux/amd64:
-      lock_file: "modules/local/normalise_common_variant_meta/.conda-lock/linux_amd64.txt"
-  docker:
-    linux/amd64:
-      name: "community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927"
-  singularity:
-    linux/amd64:
-      https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/18/1841daa69f98a0b0ffcb8f545070c8350a75febb167202136eab0990131d31c0/data"
 authors:
   - "@andongni"
 maintainers:
