@@ -4,21 +4,18 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // MODULE: Local to the pipeline
-include { GCTA_FASTGWA                       } from '../modules/local/gcta/fastgwa/main'
 include { NORMALISE_PHENOTYPES               } from '../modules/local/normalise_phenotypes/main'
-include { PLINK2_GLM                         } from '../modules/local/plink2/glm/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
 include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
 include { ROUTE_GWAS_REPORTING               } from '../subworkflows/local/route_gwas_reporting'
-include { ROUTE_LDAK_KVIK_ASSOCIATIONS       } from '../subworkflows/local/route_ldak_kvik_associations'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
 include { ROUTE_LDSC_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldsc_summary_analyses'
-include { ROUTE_REGENIE_ASSOCIATIONS         } from '../subworkflows/local/route_regenie_associations'
 include { getGwaslabReferences               } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
@@ -107,20 +104,10 @@ workflow GWAS {
         }
     )
 
-    // The genotype bundle, the normalised phenotype and the merged covariate file, one element per
-    // analysis unit. `join` is correct here where `combine` was correct at the cohort seam: all three
-    // channels are keyed one-to-one on the analysis meta, so a missing or duplicated key is a defect
-    // and the strict form is what says so. The covariate file is optional, so it joins with
-    // `remainder: true` and arrives as `null` for a row that supplied none.
-    def ch_analysis_inputs = PREPARE_COHORT_GENOTYPES.out.genotypes
-        .filter { meta, _pgen, _psam, _pvar -> !meta.relationship_id }
-        .join(NORMALISE_PHENOTYPES.out.phenotype, failOnMismatch: true, failOnDuplicate: true)
-        .join(NORMALISE_PHENOTYPES.out.covariates, remainder: true)
-
-    // GCTA and LDAK reject a header row. fastGWA and every individual-level GRM heritability estimator
-    // therefore consume the headerless phenotype and covariate serialisations. This one prepared stream is
-    // built here because it has consumers in more than one route, and is passed to the heritability
-    // controller explicitly. Optional covariates are represented by [], which stages nothing.
+    // GCTA and LDAK reject a header row. LDAK-KVIK, fastGWA and every individual-level GRM heritability
+    // estimator therefore consume the headerless phenotype and covariate serialisations. This one prepared
+    // stream is built here because it has consumers in more than one route, and is passed to the association
+    // and heritability controllers explicitly. Optional covariates are represented by [], which stages nothing.
     def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
         .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
         .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
@@ -129,151 +116,30 @@ workflow GWAS {
         }
 
     //
-    // MODULE: PLINK 2 --glm association
+    // PIPELINE ROUTE: PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA associations
     //
-    // `multiMap` rather than three `map`s of the same channel, so the three inputs cannot drift out
-    // of lockstep. A row that supplied no covariates passes `[]`, which stages nothing: the module's
-    // covariate argument is a ternary on a `path` inside a tuple, and no placeholder file is written.
-    def ch_glm_input = ch_analysis_inputs
-        .filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'plink2' in meta.association_methods }
-        .multiMap { meta, pgen, psam, pvar, phenotype, covariates ->
-            genotypes: [meta, pgen, psam, pvar]
-            phenotype: [meta, phenotype]
-            covariates: [meta, covariates ?: []]
-        }
-
-    PLINK2_GLM(
-        ch_glm_input.genotypes,
-        ch_glm_input.phenotype,
-        ch_glm_input.covariates,
-    )
-
+    // Cohort genotype preparation, relatedness-matrix construction and phenotype normalisation stay here on
+    // the spine so each shared resource is built once and fanned out to every consumer across every domain.
+    // The controller owns association-method selection, the adaptation of those prepared streams into each
+    // family's native call shape, the two prediction-reusing routes, and the fan-in of four native result
+    // contracts onto one raw-association stream naming the producing method.
     //
-    // PIPELINE ROUTE: REGENIE association with shared Step 1 predictions
-    //
-    // The local route owns nf-core/gwas scientific identity, cross-analysis fit reuse and output
-    // attribution. Upstream-ready REGENIE components remain unaware of the relational input contract.
-    def ch_regenie_analyses = ch_analysis_inputs.filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'regenie' in meta.association_methods }
-
-    ROUTE_REGENIE_ASSOCIATIONS(
-        ch_regenie_analyses,
+    // The declared optional LDAK predictor list is narrowed out of the validated relational row here, because
+    // reading that row is spine knowledge; which analyses want it, and what its content identity contributes
+    // to the Step 1 reuse key, is the controller's. An absent file is [] and stages nothing.
+    ROUTE_ASSOCIATION_ANALYSES(
+        PREPARE_COHORT_GENOTYPES.out.genotypes,
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
+        NORMALISE_PHENOTYPES.out.phenotype,
+        NORMALISE_PHENOTYPES.out.covariates,
+        ch_gcta_phenotypes,
+        PREPARE_RELATEDNESS_MATRICES.out.gcta_sparse,
+        ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract, _ldak_weights ->
+            [meta, kvik_extract ?: []]
+        },
         params.regenie_step2_bsize,
         params.regenie_step1_mode,
         params.regenie_step1_jobs,
-    )
-
-    //
-    // PIPELINE ROUTE: LDAK-KVIK association with shared Step 1 predictions
-    //
-    // LDAK consumes the headerless phenotype serialisation and keeps quantitative and categorical
-    // covariates separate. Fold both optional covariate streams onto the total phenotype stream so
-    // that an absent file is represented by `[]` and stages nothing.
-    def ch_kvik_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
-        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
-        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
-        .filter { meta, _phenotype, _quant_covariates, _cat_covariates -> 'ldak_kvik' in meta.association_methods }
-        .map { meta, phenotype, quant_covariates, cat_covariates ->
-            [meta.id, meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
-        }
-
-    // The stageable predictor resource and its validated policy come from the relational LDAK family map.
-    // Both remain explicit tuple members so Nextflow stages the file, while their content identity is folded
-    // into the Step 1 reuse key below.
-    def ch_kvik_extract_policy = ch_analyses
-        .filter { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights -> 'ldak_kvik' in meta.association_methods }
-        .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract, _ldak_weights ->
-            [meta.id, meta, kvik_extract ?: [], meta.method_options.ldak.kvik_step1_subset]
-        }
-
-    def ch_kvik_genotypes = PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in (meta.association_methods ?: []) }
-
-    ROUTE_LDAK_KVIK_ASSOCIATIONS(
-        ch_kvik_genotypes,
-        ch_kvik_phenotypes.map { _analysis_id, meta, phenotype, quant_covariates, cat_covariates -> [meta, phenotype, quant_covariates, cat_covariates] },
-        ch_kvik_extract_policy.map { _analysis_id, meta, kvik_extract, subset_policy -> [meta, kvik_extract, subset_policy] },
-    )
-
-    //
-    // MODULE: GCTA fastGWA-MLM association
-    //
-    // This is deliberately inline: a composition wrapping one module is not an nf-core subworkflow.
-    // The module chooses --fastGWA-mlm or --fastGWA-mlm-binary from the boolean phenotype input;
-    // conf/modules/gcta.config supplies no arbitrary ext.args, so plain --fastGWA-lr is unreachable.
-    def ch_fastgwa_genotypes = PREPARE_COHORT_GENOTYPES.out.genotypes.filter { meta, _pgen, _psam, _pvar -> 'gcta_fastgwa' in meta.association_methods }
-    def ch_fastgwa_phenotypes = ch_gcta_phenotypes.filter { meta, _phenotype, _quant_covariates, _cat_covariates -> 'gcta_fastgwa' in meta.association_methods }
-
-    def ch_fastgwa_invocations = ch_fastgwa_genotypes
-        .map { meta, pgen, psam, pvar -> [meta.id, [meta, pgen, pvar, psam]] }
-        .join(
-            ch_fastgwa_phenotypes.map { meta, phenotype, _quant_covariates, _cat_covariates -> [meta.id, [meta, phenotype, meta.is_binary]] },
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: true,
-        )
-        .join(
-            ch_fastgwa_phenotypes.map { meta, _phenotype, quant_covariates, _cat_covariates -> [meta.id, [meta, quant_covariates]] },
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: true,
-        )
-        .join(
-            ch_fastgwa_phenotypes.map { meta, _phenotype, _quant_covariates, cat_covariates -> [meta.id, [meta, cat_covariates]] },
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: true,
-        )
-        .join(
-            PREPARE_RELATEDNESS_MATRICES.out.gcta_sparse.map { meta, sparse_grm_files -> [meta.id, [meta, sparse_grm_files]] },
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: true,
-        )
-        .multiMap { _analysis_id, genotypes, pheno, qcovar, covar, sparse_grm ->
-            genotypes: genotypes
-            pheno: pheno
-            qcovar: qcovar
-            covar: covar
-            sparse_grm: sparse_grm
-        }
-
-    GCTA_FASTGWA(
-        ch_fastgwa_invocations.genotypes,
-        ch_fastgwa_invocations.pheno,
-        ch_fastgwa_invocations.qcovar,
-        ch_fastgwa_invocations.covar,
-        ch_fastgwa_invocations.sparse_grm,
-    )
-
-    //
-    // Association result fan-in ahead of canonical serialisation
-    //
-    // One record per analysis per association method actually exercised. Each route contributes an
-    // adapter that names its method on the meta map and normalises whatever emissions the programme
-    // splits its results across; everything downstream is method-agnostic. `meta.id` stays the analysis
-    // identifier — the method is a separate key, because the analysis is what the published summary
-    // statistics directory is keyed by and the method is what distinguishes the files inside it.
-    //
-    // The pipeline's PLINK 2 policy emits linear results for quantitative traits and logistic-hybrid results
-    // for binary traits. Select those two supported forms explicitly so a generic module stub that materialises
-    // every optional output preserves the same one-result-per-analysis contract as a real configured run.
-    def ch_association_results = channel.empty()
-
-    def ch_plink2_results = PLINK2_GLM.out.linear.filter { meta, _sumstats -> !meta.is_binary }
-    ch_plink2_results = ch_plink2_results.mix(
-        PLINK2_GLM.out.logistic_hybrid.filter { meta, _sumstats -> meta.is_binary }
-    )
-
-    ch_association_results = ch_association_results.mix(
-        ch_plink2_results.map { meta, sumstats -> [meta + [method: 'plink2'], sumstats] }
-    )
-    ch_association_results = ch_association_results.mix(
-        ROUTE_REGENIE_ASSOCIATIONS.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
-    )
-    ch_association_results = ch_association_results.mix(
-        ROUTE_LDAK_KVIK_ASSOCIATIONS.out.harmonisation_input.map { meta, sumstats -> [meta + [method: 'ldak_kvik'], sumstats] }
-    )
-    ch_association_results = ch_association_results.mix(
-        GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }
     )
 
     //
@@ -281,13 +147,13 @@ workflow GWAS {
     //
     // The controller owns the internal producer metadata, the producer-specific GWASLab mappings, the
     // raw/canonical convergence, the strict source reattribution and the canonical serialisation. The spine
-    // keeps the fan-in of the association routes above and the fan-out of the canonical stream to the LDAK and
-    // LDSC summary routes below, and resolves the build-keyed GWASLab resources here because they are pipeline
-    // parameters rather than request-owned references.
+    // keeps the seam between the association controller above and the fan-out of the canonical stream to the
+    // LDAK and LDSC summary routes below, and resolves the build-keyed GWASLab resources here because they are
+    // pipeline parameters rather than request-owned references.
     def gwaslab_references = getGwaslabReferences()
 
     ROUTE_CANONICAL_SUMMARY_STATISTICS(
-        ch_association_results,
+        ROUTE_ASSOCIATION_ANALYSES.out.association_results,
         ch_external_summary_statistics,
         gwaslab_references,
     )
