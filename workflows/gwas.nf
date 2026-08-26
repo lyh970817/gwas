@@ -4,31 +4,28 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // MODULE: Local to the pipeline
-include { GCTA_FASTGWA                                        } from '../modules/local/gcta/fastgwa/main'
-include { NORMALISE_PHENOTYPES                                } from '../modules/local/normalise_phenotypes/main'
-include { PLINK2_GLM                                          } from '../modules/local/plink2/glm/main'
+include { GCTA_FASTGWA                       } from '../modules/local/gcta/fastgwa/main'
+include { NORMALISE_PHENOTYPES               } from '../modules/local/normalise_phenotypes/main'
+include { PLINK2_GLM                         } from '../modules/local/plink2/glm/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { GRM_HERITABILITY_GCTA                               } from '../subworkflows/local/grm_heritability_gcta'
-include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_HE   } from '../subworkflows/local/grm_heritability_ldak'
-include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_PCGC } from '../subworkflows/local/grm_heritability_ldak'
-include { GRM_HERITABILITY_LDAK as GRM_HERITABILITY_LDAK_REML } from '../subworkflows/local/grm_heritability_ldak'
-include { PREPARE_COHORT_GENOTYPES                            } from '../subworkflows/local/prepare_cohort_genotypes'
-include { PREPARE_RELATEDNESS_MATRICES                        } from '../subworkflows/local/prepare_relatedness_matrices'
-include { ROUTE_CANONICAL_SUMMARY_STATISTICS                  } from '../subworkflows/local/route_canonical_summary_statistics'
-include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS                  } from '../subworkflows/local/route_gcta_bivariate_relationships'
-include { ROUTE_GWAS_REPORTING                                } from '../subworkflows/local/route_gwas_reporting'
-include { ROUTE_LDAK_KVIK_ASSOCIATIONS                        } from '../subworkflows/local/route_ldak_kvik_associations'
-include { ROUTE_LDAK_SUMMARY_ANALYSES                         } from '../subworkflows/local/route_ldak_summary_analyses'
-include { ROUTE_LDSC_SUMMARY_ANALYSES                         } from '../subworkflows/local/route_ldsc_summary_analyses'
-include { ROUTE_REGENIE_ASSOCIATIONS                          } from '../subworkflows/local/route_regenie_associations'
-include { getGwaslabReferences                                } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepare_cohort_genotypes'
+include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepare_relatedness_matrices'
+include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
+include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
+include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
+include { ROUTE_GWAS_REPORTING               } from '../subworkflows/local/route_gwas_reporting'
+include { ROUTE_LDAK_KVIK_ASSOCIATIONS       } from '../subworkflows/local/route_ldak_kvik_associations'
+include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
+include { ROUTE_LDSC_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldsc_summary_analyses'
+include { ROUTE_REGENIE_ASSOCIATIONS         } from '../subworkflows/local/route_regenie_associations'
+include { getGwaslabReferences               } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
-include { softwareVersionsToYAML                              } from '../subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML             } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 
 // PLUGIN
-include { paramsSummaryMap                                    } from 'plugin/nf-schema'
+include { paramsSummaryMap                   } from 'plugin/nf-schema'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,8 +117,10 @@ workflow GWAS {
         .join(NORMALISE_PHENOTYPES.out.phenotype, failOnMismatch: true, failOnDuplicate: true)
         .join(NORMALISE_PHENOTYPES.out.covariates, remainder: true)
 
-    // GCTA and LDAK reject a header row. fastGWA, GREML and LDAK REML therefore consume the headerless
-    // phenotype and covariate serialisations. Optional covariates are represented by [], which stages nothing.
+    // GCTA and LDAK reject a header row. fastGWA and every individual-level GRM heritability estimator
+    // therefore consume the headerless phenotype and covariate serialisations. This one prepared stream is
+    // built here because it has consumers in more than one route, and is passed to the heritability
+    // controller explicitly. Optional covariates are represented by [], which stages nothing.
     def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
         .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
         .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
@@ -329,39 +328,25 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: GCTA GREML heritability
+    // PIPELINE ROUTE: individual-level GRM heritability, GCTA GREML/GREML-LDMS and LDAK REML/HE/PCGC
     //
-    // GCTA rejects a header row, so this route takes the headerless serialisations rather than the headered
-    // ones the association routes use, and the trait sits at a fixed third column, which makes `--mpheno`
-    // the constant 1 (set in conf/modules/gcta.config).
+    // Relatedness-matrix construction stays here on the spine so each scientifically distinct matrix is built
+    // once and fanned out to every consumer across every domain — this controller and the bivariate
+    // relationship controller below both consume matrices built by PREPARE_RELATEDNESS_MATRICES. The
+    // controller owns estimator selection, the adaptation of the prepared matrix and headerless phenotype
+    // streams into each family's native call shape, and the adjustment-covariate routing only LDAK needs.
+    // GCTA and LDAK keep separate native result contracts and are never merged into one heritability table.
     //
-    // The dense and LDMS matrix families retain distinct reuse keys and are adapted into the one public
-    // GCTA heritability contract here. The middle GRM element is absent for GREML and is the MGRM manifest
-    // for GREML-LDMS; the estimator selector makes the subworkflow enforce that distinction.
-    def ch_greml_matrices = PREPARE_RELATEDNESS_MATRICES.out.gcta_dense
-        .filter { meta, _grm_files -> !meta.relationship_id }
-        .map { meta, grm_files -> [meta, [], grm_files, 'greml'] }
-        .mix(
-            PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> !meta.relationship_id }.map { meta, mgrm, grm_files -> [meta, mgrm, grm_files, 'greml_ldms'] }
-        )
-
-    def ch_greml_inputs = ch_greml_matrices
-        .combine(ch_gcta_phenotypes, by: 0)
-        .multiMap { meta, mgrm, grm_files, estimator, phenotype, quant_covariates, cat_covariates ->
-            def route_meta = meta + [gcta_estimator: estimator]
-            grm: [route_meta, mgrm, grm_files]
-            pheno: [route_meta, phenotype]
-            qcovar: [route_meta, quant_covariates]
-            covar: [route_meta, cat_covariates]
-            estimator: [route_meta, estimator]
-        }
-
-    GRM_HERITABILITY_GCTA(
-        ch_greml_inputs.grm,
-        ch_greml_inputs.pheno,
-        ch_greml_inputs.qcovar,
-        ch_greml_inputs.covar,
-        ch_greml_inputs.estimator,
+    // The two GCTA matrix streams are narrowed to the unary analysis rows here, mirroring the
+    // relationship-scoped narrowing the bivariate route below does, so the controller never sees a
+    // relationship matrix. An LDAK kinship matrix is only ever requested by a unary heritability method, so
+    // that stream is passed as PREPARE_RELATEDNESS_MATRICES emits it.
+    ROUTE_GRM_HERITABILITY(
+        PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> !meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> !meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
+        ch_gcta_phenotypes,
+        NORMALISE_PHENOTYPES.out.adjustment_covariates,
     )
 
     //
@@ -379,95 +364,6 @@ workflow GWAS {
         NORMALISE_PHENOTYPES.out.phenotype_headerless,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> meta.relationship_id },
-    )
-
-    //
-    // SUBWORKFLOWS: LDAK REML, Haseman-Elston and PCGC heritability
-    //
-    // Matrix construction and the per-analysis unrelated-subset routing are owned above by
-    // PREPARE_RELATEDNESS_MATRICES. The three aliases preserve the reusable subworkflow's one-estimator
-    // contract while allowing one analysis unit to select all three methods without changing its identity.
-    // HE and PCGC additionally receive the numerical design built specifically for LDAK matrix adjustment;
-    // the estimators themselves retain the original quantitative/categorical split.
-    def ch_ldak_inputs = PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship
-        .join(ch_gcta_phenotypes, failOnDuplicate: true)
-        .join(NORMALISE_PHENOTYPES.out.adjustment_covariates, remainder: true)
-        .filter { record -> record.size() == 7 && record[1] != null }
-        .map { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
-            [meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ?: []]
-        }
-
-    def ch_ldak_reml_inputs = ch_ldak_inputs
-        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
-            'ldak_reml' in meta.heritability_methods
-        }
-        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
-            grm: [meta, grm_files]
-            pheno: [meta, phenotype, meta.population_prevalence != null ? meta.population_prevalence : []]
-            qcovar: [meta, quant_covariates]
-            covar: [meta, cat_covariates]
-            keep: [meta, keep ?: []]
-            estimator: [meta, 'reml']
-            adjustment_covar: [meta, adjustment_covariates]
-        }
-
-    GRM_HERITABILITY_LDAK_REML(
-        ch_ldak_reml_inputs.grm,
-        ch_ldak_reml_inputs.pheno,
-        ch_ldak_reml_inputs.qcovar,
-        ch_ldak_reml_inputs.covar,
-        ch_ldak_reml_inputs.keep,
-        ch_ldak_reml_inputs.estimator,
-        ch_ldak_reml_inputs.adjustment_covar,
-    )
-
-    def ch_ldak_he_inputs = ch_ldak_inputs
-        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
-            'ldak_he' in meta.heritability_methods
-        }
-        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
-            grm: [meta, grm_files]
-            pheno: [meta, phenotype, []]
-            qcovar: [meta, quant_covariates]
-            covar: [meta, cat_covariates]
-            keep: [meta, keep ?: []]
-            estimator: [meta, 'he']
-            adjustment_covar: [meta, adjustment_covariates]
-        }
-
-    GRM_HERITABILITY_LDAK_HE(
-        ch_ldak_he_inputs.grm,
-        ch_ldak_he_inputs.pheno,
-        ch_ldak_he_inputs.qcovar,
-        ch_ldak_he_inputs.covar,
-        ch_ldak_he_inputs.keep,
-        ch_ldak_he_inputs.estimator,
-        ch_ldak_he_inputs.adjustment_covar,
-    )
-
-    def ch_ldak_pcgc_inputs = ch_ldak_inputs
-        .filter { meta, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, _adjustment_covariates ->
-            'ldak_pcgc' in meta.heritability_methods
-        }
-        .multiMap { meta, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
-            grm: [meta, grm_files]
-            pheno: [meta, phenotype, meta.population_prevalence]
-            qcovar: [meta, quant_covariates]
-            covar: [meta, cat_covariates]
-            keep: [meta, keep ?: []]
-            estimator: [meta, 'pcgc']
-            adjustment_covar: [meta, adjustment_covariates]
-        }
-
-    // All constituent local modules report directly to the run-wide `versions` topic.
-    GRM_HERITABILITY_LDAK_PCGC(
-        ch_ldak_pcgc_inputs.grm,
-        ch_ldak_pcgc_inputs.pheno,
-        ch_ldak_pcgc_inputs.qcovar,
-        ch_ldak_pcgc_inputs.covar,
-        ch_ldak_pcgc_inputs.keep,
-        ch_ldak_pcgc_inputs.estimator,
-        ch_ldak_pcgc_inputs.adjustment_covar,
     )
 
     //
