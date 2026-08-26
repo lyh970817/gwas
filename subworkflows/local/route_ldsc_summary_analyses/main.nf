@@ -85,7 +85,7 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
         }
         .combine(ch_ldsc_munged, by: 0)
 
-    def ch_ldsc_h2_observed = ch_ldsc_h2_invocations.multiMap { key, meta, reference_ld_scores, regression_weights, munging_meta, munged_sumstats, munging_log ->
+    def ch_ldsc_h2_observed = ch_ldsc_h2_invocations.multiMap { key, meta, reference_ld_scores, regression_weights, _munging_meta, munged_sumstats, munging_log ->
         def route_meta = meta + [munging_keys: [key], native_scale: 'observed']
         sumstats: [route_meta, munged_sumstats]
         reference_ld_scores: [[id: meta.reference_bundle_id], reference_ld_scores]
@@ -103,7 +103,7 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
         .filter { _key, meta, _reference_ld_scores, _regression_weights, _munging_meta, _munged_sumstats, _munging_log ->
             meta.is_binary && meta.population_prevalence != null && meta.sample_prevalence != null
         }
-        .multiMap { key, meta, reference_ld_scores, regression_weights, munging_meta, munged_sumstats, munging_log ->
+        .multiMap { key, meta, reference_ld_scores, regression_weights, _munging_meta, munged_sumstats, _munging_log ->
             def route_meta = meta + [
                 munging_keys: [key],
                 native_scale: 'liability',
@@ -130,14 +130,14 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
             [left_key, meta, hapmap3_snplist, reference_ld_scores, regression_weights]
         }
         .combine(ch_ldsc_munged, by: 0)
-        .map { left_key, meta, hapmap3_snplist, reference_ld_scores, regression_weights, left_munging_meta, left_sumstats, left_munging_log ->
+        .map { left_key, meta, hapmap3_snplist, reference_ld_scores, regression_weights, _left_munging_meta, left_sumstats, left_munging_log ->
             def right_key = getLdscMungingKey(meta.right_summary_statistics_id, hapmap3_snplist)
             [right_key, left_key, meta, reference_ld_scores, regression_weights, left_sumstats, left_munging_log]
         }
 
     def ch_ldsc_rg_invocations = ch_ldsc_rg_left
         .combine(ch_ldsc_munged, by: 0)
-        .map { right_key, left_key, meta, reference_ld_scores, regression_weights, left_sumstats, left_munging_log, right_munging_meta, right_sumstats, right_munging_log ->
+        .map { right_key, left_key, meta, reference_ld_scores, regression_weights, left_sumstats, left_munging_log, _right_munging_meta, right_sumstats, right_munging_log ->
             [meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats, left_munging_log, right_munging_log]
         }
 
@@ -164,7 +164,7 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
             ].every { endpoint -> !endpoint.binary || (endpoint.population != null && endpoint.sample != null) }
             has_binary && complete
         }
-        .multiMap { meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats, left_munging_log, right_munging_log ->
+        .multiMap { meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats, _left_munging_log, _right_munging_log ->
             def population = [
                 meta.left_is_binary ? meta.left_population_prevalence : 'nan',
                 meta.right_is_binary ? meta.right_population_prevalence : 'nan',
