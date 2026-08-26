@@ -1,0 +1,82 @@
+nextflow_function {
+
+    name "Test GCTA bivariate result identity"
+    script "../main.nf"
+    tag "function"
+    tag "gcta"
+    tag "bivariate"
+
+    test("the native basename and the matrix reuse key are dropped and the request identity is restored") {
+        function "stripNativeMatrixIdentity"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'example_pgen.gcta_dense.3b47382e01cd',
+                    request_id: 'gcta_bivariate_reml--qt_bt',
+                    relationship_id: 'qt_bt',
+                    method: 'gcta_bivariate_reml',
+                    cohort: 'example_pgen',
+                    left_analysis_id: 'example_pgen_qt',
+                    right_analysis_id: 'example_pgen_bt',
+                    left_trait_id: 'QT',
+                    right_trait_id: 'BT',
+                    left_trait_type: 'quantitative',
+                    right_trait_type: 'binary',
+                    right_population_prevalence: 0.1,
+                    reml_bivar_prevalence: [0.1],
+                    matrix_key: '3b47382e01cd',
+                    matrix_basename: 'example_pgen.gcta_dense.3b47382e01cd',
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // The two identities that existed only for the native invocation are gone.
+                { assert !function.result.containsKey('matrix_key') },
+                { assert !function.result.containsKey('matrix_basename') },
+                // `id` was rewritten to the staged GRM basename for that same reason; downstream the record is
+                // the request, so the focal identity is restored.
+                { assert function.result.id == 'gcta_bivariate_reml--qt_bt' },
+                { assert function.result.id == function.result.request_id },
+                // Everything scientific is retained untouched, in the declared orientation.
+                { assert function.result.relationship_id == 'qt_bt' },
+                { assert function.result.method == 'gcta_bivariate_reml' },
+                { assert function.result.left_analysis_id == 'example_pgen_qt' },
+                { assert function.result.right_analysis_id == 'example_pgen_bt' },
+                { assert function.result.left_trait_id == 'QT' },
+                { assert function.result.right_trait_id == 'BT' },
+                { assert function.result.right_population_prevalence == 0.1 },
+                { assert function.result.reml_bivar_prevalence == [0.1] },
+            )
+        }
+    }
+
+    test("a record that never carried a native identity is returned unchanged apart from the restored id") {
+        function "stripNativeMatrixIdentity"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'gcta_bivariate_reml_ldms--qt_bt',
+                    request_id: 'gcta_bivariate_reml_ldms--qt_bt',
+                    relationship_id: 'qt_bt',
+                    method: 'gcta_bivariate_reml_ldms',
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [id: 'gcta_bivariate_reml_ldms--qt_bt', request_id: 'gcta_bivariate_reml_ldms--qt_bt', relationship_id: 'qt_bt', method: 'gcta_bivariate_reml_ldms'] },
+            )
+        }
+    }
+}
