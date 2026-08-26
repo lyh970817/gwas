@@ -12,7 +12,9 @@ components:
   - ldsc/mungesumstats
   - ldsc/h2
   - ldsc/rg
-  - normalise_ldsc
+  - normalise/ldsc
+  - digestfilebytes
+  - digestidentitytext
 input:
   - ch_h2_requests:
       description: Every validated ldsc_h2 unary request with its request-owned reference-bundle resources; an LDSC-family bundle supplies the HapMap3 SNP list, the LD-score directory and the regression-weight directory, and `[]` for the LDAK-family tagging file

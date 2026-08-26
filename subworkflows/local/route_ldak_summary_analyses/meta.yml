@@ -9,11 +9,11 @@ keywords:
   - genetic correlation
   - summary statistics
 components:
-  - prepare_ldak_summary_statistics
+  - prepare/ldak/summary/statistics
   - ldak/sumher
   - ldak/sumcors
-  - normalise_ldak_sumher
-  - normalise_ldak_sumcors
+  - normalise/ldak/sumher
+  - normalise/ldak/sumcors
 input:
   - ch_sumher_requests:
       description: Every validated ldak_sumher unary request with its request-owned reference-bundle resources; an LDAK-family bundle supplies the tagging file and `[]` for the three LDSC-family resources

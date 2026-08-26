@@ -10,6 +10,7 @@ components:
   - ldak/thincommon
   - ldak/kvikstep1
   - ldak/kvikstep2
+  - attribute/ldak/kvik/predictions
   - digestfilebytes
   - buildcanonicalpredictionkey
 input:

@@ -9,7 +9,9 @@ keywords:
   - provenance
 components:
   - gwaslab/harmonize
-  - canonicalise_summary_statistics
+  - canonicalise/summary/statistics
+  - getassociationcolumnmappingjson
+  - getinternalsummarymetadata
 input:
   - ch_association_results:
       description: Every internal association result, one per analysis unit per association method actually exercised; the producing route names its method on `meta.method`, and the analysis identity, trait, binariness, prevalences, genome build and ancestry are read from the same meta to derive the producer summary metadata and the registered GWASLab column mapping

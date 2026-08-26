@@ -9,10 +9,10 @@ keywords:
   - relationship
   - relatedness matrix
 components:
-  - prepare_bivariate_traits
+  - prepare/bivariate/traits
   - gcta/bivariatereml
   - gcta/bivariateremlldms
-  - normalise_gcta_bivariate
+  - normalise/gcta/bivariate
 input:
   - ch_relationships:
       description: Every validated individual-level relationship request, one row per selected method per relationship; meta carries the relationship identity, the request identity, the method token, the declared left and right analysis identities in their declared orientation, each endpoint's trait identity, trait type, binariness and prevalence declarations, and the bivariate prevalence and native-argument policy the method resolved. Reversed duplicates are refused by validation and never reach this controller

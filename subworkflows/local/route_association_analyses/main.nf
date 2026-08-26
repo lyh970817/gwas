@@ -70,7 +70,7 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     )
 
     //
-    // PIPELINE ROUTE: REGENIE association with shared Step 1 predictions
+    // SUBWORKFLOW: Pipeline route for REGENIE association with shared Step 1 predictions
     //
     // The local route owns nf-core/gwas scientific identity, cross-analysis fit reuse and output
     // attribution. Upstream-ready REGENIE components remain unaware of the relational input contract.
@@ -84,7 +84,7 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     )
 
     //
-    // PIPELINE ROUTE: LDAK-KVIK association with shared Step 1 predictions
+    // SUBWORKFLOW: Pipeline route for LDAK-KVIK association with shared Step 1 predictions
     //
     // LDAK consumes the headerless phenotype serialisation and keeps quantitative and categorical
     // covariates separate, so it is narrowed out of the prepared headerless stream rather than the headered

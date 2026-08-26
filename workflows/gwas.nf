@@ -10,12 +10,12 @@ include { NORMALISE_PHENOTYPES               } from '../modules/local/normalise_
 include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepare_relatedness_matrices'
 include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
-include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
-include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
-include { ROUTE_GWAS_REPORTING               } from '../subworkflows/local/route_gwas_reporting'
+include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
+include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
 include { ROUTE_LDSC_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldsc_summary_analyses'
+include { ROUTE_GWAS_REPORTING               } from '../subworkflows/local/route_gwas_reporting'
 include { getGwaslabReferences               } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
@@ -44,6 +44,43 @@ workflow GWAS {
 
     main:
 
+    // This is the pipeline spine and owns exactly ten things: the public `take:` contract above, run-level
+    // analysis and method metadata, the union of genotype consumers and their single preparation, the union
+    // of relatedness-matrix consumers and their single preparation, phenotype normalisation plus the
+    // tool-neutral per-analysis seams derived from it, the route-controller calls and the dependencies
+    // between their semantic results, the fan-out of canonical summaries to the summary-scale routes,
+    // run-wide version collection and collation, the reporting call, and the public `emit:` block below.
+    //
+    // Every route controller is a pipeline-owned subworkflow that receives all configuration values and
+    // resources explicitly through its own `take:`. None of them reads `params`, `workflow` or `projectDir`,
+    // and none of them owns a shared resource, the validation contract, or a public emission.
+    //
+    //   ch_analyses / ch_relationships
+    //          |
+    //          v
+    //   PREPARE_COHORT_GENOTYPES ---> PREPARE_RELATEDNESS_MATRICES     NORMALISE_PHENOTYPES
+    //          |                                |                              |
+    //          +--------------------------------+------------------------------+   shared resources,
+    //          |                                |                              |   each built once
+    //          v                                v                              v
+    //   ROUTE_ASSOCIATION_ANALYSES     ROUTE_GRM_HERITABILITY     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS
+    //          |
+    //          | association_results                        ch_external_summary_statistics
+    //          v                                                         |
+    //   ROUTE_CANONICAL_SUMMARY_STATISTICS <---------------------------- +
+    //          |
+    //          | summary_statistics (canonical convergence point)
+    //          +--> ROUTE_LDAK_SUMMARY_ANALYSES
+    //          +--> ROUTE_LDSC_SUMMARY_ANALYSES
+    //          +--> SIBLING SEAM: a future meta-analysis route attaches here (issue #9)
+    //
+    //   channel.topic('versions') --> softwareVersionsToYAML --> ROUTE_GWAS_REPORTING --> multiqc_report
+
+    //
+    // Run-level analysis and method metadata for the report
+    //
+    // Both are materialised here rather than in the reporting controller because they describe the whole run
+    // as validation admitted it, across all four request domains, and no single route can see that union.
     def ch_analysis_metadata = ch_analyses
         .map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights -> meta }
         .collect()
@@ -60,6 +97,9 @@ workflow GWAS {
         )
         .collect()
 
+    //
+    // Union of the genotype consumers across every request domain
+    //
     // One element per analysis unit carrying the genotype files it declared. A pairwise LDMS request is
     // also a consumer of the cohort's lazy PLINK 1 derivative, so it enters this request stream without
     // inheriting either endpoint's unary method settings. Cohort preparation collapses every request to
@@ -71,6 +111,9 @@ workflow GWAS {
         ch_relationships.filter { meta, _genotype_files, _pair_quant_covariates, _pair_cat_covariates -> meta.matrix_kind == 'gcta_ldms' }.map { meta, genotype_files, _pair_quant_covariates, _pair_cat_covariates -> [meta, genotype_files] }
     )
 
+    //
+    // Union of the relatedness-matrix consumers across every request domain
+    //
     // Matrix preparation additionally receives the optional LDAK weights Path. It derives identity from the
     // bytes before request deduplication and keeps the Path outside matrix metadata and the published key.
     def ch_relatedness_analyses = ch_analyses.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, ldak_weights ->
@@ -116,9 +159,9 @@ workflow GWAS {
         }
 
     //
-    // PIPELINE ROUTE: PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA associations
+    // SUBWORKFLOW: Pipeline route for PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA associations
     //
-    // Cohort genotype preparation, relatedness-matrix construction and phenotype normalisation stay here on
+    // Cohort genotype preparation, relatedness-matrix construction and phenotype normalisation stay above on
     // the spine so each shared resource is built once and fanned out to every consumer across every domain.
     // The controller owns association-method selection, the adaptation of those prepared streams into each
     // family's native call shape, the two prediction-reusing routes, and the fan-in of four native result
@@ -143,60 +186,9 @@ workflow GWAS {
     )
 
     //
-    // PIPELINE ROUTE: canonical summary statistics from every internal and external origin
+    // SUBWORKFLOW: Pipeline route for individual-level GRM heritability, GCTA GREML/GREML-LDMS and LDAK REML/HE/PCGC
     //
-    // The controller owns the internal producer metadata, the producer-specific GWASLab mappings, the
-    // raw/canonical convergence, the strict source reattribution and the canonical serialisation. The spine
-    // keeps the seam between the association controller above and the fan-out of the canonical stream to the
-    // LDAK and LDSC summary routes below, and resolves the build-keyed GWASLab resources here because they are
-    // pipeline parameters rather than request-owned references.
-    def gwaslab_references = getGwaslabReferences()
-
-    ROUTE_CANONICAL_SUMMARY_STATISTICS(
-        ROUTE_ASSOCIATION_ANALYSES.out.association_results,
-        ch_external_summary_statistics,
-        gwaslab_references,
-    )
-
-    //
-    // PIPELINE ROUTE: LDAK SumHer and SumCors from canonical summary statistics
-    //
-    // Both summary-scale LDAK methods share one controller because they share the canonical-to-LDAK
-    // preparation and the endpoint resolution that feeds it. The spine selects the route; the controller
-    // owns preparation reuse, ordered pair resolution, native-argument and runtime policy, and
-    // normalization. It receives the full validated request tuple so the reference-bundle convention stays
-    // request-owned rather than becoming spine knowledge.
-    def ch_sumher_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumher' }
-    def ch_sumcors_requests = ch_pair_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumcors' }
-
-    ROUTE_LDAK_SUMMARY_ANALYSES(
-        ch_sumher_requests,
-        ch_sumcors_requests,
-        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
-    )
-
-    //
-    // PIPELINE ROUTE: standalone CBIIT Python 3 LDSC munging, H2 and RG
-    //
-    // Both summary-scale LDSC methods share one controller because they share the content-addressed munging
-    // that feeds them: a canonical summary consumed by a unary H2 request and by either side of any number of
-    // RG requests is munged exactly once. The spine selects the route; the controller owns the munging reuse
-    // identity, endpoint resolution in declared pair order, observed- and liability-scale selection, native
-    // log gathering and normalization. It receives the full validated request tuple so the reference-bundle
-    // convention stays request-owned rather than becoming spine knowledge.
-    def ch_ldsc_h2_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldsc_h2' }
-    def ch_ldsc_rg_requests = ch_pair_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldsc_rg' }
-
-    ROUTE_LDSC_SUMMARY_ANALYSES(
-        ch_ldsc_h2_requests,
-        ch_ldsc_rg_requests,
-        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
-    )
-
-    //
-    // PIPELINE ROUTE: individual-level GRM heritability, GCTA GREML/GREML-LDMS and LDAK REML/HE/PCGC
-    //
-    // Relatedness-matrix construction stays here on the spine so each scientifically distinct matrix is built
+    // Relatedness-matrix construction stays above on the spine so each scientifically distinct matrix is built
     // once and fanned out to every consumer across every domain — this controller and the bivariate
     // relationship controller below both consume matrices built by PREPARE_RELATEDNESS_MATRICES. The
     // controller owns estimator selection, the adaptation of the prepared matrix and headerless phenotype
@@ -216,10 +208,10 @@ workflow GWAS {
     )
 
     //
-    // PIPELINE ROUTE: GCTA bivariate REML and REML-LDMS relationship requests
+    // SUBWORKFLOW: Pipeline route for GCTA bivariate REML and REML-LDMS relationship requests
     //
     // Individual-level relationships are their own domain, disjoint from the summary-statistics pair requests
-    // routed above. Dense and LDMS share one controller because they share the relationship definition, the
+    // routed below. Dense and LDMS share one controller because they share the relationship definition, the
     // endpoint resolution against the normalised phenotypes and the bivariate trait table built from them. The
     // spine keeps matrix construction and phenotype normalisation; the controller owns relationship
     // de-duplication, declared orientation, preparation reuse, native identity and normalization. The matrix
@@ -231,6 +223,84 @@ workflow GWAS {
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> meta.relationship_id },
     )
+
+    //
+    // SUBWORKFLOW: Pipeline route for canonical summary statistics from every internal and external origin
+    //
+    // The single convergence point of the summary-statistics half of the pipeline: it takes the raw
+    // association results produced above and the externally supplied sources from the validated manifest, and
+    // emits one canonical serialisation per summary_statistics_id. The controller owns the internal producer
+    // metadata, the producer-specific GWASLab mappings, the raw/canonical convergence, the strict source
+    // reattribution and the canonical serialisation. The spine keeps the seam between the association
+    // controller above and the fan-out below, and resolves the build-keyed GWASLab resources here because
+    // they are pipeline parameters rather than request-owned references.
+    def gwaslab_references = getGwaslabReferences()
+
+    ROUTE_CANONICAL_SUMMARY_STATISTICS(
+        ROUTE_ASSOCIATION_ANALYSES.out.association_results,
+        ch_external_summary_statistics,
+        gwaslab_references,
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for LDAK SumHer and SumCors from canonical summary statistics
+    //
+    // First sibling on the canonical summary-statistics fan-out. Both summary-scale LDAK methods share one
+    // controller because they share the canonical-to-LDAK preparation and the endpoint resolution that feeds
+    // it. The spine selects the route; the controller owns preparation reuse, ordered pair resolution,
+    // native-argument and runtime policy, and normalization. It receives the full validated request tuple so
+    // the reference-bundle convention stays request-owned rather than becoming spine knowledge.
+    def ch_sumher_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumher' }
+    def ch_sumcors_requests = ch_pair_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumcors' }
+
+    ROUTE_LDAK_SUMMARY_ANALYSES(
+        ch_sumher_requests,
+        ch_sumcors_requests,
+        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for standalone CBIIT Python 3 LDSC munging, H2 and RG
+    //
+    // Second sibling on the canonical summary-statistics fan-out. Both summary-scale LDSC methods share one
+    // controller because they share the content-addressed munging that feeds them: a canonical summary
+    // consumed by a unary H2 request and by either side of any number of RG requests is munged exactly once.
+    // The spine selects the route; the controller owns the munging reuse identity, endpoint resolution in
+    // declared pair order, observed- and liability-scale selection, native log gathering and normalization. It
+    // receives the full validated request tuple so the reference-bundle convention stays request-owned rather
+    // than becoming spine knowledge.
+    def ch_ldsc_h2_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldsc_h2' }
+    def ch_ldsc_rg_requests = ch_pair_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldsc_rg' }
+
+    ROUTE_LDSC_SUMMARY_ANALYSES(
+        ch_ldsc_h2_requests,
+        ch_ldsc_rg_requests,
+        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
+    )
+
+    // SIBLING SEAM — a future meta-analysis route (GitHub issue lyh970817/gwas#9) attaches here.
+    //
+    // ROUTE_LDAK_SUMMARY_ANALYSES and ROUTE_LDSC_SUMMARY_ANALYSES are siblings, not a chain: each reads
+    // ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics independently and neither observes the other.
+    // A meta-analysis route is the same kind of sibling and attaches at this point, after canonical
+    // convergence and after the two existing consumers, by the same three-part pattern they both follow:
+    //
+    //   1. Select the route on the spine by filtering the validated request stream that carries it — for a
+    //      meta-analysis request that is a pair- or set-scoped stream reaching GWAS through `take:`, filtered
+    //      on `meta.method` exactly as the two blocks above filter theirs. The spine narrows; it does not
+    //      interpret the request.
+    //   2. Call ROUTE_META_ANALYSIS(<selected requests>, ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
+    //      <any explicit configuration values>). Pass the canonical stream unmodified: it is a plain queue
+    //      channel and a third reader adds no barrier, no reuse change and no cardinality change to the two
+    //      existing readers. Do not insert a collect()/groupTuple() here to materialise it for the new route.
+    //   3. Let the controller own everything downstream of that seam — endpoint resolution, per-cohort
+    //      preparation and its reuse identity, native meta-analysis invocation, and result normalisation —
+    //      and have it emit normalised semantic results upward the way its siblings do.
+    //
+    // Nothing else on this spine changes: the union channels, the shared-resource preparations, the version
+    // topic and the public `emit:` block below are all independent of how many canonical-summary consumers
+    // exist. If meta-analysed output must itself become a canonical summary, that is a change to
+    // ROUTE_CANONICAL_SUMMARY_STATISTICS's inputs rather than a second convergence point here.
 
     //
     // Collate and save software versions
