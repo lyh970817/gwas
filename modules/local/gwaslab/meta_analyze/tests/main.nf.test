@@ -79,6 +79,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -133,6 +134,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -173,6 +175,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -224,6 +227,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -260,9 +264,6 @@ nextflow_process {
             def one = parent(outputDir, 'shard1', study1)
             def two = parent(outputDir, 'shard2', study2)
             def three = parent(outputDir, 'shard3', study3)
-            params {
-                meta_analyze_args = '--chromosome 2'
-            }
             process {
                 """
                 input[0] = [
@@ -271,6 +272,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '2',
                 ]
                 """
             }
@@ -308,6 +310,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -351,6 +354,7 @@ nextflow_process {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -391,6 +395,7 @@ nextflow_process {
                     ['study1', 'study2'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -423,6 +428,7 @@ nextflow_process {
                     ['study1', 'study2'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -453,6 +459,7 @@ nextflow_process {
                     ['study1', 'study2'],
                     'auto',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -477,6 +484,7 @@ nextflow_process {
                     ['study1'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -502,6 +510,7 @@ nextflow_process {
                     ['study1', 'study1'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -530,6 +539,7 @@ nextflow_process {
                     ['study1', 'study2'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }
@@ -557,6 +567,7 @@ nextflow_process {
                     ['study1', 'study2'],
                     'gwaslab',
                     'GRCh37',
+                    '',
                 ]
                 """
             }

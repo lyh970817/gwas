@@ -7,8 +7,8 @@ process METASOFT_RE2 {
     // Redistribution permission from the author is recorded in
     // /usr/share/doc/metasoft/REDISTRIBUTION-PERMISSION.md inside the image.
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'docker://ghcr.io/lyh970817/metasoft@sha256:185031dde4a040120238d62e5ca8ff439dd16da07af58d7d746c486a5d7c4ff2'
-        : 'ghcr.io/lyh970817/metasoft@sha256:185031dde4a040120238d62e5ca8ff439dd16da07af58d7d746c486a5d7c4ff2'}"
+        ? 'docker://ghcr.io/lyh970817/metasoft@sha256:29dfc8a85266582cf5a05039c41b90d3003b3e06920fa010ed3a20268027c2f3'
+        : 'ghcr.io/lyh970817/metasoft@sha256:29dfc8a85266582cf5a05039c41b90d3003b3e06920fa010ed3a20268027c2f3'}"
 
     input:
     tuple val(meta), path(effect_matrix)

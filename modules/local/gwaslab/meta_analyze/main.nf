@@ -8,7 +8,7 @@ process GWASLAB_META_ANALYZE {
         : 'quay.io/biocontainers/gwaslab:4.1.9--pyhdfd78af_0'}"
 
     input:
-    tuple val(meta), path(sumstats, stageAs: 'parents/*'), val(study_names), val(input_format), val(genome_build)
+    tuple val(meta), path(sumstats, stageAs: 'parents/*'), val(study_names), val(input_format), val(genome_build), val(chromosome)
 
     output:
     tuple val(meta), path("${prefix}.meta.tsv.gz"), emit: meta_analysis
@@ -23,13 +23,18 @@ process GWASLAB_META_ANALYZE {
     script:
     prefix = task.ext.prefix ?: meta.id
     args_literal = groovy.json.JsonOutput.toJson(task.ext.args ?: '')
-    parents_literal = groovy.json.JsonOutput.toJson(sumstats.collect { parent -> parent.toString() })
+    // A single staged file arrives as a Path, whose `collect` iterates name components, so the
+    // "at least two parents" check must see a real one-element list rather than a split path.
+    parents_literal = groovy.json.JsonOutput.toJson(
+        (sumstats instanceof List ? sumstats : [sumstats]).collect { parent -> parent.toString() }
+    )
     study_names_literal = groovy.json.JsonOutput.toJson(
         (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
     )
     input_format_literal = groovy.json.JsonOutput.toJson(input_format.toString())
     genome_build_literal = groovy.json.JsonOutput.toJson(genome_build.toString())
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
+    chromosome_literal = groovy.json.JsonOutput.toJson(chromosome ? chromosome.toString() : null)
     template("meta_analyze.py")
 
     stub:

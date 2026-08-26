@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: "common_variant_meta_analysis"
+description: |
+  Meta-analyse two or more canonical GWAS summary statistics, optionally scattered by chromosome.
+
+  Fixed effects, conventional random effects and Han-Eskin RE2 are strictly per variant, so the whole
+  composition scatters with no special handling: each shard restricts every parent to one chromosome and
+  runs the identical computation. The gather then requires exactly one completed shard per requested
+  chromosome and refuses missing, duplicate or unexpected shards, mismatched headers, rows labelled with
+  the wrong chromosome, and variants duplicated within or across shards. A chromosome that legitimately
+  has no eligible variant must arrive as a valid header-only shard whose completion record says so; an
+  absent output is never read as an empty chromosome. An unscattered request is gathered too, as a
+  one-shard gather, so the same completeness checks apply either way.
+
+  MR-MEGA is deliberately not part of this composition. Its ancestry axes come from genome-wide
+  between-study allele-frequency differences, so per-chromosome axis derivation would fit a different
+  model on every shard. The supported design is two-pass and is documented in META-ANALYSIS-STATUS.md.
+keywords:
+  - gwas
+  - genome-wide association study
+  - meta-analysis
+  - fixed effects
+  - random effects
+  - RE2
+  - scatter gather
+components:
+  - gwaslab/meta_analyze
+  - metasoft/re2
+  - normalise_common_variant_meta
+  - gather_meta_shards
+input:
+  - ch_request:
+      type: channel
+      description: |
+        One element per meta-analysis request:
+        `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(models), val(chromosomes) ]`
+
+        - `meta`: map whose `id` is the request identity and the gathered output prefix
+        - `parents`: ordered canonical parent tables, at least two, in exact positional study order
+        - `study_names`: unique labels in the same order; fixes the direction string and column order
+        - `input_format`: explicit GWASLab format name; automatic detection is rejected
+        - `genome_build`: GRCh37 or GRCh38, shared by every parent
+        - `models`: subset of `fixed`, `random` and `re2`; `fixed` is always produced
+        - `chromosomes`: ordered chromosomes to scatter over, or `[]` for one genome-wide shard
+
+        Per-request model settings other than the selection itself, such as `--random-effects` and
+        `--min-studies`, are supplied to `GWASLAB_META_ANALYZE` through `task.ext.args`. The chromosome
+        selector is channel-borne instead, because it varies per task under scatter.
+      structure:
+        - type: map
+          description: Request metadata; `id` is the request identity
+        - type: list
+          description: Ordered canonical parent summary-statistics tables
+        - type: list
+          description: Ordered unique study labels
+        - type: string
+          description: Explicit GWASLab input format
+        - type: string
+          description: Genome build
+        - type: list
+          description: Selected models
+        - type: list
+          description: Chromosomes to scatter over, empty for genome-wide
+output:
+  - candidate:
+      type: channel
+      description: "`[ val(meta), path('*.gathered.tsv.gz') ]` — exactly one complete canonical candidate per request. BETA, SE and P are always the fixed-effect result."
+      structure:
+        - type: map
+          description: Request metadata
+        - type: file
+          description: Gathered canonical candidate
+          pattern: "*.gathered.tsv.gz"
+  - gather_report:
+      type: channel
+      description: "`[ val(meta), path('*.gather_report.json') ]` — requested chromosomes, the shard that satisfied each, per-chromosome counts and the chromosomes that were legitimately empty."
+      structure:
+        - type: map
+          description: Request metadata
+        - type: file
+          description: Gather completeness report
+          pattern: "*.gather_report.json"
+  - shard_derivation:
+      type: channel
+      description: "`[ val(meta), path('*.derivation.json') ]` — per-shard multi-parent derivation descriptor."
+      structure:
+        - type: map
+          description: Shard metadata
+        - type: file
+          description: Derivation descriptor
+          pattern: "*.derivation.json"
+  - shard_qc:
+      type: channel
+      description: "`[ val(meta), path('*.qc.json') ]` — per-shard contribution and exclusion counts. Every quantity is additive or a min/max range, so shards compose."
+      structure:
+        - type: map
+          description: Shard metadata
+        - type: file
+          description: QC document
+          pattern: "*.qc.json"
+  - study_order:
+      type: channel
+      description: "`[ val(meta), path('*.study_order.tsv') ]` — study index, name, staged filename and checksum per parent."
+      structure:
+        - type: map
+          description: Shard metadata
+        - type: file
+          description: Study-order table
+          pattern: "*.study_order.tsv"
+  - re2:
+      type: channel
+      description: "`[ val(meta), path('*.re2.tsv.gz') ]` — normalised RE2 fields per shard, emitted only for requests that selected `re2`."
+      structure:
+        - type: map
+          description: Shard metadata
+        - type: file
+          description: Normalised RE2 fields
+          pattern: "*.re2.tsv.gz"
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

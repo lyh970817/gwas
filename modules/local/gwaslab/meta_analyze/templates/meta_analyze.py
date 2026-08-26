@@ -75,7 +75,7 @@ def reverse_complement(allele):
 def parse_args(raw):
     """Restricted option surface. No native GWASLab argument is passed through."""
     tokens = shlex.split(raw)
-    settings = {"random_effects": False, "min_studies": 2, "chromosome": None}
+    settings = {"random_effects": False, "min_studies": 2}
     index = 0
     while index < len(tokens):
         token = tokens[index]
@@ -87,15 +87,10 @@ def parse_args(raw):
                 fail("--min-studies requires a value")
             settings["min_studies"] = int(tokens[index + 1])
             index += 2
-        elif token == "--chromosome":
-            if index + 1 == len(tokens):
-                fail("--chromosome requires a value")
-            settings["chromosome"] = tokens[index + 1]
-            index += 2
         else:
             fail(
-                "Unsupported option: {}. Accepted options are --random-effects, "
-                "--min-studies and --chromosome".format(token)
+                "Unsupported option: {}. Accepted options are --random-effects "
+                "and --min-studies".format(token)
             )
     if settings["min_studies"] < 2:
         fail("--min-studies must be at least 2; a single-study estimate is not a meta-analysis")
@@ -272,6 +267,9 @@ def main():
     input_format = json.loads(r'''$input_format_literal''')
     genome_build = json.loads(r'''$genome_build_literal''')
     prefix = json.loads(r'''$prefix_literal''')
+    # The chromosome shard selector is channel-borne rather than an extension argument: it varies per
+    # task under scatter, and it is neither a metadata key nor a process-global value.
+    settings["chromosome"] = json.loads(r'''$chromosome_literal''') or None
 
     if len(parents) < 2:
         fail("a meta-analysis requires at least two canonical parents")
