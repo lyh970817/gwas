@@ -1,0 +1,145 @@
+name: "gwaslab_meta_analyze"
+description: Align two or more canonical GWAS summary statistics across studies and pool them with inverse-variance fixed effects and optional DerSimonian-Laird random effects
+keywords:
+  - gwas
+  - genome-wide association study
+  - summary statistics
+  - meta-analysis
+  - fixed effects
+  - random effects
+  - inverse variance
+  - heterogeneity
+tools:
+  - "gwaslab":
+      description: A Python package for processing and analysing GWAS summary statistics
+      homepage: "https://cloufield.github.io/gwaslab/"
+      documentation: "https://cloufield.github.io/gwaslab/"
+      tool_dev_url: "https://github.com/Cloufield/gwaslab"
+      doi: "10.1093/bioinformatics/btae074"
+      licence:
+        - "GPL-3.0-only"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing the derived summary-statistics information
+    - sumstats:
+        type: file
+        description: |
+          Two or more canonical summary-statistics tables, staged in exact positional study order.
+          Each table must carry the canonical columns SNPID, CHR, POS, EA, NEA, STATUS, EAF, BETA, SE, P and N.
+        pattern: "*.{tsv,tsv.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - study_names:
+        type: list
+        description: |
+          Unique study labels in the same positional order as `sumstats`. The order defines the direction
+          string, the effect-matrix column order and the study-order table, so it is part of the contract.
+    - input_format:
+        type: string
+        description: |
+          Explicit GWASLab format name used to load every parent. Automatic detection is rejected; a value
+          beginning with `auto` is an error.
+    - genome_build:
+        type: string
+        description: Human reference build shared by every parent, GRCh37 or GRCh38
+output:
+  meta_analysis:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.meta.tsv.gz":
+          type: file
+          description: |
+            Canonical fixed-effect candidate. Carries the canonical columns plus N_STUDIES, DIRECTION,
+            EAF_META, EAF_MIN, EAF_MAX, N_TOTAL, MAX_WEIGHT_SHARE, Z_FIXED, Q, P_HET, I2 and META_VARIANT_KEY,
+            and additionally BETA_RANDOM, SE_RANDOM, Z_RANDOM, P_RANDOM and TAU2_RANDOM when random effects
+            were requested. BETA, SE and P are always the fixed-effect result.
+          pattern: "*.meta.tsv.gz"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  study_views:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.study_views.tsv.gz":
+          type: file
+          description: |
+            Lossless aligned per-study view of every retained variant, keyed by META_VARIANT_KEY, holding
+            STATUS, EAF, BETA, SE, P and N for each study in positional order. Numeric values use the shortest
+            representation that round-trips to the identical float64, so downstream adapters lose no precision.
+          pattern: "*.study_views.tsv.gz"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  effect_matrix:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.effect_matrix.txt":
+          type: file
+          description: |
+            Narrow effect matrix `META_VARIANT_KEY BETA_1 SE_1 ... BETA_K SE_K`, space delimited and
+            deliberately headerless because METASOFT's parser rejects any non-numeric token that is not NA.
+            An absent contribution is always the paired `NA NA`; a partial pair cannot occur because BETA and
+            SE are masked together by one contribution mask.
+          pattern: "*.effect_matrix.txt"
+          ontologies: []
+  study_order:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.study_order.tsv":
+          type: file
+          description: Study index, study name, staged filename, SHA-256 and input/retained row counts for each parent
+          pattern: "*.study_order.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  qc:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.qc.json":
+          type: file
+          description: |
+            Contribution and exclusion counts per parent, union and intersection sizes, strand-conflict and
+            duplicate counts, the contributing-study-count distribution, min_studies exclusions and EAF ranges.
+            Every quantity is additive or a min/max range so per-chromosome shards compose.
+          pattern: "*.qc.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  derivation:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.derivation.json":
+          type: file
+          description: Ordered study identities with checksums, requested models, settings, statistical and key contracts, and tool versions
+          pattern: "*.derivation.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  log:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.meta.log":
+          type: file
+          description: Adapter log followed by the GWASLab alignment and meta-analysis log
+          pattern: "*.meta.log"
+          ontologies: []
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

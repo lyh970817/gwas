@@ -342,7 +342,19 @@ def main():
                 "parent {} ({}) retained no usable variant".format(index, study_names[index - 1])
             )
 
-    keys_per_parent = [set(frame["_KEY"]) for frame in frames]
+    # Union and intersection are counted on an allele-set key rather than the ordered EA:NEA key.
+    # A parent carrying the swapped representation describes the same variant and is realigned by the
+    # merge, so counting the two orderings separately would overstate the union and understate the
+    # intersection. Reverse-complement disagreements have already been removed above.
+    keys_per_parent = [
+        {
+            (chromosome, int(position), frozenset((ea, nea)))
+            for chromosome, position, ea, nea in zip(
+                frame["CHR"], frame["POS"], frame["EA"], frame["NEA"]
+            )
+        }
+        for frame in frames
+    ]
     union_keys = set().union(*keys_per_parent)
     intersection_keys = set(keys_per_parent[0]).intersection(*keys_per_parent[1:])
 
