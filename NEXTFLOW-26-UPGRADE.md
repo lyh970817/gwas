@@ -160,9 +160,20 @@ nextflowVersion: nextflowVersion = '!>=26.04.6'
 ### Sequential obsolete-snapshot pass
 
 Sharding splits _tests within a file_ across shards, so nf-test reports
-`Obsolete snapshots can only be checked if all tests of a file are executed successful.` The skill therefore
-requires a sequential run to expose obsolete entries. That run was launched
-(`nf-test test --profile=+docker --verbose`) and its status is recorded in §10.
+`Obsolete snapshots can only be checked if all tests of a file are executed successful.` — 11, 13 and 15 such
+notices across the three shards. The skill therefore requires a sequential run to expose obsolete entries.
+
+**That run completed and is also green:**
+
+```
+SEQUENTIAL exit=0 elapsed=10285s
+SUCCESS: Executed 338 tests in 10268.718s
+```
+
+**338 tests, 0 failures, and zero obsolete snapshot entries** — `grep -i obsolete` over the full sequential
+log returns no matches at all, meaning nf-test was able to check every file and found nothing stale. `git
+status` remained clean afterwards, so no snapshot was written. Nothing needed deliberate removal, and
+`--wipe-snapshot` was never used.
 
 ---
 
@@ -314,24 +325,19 @@ accepted into the branch.
 
 ## 10. Outstanding / uncertain
 
-1. **Sequential obsolete-snapshot pass — launched, result pending.** The sharded run is green and changed no
-   snapshots, but obsolete _entries_ can only be detected when every test of a file runs in one process. That
-   run was started detached; its outcome is reported in the accompanying message. Any obsolete entries it
-   finds would be pre-existing rather than caused by this upgrade, since no snapshot was added or modified
-   here. Per the skill, stale entries should be removed deliberately, never with `--wipe-snapshot`.
-2. **Public fixture URLs 404 — pre-existing, unrelated to this upgrade.** Running without
+1. **Public fixture URLs 404 — pre-existing, unrelated to this upgrade.** Running without
    `GWAS_TEST_FIXTURES` makes validation fail because
    `https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures/relational/cohort_manifest.csv`
    returns HTTP 404 (confirmed with curl). The relational fixtures are not published on the public branch
    yet, so the public fallback in `conf/route_profile_resolver.config` cannot currently validate. This blocks
    nothing here — the resolver finds the local bundle — but it will bite a portable checkout.
-3. **Template divergence is now real and intended.** The pipeline declares `!>=26.04.6` and nf-schema 2.8.0
+2. **Template divergence is now real and intended.** The pipeline declares `!>=26.04.6` and nf-schema 2.8.0
    while the nf-core template declares `!>=25.10.4` and nf-schema 2.5.1. `nf-core pipelines lint` does not
    care (it only checks the `>=`/`!>=` prefix), but every future `nf-core pipelines sync` will re-propose
    both lines. That was the accepted trade.
-4. **`-resume` caches from 25.10.4 are invalid.** v2-parser task hashing differs. Expected and one-off; do
+3. **`-resume` caches from 25.10.4 are invalid.** v2-parser task hashing differs. Expected and one-off; do
    not read the first full re-execution as a regression.
-5. **Two formatter defects survive at 26.04.6** and are now documented in the code-style standard: comments
+4. **Two formatter defects survive at 26.04.6** and are now documented in the code-style standard: comments
    inside map and list literals are stripped, and multi-line method chains are collapsed. Read formatter
    diffs; do not apply them blind.
 
