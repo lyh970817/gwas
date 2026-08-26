@@ -9,7 +9,7 @@ nextflow_process {
     tag "modules_local"
     tag "normalise_gcta_bivariate"
 
-    def metadata = { nativeArgs = [], method = 'gcta_bivariate_reml' ->
+    def metadata = { nativeArgs = [], method = 'gcta_bivariate_reml', overrides = [:] ->
         [
             id: 'example.grm',
             relationship_id: 'height_disease',
@@ -24,14 +24,18 @@ nextflow_process {
             left_population_prevalence: null,
             right_population_prevalence: 0.1,
             cohort: 'cohort',
-            matrix_kind: method == 'gcta_bivariate_reml_ldms' ? 'gcta_ldms' : 'gcta_dense',
+            matrix_kind: method.endsWith('_ldms') ? 'gcta_ldms' : 'gcta_dense',
             matrix_key: 'abc123',
             matrix_basename: 'example.grm',
             matrix_settings: [:],
             reml_bivar_prevalence: [0.1],
             native_args: nativeArgs,
-        ]
+        ] + overrides
     }
+
+    // Both HEreg selectors are quantitative-only, so their fixtures declare two quantitative endpoints and
+    // no prevalence.
+    def quantitativePair = [right_trait_type: 'quantitative', right_population_prevalence: null, reml_bivar_prevalence: []]
 
     def nativeInputs = { outputDir, name, mutations = [:] ->
         def root = new File(outputDir.toString(), "native_${name}")
@@ -82,6 +86,191 @@ nextflow_process {
             categorical_covariate_samples: 100,
         ].collect { metric, value -> "${metric}\t${value}" }.join('\n') + '\n'
         [hsq: hsq, log: log, pairLog: pairLog]
+    }
+
+    // `.HEreg` is a padded fixed-width table, not a delimited one; several coefficient labels contain single
+    // spaces and `Sum of C(G)/Vp_tr12` fills its 20-character field so only one space separates it from the
+    // estimate. Reproduce that layout exactly so the parser meets the real shape.
+    def heregInputs = { outputDir, name, rows, jackknife = null ->
+        def root = new File(outputDir.toString(), "hereg_${name}")
+        root.mkdirs()
+        def table = new File(root, 'native.HEreg')
+        def render = { cells -> cells.head().padRight(20) + cells.tail().collect { cell -> cell.padRight(16) }.join('') }
+        table.text = 'HE-CP\n' +
+            render(['Coefficient', 'Estimate', 'SE_OLS', 'SE_Jackknife', 'P_OLS', 'P_Jackknife']) + '\n' +
+            rows.collect { row -> render([row[0]] + row[1]) }.join('\n') + '\n'
+        def log = new File(root, 'native.log')
+        log.text = [
+            '* Genome-wide Complex Trait Analysis',
+            '* version v1.94.1 Linux',
+            '200 individuals are in common in these files.',
+            '200 non-missing phenotypes for trait #1 and 200 for trait #2',
+            'Performing Haseman-Elston regression ...',
+            jackknife ? 'Jackknife sampling variance/covariance of the estimates of heritability:' : '',
+            jackknife ? jackknife.collect { row -> row.join(' ') }.join('\n') : '',
+        ].findAll { line -> line }.join('\n') + '\n'
+        def pairLog = new File(root, 'native.pair.log')
+        pairLog.text = [
+            left_samples: 200,
+            right_samples: 200,
+            endpoint_overlap_samples: 200,
+            union_samples: 200,
+            left_nonmissing: 200,
+            right_nonmissing: 200,
+            both_nonmissing: 200,
+            quantitative_covariate_samples: 0,
+            categorical_covariate_samples: 0,
+        ].collect { metric, value -> "${metric}\t${value}" }.join('\n') + '\n'
+        [table: table, log: log, pairLog: pairLog]
+    }
+
+    test("dense HEreg publishes the jackknife uncertainty and declares its standardised covariance scale") {
+        when {
+            def rows = [
+                ['Intercept_tr1', ['-0.000259787', '0.00282083', '0.000555291', '0.926622', '0.639905']],
+                ['Intercept_tr2', ['-0.000668591', '0.00282143', '0.000557099', '0.812681', '0.230089']],
+                ['Intercept_tr12', ['0.000678248', '0.00199645', '0.000253525', '0.734062', '0.00712244']],
+                ['V(G)/Vp_tr1', ['0.465908', '0.0606925', '0.0808719', '3.81384e-46', '0.00503471']],
+                ['V(G)/Vp_tr2', ['0.362492', '0.0607054', '0.0793187', '1.02574e-27', '0.0238468']],
+                ['C(G)/Vp_tr12', ['0.276328', '0.0608087', '0.0759443', '9.93459e-29', '0.00913802']],
+                ['rG', ['0.672958', '0.0953884', '0.12564']],
+                ['N_tr1', ['200']],
+                ['N_tr2', ['200']],
+            ]
+            def jackknife = [
+                ['0.0953077', '0.0490908', '0.0649987'],
+                ['0.0490908', '0.0859586', '0.0627886'],
+                ['0.0649987', '0.0627886', '0.0673105'],
+            ]
+            def inputs = heregInputs(outputDir, 'dense', rows, jackknife)
+            process {
+                """
+                input[0] = [new groovy.json.JsonSlurper().parseText('${groovy.json.JsonOutput.toJson(metadata([], 'gcta_bivariate_he', quantitativePair))}'), file('${inputs.table}', checkIfExists: true), file('${inputs.log}', checkIfExists: true), file('${inputs.pairLog}', checkIfExists: true)]
+                """
+            }
+        }
+
+        then {
+            def provenance = new groovy.json.JsonSlurper().parse(new File(process.out.provenance.get(0).get(1).toString()))
+            def correlation = file(process.out.genetic_correlation.get(0).get(1)).readLines()
+            def covariance = file(process.out.genetic_covariance.get(0).get(1)).readLines()
+            def heritability = file(process.out.heritability.get(0).get(1)).readLines()
+            assertAll(
+                { assert process.success },
+                { assert provenance.classification == 'estimable' },
+                // A moment estimator has no residual-covariance parameter at all, which is a different fact
+                // from REML dropping one.
+                { assert provenance.diagnostics.residual_covariance_status == 'no_residual_covariance_parameter' },
+                { assert provenance.diagnostics.native_estimator == 'haseman_elston_cross_product' },
+                { assert provenance.diagnostics.standard_error_basis == 'jackknife' },
+                { assert provenance.diagnostics.covariate_adjustment == 'not_supported_by_method' },
+                { assert provenance.diagnostics.jackknife_sampling_covariance == 'available' },
+                { assert provenance.native_sampling_covariance.parameter_order == ['G_tr1', 'G_tr2', 'G_tr12'] },
+                { assert provenance.native_sampling_covariance.matrix.size() == 3 },
+                // Single-component output carries no `component` column, matching dense REML.
+                { assert !heritability.first().contains('\tcomponent\t') },
+                // The published uncertainty is the jackknife column, not the OLS column.
+                { assert correlation.last().split('\t')[-2] == '0.12564' },
+                { assert covariance.last().split('\t')[-4] == 'observed_standardised' },
+                { assert covariance.last().split('\t')[-2] == '0.0759443' },
+            )
+        }
+    }
+
+    test("LDMS HEreg publishes the native total as the primary component alongside the per-component rows") {
+        when {
+            def rows = [
+                ['Intercept_tr1', ['-0.000197476', '0.00282094', '0.000567772', '0.944191', '0.727989']],
+                ['Intercept_tr2', ['-0.000690519', '0.00282158', '0.000552729', '0.806668', '0.211559']],
+                ['Intercept_tr12', ['0.000687344', '0.0019965', '0.000254018', '0.73064', '0.00649578']],
+                ['V(G1)/Vp_tr1', ['0.201133', '0.0686364', '0.079467', '1.14824e-05', '0.0933603']],
+                ['V(G1)/Vp_tr2', ['0.177637', '0.0686521', '0.076809', '3.7896e-08', '0.0678521']],
+                ['C(G1)/Vp_tr12', ['0.099564', '0.0687995', '0.068161', '1.33632e-05', '0.0748456']],
+                ['V(G2)/Vp_tr1', ['0.202549', '0.0848196', '0.090298', '1.21938e-12', '0.0160711']],
+                ['V(G2)/Vp_tr2', ['0.171562', '0.084839', '0.092884', '0.00137031', '0.159163']],
+                ['C(G2)/Vp_tr12', ['0.087816', '0.0850098', '0.089558', '5.06902e-06', '0.0407667']],
+                ['Sum of V(G)/Vp_tr1', ['0.403682', '0.0632037', '0.118511', '2.45264e-46', '0.00455152']],
+                ['Sum of V(G)/Vp_tr2', ['0.349198', '0.0632181', '0.108827', '9.92574e-25', '0.0245973']],
+                ['Sum of C(G)/Vp_tr12', ['0.187379', '0.0633241', '0.101348', '1.91614e-27', '0.00853519']],
+                ['rG1', ['0.526327', '0.241645', '0.213959']],
+                ['rG2', ['0.470727', '0.266732', '0.22893']],
+                ['Total rG', ['0.499429', '0.0986371', '0.125645']],
+                ['N_tr1', ['200']],
+                ['N_tr2', ['200']],
+            ]
+            def jackknife = [
+                ['0.0322085', '0.0207944', '0.0246116', '0.00329577', '0.00162045', '0.00199167'],
+                ['0.0207944', '0.0427701', '0.0271287', '0.00390682', '0.00172339', '0.00497951'],
+                ['0.0246116', '0.0271287', '0.0282783', '0.00438974', '0.00201651', '0.00204598'],
+                ['0.00329577', '0.00390682', '0.00438974', '0.0626493', '0.0227155', '0.0359736'],
+                ['0.00162045', '0.00172339', '0.00201651', '0.0227155', '0.0372042', '0.0282431'],
+                ['0.00199167', '0.00497951', '0.00204598', '0.0359736', '0.0282431', '0.0359324'],
+            ]
+            def inputs = heregInputs(outputDir, 'ldms', rows, jackknife)
+            process {
+                """
+                input[0] = [new groovy.json.JsonSlurper().parseText('${groovy.json.JsonOutput.toJson(metadata([], 'gcta_bivariate_he_ldms', quantitativePair))}'), file('${inputs.table}', checkIfExists: true), file('${inputs.log}', checkIfExists: true), file('${inputs.pairLog}', checkIfExists: true)]
+                """
+            }
+        }
+
+        then {
+            def provenance = new groovy.json.JsonSlurper().parse(new File(process.out.provenance.get(0).get(1).toString()))
+            def correlation = file(process.out.genetic_correlation.get(0).get(1)).readLines()
+            def covariance = file(process.out.genetic_covariance.get(0).get(1)).readLines()
+            def heritability = file(process.out.heritability.get(0).get(1)).readLines()
+            assertAll(
+                { assert process.success },
+                { assert provenance.genetic_components == ['total', 'G1', 'G2'] },
+                { assert provenance.diagnostics.primary_result_component == 'total' },
+                // GCTA emits the total itself, so nothing here reconstructs one from marginal SEs.
+                { assert provenance.diagnostics.total_result_origin == 'native' },
+                { assert provenance.native_sampling_covariance.parameter_order == ['G1_tr1', 'G1_tr2', 'G1_tr12', 'G2_tr1', 'G2_tr2', 'G2_tr12'] },
+                { assert correlation.tail().collect { line -> line.split('\t')[3] } == ['total', 'G1', 'G2'] },
+                { assert covariance.tail().collect { line -> line.split('\t')[3] } == ['total', 'G1', 'G2'] },
+                { assert heritability.tail().collect { line -> line.split('\t')[3] } == ['total', 'total', 'G1', 'G1', 'G2', 'G2'] },
+                // The total row carries the native total estimate and its native jackknife uncertainty.
+                { assert correlation[1].split('\t')[-3] == '0.499429' },
+                { assert correlation[1].split('\t')[-2] == '0.125645' },
+                { assert covariance[1].split('\t')[-3] == '0.187379' },
+                { assert covariance[1].split('\t')[-2] == '0.101348' },
+            )
+        }
+    }
+
+    test("a HEreg table without the expected uncertainty columns fails normalization") {
+        when {
+            def root = new File(outputDir.toString(), 'hereg_malformed')
+            root.mkdirs()
+            def table = new File(root, 'native.HEreg')
+            table.text = 'HE-CP\nCoefficient         Estimate        SE\nrG                  0.5             0.1\n'
+            def log = new File(root, 'native.log')
+            log.text = '* version v1.94.1 Linux\n'
+            def pairLog = new File(root, 'native.pair.log')
+            pairLog.text = [
+                left_samples: 200,
+                right_samples: 200,
+                endpoint_overlap_samples: 200,
+                union_samples: 200,
+                left_nonmissing: 200,
+                right_nonmissing: 200,
+                both_nonmissing: 200,
+                quantitative_covariate_samples: 0,
+                categorical_covariate_samples: 0,
+            ].collect { metric, value -> "${metric}\t${value}" }.join('\n') + '\n'
+            process {
+                """
+                input[0] = [new groovy.json.JsonSlurper().parseText('${groovy.json.JsonOutput.toJson(metadata([], 'gcta_bivariate_he', quantitativePair))}'), file('${table}', checkIfExists: true), file('${log}', checkIfExists: true), file('${pairLog}', checkIfExists: true)]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('Estimate/SE_OLS/SE_Jackknife') },
+            )
+        }
     }
 
     test("finite native estimands and uncertainties are estimable") {

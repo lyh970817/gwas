@@ -1,8 +1,9 @@
 name: normalise_gcta_bivariate
-description: Normalize dense or LDMS GCTA bivariate REML results into estimand views, diagnostics and request provenance while retaining native values
+description: Normalize dense or LDMS GCTA bivariate REML or Haseman-Elston results into estimand views, diagnostics and request provenance while retaining native values
 keywords:
   - gcta
   - bivariate
+  - haseman-elston regression
   - heritability
   - genetic correlation
   - provenance
@@ -15,13 +16,13 @@ input:
   - - meta:
         type: map
         description: Pair-request, endpoint, dense or LDMS matrix and native-invocation metadata
-    - hsq:
+    - native_result:
         type: file
-        description: Native GCTA bivariate REML result
-        pattern: "*.hsq"
+        description: Native GCTA bivariate result, an `.hsq` table for the REML methods and a `.HEreg` table for the Haseman-Elston methods
+        pattern: "*.{hsq,HEreg}"
     - gcta_log:
         type: file
-        description: Native GCTA log
+        description: Native GCTA log; for the Haseman-Elston methods it is also the only place the jackknife sampling variance/covariance matrix of the estimates appears
         pattern: "*.log"
     - pair_log:
         type: file
@@ -48,14 +49,14 @@ output:
           description: Pair-request metadata propagated from input
       - genetic_covariance.tsv:
           type: file
-          description: Ordered pair observed-scale genetic covariance estimands, one per native LDMS component when applicable
+          description: Ordered pair genetic covariance estimands on the scale the estimator fits, one per native component when applicable, with the native genome-wide total as the primary row of a multi-component Haseman-Elston request
   diagnostics:
     - - meta:
           type: map
           description: Pair-request metadata propagated from input
       - diagnostics.tsv:
           type: file
-          description: Pair shape and endpoint-aware native diagnostics including convergence classification
+          description: Pair shape and endpoint-aware native diagnostics including convergence classification for REML and estimator, uncertainty-basis, covariate-support and residual-covariance treatment for Haseman-Elston
   provenance:
     - - meta:
           type: map

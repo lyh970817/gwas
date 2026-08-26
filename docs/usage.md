@@ -101,26 +101,41 @@ Each declared summary must either select a unary method or be referenced by a re
 
 ### Relationship manifest fields
 
-The optional relationship manifest has exactly eight columns. Endpoint slots are method-domain specific: `gcta_bivariate_reml` and `gcta_bivariate_reml_ldms` consume two analysis IDs, while `ldak_sumcors` and `ldsc_rg` consume two summary-statistics IDs. A row may select several methods for the same pair and may populate both endpoint domains only when each same-side summary is provably produced by the same-side analysis.
+The optional relationship manifest has exactly eight columns. Endpoint slots are method-domain specific: `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he` and `gcta_bivariate_he_ldms` consume two analysis IDs, while `ldak_sumcors` and `ldsc_rg` consume two summary-statistics IDs. A row may select several methods for the same pair and may populate both endpoint domains only when each same-side summary is provably produced by the same-side analysis.
 
-| Column                        | Required | Description                                                                                                              |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `relationship_id`             | Yes      | Unique, whitespace-free identifier for this exact populated endpoint binding.                                            |
-| `left_analysis_id`            | GCTA     | Analysis ID for native trait 1.                                                                                          |
-| `right_analysis_id`           | GCTA     | Analysis ID for native trait 2.                                                                                          |
-| `left_summary_statistics_id`  | Summary  | Summary-statistics ID bound to the ordered left endpoint for `ldak_sumcors` or `ldsc_rg`.                                |
-| `right_summary_statistics_id` | Summary  | Summary-statistics ID bound to the ordered right endpoint for `ldak_sumcors` or `ldsc_rg`.                               |
-| `relationship_methods`        | Yes      | Comma-delimited pairwise selectors: `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `ldak_sumcors`, and/or `ldsc_rg`. |
-| `pair_quant_covariates`       | No       | Relationship-owned headered quantitative covariates beginning with `FID` and `IID`.                                      |
-| `pair_cat_covariates`         | No       | Relationship-owned headered categorical covariates beginning with `FID` and `IID`.                                       |
+| Column                        | Required | Description                                                                                                                                                             |
+| ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `relationship_id`             | Yes      | Unique, whitespace-free identifier for this exact populated endpoint binding.                                                                                           |
+| `left_analysis_id`            | GCTA     | Analysis ID for native trait 1.                                                                                                                                         |
+| `right_analysis_id`           | GCTA     | Analysis ID for native trait 2.                                                                                                                                         |
+| `left_summary_statistics_id`  | Summary  | Summary-statistics ID bound to the ordered left endpoint for `ldak_sumcors` or `ldsc_rg`.                                                                               |
+| `right_summary_statistics_id` | Summary  | Summary-statistics ID bound to the ordered right endpoint for `ldak_sumcors` or `ldsc_rg`.                                                                              |
+| `relationship_methods`        | Yes      | Comma-delimited pairwise selectors: `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms`, `ldak_sumcors`, and/or `ldsc_rg`. |
+| `pair_quant_covariates`       | No       | Relationship-owned headered quantitative covariates beginning with `FID` and `IID`.                                                                                     |
+| `pair_cat_covariates`         | No       | Relationship-owned headered categorical covariates beginning with `FID` and `IID`.                                                                                      |
 
 The two populated endpoints must be different IDs and their declared trait IDs must differ. Different IDs may still represent related biological phenotypes; the pipeline does not police naming conventions. GCTA additionally requires two analysis IDs from one cohort. A reversed duplicate such as `height,disease` plus `disease,height` is invalid because it requests the same unordered binding twice. Left and right still matter and are recorded in every result and provenance file.
+
+`gcta_bivariate_he` and `gcta_bivariate_he_ldms` add GCTA's `--HEreg-bivar` Haseman-Elston cross-product estimator alongside `gcta_bivariate_reml` and `gcta_bivariate_reml_ldms`, using one dense GRM or the same LD- and MAF-stratified `--mgrm` family respectively. Both are explicit-GRM moment estimators: HE-CP only makes the _fitting_ stage cheaper than REML, and it still requires the same full dense (or LDMS-stratified) matrix construction, storage and I/O. Document and treat them as a deterministic moment reference and sensitivity analysis, not as a matrix-free or more scalable route.
+
+The two HE selectors accept quantitative pairs only; a binary or mixed-endpoint pair is rejected before execution. `gcta_bivariate_reml` and `gcta_bivariate_reml_ldms` remain the supported route for binary and mixed pairs because they carry an explicit prevalence and liability-scale contract — they are not a slow fallback for those traits. Neither HE selector supports covariate adjustment: GCTA 1.94.1 lists `--qcovar` and `--covar` under "Accepted options" for `--HEreg-bivar` and then silently ignores them, so a relationship that declares `pair_quant_covariates` or `pair_cat_covariates` together with an HE selector is a validation error before execution; use `gcta_bivariate_reml` or `gcta_bivariate_reml_ldms` when covariate adjustment is required.
+
+HE-CP regresses the cross-trait product on the lower triangle of the GRM only, with the left trait on the row member and the right trait on the column member, so the declared left/right orientation changes the point estimate — this is why a reversed duplicate relationship remains a validation error for the HE routes as well as the REML routes. Selecting `gcta_bivariate_he` (or `gcta_bivariate_he_ldms`) alongside `gcta_bivariate_reml` (or `gcta_bivariate_reml_ldms`) for the same relationship builds the required GRM or MGRM family only once: the matrix reuse key is derived from the cohort, the genotype bundle and the declared matrix settings, never from the method token.
+
+A quantitative pair may request the REML and HE dense estimators together in one relationship row:
+
+```csv title="relationship_manifest.csv"
+relationship_id,left_analysis_id,right_analysis_id,left_summary_statistics_id,right_summary_statistics_id,relationship_methods,pair_quant_covariates,pair_cat_covariates
+height_bmi,height,bmi,,,"gcta_bivariate_reml,gcta_bivariate_he",,
+```
 
 The pair phenotype is a deterministic full union of the two normalized endpoint sample sets in `FID`,`IID` order, with `NA` on a side where that trait is missing. Pair covariates belong to the relationship, not either endpoint analysis. The primary pair request ID is deterministic:
 
 ```text
 gcta_bivariate_reml--<relationship_id>
 gcta_bivariate_reml_ldms--<relationship_id>
+gcta_bivariate_he--<relationship_id>
+gcta_bivariate_he_ldms--<relationship_id>
 ```
 
 Summary pair request IDs use the same rule:
@@ -173,7 +188,7 @@ The [mixed summary-statistics manifest](../assets/examples/relational/summary_st
 
 `--method_options` is optional. The established form keeps its JSON root keyed by `analysis_id`; each value may contain `gcta`, `ldak` and/or `regenie`. It remains supported unchanged. A namespaced document places those same entries under `analyses`, summary unary settings under `unary_requests`, and relationship settings under `pair_requests`. Unlisted analysis settings receive their defaults. Every selected LDAK or LDSC summary request must explicitly choose a `reference_bundle_id`; nothing is inferred from the summary's ancestry label.
 
-Both GCTA pair routes expose `native_args` as an array of individual non-file GCTA tokens on the deterministic request ID. A relationship's deterministic LDMS request additionally owns its matrix construction settings; it never inherits them from either endpoint's unary analysis:
+All four GCTA pair routes (`gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms`) expose `native_args` as an array of individual non-file GCTA tokens on the deterministic request ID. A relationship's deterministic LDMS request additionally owns its matrix construction settings; it never inherits them from either endpoint's unary analysis:
 
 ```json
 {
@@ -192,7 +207,7 @@ Both GCTA pair routes expose `native_args` as an array of individual non-file GC
 }
 ```
 
-The wrapper rejects whitespace or shell syntax, path separators, environment assignments, undeclared file-like values, file-bearing invocation mechanics such as `--keep` and `--extract`, wrapper-owned flags such as `--grm`, `--pheno`, `--out`, `--reml-bivar` and `--reml-bivar-prevalence`, and flags selecting another primary GCTA operation such as `--pca`. Arguments remain native scientific options: the pipeline records them and presents all resulting estimates; it does not choose a preferred result.
+The wrapper rejects whitespace or shell syntax, path separators, environment assignments, undeclared file-like values, file-bearing invocation mechanics such as `--keep` and `--extract`, wrapper-owned flags such as `--grm`, `--pheno`, `--out`, `--reml-bivar`, `--reml-bivar-prevalence` and `--HEreg-bivar`, and flags selecting another primary GCTA operation such as `--pca`. Arguments remain native scientific options: the pipeline records them and presents all resulting estimates; it does not choose a preferred result.
 
 Summary requests use the same deterministic ownership boundary. LDAK receives exactly one staged `tagging_file`; LDSC receives separate staged `hapmap3_snplist`, `reference_ld_scores` and `regression_weights` roles. `native_args` may contain non-file scientific tokens only. Wrapper-owned operation, input, output and thread flags are rejected, as are every LDSC option that selects an alternate operation or consumes an undeclared file role. These structural rejections apply to both bare `--option value` and inline `--option=value` forms without depending on whether a path exists or resembles a known extension.
 
@@ -275,7 +290,7 @@ The catalog may also declare a SHA-256 digest beside each role. Preflight checks
 | `ld_bins`            | Positive integer; `4`                 | `gcta_greml_ldms` only; number of LD-score strata.                                                      |
 | `ldms_maf_edges`     | Number array; `[0,0.01,0.05,0.2,0.5]` | `gcta_greml_ldms` only; strictly increasing, at least two values, beginning at `0` and ending at `0.5`. |
 
-The same three LDMS setting names are accepted under a `gcta_bivariate_reml_ldms--<relationship_id>` pair request. Their defaults are `200`, `4` and `[0,0.01,0.05,0.2,0.5]`. The resolved values become part of the matrix reuse key, so a unary and pair request reuse one MGRM family only when cohort, genotype input and all three settings agree exactly.
+The same three LDMS setting names are accepted under a `gcta_bivariate_reml_ldms--<relationship_id>` or `gcta_bivariate_he_ldms--<relationship_id>` pair request. Their defaults are `200`, `4` and `[0,0.01,0.05,0.2,0.5]`. The resolved values become part of the matrix reuse key, so a unary and pair request reuse one MGRM family only when cohort, genotype input and all three settings agree exactly — independent of which LDMS pair method token requested it.
 
 | LDAK option          | Type and default                | Consumer and constraints                                                                                                      |
 | -------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
@@ -315,7 +330,7 @@ The authoritative structural contracts are [`schema_cohort_manifest.json`](../as
 
 ### Validation diagnostics
 
-Structural failures name the manifest and invalid column. Cross-row preflight failures additionally name the CSV row and `cohort_id`, `analysis_id`, `summary_statistics_id` or `relationship_id`: examples include an incomplete genotype group, conflicting duplicates, an invalid or mixed summary origin, an internal producer mismatch, orphan endpoints, same-endpoint or same-trait pairs, cross-cohort GCTA pairs, reversed duplicates, unknown or repeated method tokens, invalid binary coding, and route-inapplicable prevalence. Method-options and reference-catalog failures name the document, request or bundle ID, qualified option or resource role, and reason before task submission.
+Structural failures name the manifest and invalid column. Cross-row preflight failures additionally name the CSV row and `cohort_id`, `analysis_id`, `summary_statistics_id` or `relationship_id`: examples include an incomplete genotype group, conflicting duplicates, an invalid or mixed summary origin, an internal producer mismatch, orphan endpoints, same-endpoint or same-trait pairs, cross-cohort GCTA pairs, reversed duplicates, unknown or repeated method tokens, invalid binary coding, route-inapplicable prevalence, a binary or mixed pair selecting a quantitative-only method such as `gcta_bivariate_he` or `gcta_bivariate_he_ldms`, and declared pair covariates against a method with no native covariate parameter. Method-options and reference-catalog failures name the document, request or bundle ID, qualified option or resource role, and reason before task submission.
 
 ### Phenotype normalisation
 

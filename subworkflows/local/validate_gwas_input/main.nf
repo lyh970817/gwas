@@ -187,6 +187,50 @@ def getMethodRegistry() {
             citation_key: 'gcta_bivariate_reml',
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
+        // GCTA bivariate Haseman-Elston regression is a deterministic moment reference, not a matrix-free
+        // route: it consumes exactly the dense or LDMS GRM family its REML sibling consumes and only makes
+        // the fitting stage cheaper. `trait_support` is quantitative-only because GCTA 1.94.1 HEreg exposes
+        // no prevalence or ascertainment parameter, and `supports_covariates` is false because the native
+        // analysis lists `--qcovar`/`--covar` among its accepted options and then never reads them.
+        gcta_bivariate_he: [
+            domain: 'pairwise',
+            endpoint_domain: 'analysis',
+            option_family: 'gcta',
+            matrix_kind: 'gcta_dense',
+            estimator_family: 'moment_he',
+            input_backend: 'dense_grm',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: false, binary_requires: []],
+            supports_covariates: false,
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: true,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'deterministic moment reference or sensitivity over an existing dense GRM',
+            citation_key: 'gcta_hereg',
+        ],
+        gcta_bivariate_he_ldms: [
+            domain: 'pairwise',
+            endpoint_domain: 'analysis',
+            option_family: 'gcta',
+            matrix_kind: 'gcta_ldms',
+            estimator_family: 'moment_he',
+            input_backend: 'ldms_grm_family',
+            component_model: 'ldms_multi_component',
+            trait_support: [quantitative: true, binary: false, binary_requires: []],
+            supports_covariates: false,
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: true,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'deterministic moment reference or sensitivity over an existing LDMS GRM family',
+            citation_key: 'gcta_hereg',
+            citation_keys: ['gcta_hereg', 'gcta_greml_ldms'],
+        ],
         ldak_sumher: [
             domain: 'summary_unary',
             endpoint_domain: 'summary_statistics',
@@ -1230,6 +1274,7 @@ def validateNativeArgumentTokens(method_options, request_id, native_args) {
     def reserved = [
         '--reml-bivar',
         '--reml-bivar-prevalence',
+        '--HEreg-bivar',
         '--bfile',
         '--pfile',
         '--mbfile',
@@ -1780,7 +1825,35 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
             )
         }
         if (analysis_methods && left_analysis && right_analysis && left_analysis[0].cohort.toString() != right_analysis[0].cohort.toString()) {
-            reject.call(['left_analysis_id', 'right_analysis_id'], "GCTA bivariate REML requires one cohort, but '${left_analysis_id}' uses '${left_analysis[0].cohort}' and '${right_analysis_id}' uses '${right_analysis[0].cohort}'")
+            reject.call(['left_analysis_id', 'right_analysis_id'], "individual-level relationship methods require one cohort, but '${left_analysis_id}' uses '${left_analysis[0].cohort}' and '${right_analysis_id}' uses '${right_analysis[0].cohort}'")
+        }
+
+        // A method whose declared trait support excludes binary endpoints must fail before execution rather
+        // than return an observed-scale number nobody asked for. GCTA bivariate REML keeps the binary and
+        // mixed pair domain because it is the only relationship estimator here with an explicit prevalence
+        // and liability-scale contract.
+        def binary_endpoint = (left_meta && left_meta.is_binary) || (right_meta && right_meta.is_binary)
+        def quantitative_only_methods = binary_endpoint
+            ? methods.findAll { method -> capabilities[method]?.trait_support && !capabilities[method].trait_support.binary }
+            : []
+        if (quantitative_only_methods) {
+            reject.call(
+                'relationship_methods',
+                "method${quantitative_only_methods.size() > 1 ? 's' : ''} ${quantitative_only_methods.join(', ')} support two quantitative endpoints only; select 'gcta_bivariate_reml' or 'gcta_bivariate_reml_ldms' for a binary or mixed pair",
+            )
+        }
+
+        // Declared pair covariates must reach the estimator or the request must fail. GCTA 1.94.1 accepts
+        // `--qcovar`/`--covar` on an `--HEreg-bivar` command line and silently ignores them, so a
+        // covariate-bearing HE request cannot be honoured and is refused here rather than answered wrongly.
+        def covariate_incapable_methods = cells.pair_quant_covariates || cells.pair_cat_covariates
+            ? methods.findAll { method -> capabilities[method]?.supports_covariates == false }
+            : []
+        if (covariate_incapable_methods) {
+            reject.call(
+                ['pair_quant_covariates', 'pair_cat_covariates'],
+                "method${covariate_incapable_methods.size() > 1 ? 's' : ''} ${covariate_incapable_methods.join(', ')} have no native covariate parameter and would ignore the declared pair covariates; remove them or select a covariate-capable method",
+            )
         }
 
         def left_side = "${left_analysis_id ?: ''}\u0001${left_summary_statistics_id ?: ''}".toString()

@@ -29,7 +29,7 @@ nextflow_workflow {
             method: '${method}',
             relationship_methods: ['${method}'],
             cohort: 'cohort_a',
-            matrix_kind: '${method == 'gcta_bivariate_reml_ldms' ? 'gcta_ldms' : 'gcta_dense'}',
+            matrix_kind: '${method.endsWith('_ldms') ? 'gcta_ldms' : 'gcta_dense'}',
             left_analysis_id: '${left_analysis_id}',
             right_analysis_id: '${right_analysis_id}',
             left_summary_statistics_id: null,
@@ -64,9 +64,9 @@ nextflow_workflow {
 
     // The matrix stream as `PREPARE_RELATEDNESS_MATRICES` emits it for a relationship request: the request's
     // own meta plus the content-derived reuse key, already fanned out one element per request.
-    def denseMatrix = { project_dir, relationship_id, left_analysis_id, right_analysis_id, basename ->
+    def denseMatrix = { project_dir, relationship_id, left_analysis_id, right_analysis_id, basename, method = 'gcta_bivariate_reml' ->
         """[
-            ${relationshipMeta(relationship_id, 'gcta_bivariate_reml', left_analysis_id, right_analysis_id)} + [matrix_key: 'key_${basename}'],
+            ${relationshipMeta(relationship_id, method, left_analysis_id, right_analysis_id)} + [matrix_key: 'key_${basename}'],
             [
                 ${RESOURCE(project_dir, "${basename}.grm.bin")},
                 ${RESOURCE(project_dir, "${basename}.grm.N.bin")},
@@ -75,9 +75,9 @@ nextflow_workflow {
         ]"""
     }
 
-    def ldmsMatrix = { project_dir, relationship_id, left_analysis_id, right_analysis_id ->
+    def ldmsMatrix = { project_dir, relationship_id, left_analysis_id, right_analysis_id, method = 'gcta_bivariate_reml_ldms' ->
         """[
-            ${relationshipMeta(relationship_id, 'gcta_bivariate_reml_ldms', left_analysis_id, right_analysis_id)} + [matrix_key: 'key_ldms_family'],
+            ${relationshipMeta(relationship_id, method, left_analysis_id, right_analysis_id)} + [matrix_key: 'key_ldms_family'],
             ${RESOURCE(project_dir, 'ldms_family.mgrm')},
             [
                 ${RESOURCE(project_dir, 'ldms_family_stratum1.grm.bin')},
@@ -157,6 +157,105 @@ nextflow_workflow {
                 { assert workflow.out.heritability.every { meta, _heritability -> meta.relationship_id == 'rel_ab' } },
                 { assert workflow.out.heritability.every { meta, _heritability -> meta.left_analysis_id == 'alpha' && meta.right_analysis_id == 'beta' } },
                 { assert workflow.out.genetic_correlation.every { meta, _correlation -> meta.left_trait_id == 'TRAIT_alpha' && meta.right_trait_id == 'TRAIT_beta' } },
+            )
+        }
+    }
+
+    test("one relationship selecting all four estimators shares one preparation and one matrix identity per backend") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                input[0] = channel.of(
+                    ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml', 'alpha', 'beta')},
+                    ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_he', 'alpha', 'beta')},
+                    ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml_ldms', 'alpha', 'beta')},
+                    ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_he_ldms', 'alpha', 'beta')},
+                )
+                input[1] = channel.of(
+                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
+                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
+                )
+                input[2] = channel.of(
+                    ${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha')},
+                    ${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha', 'gcta_bivariate_he')},
+                )
+                input[3] = channel.of(
+                    ${ldmsMatrix(projectDir, 'rel_ab', 'alpha', 'beta')},
+                    ${ldmsMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'gcta_bivariate_he_ldms')},
+                )
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // Four selected estimators, one relationship, one expensive two-trait construction.
+                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
+                { assert TRACE.tags(workflow, 'PREPARE_BIVARIATE_TRAITS') == ['rel_ab'] },
+                // Each estimator runs once and only against its own backend's matrix.
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
+                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 4 },
+                // Both dense estimators address the same staged GRM basename and both LDMS estimators the
+                // same MGRM manifest, which is the controller-side face of one shared matrix construction.
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['matrix_alpha_matrix_alpha'] },
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREGLDMS') == ['ldms_family_ldms_family'] },
+                { assert workflow.out.provenance.collect { meta, _provenance -> meta.method }.sort() == ['gcta_bivariate_he', 'gcta_bivariate_he_ldms', 'gcta_bivariate_reml', 'gcta_bivariate_reml_ldms'] },
+                // Each estimator keeps its own request identity and its own published request directory.
+                { assert workflow.out.genetic_correlation.collect { meta, _correlation -> meta.request_id }.sort() == ['gcta_bivariate_he--rel_ab', 'gcta_bivariate_he_ldms--rel_ab', 'gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml_ldms--rel_ab'] },
+                { assert new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--rel_ab/native.HEreg").isFile() },
+                { assert new File("${params.outdir}/requests/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--rel_ab/native.HEreg").isFile() },
+                { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.hsq").isFile() },
+                { assert new File("${params.outdir}/genetic_correlation/gcta_bivariate_he/gcta_bivariate_he--rel_ab/genetic_correlation.tsv").isFile() },
+                // The LDMS HEreg view is component-stratified; the dense one is not.
+                { assert new File("${params.outdir}/heritability/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--rel_ab/heritability.tsv").readLines()[0].split('\t').contains('component') },
+                { assert !new File("${params.outdir}/heritability/gcta_bivariate_he/gcta_bivariate_he--rel_ab/heritability.tsv").readLines()[0].split('\t').contains('component') },
+                // The controller's native and reuse identities never leave it.
+                { assert workflow.out.provenance.every { meta, _provenance -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
+            )
+        }
+    }
+
+    test("a HEreg-only relationship never reaches the REML branch and drops the unusable pair covariates") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                input[0] = channel.of(${relationship(projectDir, 'rel_he', 'gcta_bivariate_he', 'alpha', 'beta')})
+                input[1] = channel.of(
+                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
+                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
+                )
+                input[2] = channel.of(${denseMatrix(projectDir, 'rel_he', 'alpha', 'beta', 'matrix_alpha', 'gcta_bivariate_he')})
+                input[3] = channel.empty()
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
+                { assert workflow.out.heritability.size() == 1 },
+                { assert workflow.out.heritability[0][0].method == 'gcta_bivariate_he' },
+                { assert workflow.out.heritability[0][0].left_analysis_id == 'alpha' && workflow.out.heritability[0][0].right_analysis_id == 'beta' },
             )
         }
     }

@@ -1,9 +1,11 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_gcta_bivariate_relationships
-description: Route nf-core/gwas individual-level relationship requests through one shared bivariate trait preparation into GCTA bivariate REML and REML-LDMS normalized results
+description: Route nf-core/gwas individual-level relationship requests through one shared bivariate trait preparation into GCTA bivariate REML, REML-LDMS, HEreg and HEreg-LDMS normalized results
 keywords:
   - gcta
   - bivariate reml
+  - haseman-elston regression
+  - hereg
   - ldms
   - genetic correlation
   - relationship
@@ -12,6 +14,8 @@ components:
   - prepare_bivariate_traits
   - gcta/bivariatereml
   - gcta/bivariateremlldms
+  - gcta/bivariatehereg
+  - gcta/bivariateheregldms
   - normalise_gcta_bivariate
 input:
   - ch_relationships:
@@ -25,7 +29,7 @@ input:
       pattern: "*.pheno"
       ontologies: []
   - ch_relationship_dense_matrices:
-      description: The dense GCTA relatedness matrices built for relationship requests and already fanned out one element per request; meta carries the request identity and the content-derived matrix reuse key, and the staged family must include its `.grm.id` member because the installed component addresses the matrix by staged basename
+      description: The dense GCTA relatedness matrices built for relationship requests and already fanned out one element per request; meta carries the request identity and the content-derived matrix reuse key, and the staged family must include its `.grm.id` member because the installed component addresses the matrix by staged basename. A relationship selecting both dense estimators carries one reuse key across both requests, so the matrix is constructed once
       structure: "[map meta, [ path grm_file, ... ]]"
       pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
@@ -46,7 +50,7 @@ output:
       pattern: "genetic_correlation.tsv"
       ontologies: []
   - genetic_covariance:
-      description: Normalized genetic covariance table, one per relationship request, presented in the declared left/right orientation
+      description: Normalized genetic covariance table, one per relationship request, presented in the declared left/right orientation; the REML estimators report the observed phenotype scale and the HEreg estimators the standardised scale they fit on, and a multi-component request carries its native genome-wide total as the primary row beside the per-component rows
       structure: "[map meta, path genetic_covariance]"
       pattern: "genetic_covariance.tsv"
       ontologies: []

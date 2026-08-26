@@ -8,7 +8,7 @@ process NORMALISE_GCTA_BIVARIATE {
         : 'community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927'}"
 
     input:
-    tuple val(meta), path(hsq), path(gcta_log), path(pair_log)
+    tuple val(meta), path(native_result), path(gcta_log), path(pair_log)
 
     output:
     tuple val(meta), path('heritability.tsv'), emit: heritability
@@ -23,7 +23,7 @@ process NORMALISE_GCTA_BIVARIATE {
 
     script:
     meta_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta))
-    hsq_literal = groovy.json.JsonOutput.toJson(hsq.toString())
+    native_result_literal = groovy.json.JsonOutput.toJson(native_result.toString())
     gcta_log_literal = groovy.json.JsonOutput.toJson(gcta_log.toString())
     pair_log_literal = groovy.json.JsonOutput.toJson(pair_log.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
@@ -31,8 +31,8 @@ process NORMALISE_GCTA_BIVARIATE {
     template('normalise_gcta_bivariate.py')
 
     stub:
-    def component_header = meta.method == 'gcta_bivariate_reml_ldms' ? '\tcomponent' : ''
-    def component_value = meta.method == 'gcta_bivariate_reml_ldms' ? '\tG' : ''
+    def component_header = meta.method.endsWith('_ldms') ? '\tcomponent' : ''
+    def component_value = meta.method.endsWith('_ldms') ? '\tG' : ''
     """
     cat <<-'END_HERITABILITY' > heritability.tsv
     relationship_id\trequest_id\tmethod${component_header}\tendpoint\tanalysis_id\ttrait_id\ttrait_type\tscale\testimate\tstandard_error\tclassification
