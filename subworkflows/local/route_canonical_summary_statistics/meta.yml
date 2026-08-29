@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: route_canonical_summary_statistics
+description: Converge internal association results and external raw and canonical summary sources on the one nf-core/gwas canonical summary-statistics contract
+keywords:
+  - summary statistics
+  - harmonisation
+  - gwaslab
+  - canonical contract
+  - provenance
+components:
+  - gwaslab/harmonize
+  - canonicalise/summary/statistics
+  - getassociationcolumnmappingjson
+  - getinternalsummarymetadata
+input:
+  - ch_association_results:
+      description: Every internal association result, one per analysis unit per association method actually exercised; the producing route names its method on `meta.method`, and the analysis identity, trait, binariness, prevalences, genome build and ancestry are read from the same meta to derive the producer summary metadata and the registered GWASLab column mapping
+      structure: "[map meta, path sumstats]"
+      pattern: "*.{tsv,tsv.gz,txt,regenie.gz,assoc,fastGWA,linear,hybrid}"
+      ontologies: []
+  - ch_external_summary_statistics:
+      description: Every validated external summary-statistics row, both source modes; a `raw` row declares its own GWASLab input format in `meta.source_format` and is harmonised, while a `canonical` row bypasses harmonisation and is validated against the canonical contract only
+      structure: "[map meta, path source]"
+      pattern: "*.{tsv,tsv.gz,txt,gz}"
+      ontologies: []
+  - gwaslab_references:
+      description: The optional build-keyed GWASLab reference resources, already resolved from pipeline parameters by the caller; a map from genome build to `[fasta, fasta_index, rsid_vcf, rsid_vcf_index, strand_vcf, strand_vcf_index]`, each entry `[]` when that resource is unconfigured for the build
+      structure: "map gwaslab_references"
+      ontologies: []
+output:
+  - summary_statistics:
+      description: The canonical summary-statistics table, exactly one per `summary_statistics_id`, whatever origin produced it
+      structure: "[map meta, path canonical_summary_statistics]"
+      pattern: "*.canonical.tsv.gz"
+      ontologies: []
+  - provenance:
+      description: The canonical provenance sidecar, one-to-one with `summary_statistics` on the same task, recording the source kind, mode, format and checksum alongside the canonical checksum and contract version
+      structure: "[map meta, path provenance]"
+      pattern: "*.provenance.json"
+      ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"
