@@ -66,7 +66,9 @@ nextflow_workflow {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    'quantitative',
                     ['fixed'],
+                    null,
                     ['1', '2'],
                 ])
                 """
@@ -115,7 +117,9 @@ nextflow_workflow {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    'quantitative',
                     ['fixed'],
+                    null,
                     [],
                 ])
                 """
@@ -155,7 +159,9 @@ nextflow_workflow {
                     ['study1', 'study2', 'study3'],
                     'gwaslab',
                     'GRCh37',
+                    'quantitative',
                     ['fixed', 'random', 're2'],
+                    null,
                     ['1', '2'],
                 ])
                 """
@@ -182,6 +188,85 @@ nextflow_workflow {
                 { assert table.values().every { row -> row['P_RE2'] != null } },
                 // canonical BETA/SE/P still mean the fixed result
                 { assert table['1:1000:A:G']['BETA'] == '1.075410e-01' },
+            )
+        }
+    }
+
+    // Five studies with a deliberate allele-frequency gradient, so MR-MEGA has real structure to
+    // recover. Markers sit one per megabase so the pass-1 thinning keeps all of them.
+    def ancestryStudy = { offset ->
+        def rows = []
+        (1..8).each { bin ->
+            rows << ["rs1_${bin}", 1, bin * 1000000, 'A', 'G', '9999999',
+                     (0.20 + offset * 0.06 + bin * 0.004).round(4),
+                     sprintf('%.6e', 0.10 + offset * 0.01), '2.000000e-02', '5.000000e-07', 4000]
+        }
+        (1..4).each { bin ->
+            rows << ["rs2_${bin}", 2, bin * 1000000, 'C', 'T', '9999999',
+                     (0.55 - offset * 0.05 + bin * 0.003).round(4),
+                     sprintf('%.6e', 0.08 + offset * 0.012), '2.500000e-02', '2.000000e-04', 4000]
+        }
+        rows
+    }
+
+    test("MR-MEGA runs two-pass: axes derived once genome-wide, then scattered with fixed axes") {
+        when {
+            def a = parent(outputDir, 'anc0', ancestryStudy(0))
+            def b = parent(outputDir, 'anc1', ancestryStudy(1))
+            def c = parent(outputDir, 'anc2', ancestryStudy(2))
+            def d = parent(outputDir, 'anc3', ancestryStudy(3))
+            def e = parent(outputDir, 'anc4', ancestryStudy(4))
+            workflow {
+                """
+                input[0] = Channel.of([
+                    [id: 'multi_ancestry'],
+                    [file('${a}', checkIfExists: true), file('${b}', checkIfExists: true), file('${c}', checkIfExists: true), file('${d}', checkIfExists: true), file('${e}', checkIfExists: true)],
+                    ['study1', 'study2', 'study3', 'study4', 'study5'],
+                    'gwaslab',
+                    'GRCh37',
+                    'quantitative',
+                    ['fixed', 'mrmega'],
+                    1,
+                    ['1', '2'],
+                ])
+                """
+            }
+        }
+
+        then {
+            def gathered = readGzip(workflow.out.candidate.get(0).get(1))
+            def table = keyed(gathered)
+            def columns = gathered.readLines()[0].split('\t') as List
+            def axes = new File(workflow.out.ancestry_axes.get(0).get(1).toString()).readLines()
+            def axesQc = new groovy.json.JsonSlurper().parse(new File(workflow.out.axes_qc.get(0).get(1).toString()))
+            def report = new groovy.json.JsonSlurper().parse(new File(workflow.out.gather_report.get(0).get(1).toString()))
+            assertAll(
+                { assert workflow.success },
+                // axes are derived exactly once for the request, not once per shard
+                { assert workflow.out.ancestry_axes.size() == 1 },
+                { assert axes.size() == 6 },
+                { assert axes[0] == 'study_index\tstudy_name\tAXIS_1' },
+                { assert axesQc.axes == 1 },
+                { assert axesQc.studies == 5 },
+                // the sign rule ran and left the largest-magnitude coordinate positive
+                { assert axesQc.axis_span[0] > 0 },
+                { assert axes.drop(1).collect { line -> line.split('\t')[2] as double }.max() > 0 },
+                // both shards gathered into one result
+                { assert report.shards_gathered == 2 },
+                { assert report.total_variants == 12 },
+                // the log-scale-first MR-MEGA block reaches the published table
+                { assert columns.contains('MRMEGA_CHISQ_ASSOC') },
+                { assert columns.contains('MRMEGA_LOG10P_ASSOC') },
+                { assert columns.contains('MRMEGA_P_ASSOC') },
+                { assert columns.contains('MRMEGA_LNBF') },
+                // native P values are debug provenance only and must never be published
+                { assert !columns.any { column -> column.startsWith('MRMEGA_NATIVE_P') } },
+                // association df is axes + 1 and ancestry-heterogeneity df is axes
+                { assert table.values().every { row -> row['MRMEGA_DF_ASSOC'] == '2' } },
+                { assert table.values().every { row -> row['MRMEGA_DF_ANCESTRY_HET'] == '1' } },
+                // canonical BETA/SE/P remain the fixed-effect result, never MR-MEGA's association test
+                { assert columns.indexOf('BETA') < columns.indexOf('MRMEGA_CHISQ_ASSOC') },
+                { assert table['1:1000000:A:G']['BETA'] != 'NA' },
             )
         }
     }

@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "thin_mrmega_markers"
+description: Thin aligned per-study summary-statistics views to one marker per megabase for meta-regression axis derivation
+keywords:
+  - genome-wide association study
+  - meta-analysis
+  - meta-regression of multi-ethnic genetic association
+  - multi-ancestry
+  - minor allele frequency
+  - thinning
+tools:
+  - "python":
+      description: Deterministic thinning implemented with the Python standard library
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      licence:
+        - "PSF-2.0"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+    - study_views:
+        type: file
+        description: |
+          One or more aligned per-study view shards, as emitted by GWASLAB_META_ANALYZE. Each
+          carries `META_VARIANT_KEY SNPID CHR POS EA NEA` followed by
+          `STATUS_i EAF_i BETA_i SE_i P_i N_i` for study `i` in 1..K, and every shard must carry
+          an identical header. A `META_VARIANT_KEY` may not appear in more than one shard.
+        pattern: "*.tsv.gz"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - study_count:
+        type: integer
+        description: |
+          Number of studies the views describe. It is checked against the number of per-study
+          column groups in the header, so a view table built for a different cohort set is
+          rejected rather than silently thinned against the wrong studies.
+output:
+  thinned:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.thinned_views.tsv.gz":
+          type: file
+          description: |
+            One thinned marker table with the identical column schema as the input, so it is a
+            drop-in replacement for the gathered views wherever PREPARE_MRMEGA_INPUT is fed. It
+            holds at most one marker per megabase per chromosome, restricted to chromosomes 1-22
+            and X and to markers every study contributes with minor allele frequency above 1 per
+            cent, which is exactly the selection MR-MEGA's own axis derivation applies. Rows are
+            copied verbatim and sorted by chromosome in numeric order with X last, then position,
+            then `META_VARIANT_KEY`; the gzip stream is written with a zeroed modification time so
+            byte-identical input gives byte-identical output.
+          pattern: "*.thinned_views.tsv.gz"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  qc:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.thin_qc.json":
+          type: file
+          description: |
+            Input rows per shard, rows dropped per reason, bins occupied, markers retained, and the
+            range of the per-marker minimum minor allele frequency across studies. Drop counts are
+            additive with the retained count, so the document stays readable if the step is ever
+            sharded and the reports are combined.
+          pattern: "*.thin_qc.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

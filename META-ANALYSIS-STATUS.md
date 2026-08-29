@@ -7,44 +7,39 @@ refactor owns that file and was deliberately not touched. This file is kept curr
 
 ## Component status
 
-| Component                       | Path                                               | State                                                              |
-| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------ |
-| `GWASLAB_META_ANALYZE`          | `modules/local/gwaslab/meta_analyze/`              | **Complete.** 14/14 nf-tests green.                                |
-| `METASOFT_RE2`                  | `modules/local/metasoft/re2/`                      | **Complete.** 8 nf-tests.                                          |
-| `NORMALISE_COMMON_VARIANT_META` | `modules/local/normalise_common_variant_meta/`     | **Complete.** 6/6 nf-tests green.                                  |
-| `GATHER_META_SHARDS`            | `modules/local/gather_meta_shards/`                | **Complete.** 10/10 nf-tests green.                                |
-| `PREPARE_MRMEGA_INPUT`          | `modules/local/prepare_mrmega_input/`              | **Complete.** 5/5 nf-tests green.                                  |
-| `MRMEGA`                        | `modules/local/mrmega/`                            | **Complete.** 6/6 nf-tests green against the pinned quay digest.   |
-| `COMMON_VARIANT_META_ANALYSIS`  | `subworkflows/local/common_variant_meta_analysis/` | **Complete for fixed/random/re2.** MR-MEGA deliberately not wired. |
+| Component                       | Path                                               | State                                                            |
+| ------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `GWASLAB_META_ANALYZE`          | `modules/local/gwaslab/meta_analyze/`              | **Complete.** 14/14 nf-tests green.                              |
+| `METASOFT_RE2`                  | `modules/local/metasoft/re2/`                      | **Complete.** 8 nf-tests.                                        |
+| `NORMALISE_COMMON_VARIANT_META` | `modules/local/normalise_common_variant_meta/`     | **Complete.** 6/6 nf-tests green.                                |
+| `GATHER_META_SHARDS`            | `modules/local/gather_meta_shards/`                | **Complete.** 10/10 nf-tests green.                              |
+| `PREPARE_MRMEGA_INPUT`          | `modules/local/prepare_mrmega_input/`              | **Complete.** 5/5 nf-tests green.                                |
+| `MRMEGA`                        | `modules/local/mrmega/`                            | **Complete.** 6/6 nf-tests green against the pinned quay digest. |
+| `THIN_MRMEGA_MARKERS`           | `modules/local/thin_mrmega_markers/`               | **Complete.**                                                    |
+| `EXTRACT_MRMEGA_AXES`           | `modules/local/extract_mrmega_axes/`               | **Complete.** 8/8 nf-tests green.                                |
+| `NORMALISE_MRMEGA_RESULT`       | `modules/local/normalise_mrmega_result/`           | **Complete.**                                                    |
+| `COMMON_VARIANT_META_ANALYSIS`  | `subworkflows/local/common_variant_meta_analysis/` | **Complete, all four models.** 4/4 nf-tests green.               |
 
-## What is NOT built
-
-Three components stand between the finished `MRMEGA` module and a wired multi-ancestry route. They are the
-entire remaining gap:
-
-1. **`THIN_MRMEGA_MARKERS`** — thin the gathered genome-wide aligned representation to at most one marker per
-   Mb for pass 1. MR-MEGA's own axis derivation already uses at most one marker per Mb bin on chromosomes 1-23
-   with MAF > 1% in every study, so pre-thinning loses nothing and bounds pass-1 memory.
-2. **`EXTRACT_MRMEGA_AXES`** — parse the `Principal components:` block out of the pass-1 `.log`, canonicalize
-   each axis sign by a deterministic rule over the ordered source coordinates, and emit the `--precalculated`
-   manifest. Sign canonicalization is a pure post-hoc transform: negating an axis flips exactly `beta_{j+1}`
-   and leaves `se`, every chi-square, every ndf, every P and `lnBF` bit-identical, so doing it between the two
-   passes means the shards are born canonical.
-3. **`NORMALISE_MRMEGA_RESULT`** — convert the native `.result` into the keyed schema
-   `NORMALISE_COMMON_VARIANT_META` already accepts (`META_VARIANT_KEY`, the three chi-square/df pairs,
-   `MRMEGA_LNBF`, and the three native P values for debug provenance only). This is the smallest of the three
-   and is pure column mapping; the normalizer's log-space recomputation is already built and tested.
-
-The two-pass design, which is proven feasible:
+## The MR-MEGA two-pass flow
 
 ```
-thin genome-wide to <=1 marker/Mb  ->  pass 1: derive axes  ->  canonicalize axis signs
-   ->  scatter per chromosome with --precalculated fixed axes  ->  gather
+thin genome-wide to <=1 marker/Mb  ->  pass 1 derives axes  ->  signs canonicalized
+   ->  pass 2 scatters per chromosome with --precalculated fixed axes  ->  gather
 ```
 
-Scatter contributes **zero** error: per-chromosome scatter against unscattered gave 300/300 identical rows on
-the pinned binary. A separately measured 2.46e-06 max relative difference in `chisq_association` comes entirely
-from the 6-significant-figure precision of the axis coordinates echoed in the log, not from sharding.
+Wired and tested end to end. `THIN_MRMEGA_MARKERS` collects every shard's aligned view for a request and
+reduces it to at most one marker per megabase, keeping only markers every study contributes with MAF > 1% on
+chromosomes 1-22 and X. That is what MR-MEGA's own axis derivation does internally, so the pre-thin loses
+nothing and bounds pass-1 memory. `EXTRACT_MRMEGA_AXES` reads the `Principal components:` block out of the
+pass-1 log, matching coordinates to studies **by position** rather than by the path echoed there, because the
+manifest is rewritten against staged copies before MR-MEGA sees it.
+
+Sign canonicalization happens between the passes, so every shard is born canonical rather than needing a
+correction afterwards. The rule is: the largest-magnitude coordinate on each axis is made positive, ties broken
+by lowest study index. It depends only on the ordered source coordinates. Negating an axis flips exactly
+`beta_{j+1}` and leaves `se`, every chi-square, every `ndf`, every P value and `lnBF` bit-identical, so this is
+free. Scatter contributes no numerical error; the only residual against an unscattered run is the six
+significant figures MR-MEGA prints its coordinates with, which cannot be raised.
 
 ## Settled take/emit contracts
 
@@ -129,7 +124,29 @@ The completion record is `GWASLAB_META_ANALYZE`'s `qc.json`: it declares `chromo
 `fixed_eligible_variants`. An unscattered run is gathered too, as a one-shard gather under the sentinel
 chromosome `ALL`, so the completeness checks apply identically either way.
 
-### `NORMALISE_COMMON_VARIANT_META`, `PREPARE_MRMEGA_INPUT`, `MRMEGA`
+### `COMMON_VARIANT_META_ANALYSIS` take channel
+
+```
+[ meta, parents, study_names, input_format, genome_build, trait_type, models, axes, chromosomes ]
+```
+
+`models` is a subset of `fixed`, `random`, `re2`, `mrmega`; `fixed` is always produced. `axes` is required when
+`mrmega` is selected. Emits `candidate`, `gather_report`, `shard_derivation`, `shard_qc`, `study_order`, `re2`,
+`ancestry_axes` and `axes_qc`.
+
+### `EXTRACT_MRMEGA_AXES`
+
+```nextflow
+input:
+tuple val(meta), path(mrmega_log), path(filelist), val(axes)
+
+output:
+tuple val(meta), path("${prefix}.precalculated_axes.txt"), emit: precalculated_axes
+tuple val(meta), path("${prefix}.ancestry_axes.tsv"),      emit: coordinates
+tuple val(meta), path("${prefix}.axes_qc.json"),           emit: qc
+```
+
+### `NORMALISE_COMMON_VARIANT_META`, `PREPARE_MRMEGA_INPUT`, `MRMEGA`, `THIN_MRMEGA_MARKERS`, `NORMALISE_MRMEGA_RESULT`
 
 Built by parallel agents; see their `main.nf` and `meta.yml`. `NORMALISE_COMMON_VARIANT_META` added `stageAs`
 on its upstream inputs because its `derivation` input and `derivation` output would otherwise collide on the
@@ -156,6 +173,10 @@ same filename and it would write through the staged symlink, corrupting the upst
   mpmath at 60 dps, **1.82e-12** over the 123 points where SciPy itself underflows to `-inf`. Golden value
   chi-square 7459 at 3 df gives log10 P -1617.8629316806.
 - MR-MEGA `--precalculated` works on the pinned quay binary; per-chromosome scatter reproduced unscattered.
+- **The full two-pass MR-MEGA flow runs end to end** on a five-study, two-chromosome fixture with a real
+  allele-frequency gradient: axes derived once, signs canonicalized, both shards fitted against them, gathered
+  into one result. `MRMEGA_DF_ASSOC` is `axes + 1` and `MRMEGA_DF_ANCESTRY_HET` is `axes` on every row, the
+  log-scale-first block reaches the published table, and no `MRMEGA_NATIVE_P_*` column is published.
 
 ## Not verified
 
@@ -274,21 +295,18 @@ Silent-failure modes the module defends against:
 5. **New, found while building:** a `--precalculated` manifest whose coordinate block is **narrower than
    `--pc`** exits 0 with a complete `.result` in which every `beta_j`/`se_j` for j >= 1 is exactly 0,
    `chisq_ancestry_het` is 0 and `P-value_ancestry_het` is `nan`. Nothing on any stream. `MRMEGA` rejects it.
-6. **The binary route is lossy twice over.** MR-MEGA's native inverse is
-   `se = (ln(OR) - ln(OR_95L)) / 1.96` with a hard-coded 1.96, not the exact quantile, so writing true 95%
-   bounds makes it reconstruct an SE smaller than canonical by `z/1.96 - 1 = -1.8375e-05`, inflating every
-   chi-square by ~3.7e-05 relative. Recorded in `adapter_qc.json` rather than compensated. Since the canonical
-   representation is already log-OR with SE, **routing binary traits through `--qt` with `BETA`/`SE` avoids
-   this entirely and is numerically strictly better** — that is a route-level decision worth taking.
+6. **The binary route is lossy, and this is accepted deliberately.** MR-MEGA's native inverse is
+   `se = (ln(OR) - ln(OR_95L)) / 1.96` with a hard-coded 1.96 rather than the exact quantile, so writing true
+   95% bounds makes it reconstruct an SE smaller than canonical by `z/1.96 - 1 = -1.8375e-05`, inflating every
+   chi-square by about 3.7e-05 relative. It is recorded in `adapter_qc.json` rather than compensated.
+   Routing binary traits through `--qt` with `BETA`/`SE` would avoid it entirely and is numerically better,
+   **but that is not a documented binary route for MR-MEGA**, and the standing policy is to follow a tool's
+   documented usage rather than substitute our own judgement. Binary traits therefore keep `-bt` with
+   `OR`/`OR_95L`/`OR_95U` exactly as #9 specifies. The cost is filed as a GitHub issue so it is on record.
 7. Result header df columns are `ndf_association`, `ndf_ancestry_het`, `ndf_residual_het`, not bare `ndf`.
    Column count is `20 + 2(T+1)`.
 
 ## Next steps
 
-1. Build the three MR-MEGA glue components listed under "What is NOT built" and extend the subworkflow with the
-   two-pass scatter. The seam is already there: `GWASLAB_META_ANALYZE.out.study_views` feeds
-   `PREPARE_MRMEGA_INPUT`, and `NORMALISE_COMMON_VARIANT_META` already accepts a keyed MR-MEGA file and
-   recomputes its P values.
-2. Run `nf-core pipelines lint`.
-3. Benchmark at realistic dimensions before believing the memory profile.
-4. Route wiring belongs to the route-controller refactor, not this branch.
+1. Benchmark at realistic dimensions before believing the memory profile. Nothing has been run at scale.
+2. Route wiring belongs to the route-controller refactor, not this branch.

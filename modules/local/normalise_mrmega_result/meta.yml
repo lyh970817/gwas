@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "normalise_mrmega_result"
+description: Map a native meta-regression of multi-ethnic genetic association result table into the keyed common-variant meta-analysis schema
+keywords:
+  - genome-wide association study
+  - meta-analysis
+  - meta-regression of multi-ethnic genetic association
+  - multi-ancestry
+  - heterogeneity
+  - chi-square
+tools:
+  - "python":
+      description: Deterministic column mapping implemented with the Python standard library
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      licence:
+        - "PSF-2.0"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+    - mrmega_result:
+        type: file
+        description: |
+          Native per-marker result table, tab-separated with one header line. `MarkerName` already
+          is the `META_VARIANT_KEY`, because PREPARE_MRMEGA_INPUT wrote the allele-aware key there
+          rather than an rsID. The column count is `20 + 2(T+1)` and moves with the axis count, so
+          every source column is located by name and never by position.
+        pattern: "*.result"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - axes:
+        type: integer
+        description: |
+          Number of axes of genetic variation the run fitted, that is the value passed to `--pc`.
+          It is used only to check the two fixed degree-of-freedom identities
+          `ndf_association == axes + 1` and `ndf_ancestry_het == axes`; disagreement is reported in
+          the quality-control document and never fails the task. There is no identity to check on
+          `ndf_residual_het`, which is `Ncohort - axes - 1` on the per-marker `Ncohort` and so
+          legitimately varies row to row.
+output:
+  fields:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.mrmega_fields.tsv.gz":
+          type: file
+          description: |
+            Keyed field table carrying `META_VARIANT_KEY`, the three chi-square columns, the three
+            degree-of-freedom columns, the three native P values and the natural-log Bayes factor,
+            in exactly the order NORMALISE_COMMON_VARIANT_META expects. The three
+            `MRMEGA_NATIVE_P_*` columns are debug provenance only: they are numerically invalid
+            whenever the corresponding degrees of freedom are not 2, and which of the three is
+            sound flips with the axis count and the study count, so the downstream normalizer
+            discards all three unconditionally and recomputes the tail in log space. This module
+            neither recomputes nor publishes them. A row flagged `SmallCohortCount` or `collinear`
+            carries NA in every chi-square, degree-of-freedom and Bayes-factor field rather than
+            passing an unusable result through.
+          pattern: "*.mrmega_fields.tsv.gz"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  qc:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.mrmega_qc.json":
+          type: file
+          description: |
+            Rows read, rows usable, rows nulled per `Comments` category, any unexpected comment
+            value, degree-of-freedom identity mismatches with examples, the observed residual
+            degree-of-freedom range, and the minimum and maximum of each chi-square.
+          pattern: "*.mrmega_qc.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

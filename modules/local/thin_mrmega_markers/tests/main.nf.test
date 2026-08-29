@@ -1,0 +1,331 @@
+nextflow_process {
+
+    name "Test Process THIN_MRMEGA_MARKERS"
+    script "../main.nf"
+    process "THIN_MRMEGA_MARKERS"
+
+    tag "modules"
+    tag "modules_local"
+    tag "thin_mrmega_markers"
+
+    def viewHeader = { studies ->
+        (['META_VARIANT_KEY', 'SNPID', 'CHR', 'POS', 'EA', 'NEA'] + (1..studies).collectMany { index ->
+            ["STATUS_${index}", "EAF_${index}", "BETA_${index}", "SE_${index}", "P_${index}", "N_${index}"]
+        }).join('\t')
+    }
+
+    // studies is one [ EAF, BETA, SE, P, N ] list per study, in study order
+    def viewRow = { key, chromosome, position, studies ->
+        def fields = [key, "rs_${key}", chromosome, position, 'A', 'G']
+        studies.each { study -> fields += ['9999999'] + study }
+        fields.join('\t')
+    }
+
+    def shard = { directory, stem, headerLine, rows ->
+        def target = new File(directory.toString(), "${stem}.study_views.tsv.gz")
+        target.withOutputStream { stream ->
+            def gzip = new java.util.zip.GZIPOutputStream(stream)
+            def body = rows.isEmpty() ? '' : rows.join('\n') + '\n'
+            gzip.write((headerLine + '\n' + body).bytes)
+            gzip.close()
+        }
+        target
+    }
+
+    def readGzip = { path ->
+        new java.util.zip.GZIPInputStream(new FileInputStream(path.toString())).getText('UTF-8')
+    }
+
+    def good = ['0.30', '0.10', '0.02', '0.5', '1000']
+
+    test("two shards concatenate into one thinned table in deterministic order") {
+        when {
+            def header = viewHeader(2)
+            // deliberately written out of position order, and the shards are supplied out of order
+            def one = shard(outputDir, 'a_chr1', header, [
+                viewRow('1:1500500:A:G', '1', '1500500', [good, good]),
+                viewRow('1:100500:A:G', '1', '100500', [good, good]),
+            ])
+            def two = shard(outputDir, 'b_rest', header, [
+                viewRow('X:900500:A:G', 'X', '900500', [good, good]),
+                viewRow('2:100500:A:G', '2', '100500', [good, good]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'thin'],
+                    [file('${two}', checkIfExists: true), file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def lines = readGzip(process.out.thinned.get(0).get(1)).readLines()
+            def report = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                // the emitted schema is identical to the input schema, so this is a drop-in
+                { assert lines[0] == viewHeader(2) },
+                { assert lines.size() == 5 },
+                { assert lines.drop(1).collect { line -> line.split('\t')[0] } == ['1:100500:A:G', '1:1500500:A:G', '2:100500:A:G', 'X:900500:A:G'] },
+                { assert report.rows_read == 4 },
+                { assert report.markers_retained == 4 },
+                { assert report.bins_occupied == 4 },
+                { assert report.study_count == 2 },
+                { assert report.rows_dropped_total == 0 },
+                { assert report.shards.collect { entry -> entry.shard } == ['a_chr1.study_views.tsv.gz', 'b_rest.study_views.tsv.gz'] },
+                { assert report.shards.collect { entry -> entry.input_rows } == [2, 2] },
+                { assert report.columns == viewHeader(2).split('\t') as List },
+            )
+        }
+    }
+
+    test("one marker per megabase bin survives and the documented winner is picked") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'bin_only', header, [
+                // bin 0: the largest minimum minor allele frequency across studies wins
+                viewRow('1:100500:A:G', '1', '100500', [['0.30', '0.10', '0.02', '0.5', '1000'], ['0.30', '0.10', '0.02', '0.5', '1000']]),
+                viewRow('1:200500:A:G', '1', '200500', [['0.45', '0.10', '0.02', '0.5', '1000'], ['0.40', '0.10', '0.02', '0.5', '1000']]),
+                viewRow('1:300500:A:G', '1', '300500', [['0.10', '0.10', '0.02', '0.5', '1000'], ['0.20', '0.10', '0.02', '0.5', '1000']]),
+                // bin 1: an exact tie on minimum minor allele frequency falls to the lowest position
+                viewRow('1:1500500:A:G', '1', '1500500', [['0.25', '0.10', '0.02', '0.5', '1000'], ['0.25', '0.10', '0.02', '0.5', '1000']]),
+                viewRow('1:1600500:A:G', '1', '1600500', [['0.25', '0.10', '0.02', '0.5', '1000'], ['0.25', '0.10', '0.02', '0.5', '1000']]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'bin'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def lines = readGzip(process.out.thinned.get(0).get(1)).readLines()
+            def report = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                { assert lines.drop(1).collect { line -> line.split('\t')[0] } == ['1:200500:A:G', '1:1500500:A:G'] },
+                { assert report.bins_occupied == 2 },
+                { assert report.markers_retained == 2 },
+                { assert report.rows_dropped.bin_thinning == 3 },
+                { assert report.rows_dropped.chromosome_filter == 0 },
+                { assert report.rows_dropped.incomplete_study_contribution == 0 },
+                { assert report.rows_dropped.maf_filter == 0 },
+                { assert report.retained_min_maf == 0.25 },
+                { assert report.retained_max_maf == 0.40 },
+            )
+        }
+    }
+
+    test("a marker one study cannot contribute is dropped and counted") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'incomplete_only', header, [
+                viewRow('1:100500:A:G', '1', '100500', [good, good]),
+                // no effect allele frequency from study 2
+                viewRow('2:100500:A:G', '2', '100500', [good, ['NA', '0.10', '0.02', '0.5', '1000']]),
+                // no effect estimate from study 1
+                viewRow('3:100500:A:G', '3', '100500', [['0.30', 'NA', 'NA', 'NA', 'NA'], good]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'incomplete'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def lines = readGzip(process.out.thinned.get(0).get(1)).readLines()
+            def report = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                { assert lines.drop(1).collect { line -> line.split('\t')[0] } == ['1:100500:A:G'] },
+                { assert report.rows_dropped.incomplete_study_contribution == 2 },
+                { assert report.rows_dropped.maf_filter == 0 },
+                { assert report.markers_retained == 1 },
+            )
+        }
+    }
+
+    test("a marker below the minor allele frequency threshold in any study is dropped") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'maf_only', header, [
+                viewRow('1:100500:A:G', '1', '100500', [good, good]),
+                viewRow('2:100500:A:G', '2', '100500', [good, ['0.005', '0.10', '0.02', '0.5', '1000']]),
+                // the same variant seen from the other allele is just as rare
+                viewRow('3:100500:A:G', '3', '100500', [['0.995', '0.10', '0.02', '0.5', '1000'], good]),
+                // exactly at the threshold, which the native gate excludes
+                viewRow('4:100500:A:G', '4', '100500', [['0.01', '0.10', '0.02', '0.5', '1000'], good]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'maf'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def lines = readGzip(process.out.thinned.get(0).get(1)).readLines()
+            def report = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                { assert lines.drop(1).collect { line -> line.split('\t')[0] } == ['1:100500:A:G'] },
+                { assert report.rows_dropped.maf_filter == 3 },
+                { assert report.markers_retained == 1 },
+            )
+        }
+    }
+
+    test("only chromosomes 1-22 and X take part in axis derivation") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'chrom_only', header, [
+                viewRow('chr7:100500:A:G', 'chr7', '100500', [good, good]),
+                viewRow('X:100500:A:G', 'X', '100500', [good, good]),
+                // 23 is the native code for X and must rank identically
+                viewRow('23:2100500:A:G', '23', '2100500', [good, good]),
+                viewRow('Y:100500:A:G', 'Y', '100500', [good, good]),
+                viewRow('MT:100500:A:G', 'MT', '100500', [good, good]),
+                viewRow('0:100500:A:G', '0', '100500', [good, good]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'chrom'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def lines = readGzip(process.out.thinned.get(0).get(1)).readLines()
+            def report = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                // chr7 sorts before both spellings of X, and the two X markers sort on position
+                { assert lines.drop(1).collect { line -> line.split('\t')[0] } == ['chr7:100500:A:G', 'X:100500:A:G', '23:2100500:A:G'] },
+                { assert report.rows_dropped.chromosome_filter == 3 },
+                { assert report.markers_retained == 3 },
+            )
+        }
+    }
+
+    test("a META_VARIANT_KEY repeated across shards is refused") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'dupa', header, [viewRow('1:100500:A:G', '1', '100500', [good, good])])
+            def two = shard(outputDir, 'dupb', header, [viewRow('1:100500:A:G', '1', '100500', [good, good])])
+            process {
+                """
+                input[0] = [
+                    [id: 'dup'],
+                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('appears more than once across the shards') },
+            )
+        }
+    }
+
+    test("a shard whose per-study column groups disagree with study_count is refused") {
+        when {
+            def one = shard(outputDir, 'widtha', viewHeader(2), [viewRow('1:100500:A:G', '1', '100500', [good, good])])
+            def two = shard(outputDir, 'widthb', viewHeader(3), [viewRow('2:100500:A:G', '2', '100500', [good, good, good])])
+            process {
+                """
+                input[0] = [
+                    [id: 'width'],
+                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('describes 3 studies but study_count is 2') },
+            )
+        }
+    }
+
+    test("an empty axis-derivation set is refused rather than segfaulting MR-MEGA later") {
+        when {
+            def header = viewHeader(2)
+            def one = shard(outputDir, 'empty_only', header, [
+                viewRow('Y:100500:A:G', 'Y', '100500', [good, good]),
+                viewRow('MT:100500:A:G', 'MT', '100500', [good, good]),
+            ])
+            process {
+                """
+                input[0] = [
+                    [id: 'empty'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('no marker survived thinning') },
+                { assert process.errorReport.contains('SIGSEGV') },
+            )
+        }
+    }
+
+    test("stub emits a valid gzip stream and version metadata") {
+        options "-stub"
+
+        when {
+            def one = shard(outputDir, 'stub_only', viewHeader(2), [viewRow('1:100500:A:G', '1', '100500', [good, good])])
+            process {
+                """
+                input[0] = [
+                    [id: 'stub'],
+                    [file('${one}', checkIfExists: true)],
+                    2,
+                ]
+                """
+            }
+        }
+
+        then {
+            def versions = new File(process.out.versions.get(0).toString())
+            assertAll(
+                { assert process.success },
+                { assert readGzip(process.out.thinned.get(0).get(1)).readLines()[0] == viewHeader(2) },
+                { assert new File(process.out.qc.get(0).get(1).toString()).exists() },
+                { assert versions.readLines().first().endsWith(':') },
+                { assert versions.text.contains('python:') },
+            )
+        }
+    }
+}

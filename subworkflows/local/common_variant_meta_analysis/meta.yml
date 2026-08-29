@@ -12,9 +12,14 @@ description: |
   absent output is never read as an empty chromosome. An unscattered request is gathered too, as a
   one-shard gather, so the same completeness checks apply either way.
 
-  MR-MEGA is deliberately not part of this composition. Its ancestry axes come from genome-wide
-  between-study allele-frequency differences, so per-chromosome axis derivation would fit a different
-  model on every shard. The supported design is two-pass and is documented in META-ANALYSIS-STATUS.md.
+  MR-MEGA cannot scatter that way, because its ancestry axes come from genome-wide between-study
+  allele-frequency differences and per-chromosome derivation would fit a different model on every shard.
+  It therefore runs in two passes: the aligned representation is thinned genome-wide to at most one
+  marker per megabase, pass 1 derives the axes once, their signs are canonicalized, and pass 2 scatters
+  per chromosome with `--precalculated` fixed axes. Canonicalizing between the passes means every shard
+  is born canonical; negating an axis flips exactly the coefficient `beta_{j+1}` and leaves `se`, every
+  chi-square, every `ndf`, every P value and `lnBF` bit-identical. Scatter contributes no numerical
+  error of its own.
 keywords:
   - gwas
   - genome-wide association study
@@ -26,6 +31,11 @@ keywords:
 components:
   - gwaslab/meta_analyze
   - metasoft/re2
+  - thin_mrmega_markers
+  - prepare_mrmega_input
+  - mrmega
+  - extract_mrmega_axes
+  - normalise_mrmega_result
   - normalise_common_variant_meta
   - gather_meta_shards
 input:
@@ -33,14 +43,18 @@ input:
       type: channel
       description: |
         One element per meta-analysis request:
-        `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(models), val(chromosomes) ]`
+        `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models), val(axes), val(chromosomes) ]`
 
         - `meta`: map whose `id` is the request identity and the gathered output prefix
         - `parents`: ordered canonical parent tables, at least two, in exact positional study order
         - `study_names`: unique labels in the same order; fixes the direction string and column order
         - `input_format`: explicit GWASLab format name; automatic detection is rejected
         - `genome_build`: GRCh37 or GRCh38, shared by every parent
-        - `models`: subset of `fixed`, `random` and `re2`; `fixed` is always produced
+        - `trait_type`: `quantitative` or `binary`; selects MR-MEGA's effect parameterisation
+        - `models`: subset of `fixed`, `random`, `re2` and `mrmega`; `fixed` is always produced
+        - `axes`: MR-MEGA axis count, required when `mrmega` is selected. Must satisfy
+          `1 <= axes <= K - 3`; the native gate is `cohortCount - 2 > pc` and violating it exits 0
+          with every row flagged SmallCohortCount
         - `chromosomes`: ordered chromosomes to scatter over, or `[]` for one genome-wide shard
 
         Per-request model settings other than the selection itself, such as `--random-effects` and
@@ -57,8 +71,12 @@ input:
           description: Explicit GWASLab input format
         - type: string
           description: Genome build
+        - type: string
+          description: Trait type, quantitative or binary
         - type: list
           description: Selected models
+        - type: integer
+          description: MR-MEGA axis count, null unless mrmega is selected
         - type: list
           description: Chromosomes to scatter over, empty for genome-wide
 output:
@@ -116,6 +134,24 @@ output:
         - type: file
           description: Normalised RE2 fields
           pattern: "*.re2.tsv.gz"
+  - ancestry_axes:
+      type: channel
+      description: "`[ val(meta), path('*.ancestry_axes.tsv') ]` — ordered study index, name and sign-canonicalized axis coordinates, derived once per request. Emitted only when `mrmega` is selected."
+      structure:
+        - type: map
+          description: Axis-derivation metadata
+        - type: file
+          description: Published ancestry axes
+          pattern: "*.ancestry_axes.tsv"
+  - axes_qc:
+      type: channel
+      description: "`[ val(meta), path('*.axes_qc.json') ]` — axis count, cohort order, the sign rule applied, which axes were flipped and each axis's span."
+      structure:
+        - type: map
+          description: Axis-derivation metadata
+        - type: file
+          description: Axis QC document
+          pattern: "*.axes_qc.json"
 authors:
   - "@andongni"
 maintainers:
