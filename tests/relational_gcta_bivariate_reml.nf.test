@@ -267,7 +267,7 @@ nextflow_pipeline {
             def report = VALIDATION.report(outputDir, workflow.stdout)
             assertAll(
                 { assert !workflow.success },
-                { assert report.contains("GCTA bivariate REML requires one cohort") },
+                { assert report.contains("individual-level relationship methods require one cohort") },
                 { assert report.contains("'example_pgen_qt' uses 'example_pgen'") },
                 { assert report.contains("'example_bfile_bt' uses 'example_bfile'") },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },

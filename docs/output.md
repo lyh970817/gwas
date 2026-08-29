@@ -27,14 +27,14 @@ Use the following provenance chain for any result:
 
 Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right analysis IDs into `--analysis_manifest`, and use `requests/<method>/<request_id>/provenance.json` for the exact endpoint orientation, dense or LDMS matrix reuse key and native basename, effective prevalence, native arguments, all parsed native components, warnings and completion classification.
 
-| Method token                                                                                       | Producing tool |
-| -------------------------------------------------------------------------------------------------- | -------------- |
-| `plink2`                                                                                           | PLINK 2        |
-| `regenie`                                                                                          | REGENIE        |
-| `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms` | GCTA           |
-| `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`                                                   | LDAK 6         |
-| `ldak_sumher`, `ldak_sumcors`                                                                      | LDAK 6.3       |
-| `ldsc_h2`, `ldsc_rg`                                                                               | LDSC           |
+| Method token                                                                                                                                      | Producing tool |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `plink2`                                                                                                                                          | PLINK 2        |
+| `regenie`                                                                                                                                         | REGENIE        |
+| `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
+| `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`                                                                                                  | LDAK 6         |
+| `ldak_sumher`, `ldak_sumcors`                                                                                                                     | LDAK 6.3       |
+| `ldsc_h2`, `ldsc_rg`                                                                                                                              | LDSC           |
 
 Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline version and producing tool version. Preserve them with an archived result.
 
@@ -53,7 +53,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
 - [Heritability](#heritability)
   - [GCTA GREML and GREML-LDMS](#gcta-greml-and-greml-ldms)
   - [LDAK estimators](#ldak-estimators)
-- [Pairwise GCTA bivariate REML](#pairwise-gcta-bivariate-reml)
+- [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
 - [Quality control and optional prepared data](#quality-control-and-optional-prepared-data)
 - [MultiQC](#multiqc)
 - [Pipeline information](#pipeline-information)
@@ -207,12 +207,12 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 
 Normalized results preserve the native values and classify successful completion as `estimable`, `estimable_with_warning` or `completed_nonestimable`; native warnings and boundary violations never cause clipping or method selection. A malformed or incomplete mandatory native log fails the request. The pipeline presents every requested method and does not rank or combine them. Observed-scale LDSC is always retained. Liability-scale output is added only when all binary endpoints in the request declare both prevalence values. In a mixed RG invocation, a quantitative endpoint remains `observed`, the binary endpoint is `liability`, and the ordered covariance scale is written as `observed_x_liability` or `liability_x_observed`. The provenance retains LDSC's native labels separately from these scientifically attributed normalized scales.
 
-## Pairwise GCTA bivariate REML
+## Pairwise GCTA bivariate REML and HEreg
 
 <details markdown="1">
 <summary>Output files</summary>
 
-The dense route uses one explicit all-variant GCTA matrix. The relationship's deterministic LDMS request owns one LD-by-MAF-stratified MGRM family. Neither route inherits matrix settings from an endpoint's unary analysis, and scientifically identical unary and pair LDMS settings reuse one matrix family. Native results remain request-addressed, while three lightweight TSV views expose each native estimand family without selecting, aggregating or ranking a result.
+The dense route uses one explicit all-variant GCTA matrix. The relationship's deterministic LDMS request owns one LD-by-MAF-stratified MGRM family. Neither route inherits matrix settings from an endpoint's unary analysis, and scientifically identical unary and pair LDMS settings reuse one matrix family regardless of which method token requested it. `gcta_bivariate_he` and `gcta_bivariate_he_ldms` run GCTA's `--HEreg-bivar` Haseman-Elston cross-product (HE-CP) estimator on that same dense matrix or MGRM family. HE-CP only makes the fitting stage cheaper than REML; it still requires the same full dense (or LDMS-stratified) matrix construction, storage and I/O, so it is published as a deterministic moment reference and sensitivity analysis, not a matrix-free or more scalable route. Native results remain request-addressed, while lightweight TSV views expose each native estimand family without selecting, aggregating or ranking a result.
 
 - `requests/gcta_bivariate_reml/<request_id>/`
   - `native.hsq`: Complete native GCTA bivariate REML variance-component result.
@@ -226,10 +226,24 @@ The dense route uses one explicit all-variant GCTA matrix. The relationship's de
 - `heritability/gcta_bivariate_reml_ldms/<request_id>/heritability.tsv`: Ordered trait-specific `V(Gk)/Vp` rows for every native LDMS component `Gk` and scale emitted by GCTA.
 - `genetic_covariance/gcta_bivariate_reml_ldms/<request_id>/genetic_covariance.tsv`: Native observed-scale `C(Gk)_tr12` estimate and standard error for every LDMS component.
 - `genetic_correlation/gcta_bivariate_reml_ldms/<request_id>/genetic_correlation.tsv`: Native ordered `rGk` estimate and standard error for every LDMS component.
+- `requests/gcta_bivariate_he/<request_id>/`
+  - `native.HEreg`: Complete native GCTA `--HEreg-bivar` dense result: `Intercept_tr1`, `Intercept_tr2`, `Intercept_tr12`, `V(G)/Vp_tr1`, `V(G)/Vp_tr2`, `C(G)/Vp_tr12`, `rG`, `N_tr1` and `N_tr2` rows, each with `Estimate`, `SE_OLS`, `SE_Jackknife`, `P_OLS` and `P_Jackknife` columns.
+  - `native.log`: Native command and version, plus the complete jackknife sampling variance/covariance matrix of the estimates; GCTA writes that matrix only to the log, never to `.HEreg`.
+  - `diagnostics.tsv`: Full-union endpoint counts, native `N_tr1`/`N_tr2` counts, `native_estimator`, `standard_error_basis`, `covariance_scale`, `covariate_adjustment`, `native_cross_product_orientation`, `residual_covariance_status`, `jackknife_sampling_covariance`, warnings and completion classification.
+  - `provenance.json`: Ordered endpoint identities, cohort, matrix kind/key/native basename/settings, accepted native arguments, all parsed native component values, the complete native jackknife sampling variance/covariance matrix under `native_sampling_covariance` with its `parameter_order`, tool version, warnings, classification and artifact inventory.
+- `heritability/gcta_bivariate_he/<request_id>/heritability.tsv`: Left and right `V(G)/Vp` estimates using GCTA's jackknife standard error.
+- `genetic_covariance/gcta_bivariate_he/<request_id>/genetic_covariance.tsv`: Native `C(G)/Vp_tr12` estimate and jackknife standard error, `scale = observed_standardised`.
+- `genetic_correlation/gcta_bivariate_he/<request_id>/genetic_correlation.tsv`: Native ordered `rG` estimate and jackknife standard error.
+- `requests/gcta_bivariate_he_ldms/<request_id>/`: The same native `.HEreg`/`.log`, diagnostics and provenance artifact set for HEreg-LDMS. The native `.HEreg` table additionally carries per-component `V(Gk)/Vp_tr1`, `V(Gk)/Vp_tr2`, `C(Gk)/Vp_tr12` and `rGk` rows, plus native totals `Sum of V(G)/Vp_tr1`, `Sum of V(G)/Vp_tr2`, `Sum of C(G)/Vp_tr12` and `Total rG`, each with its own OLS and jackknife standard error.
+- `heritability/gcta_bivariate_he_ldms/<request_id>/heritability.tsv`: A `component` column distinguishes the native genome-wide `total` row from secondary per-component `G1`, `G2`, ... rows.
+- `genetic_covariance/gcta_bivariate_he_ldms/<request_id>/genetic_covariance.tsv`: Native total and per-component `C(Gk)/Vp_tr12` estimates and jackknife standard errors, `scale = observed_standardised`.
+- `genetic_correlation/gcta_bivariate_he_ldms/<request_id>/genetic_correlation.tsv`: Native total and per-component `rGk` estimates and jackknife standard errors.
 
 </details>
 
 Successful native completion is classified as `estimable`, `estimable_with_warning` or `completed_nonestimable`. An explicit native nonconvergence, corrupt or incomplete mandatory output, or execution error is the fourth state, `failed`; it fails the request and the run rather than publishing a misleading normalized result. A warning or out-of-range native estimate is retained rather than clipped or discarded. The pipeline does not compare methods or choose a best result. For binary endpoints, a declared `population_prevalence` is passed only through GCTA's endpoint-aware `--reml-bivar-prevalence` interface; ordinary unary `--prevalence` is never used on this route. Liability-scale heritability rows appear only when GCTA itself emits the corresponding native `_L` component.
+
+`gcta_bivariate_he` and `gcta_bivariate_he_ldms` accept quantitative pairs only; a binary or mixed-endpoint pair is rejected before execution, and `gcta_bivariate_reml`/`gcta_bivariate_reml_ldms` remain the supported route for binary and mixed pairs rather than a slow fallback in that trait domain. Diagnostics record `native_estimator = haseman_elston_cross_product` and `standard_error_basis = jackknife`: the published `standard_error` in every normalized TSV is GCTA's jackknife SE, while the OLS SE is retained separately in `provenance.json`. `covariance_scale = observed_standardised` because HEreg standardises both phenotypes before fitting, so `genetic_covariance.tsv` for these methods is not on the same scale as the REML routes' `observed` covariance; genetic correlation remains scale-free and directly comparable. `covariate_adjustment = not_supported_by_method` because GCTA 1.94.1 lists `--qcovar` and `--covar` as accepted options for `--HEreg-bivar` and then silently ignores them — the output is byte-identical with and without covariate files — so the pipeline refuses a relationship that declares `pair_quant_covariates` or `pair_cat_covariates` together with an HE selector, before execution. `residual_covariance_status = no_residual_covariance_parameter` records that HE-CP regresses off-diagonal cross-products on off-diagonal relatedness and has no residual-covariance parameter at all; this is a different fact from REML dropping a residual-covariance component for disjoint samples. `native_cross_product_orientation = left_trait_row_right_trait_column` records that GCTA fits the cross-trait coefficient on the lower triangle of the GRM only, with the left trait on the row member and the right trait on the column member; verified empirically, reversing which trait is left and which is right changes the point estimate, which is why reversed duplicate relationships remain validation errors here as for the REML routes. `jackknife_sampling_covariance` in `diagnostics.tsv` is `available` or `unavailable`, recording whether GCTA's complete jackknife sampling variance/covariance matrix was captured from the log; when available, the full matrix and its `parameter_order` are stored under `native_sampling_covariance` in `provenance.json` and are never duplicated into a TSV. For the LDMS selector, `primary_result_component = total` and `total_result_origin` record that the published total is GCTA's own native total (from the `.HEreg` "Sum of"/"Total rG" rows), not a value the pipeline derives from marginal per-component standard errors. `native_component_layout` distinguishes the usual `multi_component` layout from the `single_component` layout GCTA writes when a component plan resolves to one stratum: there is nothing to sum, so GCTA emits no "Sum of" or "Total rG" rows and the single component is itself the genome-wide total and is published under the `total` component.
 
 ## LDAK summary-statistics heritability and correlation
 

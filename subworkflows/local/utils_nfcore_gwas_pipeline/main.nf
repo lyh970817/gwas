@@ -282,7 +282,7 @@ def selectedCitationKeys(selected_methods) {
         error("Cannot generate methods citations for unknown method selectors: ${unknown.toList().sort().join(', ')}")
     }
 
-    def citation_order = ['plink2', 'regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'ldak_kvik', 'ldak', 'ldak_sumstats', 'ldsc']
+    def citation_order = ['plink2', 'regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'ldak_sumstats', 'ldsc']
     def keys = (association + heritability + pairwise)
         .collectMany { token -> capabilities[token].citation_keys ?: [capabilities[token].citation_key] }
         .findAll { key -> key }
@@ -317,6 +317,8 @@ def toolCitationText(selected_methods) {
     def pairwise_labels = [
         gcta_bivariate_reml: 'GCTA bivariate REML (Lee <em>et al.</em>, 2012)',
         gcta_bivariate_reml_ldms: 'GCTA bivariate REML-LDMS (Lee <em>et al.</em>, 2012; Yang <em>et al.</em>, 2015)',
+        gcta_bivariate_he: 'GCTA bivariate Haseman-Elston regression (Chen, 2014)',
+        gcta_bivariate_he_ldms: 'GCTA bivariate Haseman-Elston regression over LD- and MAF-stratified components (Chen, 2014; Yang <em>et al.</em>, 2015)',
         ldak_sumcors: 'LDAK SumCors (Speed and Balding, 2019)',
         ldsc_rg: 'LDSC genetic correlation (Bulik-Sullivan <em>et al.</em>, 2015)',
     ]
@@ -346,6 +348,7 @@ def toolBibliographyText(selected_methods) {
         gcta_greml: '<li>Yang J, Lee SH, Goddard ME, Visscher PM. GCTA: a tool for genome-wide complex trait analysis. <em>American Journal of Human Genetics</em>. 2011;88:76-82. doi: <a href="https://doi.org/10.1016/j.ajhg.2010.11.011">10.1016/j.ajhg.2010.11.011</a>.</li>',
         gcta_greml_ldms: '<li>Yang J, Bakshi A, Zhu Z, et al. Genetic variance estimation with imputed variants finds negligible missing heritability for human height and body mass index. <em>Nature Genetics</em>. 2015;47:1114-1120. doi: <a href="https://doi.org/10.1038/ng.3390">10.1038/ng.3390</a>.</li>',
         gcta_bivariate_reml: '<li>Lee SH, Yang J, Goddard ME, Visscher PM, Wray NR. Estimation of pleiotropy between complex diseases using single-nucleotide polymorphism-derived genomic relationships and restricted maximum likelihood. <em>Bioinformatics</em>. 2012;28:2540-2542. doi: <a href="https://doi.org/10.1093/bioinformatics/bts474">10.1093/bioinformatics/bts474</a>.</li>',
+        gcta_hereg: '<li>Chen GB. Estimating heritability of complex traits from genome-wide association studies using IBS-based Haseman-Elston regression. <em>Frontiers in Genetics</em>. 2014;5:107. doi: <a href="https://doi.org/10.3389/fgene.2014.00107">10.3389/fgene.2014.00107</a>.</li>',
         ldak_kvik: '<li>Hof JP, Speed D. LDAK-KVIK performs fast and powerful mixed-model association analysis of quantitative and binary phenotypes. <em>Nature Genetics</em>. 2025;57:2116-2123. doi: <a href="https://doi.org/10.1038/s41588-025-02286-z">10.1038/s41588-025-02286-z</a>.</li>',
         ldak: '<li>Speed D, Hemani G, Johnson MR, Balding DJ. Improved heritability estimation from genome-wide SNPs. <em>American Journal of Human Genetics</em>. 2012;91:1011-1021. doi: <a href="https://doi.org/10.1016/j.ajhg.2012.10.010">10.1016/j.ajhg.2012.10.010</a>.</li>',
         ldak_sumstats: '<li>Speed D, Balding DJ. SumHer better estimates the SNP heritability of complex traits from summary statistics. <em>Nature Genetics</em>. 2019;51:277-284. doi: <a href="https://doi.org/10.1038/s41588-018-0279-5">10.1038/s41588-018-0279-5</a>.</li>',

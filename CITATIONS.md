@@ -26,6 +26,10 @@
 
   > Lee SH, Yang J, Goddard ME, Visscher PM, Wray NR. Estimation of pleiotropy between complex diseases using single-nucleotide polymorphism-derived genomic relationships and restricted maximum likelihood. Bioinformatics. 2012;28(19):2540-2542. doi: 10.1093/bioinformatics/bts474. PubMed PMID: 22843982.
 
+- [GCTA Haseman-Elston](https://doi.org/10.3389/fgene.2014.00107)
+
+  > Chen GB. Estimating heritability of complex traits from genome-wide association studies using IBS-based Haseman-Elston regression. Front Genet. 2014;5:107. doi: 10.3389/fgene.2014.00107. PubMed PMID: 24817879; PubMed Central PMCID: PMC4012219.
+
 - [GWASLab](https://cloufield.github.io/gwaslab/)
 
 - [LDAK](https://doi.org/10.1016/j.ajhg.2012.10.010)
