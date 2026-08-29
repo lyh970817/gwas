@@ -1,0 +1,33 @@
+    > [SUCCESS] completed=11 failed=0 cached=0
+    [32mPASSED[0m (39.059s)
+    > [FAILED] completed=0 failed=0 cached=0
+    [32mPASSED[0m (17.655s)
+    > [FAILED] completed=0 failed=0 cached=0
+    [32mPASSED[0m (20.137s)
+    > [FAILED] completed=0 failed=0 cached=0
+    [32mPASSED[0m (20.265s)
+    > [FAILED] completed=0 failed=0 cached=0
+    [32mPASSED[0m (20.159s)
+    > [FAILED] completed=0 failed=0 cached=0
+    [32mPASSED[0m (22.017s)
+    > [SUCCESS] completed=11 failed=0 cached=0
+    [32mPASSED[0m (40.556s)
+    > [SUCCESS] completed=11 failed=0 cached=0
+    [32mPASSED[0m (23.191s)
+    > [SUCCESS] completed=12 failed=0 cached=0
+    [32mPASSED[0m (43.948s)
+    > [SUCCESS] completed=12 failed=0 cached=0
+    [32mPASSED[0m (21.386s)
+    > [SUCCESS] completed=13 failed=0 cached=0
+    [32mPASSED[0m (36.615s)
+    > [SUCCESS] completed=13 failed=0 cached=0
+    [32mPASSED[0m (22.691s)
+    > [SUCCESS] completed=11 failed=0 cached=0
+    [32mPASSED[0m (42.564s)
+    > [SUCCESS] completed=11 failed=0 cached=0
+    [32mPASSED[0m (43.959s)
+    > [SUCCESS] completed=10 failed=0 cached=0
+    [32mPASSED[0m (71.143s)
+    > [SUCCESS] completed=10 failed=0 cached=0
+    [32mPASSED[0m (58.832s)
+[1m[32mSUCCESS: [0m[0mExecuted 16 tests in 544.263s

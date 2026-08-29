@@ -1069,7 +1069,7 @@ def readMethodOptionsDocument(method_options) {
     try {
         document = new groovy.json.JsonSlurper().parseText(document_file.text)
     }
-    catch (Exception exception) {
+    catch (exception: Exception) {
         fail.call("malformed JSON (${exception.message})")
     }
     if (!(document instanceof Map)) {
@@ -1174,7 +1174,7 @@ def readReferenceCatalog(reference_catalog) {
     try {
         document = new groovy.json.JsonSlurper().parseText(catalog_file.text)
     }
-    catch (Exception exception) {
+    catch (exception: Exception) {
         fail.call('<document>', '<root>', "malformed JSON (${exception.message})")
     }
     if (!(document instanceof Map)) {

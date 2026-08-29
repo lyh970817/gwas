@@ -1,16 +1,20 @@
 { pkgs ? import <nixpkgs> {} }:
 let
-  nextflowVersion = "25.10.4";
-  nextflowLanguageServerVersion = "25.10.3";
+  nextflowVersion = "26.04.6";
+  nextflowLanguageServerVersion = "26.04.3";
   nfCoreSource = "git+https://github.com/nf-core/tools.git@dev";
   waveVersion = "1.8.1";
+  # nixpkgs still ships 0.9.3. 0.9.4 added strict-syntax support, which Nextflow
+  # 26.04 needs because the v2 parser is now the default, so pin upstream directly
+  # and keep this in step with NFT_VER in .github/workflows/nf-test.yml.
+  nfTestVersion = "0.9.5";
 
   nextflowCli = pkgs.stdenvNoCC.mkDerivation {
     pname = "nextflow";
     version = nextflowVersion;
     src = pkgs.fetchurl {
       url = "https://github.com/nextflow-io/nextflow/releases/download/v${nextflowVersion}/nextflow";
-      sha256 = "0mjl71im82pm2s5jj5fxy6nm5gph187nmm040y5cgj31yipzi2ln";
+      sha256 = "10c2jqc17rcm8b6gyvadd8pilj38mxknqflgasxwyhyppvnmb9v1";
     };
     dontUnpack = true;
     installPhase = ''
@@ -20,7 +24,7 @@ let
 
   nextflowLanguageServerJar = pkgs.fetchurl {
     url = "https://github.com/nextflow-io/language-server/releases/download/v${nextflowLanguageServerVersion}/language-server-all.jar";
-    hash = "sha256-aBaD4Naxand76OaIZ7WnjDkgei8T0rjwohRFRH2Z2FI=";
+    hash = "sha256-IM+jT24gLWuLq9jXhiAs4A4NObcMzsMpDiqz+9ArwBY=";
   };
 
   nextflowLanguageServer = pkgs.writeShellApplication {
@@ -76,11 +80,24 @@ PY
     '';
   };
 
+  nfTestJar = pkgs.stdenvNoCC.mkDerivation {
+    pname = "nf-test-jar";
+    version = nfTestVersion;
+    src = pkgs.fetchurl {
+      url = "https://github.com/askimed/nf-test/releases/download/v${nfTestVersion}/nf-test-${nfTestVersion}.tar.gz";
+      sha256 = "0h8nzhs7d17lwbq5xlrswnfnjvnf0bdk95lym2zl55nw1jwrwrxp";
+    };
+    sourceRoot = ".";
+    installPhase = ''
+      install -Dm644 nf-test.jar "$out/share/nf-test/nf-test.jar"
+    '';
+  };
+
   nfTestCli = pkgs.writeShellApplication {
     name = "nf-test";
     runtimeInputs = [ pkgs.jdk17_headless nextflowCli ];
     text = ''
-      exec java -jar "${pkgs.nf-test}/share/nf-test/nf-test.jar" "$@"
+      exec java -jar "${nfTestJar}/share/nf-test/nf-test.jar" "$@"
     '';
   };
 

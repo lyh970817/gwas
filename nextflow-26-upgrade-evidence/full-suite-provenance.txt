@@ -1,0 +1,10 @@
+################ HARNESS PROVENANCE ################
+      version 26.04.6 build 12646
+nf-test 0.9.5
+nft-utils pin  : nft-utils@1.1.1
+nf-schema pin  : nf-schema@2.8.0
+nextflowVersion: nextflowVersion = '!>=26.04.6'
+nf-test-parallel exit=0  elapsed=3231s
+[1m[32mSUCCESS: [0m[0mExecuted 113 tests in 3205.276s
+[1m[32mSUCCESS: [0m[0mExecuted 113 tests in 3202.145s
+[1m[32mSUCCESS: [0m[0mExecuted 112 tests in 3128.827s
