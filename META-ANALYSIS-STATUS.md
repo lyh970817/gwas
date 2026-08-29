@@ -178,6 +178,13 @@ same filename and it would write through the staged symlink, corrupting the upst
   into one result. `MRMEGA_DF_ASSOC` is `axes + 1` and `MRMEGA_DF_ANCESTRY_HET` is `axes` on every row, the
   log-scale-first block reaches the published table, and no `MRMEGA_NATIVE_P_*` column is published.
 
+## Whole-suite evidence
+
+One sweep over all nine modules plus the subworkflow:
+`nf-test test <9 module tests> <subworkflow test> --profile +docker`
+-> **SUCCESS: Executed 76 tests in 1835s**, 0 failed.
+`nf-core pipelines lint` -> 621 passed, 7 ignored, 24 warnings, 0 failed.
+
 ## Not verified
 
 - `nf-core pipelines lint` has **not** been run on this branch.
