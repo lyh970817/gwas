@@ -10,6 +10,7 @@ components:
   - plink2/makebed
   - plink2/makepgen
   - plink2/vcf
+  - getplink1genotypemethodtokens
 input:
   - ch_analyses:
       description: One unary or pair request per element, carrying its cohort identity and the genotype files of the single populated encoding. Requests sharing a cohort must name the same files.

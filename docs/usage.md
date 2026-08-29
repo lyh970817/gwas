@@ -129,6 +129,33 @@ Summary pair request IDs use the same rule:
 <method>--<relationship_id>
 ```
 
+### Method roles and capabilities
+
+Every selector carries a declared scientific role and a declared computational capability, so the menu is not flat. Selection stays explicit: the pipeline never substitutes one estimator for another according to sample size, memory, trait type, or a failed task.
+
+| Method                                            | Role                                                                              | Input backend              | Component model                                             | Trait support                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------- | -------------------------------------------- |
+| `plink2`                                          | Unrelated-sample generalised linear association baseline                          | Direct PLINK genotypes     | Not applicable                                              | Quantitative and binary                      |
+| `regenie`                                         | Whole-genome-regression association for related or structured samples             | Direct PLINK genotypes     | Not applicable                                              | Quantitative and binary                      |
+| `gcta_fastgwa`                                    | Sparse-GRM mixed-linear-model association for related samples                     | Sparse GRM                 | One component                                               | Quantitative and binary                      |
+| `ldak_kvik`                                       | LDAK mixed-model association under the LDAK heritability model                    | Direct PLINK genotypes     | One component                                               | Quantitative and binary                      |
+| `gcta_greml`                                      | Established exact/reference REML                                                  | Dense GRM                  | One component                                               | Quantitative and binary                      |
+| `gcta_greml_ldms`                                 | Established exact/reference REML                                                  | LDMS GRM family            | LD-by-MAF components                                        | Quantitative and binary                      |
+| `ldak_reml`                                       | Model-specific exact/reference REML                                               | LDAK kinship               | One component                                               | Quantitative and binary                      |
+| `ldak_he`                                         | Exact/reference moment estimator                                                  | LDAK kinship               | One component                                               | Quantitative and binary, observed scale only |
+| `ldak_pcgc`                                       | Exact/reference moment estimator                                                  | LDAK kinship               | One component                                               | Binary; `population_prevalence` required     |
+| `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms` | Canonical likelihood reference and the supported binary or mixed-trait pair route | Dense GRM, LDMS GRM family | One component, LD-by-MAF components                         | Quantitative and binary                      |
+| `ldsc_h2`, `ldsc_rg`                              | Recommended robust baseline                                                       | Summary statistics         | One component                                               | Quantitative and binary                      |
+| `ldak_sumher`, `ldak_sumcors`                     | Heritability-model sensitivity                                                    | Summary statistics         | Set by the tagging bundle (SumHer), one component (SumCors) | Quantitative and binary                      |
+
+Further declared capabilities:
+
+- **Stochastic estimators.** `ldak_he`, `ldak_pcgc`, and `ldak_kvik` use a randomised step, so repeated runs vary unless a native seed is supplied. Every other current estimator is deterministic given its inputs.
+- **Likelihood.** Only the REML estimators (`gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`) report a model log-likelihood.
+- **Partial sample overlap.** `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `ldsc_rg`, and `ldak_sumcors` accept endpoints whose samples only partly overlap.
+- **Reference strictness.** LDSC tolerates an imperfect external LD reference; LDAK SumHer and SumCors are interpreted only against the tagging model their bundle declares.
+- **Reusable intermediates.** Every GRM or kinship route produces a matrix that is reused across compatible requests and published only under `--save_relatedness_matrices`. Direct-genotype and summary routes produce none.
+
 ### Examples
 
 [`assets/examples/relational/cohort_manifest.csv`](../assets/examples/relational/cohort_manifest.csv) is shared by the [minimal quantitative](../assets/examples/relational/analysis_manifest_quantitative.csv), [minimal binary](../assets/examples/relational/analysis_manifest_binary.csv), [association-only](../assets/examples/relational/analysis_manifest_association_only.csv), and [heritability-only](../assets/examples/relational/analysis_manifest_heritability_only.csv) examples. They use standard defaults and do not need `--method_options`.

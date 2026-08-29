@@ -81,12 +81,95 @@ workflow VALIDATE_GWAS_INPUT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// One registry owns selector domain, option family, matrix, prevalence and citation capabilities. Association
-// entries also carry their GWASLab constructor mapping so the selector vocabulary cannot drift from it.
+// The closed vocabularies every registry entry is written against. Routing and validation ask the registry
+// which methods hold a capability instead of repeating a method-name list that silently goes stale when a
+// method is added, so a new entry that omits or misspells a capability must fail the registry contract test
+// rather than quietly fall out of a hardcoded list.
+//
+// `input_backend` names the representation the estimator genuinely consumes. A direct-genotype estimator is a
+// distinct backend and must never be given a fabricated matrix kind to make it look like a GRM route.
+// `sparse_grm` is a real sixth backend rather than a variant of `dense_grm`: fastGWA streams genotypes against
+// a sparse relatedness matrix. `reference_strictness` grades how badly a summary estimator degrades when its
+// external LD reference does not match the GWAS; `strict` is declared for the reference-strict full-LD
+// likelihood family that has no registered entry yet.
+def getMethodCapabilityContract() {
+    return [
+        required_fields: [
+            'domain',
+            'estimator_family',
+            'input_backend',
+            'component_model',
+            'trait_support',
+            'stochastic',
+            'produces_likelihood',
+            'supports_partial_overlap',
+            'reference_strictness',
+            'requires_prevalence',
+            'produces_reusable_intermediates',
+            'role',
+            'citation_key',
+        ],
+        estimator_families: [
+            'generalised_linear_model',
+            'whole_genome_regression',
+            'mixed_linear_model',
+            'reml',
+            'moment_he',
+            'pcgc',
+            'ld_score_regression',
+            'summary_tagging_regression',
+        ],
+        input_backends: [
+            'dense_grm',
+            'ldms_grm_family',
+            'ldak_kinship',
+            'sparse_grm',
+            'direct_plink_genotypes',
+            'summary_statistics',
+        ],
+        component_models: [
+            'not_applicable',
+            'single_component',
+            'ldms_multi_component',
+            'tagging_model_defined',
+        ],
+        prevalence_requirements: ['not_consumed', 'consumed', 'required'],
+        reference_strictness: ['tolerant', 'model_matched', 'strict'],
+        trait_support_fields: ['quantitative', 'binary', 'binary_requires'],
+    ]
+}
+
+// One registry owns selector domain, option family, matrix, prevalence, declared estimator capability and
+// citation knowledge. Association entries also carry their GWASLab constructor mapping so the selector
+// vocabulary cannot drift from it. Every capability is derived from what the wired module actually runs, not
+// from the shape of the token, and `getMethodCapabilityContract()` fixes the vocabulary each one is written in.
+//
+// Four readings need stating, because the declared value is not obvious from the token:
+//   - `ldak_sumher` declares `tagging_model_defined` because the staged tagging bundle, not the pipeline,
+//     fixes the category count; the reference catalog admits both one-category and annotation-rich SumHer
+//     models. `ldak_sumcors` is `single_component` because every accepted SumCors bundle model is
+//     one-category.
+//   - `ldak_he` consumes no prevalence at all, so a binary trait keeps the observed scale.
+//   - `ldak_he`, `ldak_pcgc` and `ldak_kvik` are `stochastic` because their standard errors or model
+//     components come from a randomised step; `tests/nextflow.config` and the LDAK test profiles pin
+//     `--random-seed` for exactly those three and for nothing else.
+//   - `ldak_pcgc` is binary-only in `trait_support` because a quantitative row may not declare a prevalence
+//     and this estimator may not run without one; the two established rules already make it so.
 def getMethodRegistry() {
     return [
         plink2: [
             domain: 'association',
+            estimator_family: 'generalised_linear_model',
+            input_backend: 'direct_plink_genotypes',
+            component_model: 'not_applicable',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: false,
+            role: 'unrelated-sample generalised linear association baseline',
             citation_key: 'plink2',
             mapping: [common: [
                 snpid: 'ID',
@@ -104,6 +187,17 @@ def getMethodRegistry() {
         regenie: [
             domain: 'association',
             option_family: 'regenie',
+            estimator_family: 'whole_genome_regression',
+            input_backend: 'direct_plink_genotypes',
+            component_model: 'not_applicable',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: false,
+            role: 'whole-genome-regression association for related or structured samples',
             citation_key: 'regenie',
             mapping: [common: [
                 snpid: 'ID',
@@ -123,6 +217,17 @@ def getMethodRegistry() {
             domain: 'association',
             option_family: 'gcta',
             matrix_kind: 'gcta_sparse',
+            estimator_family: 'mixed_linear_model',
+            input_backend: 'sparse_grm',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'sparse-GRM mixed-linear-model association for related samples',
             citation_key: 'gcta_fastgwa',
             mapping: [common: [
                 snpid: 'SNP',
@@ -140,6 +245,17 @@ def getMethodRegistry() {
         ldak_kvik: [
             domain: 'association',
             option_family: 'ldak',
+            estimator_family: 'mixed_linear_model',
+            input_backend: 'direct_plink_genotypes',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: true,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: false,
+            role: 'LDAK mixed-model association fitted under the LDAK heritability model',
             citation_key: 'ldak_kvik',
             mapping: [
                 common: [
@@ -161,6 +277,17 @@ def getMethodRegistry() {
             option_family: 'gcta',
             matrix_kind: 'gcta_dense',
             consumes_population_prevalence: true,
+            estimator_family: 'reml',
+            input_backend: 'dense_grm',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: true,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'established exact/reference REML',
             citation_key: 'gcta_greml',
         ],
         gcta_greml_ldms: [
@@ -168,6 +295,17 @@ def getMethodRegistry() {
             option_family: 'gcta',
             matrix_kind: 'gcta_ldms',
             consumes_population_prevalence: true,
+            estimator_family: 'reml',
+            input_backend: 'ldms_grm_family',
+            component_model: 'ldms_multi_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: true,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'established exact/reference REML',
             citation_key: 'gcta_greml_ldms',
         ],
         gcta_bivariate_reml: [
@@ -176,6 +314,17 @@ def getMethodRegistry() {
             option_family: 'gcta',
             matrix_kind: 'gcta_dense',
             consumes_population_prevalence: true,
+            estimator_family: 'reml',
+            input_backend: 'dense_grm',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: true,
+            supports_partial_overlap: true,
+            reference_strictness: null,
+            requires_prevalence: [population: 'consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'canonical likelihood reference and the supported binary or mixed-trait pair route',
             citation_key: 'gcta_bivariate_reml',
         ],
         gcta_bivariate_reml_ldms: [
@@ -184,6 +333,17 @@ def getMethodRegistry() {
             option_family: 'gcta',
             matrix_kind: 'gcta_ldms',
             consumes_population_prevalence: true,
+            estimator_family: 'reml',
+            input_backend: 'ldms_grm_family',
+            component_model: 'ldms_multi_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: true,
+            supports_partial_overlap: true,
+            reference_strictness: null,
+            requires_prevalence: [population: 'consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'canonical likelihood reference and the supported binary or mixed-trait pair route',
             citation_key: 'gcta_bivariate_reml',
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
@@ -194,6 +354,17 @@ def getMethodRegistry() {
             reference_family: 'ldak',
             consumes_population_prevalence: true,
             consumes_sample_prevalence: true,
+            estimator_family: 'summary_tagging_regression',
+            input_backend: 'summary_statistics',
+            component_model: 'tagging_model_defined',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: 'model_matched',
+            requires_prevalence: [population: 'consumed', sample: 'consumed'],
+            produces_reusable_intermediates: false,
+            role: 'heritability-model sensitivity',
             citation_key: 'ldak_sumstats',
         ],
         ldak_sumcors: [
@@ -203,6 +374,17 @@ def getMethodRegistry() {
             reference_family: 'ldak',
             consumes_population_prevalence: true,
             consumes_sample_prevalence: true,
+            estimator_family: 'summary_tagging_regression',
+            input_backend: 'summary_statistics',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: true,
+            reference_strictness: 'model_matched',
+            requires_prevalence: [population: 'consumed', sample: 'consumed'],
+            produces_reusable_intermediates: false,
+            role: 'heritability-model sensitivity',
             citation_key: 'ldak_sumstats',
         ],
         ldsc_h2: [
@@ -212,6 +394,17 @@ def getMethodRegistry() {
             reference_family: 'ldsc',
             consumes_population_prevalence: true,
             consumes_sample_prevalence: true,
+            estimator_family: 'ld_score_regression',
+            input_backend: 'summary_statistics',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: 'tolerant',
+            requires_prevalence: [population: 'consumed', sample: 'consumed'],
+            produces_reusable_intermediates: false,
+            role: 'recommended robust baseline',
             citation_key: 'ldsc',
         ],
         ldsc_rg: [
@@ -221,6 +414,17 @@ def getMethodRegistry() {
             reference_family: 'ldsc',
             consumes_population_prevalence: true,
             consumes_sample_prevalence: true,
+            estimator_family: 'ld_score_regression',
+            input_backend: 'summary_statistics',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: false,
+            supports_partial_overlap: true,
+            reference_strictness: 'tolerant',
+            requires_prevalence: [population: 'consumed', sample: 'consumed'],
+            produces_reusable_intermediates: false,
+            role: 'recommended robust baseline',
             citation_key: 'ldsc',
         ],
         ldak_reml: [
@@ -228,12 +432,34 @@ def getMethodRegistry() {
             option_family: 'ldak',
             matrix_kind: 'ldak_kinship',
             consumes_population_prevalence: true,
+            estimator_family: 'reml',
+            input_backend: 'ldak_kinship',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: false,
+            produces_likelihood: true,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'model-specific exact/reference REML',
             citation_key: 'ldak',
         ],
         ldak_he: [
             domain: 'heritability',
             option_family: 'ldak',
             matrix_kind: 'ldak_kinship',
+            estimator_family: 'moment_he',
+            input_backend: 'ldak_kinship',
+            component_model: 'single_component',
+            trait_support: [quantitative: true, binary: true, binary_requires: []],
+            stochastic: true,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'exact/reference moment estimator',
             citation_key: 'ldak',
         ],
         ldak_pcgc: [
@@ -242,6 +468,17 @@ def getMethodRegistry() {
             matrix_kind: 'ldak_kinship',
             consumes_population_prevalence: true,
             requires_population_prevalence: true,
+            estimator_family: 'pcgc',
+            input_backend: 'ldak_kinship',
+            component_model: 'single_component',
+            trait_support: [quantitative: false, binary: true, binary_requires: ['population_prevalence']],
+            stochastic: true,
+            produces_likelihood: false,
+            supports_partial_overlap: null,
+            reference_strictness: null,
+            requires_prevalence: [population: 'required', sample: 'not_consumed'],
+            produces_reusable_intermediates: true,
+            role: 'exact/reference moment estimator',
             citation_key: 'ldak',
         ],
     ]
@@ -267,6 +504,43 @@ def getMethodCapabilities() {
     return getMethodRegistry().collectEntries { token, entry ->
         [(token): entry.findAll { name, _value -> name != 'mapping' }]
     }
+}
+
+// Ask the registry which methods hold a capability. Every caller that used to carry its own method-name list
+// goes through here, so adding an entry extends the answer instead of leaving one list quietly behind.
+def getMethodTokensWithCapabilities(required) {
+    def contract = getMethodCapabilityContract()
+    def unknown = required.keySet().findAll { field -> !(field in contract.required_fields) && !(field in ['option_family', 'reference_family', 'endpoint_domain', 'matrix_kind', 'requires_population_prevalence', 'consumes_population_prevalence', 'consumes_sample_prevalence', 'citation_keys']) }
+    if (unknown) {
+        error("[nf-core/gwas] ERROR: method capability selection uses unregistered field '${unknown.first()}'")
+    }
+    return getMethodCapabilities()
+        .findAll { _token, details -> required.every { field, value -> details[field] == value } }
+        .keySet()
+        .toList()
+}
+
+def getMethodCapability(method, field) {
+    def details = getMethodCapabilities()[method]
+    if (!details) {
+        error("[nf-core/gwas] ERROR: no capability is registered for method '${method}'")
+    }
+    if (!details.containsKey(field)) {
+        error("[nf-core/gwas] ERROR: method '${method}' declares no capability '${field}'")
+    }
+    return details[field]
+}
+
+// The PLINK 1 compatibility bundle is a genotype-representation requirement, not a scientific one: every LDAK
+// executable reads BED/BIM/FAM, and the GCTA LDMS component plan is built by an LD-score pass that reads the
+// same encoding. Summary estimators consume no genotypes at all.
+def getPlink1GenotypeMethodTokens() {
+    return getMethodCapabilities()
+        .findAll { _token, details ->
+            details.input_backend != 'summary_statistics' && (details.option_family == 'ldak' || details.input_backend == 'ldms_grm_family')
+        }
+        .keySet()
+        .toList()
 }
 
 def getAssociationMethodTokens() {
@@ -384,15 +658,18 @@ def getMethodRoutes(association_methods, heritability_methods) {
     def selected = (association_methods + heritability_methods)
         .collect { method -> capabilities[method] }
         .findAll { details -> details }
+    def ldak_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'ldak'])
+    def sparse_grm_association = getMethodTokensWithCapabilities([domain: 'association', input_backend: 'sparse_grm'])
+    def ldms_heritability = getMethodTokensWithCapabilities([domain: 'heritability', input_backend: 'ldms_grm_family'])
     return [
         runs_heritability: selected.any { details -> details.domain == 'heritability' },
         consumes_population_prevalence: selected.any { details -> details.consumes_population_prevalence },
-        runs_ldak_kvik: association_methods.contains('ldak_kvik'),
+        runs_ldak_kvik: association_methods.any { method -> method in ldak_association },
         runs_ldak_heritability: heritability_methods.any { method -> capabilities[method] && capabilities[method].option_family == 'ldak' },
         runs_ldak_pcgc: heritability_methods.any { method -> capabilities[method] && capabilities[method].requires_population_prevalence },
         runs_gcta: selected.any { details -> details.option_family == 'gcta' },
-        runs_gcta_fastgwa: association_methods.contains('gcta_fastgwa'),
-        runs_greml_ldms: heritability_methods.contains('gcta_greml_ldms'),
+        runs_gcta_fastgwa: association_methods.any { method -> method in sparse_grm_association },
+        runs_greml_ldms: heritability_methods.any { method -> method in ldms_heritability },
     ]
 }
 
@@ -548,7 +825,8 @@ def resolveMethodResource(analysis_id, family, option, options, fail) {
 }
 
 def resolveRegenieMethodOptions(analysis_id, options, methods, defaults, fail) {
-    if (options && !methods.association_methods.contains('regenie')) {
+    def regenie_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'regenie'])
+    if (options && !methods.association_methods.any { method -> method in regenie_association }) {
         fail.call(analysis_id, "regenie.${options.keySet().first()}", "analysis does not select 'regenie'")
     }
 
@@ -598,19 +876,23 @@ def resolveGctaMethodOptions(analysis_id, options, methods, defaults, fail) {
     if (options && !selected) {
         fail.call(analysis_id, "gcta.${options.keySet().first()}", 'analysis does not select a GCTA method')
     }
-    if (options.containsKey('reml_no_constrain') && !methods.heritability_methods.any { method -> method in ['gcta_greml', 'gcta_greml_ldms'] }) {
+    def gcta_greml_estimators = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', estimator_family: 'reml'])
+    def gcta_dense_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', input_backend: 'dense_grm'])
+    def gcta_ldms_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', input_backend: 'ldms_grm_family'])
+    def gcta_sparse_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'gcta', input_backend: 'sparse_grm'])
+    if (options.containsKey('reml_no_constrain') && !methods.heritability_methods.any { method -> method in gcta_greml_estimators }) {
         fail.call(analysis_id, 'gcta.reml_no_constrain', "option is consumed by GCTA GREML estimators only, but this analysis selects neither 'gcta_greml' nor 'gcta_greml_ldms'")
     }
     ['grm_maf', 'grm_extract'].each { option ->
-        if (options.containsKey(option) && !methods.heritability_methods.contains('gcta_greml')) {
+        if (options.containsKey(option) && !methods.heritability_methods.any { method -> method in gcta_dense_heritability }) {
             fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml' only, which this analysis does not select")
         }
     }
-    if (options.containsKey('sparse_cutoff') && !methods.association_methods.contains('gcta_fastgwa')) {
+    if (options.containsKey('sparse_cutoff') && !methods.association_methods.any { method -> method in gcta_sparse_association }) {
         fail.call(analysis_id, 'gcta.sparse_cutoff', "option is consumed by 'gcta_fastgwa' only, which this analysis does not select")
     }
     ['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges'].each { option ->
-        if (options.containsKey(option) && !methods.heritability_methods.contains('gcta_greml_ldms')) {
+        if (options.containsKey(option) && !methods.heritability_methods.any { method -> method in gcta_ldms_heritability }) {
             fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml_ldms' only, which this analysis does not select")
         }
     }
@@ -695,9 +977,10 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     }
     def predictor_extract = resolveMethodResource(analysis_id, 'ldak', 'predictor_extract', options, fail)
 
-    def capabilities = getMethodCapabilities()
-    def selects_ldak_kinship = methods.heritability_methods.any { method -> capabilities[method] && capabilities[method].matrix_kind == 'ldak_kinship' }
-    def selects_ldak_kvik = methods.association_methods.contains('ldak_kvik')
+    def ldak_kinship_heritability = getMethodTokensWithCapabilities([domain: 'heritability', input_backend: 'ldak_kinship'])
+    def ldak_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'ldak'])
+    def selects_ldak_kinship = methods.heritability_methods.any { method -> method in ldak_kinship_heritability }
+    def selects_ldak_kvik = methods.association_methods.any { method -> method in ldak_association }
     if (options && !selects_ldak_kinship && !selects_ldak_kvik) {
         fail.call(analysis_id, "ldak.${options.keySet().first()}", 'analysis does not select an LDAK method')
     }
@@ -932,45 +1215,31 @@ def readReferenceCatalog(reference_catalog) {
     return resolved
 }
 
+// Which native LDSC operation a request owns follows from its registered domain: a unary summary request owns
+// `--h2` and a pairwise one owns `--rg`, so each is protected for its own method and refused for the other.
 def getLdscProtectedNativeArgumentMatches(method, argument_tokens) {
-    def protected_by_method = [
-        ldsc_h2: [
-            wrapper_owned: ['--h2', '--ref-ld-chr', '--w-ld-chr', '--samp-prev', '--pop-prev', '--out'],
-            typed_resource: [
-                '--annot',
-                '--bfile',
-                '--cts-bin',
-                '--extract',
-                '--frqfile',
-                '--frqfile-chr',
-                '--h2-cts',
-                '--keep',
-                '--print-snps',
-                '--ref-ld',
-                '--ref-ld-chr-cts',
-                '--w-ld',
-            ],
-            alternate_operation: ['--l2', '--rg'],
-        ],
-        ldsc_rg: [
-            wrapper_owned: ['--rg', '--ref-ld-chr', '--w-ld-chr', '--samp-prev', '--pop-prev', '--out'],
-            typed_resource: [
-                '--annot',
-                '--bfile',
-                '--cts-bin',
-                '--extract',
-                '--frqfile',
-                '--frqfile-chr',
-                '--h2-cts',
-                '--keep',
-                '--print-snps',
-                '--ref-ld',
-                '--ref-ld-chr-cts',
-                '--w-ld',
-            ],
-            alternate_operation: ['--l2', '--h2'],
-        ],
+    def ldsc_typed_resources = [
+        '--annot',
+        '--bfile',
+        '--cts-bin',
+        '--extract',
+        '--frqfile',
+        '--frqfile-chr',
+        '--h2-cts',
+        '--keep',
+        '--print-snps',
+        '--ref-ld',
+        '--ref-ld-chr-cts',
+        '--w-ld',
     ]
+    def protected_by_method = getMethodTokensWithCapabilities([option_family: 'ldsc']).collectEntries { token ->
+        def is_pairwise = getMethodCapability(token, 'domain') == 'pairwise'
+        [(token): [
+            wrapper_owned: [is_pairwise ? '--rg' : '--h2', '--ref-ld-chr', '--w-ld-chr', '--samp-prev', '--pop-prev', '--out'],
+            typed_resource: ldsc_typed_resources,
+            alternate_operation: ['--l2', is_pairwise ? '--h2' : '--rg'],
+        ]]
+    }
     def protection_sets = protected_by_method[method] ?: [:]
     return argument_tokens.collectEntries { argument_token ->
         def option_name = argument_token.contains('=') ? argument_token.substring(0, argument_token.indexOf('=')) : argument_token
@@ -997,8 +1266,12 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
     if (native_args && !native_args.first().toString().startsWith('--')) {
         fail.call("the first token must be a native option beginning with '--'")
     }
-    def reserved_by_method = [
-        ldak_sumher: [
+    // Both LDAK summary estimators run the same wrapper-owned invocation shape, so one protection set covers
+    // every registered LDAK summary method rather than one literal key per token.
+    def ldsc_methods = getMethodTokensWithCapabilities([option_family: 'ldsc'])
+    def ldak_summary_methods = getMethodTokensWithCapabilities([option_family: 'ldak', input_backend: 'summary_statistics'])
+    def reserved_by_method = ldak_summary_methods.collectEntries { token ->
+        [(token): [
             '--sum-hers',
             '--sum-cors',
             '--summary',
@@ -1011,24 +1284,10 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
             '--ascertainment',
             '--prevalence2',
             '--ascertainment2',
-        ],
-        ldak_sumcors: [
-            '--sum-hers',
-            '--sum-cors',
-            '--summary',
-            '--summary2',
-            '--tagfile',
-            '--out',
-            '--threads',
-            '--max-threads',
-            '--prevalence',
-            '--ascertainment',
-            '--prevalence2',
-            '--ascertainment2',
-        ],
-    ]
-    def undeclared_file_options = [
-        ldak_sumher: [
+        ]]
+    }
+    def undeclared_file_options = ldak_summary_methods.collectEntries { token ->
+        [(token): [
             '--alternative-tags',
             '--categories',
             '--exclude',
@@ -1038,19 +1297,8 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
             '--matrix',
             '--remove',
             '--weights',
-        ],
-        ldak_sumcors: [
-            '--alternative-tags',
-            '--categories',
-            '--exclude',
-            '--extract',
-            '--keep',
-            '--labels',
-            '--matrix',
-            '--remove',
-            '--weights',
-        ],
-    ]
+        ]]
+    }
     native_args.eachWithIndex { token, index ->
         if (!(token instanceof String) || !token) {
             fail.call("token ${index + 1} must be a non-empty string")
@@ -1062,7 +1310,7 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
             fail.call("token ${index + 1} '${token}' resembles an environment assignment; native arguments cannot alter the task environment")
         }
         def option_name = token.contains('=') ? token.substring(0, token.indexOf('=')) : token
-        if (method in ['ldsc_h2', 'ldsc_rg']) {
+        if (method in ldsc_methods) {
             def protection = getLdscProtectedNativeArgumentMatches(method, [token])[token]
             if (protection) {
                 if (!protection.exact) {
@@ -1096,7 +1344,7 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
             }
         }
     }
-    if (method in ['ldak_sumher', 'ldak_sumcors']) {
+    if (method in ldak_summary_methods) {
         def option_names = native_args
             .findAll { token -> token instanceof String && token.startsWith('--') }
             .collect { token -> token.split('=', 2)[0] }
@@ -1192,7 +1440,10 @@ def resolveRequestNamespace(method_options, document, namespace, primary_request
             if (bundle.family != request.reference_family) {
                 error("[nf-core/gwas] ERROR: Method-options document '${method_options}', namespace '${namespace}', request_id '${request.request_id}', option 'reference_bundle_id': method '${request.method}' requires family '${request.reference_family}', but '${reference_bundle_id}' belongs to '${bundle.family}'")
             }
-            if (request.method == 'ldak_sumcors' && !(bundle.model in ['LDAK-Thin', 'Uniform-GCTA', 'Human-Default'])) {
+            // A one-category tagging model is what makes the SumCors component model single-component; the
+            // registry names the pairwise LDAK summary estimator rather than this seam repeating its token.
+            def ldak_summary_pairs = getMethodTokensWithCapabilities([domain: 'pairwise', reference_family: 'ldak'])
+            if (request.method in ldak_summary_pairs && !(bundle.model in ['LDAK-Thin', 'Uniform-GCTA', 'Human-Default'])) {
                 error("[nf-core/gwas] ERROR: Method-options document '${method_options}', namespace '${namespace}', request_id '${request.request_id}', option 'reference_bundle_id': first-release LDAK SumCors supports models 'LDAK-Thin', 'Uniform-GCTA' and 'Human-Default', but bundle '${reference_bundle_id}' declares '${bundle.model}'")
             }
         }
