@@ -29,15 +29,15 @@ keywords:
   - RE2
   - scatter gather
 components:
-  - gwaslab/meta_analyze
+  - gwaslab/meta/analyze
   - metasoft/re2
-  - thin_mrmega_markers
-  - prepare_mrmega_input
+  - thin/mrmega/markers
+  - prepare/mrmega/input
   - mrmega
-  - extract_mrmega_axes
-  - normalise_mrmega_result
-  - normalise_common_variant_meta
-  - gather_meta_shards
+  - extract/mrmega/axes
+  - normalise/mrmega/result
+  - normalise/common/variant/meta
+  - gather/meta/shards
 input:
   - ch_request:
       type: channel
