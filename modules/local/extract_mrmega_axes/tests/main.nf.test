@@ -1,0 +1,256 @@
+nextflow_process {
+
+    name "Test Process EXTRACT_MRMEGA_AXES"
+    script "../main.nf"
+    process "EXTRACT_MRMEGA_AXES"
+
+    tag "modules"
+    tag "modules_local"
+    tag "extract_mrmega_axes"
+
+    def manifest = { directory, name, studies ->
+        def target = new File(directory.toString(), "${name}.filelist.txt")
+        target.text = studies.collect { study -> "inputs/${study}" }.join('\n') + '\n'
+        target
+    }
+
+    // The block MR-MEGA writes: the marker line, a `PCs PC0 ...` header, then one row per study
+    // in cohort order, space delimited, at six significant figures.
+    def logFile = { directory, name, rows, axisCount ->
+        def target = new File(directory.toString(), "${name}.log")
+        def header = 'PCs ' + (0..<axisCount).collect { axis -> "PC${axis}" }.join(' ')
+        target.text = [
+            '# MR-MEGA v.0.2',
+            'Reading input files...',
+            'Principal components:',
+            header,
+            rows.collect { row -> row.join(' ') }.join('\n'),
+            '',
+            'Analysis finished.',
+        ].join('\n') + '\n'
+        target
+    }
+
+    test("axis signs are canonicalized so the largest-magnitude study coordinate is positive") {
+        when {
+            // PC0's extreme study is -0.0587235, so the whole axis must flip.
+            // PC1's extreme is +0.0365079, so it must be left alone.
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz', '05_e.txt.gz']
+            def list = manifest(outputDir, 'flip', studies)
+            def log = logFile(outputDir, 'flip', [
+                ['studies/01_a.txt.gz', '-0.0576514', '0.010278'],
+                ['studies/02_b.txt.gz', '-0.028672', '0.00881548'],
+                ['studies/03_c.txt.gz', '-0.00219833', '0.0365079'],
+                ['studies/04_d.txt.gz', '0.0297982', '0.00890544'],
+                ['studies/05_e.txt.gz', '-0.0587235', '0.00850897'],
+            ], 2)
+            process {
+                """
+                input[0] = [[id: 'flip'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 2]
+                """
+            }
+        }
+
+        then {
+            def precalculated = new File(process.out.precalculated_axes.get(0).get(1).toString()).readLines()
+            def coordinates = new File(process.out.coordinates.get(0).get(1).toString()).readLines()
+            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                { assert qc.axes_sign_flipped == [1] },
+                // every PC0 coordinate negated, every PC1 coordinate untouched
+                { assert precalculated[0] == '01_a.txt.gz 0.0576514 0.010278' },
+                { assert precalculated[2] == '03_c.txt.gz 0.00219833 0.0365079' },
+                { assert precalculated[4] == '05_e.txt.gz 0.0587235 0.00850897' },
+                // the manifest carries study basenames in cohort order, not the paths from the log
+                { assert precalculated.size() == 5 },
+                { assert precalculated.every { line -> line.split(' ').size() == 3 } },
+                { assert coordinates[0] == 'study_index\tstudy_name\tAXIS_1\tAXIS_2' },
+                { assert coordinates[1].startsWith('1\t01_a.txt.gz\t0.0576514\t') },
+                { assert qc.study_order.size() == 5 },
+                { assert qc.studies == 5 },
+            )
+        }
+    }
+
+    test("an axis whose extreme coordinate is already positive is left untouched") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz']
+            def list = manifest(outputDir, 'keep', studies)
+            def log = logFile(outputDir, 'keep', [
+                ['studies/01_a.txt.gz', '0.5'],
+                ['studies/02_b.txt.gz', '-0.2'],
+                ['studies/03_c.txt.gz', '0.1'],
+                ['studies/04_d.txt.gz', '-0.4'],
+            ], 1)
+            process {
+                """
+                input[0] = [[id: 'keep'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 1]
+                """
+            }
+        }
+
+        then {
+            def precalculated = new File(process.out.precalculated_axes.get(0).get(1).toString()).readLines()
+            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            assertAll(
+                { assert process.success },
+                { assert qc.axes_sign_flipped == [] },
+                { assert precalculated[0] == '01_a.txt.gz 0.5' },
+                { assert precalculated[3] == '04_d.txt.gz -0.4' },
+                { assert qc.axis_span == [0.9] },
+            )
+        }
+    }
+
+    test("a degenerate all-zero axis is refused rather than published") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz', '05_e.txt.gz']
+            def list = manifest(outputDir, 'degenerate', studies)
+            def log = logFile(outputDir, 'degenerate', [
+                ['studies/01_a.txt.gz', '0.5', '0.0'],
+                ['studies/02_b.txt.gz', '-0.2', '0.0'],
+                ['studies/03_c.txt.gz', '0.1', '0.0'],
+                ['studies/04_d.txt.gz', '-0.4', '0.0'],
+                ['studies/05_e.txt.gz', '0.3', '0.0'],
+            ], 2)
+            process {
+                """
+                input[0] = [[id: 'degenerate'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 2]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('ancestry axis 2 is identically zero') },
+                { assert process.errorReport.contains('degenerate') },
+            )
+        }
+    }
+
+    test("axes beyond the native K-3 gate are refused") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz']
+            def list = manifest(outputDir, 'gate', studies)
+            def log = logFile(outputDir, 'gate', [
+                ['studies/01_a.txt.gz', '0.5', '0.1'],
+                ['studies/02_b.txt.gz', '-0.2', '0.2'],
+                ['studies/03_c.txt.gz', '0.1', '0.3'],
+                ['studies/04_d.txt.gz', '-0.4', '0.4'],
+            ], 2)
+            process {
+                """
+                input[0] = [[id: 'gate'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 2]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                // K = 4 allows only 1 axis; at 2 the binary would exit 0 with silent all-NA output
+                { assert process.errorReport.contains('1 <= axes <= K - 3') },
+            )
+        }
+    }
+
+    test("a log with no principal-component block is refused") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz']
+            def list = manifest(outputDir, 'nopc', studies)
+            def target = new File(outputDir.toString(), 'nopc.log')
+            target.text = '# MR-MEGA v.0.2\nReading input files...\nAnalysis finished.\n'
+            process {
+                """
+                input[0] = [[id: 'nopc'], file('${target}', checkIfExists: true), file('${list}', checkIfExists: true), 1]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('pass 1 did not derive axes') },
+            )
+        }
+    }
+
+    test("a coordinate block narrower than the requested axis count is refused") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz', '05_e.txt.gz']
+            def list = manifest(outputDir, 'narrow', studies)
+            def log = logFile(outputDir, 'narrow', [
+                ['studies/01_a.txt.gz', '0.5'],
+                ['studies/02_b.txt.gz', '-0.2'],
+                ['studies/03_c.txt.gz', '0.1'],
+                ['studies/04_d.txt.gz', '-0.4'],
+                ['studies/05_e.txt.gz', '0.3'],
+            ], 1)
+            process {
+                """
+                input[0] = [[id: 'narrow'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 2]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                // this is the manifest-width silent wrong answer, caught before it can be written
+                { assert process.errorReport.contains('the log reports 1 axes but 2 were requested') },
+            )
+        }
+    }
+
+    test("a truncated coordinate block is refused") {
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz']
+            def list = manifest(outputDir, 'short', studies)
+            def log = logFile(outputDir, 'short', [
+                ['studies/01_a.txt.gz', '0.5'],
+                ['studies/02_b.txt.gz', '-0.2'],
+            ], 1)
+            process {
+                """
+                input[0] = [[id: 'short'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 1]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                { assert process.errorReport.contains('principal-component block ends after') },
+            )
+        }
+    }
+
+    test("stub emits every declared output and version metadata") {
+        options "-stub"
+
+        when {
+            def studies = ['01_a.txt.gz', '02_b.txt.gz', '03_c.txt.gz', '04_d.txt.gz']
+            def list = manifest(outputDir, 'stub', studies)
+            def log = logFile(outputDir, 'stub', [['studies/01_a.txt.gz', '0.5']], 1)
+            process {
+                """
+                input[0] = [[id: 'stub'], file('${log}', checkIfExists: true), file('${list}', checkIfExists: true), 1]
+                """
+            }
+        }
+
+        then {
+            def versions = new File(process.out.versions.get(0).toString())
+            assertAll(
+                { assert process.success },
+                { assert new File(process.out.precalculated_axes.get(0).get(1).toString()).exists() },
+                { assert new File(process.out.coordinates.get(0).get(1).toString()).text.startsWith('study_index\tstudy_name\tAXIS_1') },
+                { assert new File(process.out.qc.get(0).get(1).toString()).exists() },
+                { assert versions.readLines().first().endsWith(':') },
+                { assert versions.text.contains('python:') },
+            )
+        }
+    }
+}
