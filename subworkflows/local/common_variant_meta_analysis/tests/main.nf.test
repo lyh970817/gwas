@@ -1,0 +1,273 @@
+nextflow_workflow {
+
+    name "Test Subworkflow COMMON_VARIANT_META_ANALYSIS"
+    script "../main.nf"
+    workflow "COMMON_VARIANT_META_ANALYSIS"
+    config "./nextflow.config"
+
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "common_variant_meta_analysis"
+
+    def header = 'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN'
+
+    def parent = { directory, name, rows ->
+        def target = new File(directory.toString(), "${name}.tsv")
+        target.text = header + '\n' + rows.collect { row -> row.join('\t') }.join('\n') + '\n'
+        target
+    }
+
+    def readGzip = { path ->
+        new java.util.zip.GZIPInputStream(new FileInputStream(path.toString())).getText('UTF-8')
+    }
+
+    def keyed = { text ->
+        def lines = text.readLines()
+        def columns = lines[0].split('\t') as List
+        lines.drop(1).collectEntries { line ->
+            def fields = line.split('\t', -1) as List
+            def row = [columns, fields].transpose().collectEntries { pair -> [(pair[0]): pair[1]] }
+            [(row['META_VARIANT_KEY']): row]
+        }
+    }
+
+    // Four variants on chromosome 1 and one on chromosome 2, so a two-chromosome scatter has
+    // genuinely unequal shards and the gather has something to order.
+    def study1 = [
+        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.30, '1.000000e-01', '2.000000e-02', '5.000000e-07', 10000],
+        ['rs2', 1, 2000, 'C', 'T', '9999999', 0.40, '2.000000e-01', '5.000000e-02', '6.000000e-05', 8000],
+        ['rs3', 1, 3000, 'A', 'T', '9999999', 0.10, '-3.000000e-01', '1.000000e-01', '3.000000e-03', 5000],
+        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.25, '3.120000e-05', '9.800000e-06', '1.000000e-03', 450000],
+    ]
+    def study2 = [
+        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.32, '1.400000e-01', '3.000000e-02', '3.000000e-06', 12000],
+        ['rs2', 1, 2000, 'T', 'C', '9999999', 0.62, '-2.500000e-01', '4.000000e-02', '4.000000e-10', 9000],
+        ['rs3', 1, 3000, 'A', 'T', '9999999', 0.11, '-2.000000e-01', '8.000000e-02', '1.000000e-02', 6000],
+        ['rs4', 1, 4000, 'G', 'C', '9999999', 0.45, '5.000000e-02', '1.000000e-02', '5.000000e-07', 7000],
+        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.26, '2.900000e-05', '1.010000e-05', '4.000000e-03', 460000],
+    ]
+    def study3 = [
+        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.28, '8.000000e-02', '4.000000e-02', '4.000000e-02', 9000],
+        ['rs2', 1, 2000, 'C', 'T', '9999999', 0.39, '2.200000e-01', '6.000000e-02', '2.000000e-04', 7000],
+        ['rs4', 1, 4000, 'G', 'C', '9999999', 0.44, '7.000000e-02', '2.000000e-02', '5.000000e-04', 7500],
+        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.24, '3.300000e-05', '1.200000e-05', '6.000000e-03', 440000],
+    ]
+
+    test("a two-chromosome scatter gathers into exactly one complete result") {
+        when {
+            def one = parent(outputDir, 'sw1', study1)
+            def two = parent(outputDir, 'sw2', study2)
+            def three = parent(outputDir, 'sw3', study3)
+            workflow {
+                """
+                input[0] = Channel.of([
+                    [id: 'scattered'],
+                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
+                    ['study1', 'study2', 'study3'],
+                    'gwaslab',
+                    'GRCh37',
+                    'quantitative',
+                    ['fixed'],
+                    null,
+                    ['1', '2'],
+                ])
+                """
+            }
+        }
+
+        then {
+            def gathered = readGzip(workflow.out.candidate.get(0).get(1))
+            def table = keyed(gathered)
+            def report = new groovy.json.JsonSlurper().parse(new File(workflow.out.gather_report.get(0).get(1).toString()))
+            assertAll(
+                { assert workflow.success },
+                // one result per request, not one per shard
+                { assert workflow.out.candidate.size() == 1 },
+                { assert workflow.out.candidate.get(0).get(0).id == 'scattered' },
+                // two shards produced, and every variant survived the round trip
+                { assert workflow.out.shard_qc.size() == 2 },
+                { assert report.shards_gathered == 2 },
+                { assert report.requested_chromosomes == ['1', '2'] },
+                { assert report.per_chromosome.collect { entry -> entry.variants } == [4, 1] },
+                { assert report.total_variants == 5 },
+                // chromosome 1 is emitted before chromosome 2 regardless of shard completion order
+                { assert gathered.readLines().drop(1).collect { line -> line.split('\t')[1] } == ['1', '1', '1', '1', '2'] },
+                // sharding does not change any per-variant answer
+                { assert table['1:1000:A:G']['BETA'] == '1.075410e-01' },
+                { assert table['1:1000:A:G']['SE'] == '1.536443e-02' },
+                { assert table['1:4000:G:C']['BETA'] == '5.400000e-02' },
+                { assert table['2:5000:G:A']['BETA'] == '3.086618e-05' },
+                { assert table['2:5000:G:A']['SE'] == '6.067884e-06' },
+                // no RE2 was requested, so no RE2 column reaches the result
+                { assert !gathered.readLines()[0].contains('P_RE2') },
+            )
+        }
+    }
+
+    test("an unscattered request produces the identical result through the same gather") {
+        when {
+            def one = parent(outputDir, 'gw1', study1)
+            def two = parent(outputDir, 'gw2', study2)
+            def three = parent(outputDir, 'gw3', study3)
+            workflow {
+                """
+                input[0] = Channel.of([
+                    [id: 'genome_wide'],
+                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
+                    ['study1', 'study2', 'study3'],
+                    'gwaslab',
+                    'GRCh37',
+                    'quantitative',
+                    ['fixed'],
+                    null,
+                    [],
+                ])
+                """
+            }
+        }
+
+        then {
+            def table = keyed(readGzip(workflow.out.candidate.get(0).get(1)))
+            def report = new groovy.json.JsonSlurper().parse(new File(workflow.out.gather_report.get(0).get(1).toString()))
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.shard_qc.size() == 1 },
+                { assert report.shards_gathered == 1 },
+                { assert report.requested_chromosomes == ['ALL'] },
+                { assert report.total_variants == 5 },
+                // byte-for-byte the same per-variant answers as the scattered run above
+                { assert table['1:1000:A:G']['BETA'] == '1.075410e-01' },
+                { assert table['1:4000:G:C']['SE'] == '8.944272e-03' },
+                { assert table['2:5000:G:A']['BETA'] == '3.086618e-05' },
+            )
+        }
+    }
+
+    test("RE2 and random effects scatter per chromosome and join back onto every shard") {
+        when {
+            def one = parent(outputDir, 're1', study1)
+            def two = parent(outputDir, 're2p', study2)
+            def three = parent(outputDir, 're3', study3)
+            params {
+                meta_analyze_args = '--random-effects'
+            }
+            workflow {
+                """
+                input[0] = Channel.of([
+                    [id: 'with_re2'],
+                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
+                    ['study1', 'study2', 'study3'],
+                    'gwaslab',
+                    'GRCh37',
+                    'quantitative',
+                    ['fixed', 'random', 're2'],
+                    null,
+                    ['1', '2'],
+                ])
+                """
+            }
+        }
+
+        then {
+            def gathered = readGzip(workflow.out.candidate.get(0).get(1))
+            def table = keyed(gathered)
+            def columns = gathered.readLines()[0].split('\t') as List
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.re2.size() == 2 },
+                // both model families reach the single gathered result
+                { assert columns.contains('BETA_RANDOM') },
+                { assert columns.contains('TAU2_RANDOM') },
+                { assert columns.contains('P_RE2') },
+                { assert columns.contains('RE2_STATUS') },
+                // METASOFT's own fixed/random estimates are validation checks and must not be published
+                { assert !columns.any { column -> column.startsWith('METASOFT_') } },
+                // RE2 joined on every shard, including the single-variant chromosome 2 shard
+                { assert table['1:1000:A:G']['RE2_STATUS'] == 'ok' },
+                { assert table['2:5000:G:A']['RE2_STATUS'] == 'ok' },
+                { assert table.values().every { row -> row['P_RE2'] != null } },
+                // canonical BETA/SE/P still mean the fixed result
+                { assert table['1:1000:A:G']['BETA'] == '1.075410e-01' },
+            )
+        }
+    }
+
+    // Five studies with a deliberate allele-frequency gradient, so MR-MEGA has real structure to
+    // recover. Markers sit one per megabase so the pass-1 thinning keeps all of them.
+    def ancestryStudy = { offset ->
+        def rows = []
+        (1..8).each { bin ->
+            rows << ["rs1_${bin}", 1, bin * 1000000, 'A', 'G', '9999999',
+                     (0.20 + offset * 0.06 + bin * 0.004).round(4),
+                     sprintf('%.6e', 0.10 + offset * 0.01), '2.000000e-02', '5.000000e-07', 4000]
+        }
+        (1..4).each { bin ->
+            rows << ["rs2_${bin}", 2, bin * 1000000, 'C', 'T', '9999999',
+                     (0.55 - offset * 0.05 + bin * 0.003).round(4),
+                     sprintf('%.6e', 0.08 + offset * 0.012), '2.500000e-02', '2.000000e-04', 4000]
+        }
+        rows
+    }
+
+    test("MR-MEGA runs two-pass: axes derived once genome-wide, then scattered with fixed axes") {
+        when {
+            def a = parent(outputDir, 'anc0', ancestryStudy(0))
+            def b = parent(outputDir, 'anc1', ancestryStudy(1))
+            def c = parent(outputDir, 'anc2', ancestryStudy(2))
+            def d = parent(outputDir, 'anc3', ancestryStudy(3))
+            def e = parent(outputDir, 'anc4', ancestryStudy(4))
+            workflow {
+                """
+                input[0] = Channel.of([
+                    [id: 'multi_ancestry'],
+                    [file('${a}', checkIfExists: true), file('${b}', checkIfExists: true), file('${c}', checkIfExists: true), file('${d}', checkIfExists: true), file('${e}', checkIfExists: true)],
+                    ['study1', 'study2', 'study3', 'study4', 'study5'],
+                    'gwaslab',
+                    'GRCh37',
+                    'quantitative',
+                    ['fixed', 'mrmega'],
+                    1,
+                    ['1', '2'],
+                ])
+                """
+            }
+        }
+
+        then {
+            def gathered = readGzip(workflow.out.candidate.get(0).get(1))
+            def table = keyed(gathered)
+            def columns = gathered.readLines()[0].split('\t') as List
+            def axes = new File(workflow.out.ancestry_axes.get(0).get(1).toString()).readLines()
+            def axesQc = new groovy.json.JsonSlurper().parse(new File(workflow.out.axes_qc.get(0).get(1).toString()))
+            def report = new groovy.json.JsonSlurper().parse(new File(workflow.out.gather_report.get(0).get(1).toString()))
+            assertAll(
+                { assert workflow.success },
+                // axes are derived exactly once for the request, not once per shard
+                { assert workflow.out.ancestry_axes.size() == 1 },
+                { assert axes.size() == 6 },
+                { assert axes[0] == 'study_index\tstudy_name\tAXIS_1' },
+                { assert axesQc.axes == 1 },
+                { assert axesQc.studies == 5 },
+                // the sign rule ran and left the largest-magnitude coordinate positive
+                { assert axesQc.axis_span[0] > 0 },
+                { assert axes.drop(1).collect { line -> line.split('\t')[2] as double }.max() > 0 },
+                // both shards gathered into one result
+                { assert report.shards_gathered == 2 },
+                { assert report.total_variants == 12 },
+                // the log-scale-first MR-MEGA block reaches the published table
+                { assert columns.contains('MRMEGA_CHISQ_ASSOC') },
+                { assert columns.contains('MRMEGA_LOG10P_ASSOC') },
+                { assert columns.contains('MRMEGA_P_ASSOC') },
+                { assert columns.contains('MRMEGA_LNBF') },
+                // native P values are debug provenance only and must never be published
+                { assert !columns.any { column -> column.startsWith('MRMEGA_NATIVE_P') } },
+                // association df is axes + 1 and ancestry-heterogeneity df is axes
+                { assert table.values().every { row -> row['MRMEGA_DF_ASSOC'] == '2' } },
+                { assert table.values().every { row -> row['MRMEGA_DF_ANCESTRY_HET'] == '1' } },
+                // canonical BETA/SE/P remain the fixed-effect result, never MR-MEGA's association test
+                { assert columns.indexOf('BETA') < columns.indexOf('MRMEGA_CHISQ_ASSOC') },
+                { assert table['1:1000000:A:G']['BETA'] != 'NA' },
+            )
+        }
+    }
+}

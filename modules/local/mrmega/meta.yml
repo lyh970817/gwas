@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "mrmega"
+description: Meta-regression of multi-ethnic genetic association across per-study summary statistics
+keywords:
+  - genome-wide association study
+  - meta-analysis
+  - meta-regression of multi-ethnic genetic association
+  - multi-ancestry
+  - multidimensional scaling
+  - heterogeneity
+tools:
+  - "mrmega":
+      description: |
+        MR-MEGA models allelic effects as a linear function of axes of genetic variation derived by
+        multidimensional scaling of between-study allele-frequency distances, partitioning
+        heterogeneity into ancestry-correlated and residual components.
+      homepage: "https://genomics.ut.ee/en/tools/mr-mega"
+      documentation: "https://genomics.ut.ee/en/tools/mr-mega"
+      doi: "10.1093/hmg/ddx280"
+      licence: ["NOASSERTION"]
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+    - study_files:
+        type: file
+        description: |
+          One native MR-MEGA study file per study. Each carries a header naming
+          `MARKERNAME EA NEA EAF N CHROMOSOME POSITION` plus either `BETA` and `SE` or `OR`,
+          `OR_95L` and `OR_95U`; the parameterisation is read from the header and must be the same
+          in every file. Plain and gzipped files are both accepted.
+        pattern: "*.{txt,txt.gz,tsv,tsv.gz}"
+        ontologies:
+          - edam: http://edamontology.org/format_3475
+    - filelist:
+        type: file
+        description: |
+          Study file paths, one per line, defining cohort order. Cohort order is the order of the
+          `Effects` direction string, of the log principal-component block and of any precalculated
+          coordinates. Only the basename of each entry is used, so the manifest is rebuilt against
+          the staged copies.
+        pattern: "*.txt"
+        ontologies: []
+    - axes:
+        type: integer
+        description: |
+          Number of axes of genetic variation to fit, passed as `--pc`. Must satisfy
+          `1 <= axes <= K - 3` for `K` studies, which is the binary's real gate; a larger value
+          exits 0 with every row flagged `SmallCohortCount`. The binary default of 3 and the
+          documented default of 4 are both ignored, so this value is always explicit.
+    - precalculated_axes:
+        type: file
+        description: |
+          Optional study coordinates that replace multidimensional scaling, enabling per-chromosome
+          scatter with a shared axis solution. One whitespace-separated row per study in manifest
+          order: the study file name followed by exactly `axes` numeric coordinates. Callers pass
+          `[]` when MR-MEGA should derive the axes itself.
+        pattern: "*.{txt,tsv}"
+        ontologies: []
+output:
+  result:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.result":
+          type: file
+          description: |
+            Raw native per-marker result table. The three `P-value_*` columns are numerically
+            invalid whenever the corresponding `ndf` is not 2 and must be recomputed downstream in
+            log space from `chisq_*` and `ndf_*`; this module neither repairs nor reports them.
+          pattern: "*.result"
+          ontologies:
+            - edam: http://edamontology.org/format_3475
+  log:
+    - - meta:
+          type: map
+          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+      - "*.log":
+          type: file
+          description: |
+            Native run log. Carries the echoed option block, per-study genomic-control lambdas in
+            cohort order, and the `Principal components:` block, which is the only place study
+            coordinates are emitted, at six significant figures.
+          pattern: "*.log"
+          ontologies: []
+  versions:
+    - "versions.yml":
+        type: file
+        description: |
+          File containing software versions. The pinned image carries no build stamp, no source and
+          no licence material, so the recorded version is the tool's self-reported compile-time
+          constant alongside the image digest, which is the only reproducible identity available.
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

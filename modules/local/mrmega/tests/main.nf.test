@@ -1,0 +1,270 @@
+nextflow_process {
+
+    name "Test Process MRMEGA"
+    script "../main.nf"
+    process "MRMEGA"
+
+    tag "modules"
+    tag "modules_local"
+    tag "mrmega"
+
+    // Five studies on a one-dimensional ancestry gradient, sixty markers spread one per
+    // megabase over chromosomes one to five so that MR-MEGA's own one-per-megabase thinning
+    // keeps every marker for axis derivation. Wholly deterministic: no random number source.
+    def ancestry = [-1.0d, -0.5d, 0.0d, 0.5d, 1.0d, -0.75d]
+    def sizes = [4000, 3000, 5000, 3500, 4500, 4200]
+
+    def fixture = { outputDir, label, studyCount, binary ->
+        def directory = new File(outputDir.toString(), "${label}_studies")
+        directory.mkdirs()
+        def quantile = 1.959963984540054d
+        def targets = []
+        (0..<studyCount).each { study ->
+            def header = binary
+                ? 'MARKERNAME\tEA\tNEA\tEAF\tOR\tOR_95L\tOR_95U\tN\tCHROMOSOME\tPOSITION'
+                : 'MARKERNAME\tEA\tNEA\tEAF\tBETA\tSE\tN\tCHROMOSOME\tPOSITION'
+            def lines = [header]
+            (1..60).each { marker ->
+                def chromosome = (marker % 5) + 1
+                def position = ((((marker - (marker % 5)) / 5).intValue()) + 1) * 1000000 + 500
+                def effect = marker % 2 == 0 ? 'A' : 'G'
+                def other = marker % 2 == 0 ? 'G' : 'A'
+                def key = "${chromosome}:${position}:${effect}:${other}"
+                def frequency = 0.30d + 0.20d * Math.sin(marker * 0.7d) + 0.06d * Math.cos(marker * 0.4d) * ancestry[study]
+                def error = 1.0d / Math.sqrt(2.0d * sizes[study] * frequency * (1.0d - frequency))
+                def beta = marker == 10 ? 0.9d : 0.01d * Math.sin(marker + study)
+                def effects = binary
+                    ? [Math.exp(beta), Math.exp(beta - quantile * error), Math.exp(beta + quantile * error)]
+                    : [beta, error]
+                lines << ([key, effect, other, frequency] + effects + [sizes[study], chromosome, position]).join('\t')
+            }
+            def target = new File(directory, "${(study + 1).toString().padLeft(2, '0')}_STUDY_${study + 1}.txt.gz")
+            target.withOutputStream { output ->
+                def compressed = new java.util.zip.GZIPOutputStream(output)
+                compressed.write((lines.join('\n') + '\n').getBytes('UTF-8'))
+                compressed.close()
+            }
+            targets << target
+        }
+        def manifest = new File(directory, "${label}.filelist.txt")
+        manifest.text = targets.collect { target -> target.toString() }.join('\n') + '\n'
+        [studies: targets, filelist: manifest, directory: directory]
+    }
+
+    def staged = { targets ->
+        targets.collect { target -> "file('${target}', checkIfExists: true)" }.join(', ')
+    }
+
+    test("five studies on one axis of genetic variation") {
+        when {
+            def data = fixture(outputDir, 'qt', 5, false)
+            process {
+                """
+                input[0] = [
+                    [ id: 'qt' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    1,
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            def result = new File(process.out.result.get(0)[1].toString()).readLines()
+            def log = new File(process.out.log.get(0)[1].toString()).text
+            def versions = new File(process.out.versions.get(0).toString()).text
+            def command = new File(process.out.result.get(0)[1].toString()).parentFile.toPath().resolve('.command.sh').text
+            def header = result[0].split('\t') as List
+            def row = result[1].split('\t') as List
+            assertAll(
+                { assert process.success },
+                // 9 fixed columns, 2*(axes+1) coefficients, 9 test columns, lnBF and Comments.
+                { assert header.size() == 20 + 2 * (1 + 1) },
+                { assert header.first() == 'MarkerName' },
+                { assert header.last() == 'Comments' },
+                { assert header.contains('beta_1') && !header.contains('beta_2') },
+                { assert result.size() == 61 },
+                { assert row[header.indexOf('ndf_association')] == '2' },
+                { assert row[header.indexOf('ndf_ancestry_het')] == '1' },
+                { assert row[header.indexOf('ndf_residual_het')] == '3' },
+                { assert row[header.indexOf('Ncohort')] == '5' },
+                { assert result.every { line -> !line.endsWith('SmallCohortCount') } },
+                // The marker key must survive as the allele-aware key it was given.
+                { assert result.any { line -> line.startsWith('1:2000500:G:A\t') } },
+                { assert log.contains('Principal components:') },
+                { assert log.contains('Analysis finished') },
+                // Invocation contract: absolute binary path, explicit axis count, quantitative
+                // route selected from the study headers, and none of the unsafe native options.
+                { assert command.contains('/MR-MEGA/MR-MEGA') },
+                { assert command.contains('--pc "\$AXES"') },
+                { assert !command.contains('--no_alleles') },
+                { assert !command.contains('--gc') },
+                { assert !command.contains('--gco') },
+                { assert !command.contains('--precalculated') },
+                { assert versions.contains('sha256:1143b7f016f00f0f32cbc6ad72b4a571e2f824e440a0b7fecf4ec4c8334ae1e8') },
+                { assert versions.contains('self-reported constant') },
+            )
+        }
+    }
+
+    test("the binary route is selected from the odds-ratio columns") {
+        when {
+            def data = fixture(outputDir, 'binary', 5, true)
+            process {
+                """
+                input[0] = [
+                    [ id: 'binary' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    1,
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            def log = new File(process.out.log.get(0)[1].toString()).text
+            def result = new File(process.out.result.get(0)[1].toString()).readLines()
+            assertAll(
+                { assert process.success },
+                { assert log.contains('Binary trait analysis') },
+                { assert !log.contains('Quantitative trait analysis') },
+                { assert result.size() == 61 },
+            )
+        }
+    }
+
+    test("precalculated axes replace multidimensional scaling") {
+        when {
+            def data = fixture(outputDir, 'pre', 5, false)
+            def coordinates = new File(data.directory, 'axes.txt')
+            coordinates.text = data.studies
+                .withIndex()
+                .collect { target, index -> "${target.name} ${(-0.05d + 0.025d * index)}" }
+                .join('\n') + '\n'
+            process {
+                """
+                input[0] = [
+                    [ id: 'pre' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    1,
+                    file('${coordinates}', checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            def log = new File(process.out.log.get(0)[1].toString()).readLines()
+            def command = new File(process.out.result.get(0)[1].toString()).parentFile.toPath().resolve('.command.sh').text
+            def axisBlock = log.subList(log.indexOf('Principal components:') + 2, log.indexOf('Principal components:') + 7)
+            assertAll(
+                { assert process.success },
+                { assert command.contains('--precalculated') },
+                // MR-MEGA echoes the supplied coordinates verbatim instead of deriving them.
+                { assert axisBlock == [
+                    'studies/01_STUDY_1.txt.gz -0.05',
+                    'studies/02_STUDY_2.txt.gz -0.025',
+                    'studies/03_STUDY_3.txt.gz 0',
+                    'studies/04_STUDY_4.txt.gz 0.025',
+                    'studies/05_STUDY_5.txt.gz 0.05',
+                ] },
+            )
+        }
+    }
+
+    test("an axis count above K minus three is rejected before the binary runs") {
+        when {
+            def data = fixture(outputDir, 'gate', 5, false)
+            process {
+                """
+                input[0] = [
+                    [ id: 'gate' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    3,
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                // Three axes with five studies is what issue #9's `K - 2` bound would permit; the
+                // binary's real gate is `K - 3` and violating it exits 0 with silent all-NA output.
+                { assert process.errorReport.contains('axes must satisfy 1 <= axes <= K - 3') },
+                { assert process.errorReport.contains('axes=3 with K=5') },
+            )
+        }
+    }
+
+    test("a precalculated axes file narrower than the axis count is rejected") {
+        when {
+            def data = fixture(outputDir, 'narrow', 6, false)
+            def coordinates = new File(data.directory, 'narrow_axes.txt')
+            coordinates.text = data.studies.collect { target -> "${target.name} 0.01" }.join('\n') + '\n'
+            process {
+                """
+                input[0] = [
+                    [ id: 'narrow' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    2,
+                    file('${coordinates}', checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.failed },
+                // Left to the binary this exits 0 with every axis coefficient zero and
+                // P-value_ancestry_het reported as nan.
+                { assert process.errorReport.contains('expected a study name plus exactly 2 coordinates') },
+            )
+        }
+    }
+
+    test("stub emits a result table shaped for the requested axis count") {
+        options "-stub"
+
+        when {
+            def data = fixture(outputDir, 'stub', 5, false)
+            process {
+                """
+                input[0] = [
+                    [ id: 'stub' ],
+                    [ ${staged(data.studies)} ],
+                    file('${data.filelist}', checkIfExists: true),
+                    2,
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            def result = new File(process.out.result.get(0)[1].toString()).readLines()
+            def log = new File(process.out.log.get(0)[1].toString()).text
+            def versions = new File(process.out.versions.get(0).toString()).text
+            assertAll(
+                { assert process.success },
+                { assert result.size() == 2 },
+                { assert result[0].split('\t').size() == 20 + 2 * (2 + 1) },
+                { assert result[1].split('\t').size() == 20 + 2 * (2 + 1) },
+                { assert result[0].split('\t').first() == 'MarkerName' },
+                { assert log.contains('Principal components:') },
+                { assert log.contains('Analysis finished') },
+                { assert versions.readLines().first().endsWith(':') },
+                { assert versions.contains('mrmega:') },
+            )
+        }
+    }
+}

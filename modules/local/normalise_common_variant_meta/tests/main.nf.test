@@ -1,0 +1,441 @@
+nextflow_process {
+
+    name "Test Process NORMALISE_COMMON_VARIANT_META"
+    script "../main.nf"
+    process "NORMALISE_COMMON_VARIANT_META"
+    config "./nextflow.config"
+
+    tag "modules"
+    tag "modules_local"
+    tag "normalise_common_variant_meta"
+
+    def keys = { -> ['1:1000:A:G', '1:4000:G:C', '2:5000:G:A'] }
+
+    def compress = { outputDir, name, text ->
+        def target = new File(outputDir.toString(), name)
+        target.withOutputStream { output ->
+            def stream = new java.util.zip.GZIPOutputStream(output)
+            stream.write(text.getBytes('UTF-8'))
+            stream.close()
+        }
+        target
+    }
+
+    def readCandidate = { candidate ->
+        def stream = new java.util.zip.GZIPInputStream(new File(candidate.toString()).newInputStream())
+        def lines = stream.getText('UTF-8').readLines()
+        def header = lines[0].split('\t') as List
+        def rows = lines.tail().collect { line ->
+            [header, line.split('\t', -1) as List].transpose().collectEntries { pair -> pair }
+        }
+        [header: header, rows: rows]
+    }
+
+    def readJson = { descriptor ->
+        new groovy.json.JsonSlurper().parse(new File(descriptor.toString()))
+    }
+
+    // A three-variant GWASLab meta-analysis whose fixed-effect estimates are the hand-checked analytical
+    // values: inverse-variance weighting of three studies, of two studies, and the small-effect variant that
+    // exists to prove no reformatting happens on the way through.
+    def metaAnalysis = { outputDir, id, random ->
+        def columns = [
+            'SNPID', 'CHR', 'POS', 'EA', 'NEA', 'STATUS', 'EAF', 'BETA', 'SE', 'P', 'N',
+            'N_STUDIES', 'DIRECTION', 'EAF_META', 'EAF_MIN', 'EAF_MAX', 'N_TOTAL',
+            'MAX_WEIGHT_SHARE', 'Z_FIXED', 'Q', 'P_HET', 'I2',
+        ]
+        def rows = [
+            ['rs1', '1', '1000', 'A', 'G', '9999999', '2.500000e-01', '1.075410e-01', '1.536443e-02',
+             '2.571538e-12', '3000', '3', '+++', '2.500000e-01', '2.400000e-01', '2.600000e-01', '3000',
+             '5.901639e-01', '6.999349e+00', '0.000000e+00', '1.000000e+00', '0.000000e+00'],
+            ['rs2', '1', '4000', 'G', 'C', '9999999', '3.000000e-01', '5.400000e-02', '8.944272e-03',
+             '1.566331e-09', '2000', '2', '?++', '3.000000e-01', '2.900000e-01', '3.100000e-01', '2000',
+             '8.000000e-01', '6.037418e+00', '8.000000e-01', '3.710934e-01', '0.000000e+00'],
+            ['rs3', '2', '5000', 'G', 'A', '9999999', '1.000000e-01', '3.086618e-05', '6.067884e-06',
+             '3.641343e-07', '5000', '3', '+++', '1.000000e-01', '9.000000e-02', '1.100000e-01', '5000',
+             '4.000000e-01', '5.086800e+00', '1.200000e+00', '5.488116e-01', '0.000000e+00'],
+        ]
+        def randomBlock = [
+            ['1.075410e-01', '1.536443e-02', '6.999349e+00', '2.571538e-12', '0.000000e+00'],
+            ['5.400000e-02', '8.944272e-03', '6.037418e+00', '1.566331e-09', '0.000000e+00'],
+            ['3.100000e-05', '7.000000e-06', '4.428571e+00', '9.484000e-06', '1.250000e-11'],
+        ]
+        if (random) {
+            columns += ['BETA_RANDOM', 'SE_RANDOM', 'Z_RANDOM', 'P_RANDOM', 'TAU2_RANDOM']
+        }
+        columns += ['META_VARIANT_KEY']
+        def text = new StringBuilder()
+        text.append(columns.join('\t')).append('\n')
+        rows.eachWithIndex { row, index ->
+            def fields = new ArrayList(row)
+            if (random) {
+                fields.addAll(randomBlock[index])
+            }
+            fields.add(keys()[index])
+            text.append(fields.join('\t')).append('\n')
+        }
+        compress(outputDir, "${id}.meta.tsv.gz", text.toString())
+    }
+
+    // The three companion documents are deliberately named exactly as GWASLAB_META_ANALYZE emits them, so
+    // every scenario also proves that the staged upstream derivation does not collide with the emitted one.
+    def companions = { outputDir, id ->
+        def order = new File(outputDir.toString(), "${id}.study_order.tsv")
+        order.text = 'study_index\tstudy_name\tstaged_name\tsha256\tinput_rows\tretained_rows\n' +
+            '1\tstudy_a\tparents/1.tsv.gz\t1111\t10\t9\n' +
+            '2\tstudy_b\tparents/2.tsv.gz\t2222\t10\t8\n' +
+            '3\tstudy_c\tparents/3.tsv.gz\t3333\t10\t7\n'
+        def qc = new File(outputDir.toString(), "${id}.qc.json")
+        qc.text = '{"schema_version":"1.0","study_count":3,"union_variants":3,"strand_conflict_sites":0}\n'
+        def derivation = new File(outputDir.toString(), "${id}.derivation.json")
+        derivation.text = '{"schema_version":"1.0","operation":"gwaslab_inverse_variance_meta_analysis","models":["fixed"]}\n'
+        [order: order, qc: qc, derivation: derivation]
+    }
+
+    // METASOFT values reproduced from the offline GWASLab/METASOFT cross-check: they agree with the GWASLab
+    // fixed-effect result to all six significant figures METASOFT emits.
+    def re2Table = { outputDir, id, selected ->
+        def columns = [
+            'META_VARIANT_KEY', 'P_RE2', 'RE2_MEAN_COMPONENT', 'RE2_HET_COMPONENT', 'RE2_STATUS',
+            'METASOFT_P_FE', 'METASOFT_BETA_FE', 'METASOFT_SE_FE',
+            'METASOFT_P_RE', 'METASOFT_BETA_RE', 'METASOFT_SE_RE',
+            'METASOFT_I_SQUARE', 'METASOFT_Q', 'METASOFT_P_Q', 'METASOFT_TAU_SQUARE',
+        ]
+        def available = [
+            '1:1000:A:G': ['2.57154E-12', '48.99089', '0.0', 'ok', '2.57154E-12', '0.107541', '0.0153644',
+                           '2.57154E-12', '0.107541', '0.0153644', '0.0', '0.0', '1.0', '0.0'],
+            '1:4000:G:C': ['1.56633E-09', '36.45039', '0.8', 'ok', '1.56633E-09', '0.0540000', '0.00894427',
+                           '1.56633E-09', '0.0540000', '0.00894427', '0.0', '0.8', '0.371093', '0.0'],
+            '2:5000:G:A': ['3.64134E-07', '25.87554', '1.2', 'ok', '3.64134E-07', '3.08662E-05', '6.06788E-06',
+                           '3.64134E-07', '3.08662E-05', '6.06788E-06', '0.0', '1.2', '0.548812', '0.0'],
+            '9:9999:A:T': ['4.00000E-02', '4.217600', '0.1', 'ok', '4.00000E-02', '0.0100000', '0.00500000',
+                           '4.00000E-02', '0.0100000', '0.00500000', '0.0', '0.1', '0.751830', '0.0'],
+        ]
+        def text = new StringBuilder()
+        text.append(columns.join('\t')).append('\n')
+        selected.each { key ->
+            text.append(([key] + available[key]).join('\t')).append('\n')
+        }
+        compress(outputDir, "${id}.re2.tsv.gz", text.toString())
+    }
+
+    // Synthetic MR-MEGA results chosen to exercise the log-space recomputation. The association row for
+    // 1:1000:A:G is the deep-tail case the native binary reports as P = 1.0 and the upstream linear fix
+    // reports as P = 0; the correct answer is log10 P = -1617.862932 and no representable linear P.
+    def mrmegaTable = { outputDir, id ->
+        def columns = [
+            'META_VARIANT_KEY',
+            'MRMEGA_CHISQ_ASSOC', 'MRMEGA_DF_ASSOC',
+            'MRMEGA_CHISQ_ANCESTRY_HET', 'MRMEGA_DF_ANCESTRY_HET',
+            'MRMEGA_CHISQ_RESIDUAL_HET', 'MRMEGA_DF_RESIDUAL_HET',
+            'MRMEGA_LNBF',
+            'MRMEGA_NATIVE_P_ASSOC', 'MRMEGA_NATIVE_P_ANCESTRY_HET', 'MRMEGA_NATIVE_P_RESIDUAL_HET',
+        ]
+        def rows = [
+            ['1:1000:A:G', '7459', '3', '10', '2', '12', '3', '3720.5', '1', '0.006737947', '0.007383161'],
+            ['1:4000:G:C', '3.84', '1', '4.5', '2', '0', '1', '1.2', '0.05004352', '0.1053992', '1'],
+            ['2:5000:G:A', '1000', '4', '2', '2', '0.5', '2', '200.1', '0', '0.3678794', '0.7788008'],
+        ]
+        def text = new StringBuilder()
+        text.append(columns.join('\t')).append('\n')
+        rows.each { row -> text.append(row.join('\t')).append('\n') }
+        compress(outputDir, "${id}.mrmega.tsv.gz", text.toString())
+    }
+
+    test("carry a fixed-effect-only meta-analysis through with no model columns added") {
+        when {
+            def table = metaAnalysis(outputDir, 'fixed_only', false)
+            def extra = companions(outputDir, 'fixed_only')
+            process {
+                """
+                input[0] = [
+                    [ id:'fixed_only' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    [],
+                    [],
+                ]
+                """
+            }
+        }
+
+        then {
+            def candidate = process.out.candidate.get(0)
+            def table = readCandidate(candidate.get(1))
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert candidate.get(0).id == 'fixed_only' },
+                { assert new File(candidate.get(1).toString()).name == 'fixed_only.candidate.tsv.gz' },
+                { assert table.header == [
+                    'SNPID', 'CHR', 'POS', 'EA', 'NEA', 'STATUS', 'EAF', 'BETA', 'SE', 'P', 'N',
+                    'N_STUDIES', 'DIRECTION', 'EAF_META', 'EAF_MIN', 'EAF_MAX', 'N_TOTAL',
+                    'MAX_WEIGHT_SHARE', 'Z_FIXED', 'Q', 'P_HET', 'I2', 'META_VARIANT_KEY',
+                ] },
+                { assert table.rows.size() == 3 },
+                { assert table.rows[0].BETA == '1.075410e-01' },
+                { assert table.rows[0].SE == '1.536443e-02' },
+                { assert table.rows[0].P == '2.571538e-12' },
+                { assert table.rows[2].BETA == '3.086618e-05' },
+                { assert table.rows*.META_VARIANT_KEY == ['1:1000:A:G', '1:4000:G:C', '2:5000:G:A'] },
+                { assert !table.header.any { column -> column.startsWith('MRMEGA_') } },
+                { assert !table.header.any { column -> column.contains('RE2') } },
+                { assert !table.header.any { column -> column.endsWith('_RANDOM') } },
+                { assert derivation.operation == 'normalise_common_variant_meta' },
+                { assert derivation.models.fixed },
+                { assert !derivation.models.random },
+                { assert !derivation.models.re2_joined },
+                { assert !derivation.models.mrmega_joined },
+                { assert derivation.join_counts.meta_analysis_rows == 3 },
+                { assert derivation.join_counts.re2_rows == 0 },
+                { assert derivation.join_counts.mrmega_rows == 0 },
+                { assert derivation.upstream.qc.study_count == 3 },
+                { assert derivation.upstream.derivation.operation == 'gwaslab_inverse_variance_meta_analysis' },
+                { assert derivation.upstream.study_order.size() == 3 },
+                { assert derivation.upstream.study_order[1].study_name == 'study_b' },
+                { assert derivation.canonical_contract.contains('fixed-effect result') },
+                { assert derivation.python_version.startsWith('3.') },
+            )
+        }
+    }
+
+    test("carry the random-effects block through unchanged when the input provides it") {
+        when {
+            def table = metaAnalysis(outputDir, 'with_random', true)
+            def extra = companions(outputDir, 'with_random')
+            process {
+                """
+                input[0] = [
+                    [ id:'with_random' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    [],
+                    [],
+                ]
+                """
+            }
+        }
+
+        then {
+            def table = readCandidate(process.out.candidate.get(0).get(1))
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert table.header.indexOf('BETA_RANDOM') == 22 },
+                { assert table.header[22..26] == ['BETA_RANDOM', 'SE_RANDOM', 'Z_RANDOM', 'P_RANDOM', 'TAU2_RANDOM'] },
+                { assert table.header.last() == 'META_VARIANT_KEY' },
+                { assert table.rows[2].BETA_RANDOM == '3.100000e-05' },
+                { assert table.rows[2].TAU2_RANDOM == '1.250000e-11' },
+                { assert table.rows[2].BETA == '3.086618e-05' },
+                { assert derivation.models.random },
+                { assert derivation.candidate_columns.contains('SE_RANDOM') },
+            )
+        }
+    }
+
+    test("join Han-Eskin RE2 results and keep METASOFT native estimates out of the candidate table") {
+        when {
+            def table = metaAnalysis(outputDir, 'with_re2', false)
+            def extra = companions(outputDir, 'with_re2')
+            def re2 = re2Table(outputDir, 'with_re2', keys())
+            process {
+                """
+                input[0] = [
+                    [ id:'with_re2' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    file('${re2}', checkIfExists: true),
+                    [],
+                ]
+                """
+            }
+        }
+
+        then {
+            def table = readCandidate(process.out.candidate.get(0).get(1))
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            def comparisons = derivation.metasoft_validation.comparisons
+            assertAll(
+                { assert process.success },
+                { assert table.header[22..25] == ['P_RE2', 'RE2_MEAN_COMPONENT', 'RE2_HET_COMPONENT', 'RE2_STATUS'] },
+                { assert table.header.last() == 'META_VARIANT_KEY' },
+                { assert !table.header.any { column -> column.startsWith('METASOFT_') } },
+                { assert table.rows[0].P_RE2 == '2.57154E-12' },
+                { assert table.rows[0].RE2_MEAN_COMPONENT == '48.99089' },
+                { assert table.rows[1].RE2_HET_COMPONENT == '0.8' },
+                { assert table.rows[2].RE2_STATUS == 'ok' },
+                { assert derivation.models.re2_joined },
+                { assert derivation.join_counts.re2_rows == 3 },
+                { assert derivation.join_counts.re2_rows_matched == 3 },
+                { assert derivation.join_counts.re2_rows_unmatched == 0 },
+                { assert derivation.join_counts.meta_analysis_rows_without_re2 == 0 },
+                { assert derivation.metasoft_validation.kind == 'validation_check' },
+                { assert comparisons.beta_fixed.rows_compared == 3 },
+                { assert comparisons.standard_error_fixed.rows_compared == 3 },
+                { assert comparisons.p_fixed.rows_compared == 3 },
+                { assert comparisons.beta_fixed.maximum < 1e-5 },
+                { assert comparisons.standard_error_fixed.maximum < 1e-5 },
+                { assert comparisons.p_fixed.maximum < 1e-5 },
+            )
+        }
+    }
+
+    test("recompute every MR-MEGA P value in log space and never publish the native value") {
+        when {
+            def table = metaAnalysis(outputDir, 'with_mrmega', false)
+            def extra = companions(outputDir, 'with_mrmega')
+            def mrmega = mrmegaTable(outputDir, 'with_mrmega')
+            process {
+                """
+                input[0] = [
+                    [ id:'with_mrmega' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    [],
+                    file('${mrmega}', checkIfExists: true),
+                ]
+                """
+            }
+        }
+
+        then {
+            def table = readCandidate(process.out.candidate.get(0).get(1))
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            def assoc = derivation.mrmega_native_p_debug.tests.ASSOC
+            assertAll(
+                { assert process.success },
+                { assert table.header[22..34] == [
+                    'MRMEGA_CHISQ_ASSOC', 'MRMEGA_DF_ASSOC', 'MRMEGA_LOG10P_ASSOC', 'MRMEGA_P_ASSOC',
+                    'MRMEGA_CHISQ_ANCESTRY_HET', 'MRMEGA_DF_ANCESTRY_HET', 'MRMEGA_LOG10P_ANCESTRY_HET',
+                    'MRMEGA_P_ANCESTRY_HET',
+                    'MRMEGA_CHISQ_RESIDUAL_HET', 'MRMEGA_DF_RESIDUAL_HET', 'MRMEGA_LOG10P_RESIDUAL_HET',
+                    'MRMEGA_P_RESIDUAL_HET', 'MRMEGA_LNBF',
+                ] },
+                { assert table.header.last() == 'META_VARIANT_KEY' },
+                { assert !table.header.any { column -> column.contains('NATIVE') } },
+                // Golden chi2_logsf values, verified against scipy.stats.chi2.logsf and mpmath.
+                { assert table.rows[0].MRMEGA_LOG10P_ASSOC == '-1617.862932' },
+                { assert table.rows[0].MRMEGA_P_ASSOC == 'NA' },
+                { assert table.rows[0].MRMEGA_LOG10P_ANCESTRY_HET == '-2.171472' },
+                { assert table.rows[0].MRMEGA_P_ANCESTRY_HET == '6.737947e-03' },
+                { assert table.rows[0].MRMEGA_LOG10P_RESIDUAL_HET == '-2.131758' },
+                { assert table.rows[1].MRMEGA_LOG10P_ASSOC == '-1.300652' },
+                { assert table.rows[1].MRMEGA_P_ASSOC == '5.004352e-02' },
+                { assert table.rows[1].MRMEGA_LOG10P_RESIDUAL_HET == '0.000000' },
+                { assert table.rows[1].MRMEGA_P_RESIDUAL_HET == '1.000000e+00' },
+                { assert table.rows[2].MRMEGA_LOG10P_ASSOC == '-214.447403' },
+                { assert table.rows[2].MRMEGA_P_ASSOC == '3.569413e-215' },
+                { assert table.rows[0].MRMEGA_CHISQ_ASSOC == '7459' },
+                { assert table.rows[0].MRMEGA_DF_ASSOC == '3' },
+                { assert table.rows[0].MRMEGA_LNBF == '3720.5' },
+                { assert table.rows[0].BETA == '1.075410e-01' },
+                { assert table.rows[0].P == '2.571538e-12' },
+                { assert derivation.models.mrmega_joined },
+                { assert derivation.mrmega_native_p_debug.recomputation == 'unconditional' },
+                { assert assoc.rows_recomputed == 3 },
+                { assert assoc.rows_with_parseable_native_value == 3 },
+                { assert assoc.native_minimum == 0.0 },
+                { assert assoc.native_maximum == 1.0 },
+                { assert assoc.rows_native_not_positive == 1 },
+                { assert assoc.rows_native_exactly_one == 1 },
+                { assert assoc.rows_native_off_by_more_than_one_order_of_magnitude == 1 },
+                { assert derivation.join_counts.mrmega_rows_matched == 3 },
+            )
+        }
+    }
+
+    test("count an RE2 row that matches no meta-analysis variant instead of dropping it silently") {
+        when {
+            def table = metaAnalysis(outputDir, 'unmatched_re2', false)
+            def extra = companions(outputDir, 'unmatched_re2')
+            def re2 = re2Table(outputDir, 'unmatched_re2', ['1:1000:A:G', '9:9999:A:T'])
+            process {
+                """
+                input[0] = [
+                    [ id:'unmatched_re2' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    file('${re2}', checkIfExists: true),
+                    [],
+                ]
+                """
+            }
+        }
+
+        then {
+            def table = readCandidate(process.out.candidate.get(0).get(1))
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert table.rows.size() == 3 },
+                { assert table.rows[0].P_RE2 == '2.57154E-12' },
+                { assert table.rows[1].P_RE2 == 'NA' },
+                { assert table.rows[1].RE2_MEAN_COMPONENT == 'NA' },
+                { assert table.rows[1].RE2_STATUS == 'NA' },
+                { assert table.rows[2].P_RE2 == 'NA' },
+                { assert derivation.join_counts.re2_rows == 2 },
+                { assert derivation.join_counts.re2_rows_matched == 1 },
+                { assert derivation.join_counts.re2_rows_unmatched == 1 },
+                { assert derivation.join_counts.re2_unmatched_key_examples == ['9:9999:A:T'] },
+                { assert derivation.join_counts.meta_analysis_rows_without_re2 == 2 },
+                { assert derivation.metasoft_validation.comparisons.beta_fixed.rows_compared == 1 },
+            )
+        }
+    }
+
+    test("stub emits every declared output with a valid gzip stream and well-formed versions") {
+        options "-stub"
+
+        when {
+            def table = metaAnalysis(outputDir, 'stub', false)
+            def extra = companions(outputDir, 'stub')
+            def re2 = re2Table(outputDir, 'stub', keys())
+            process {
+                """
+                input[0] = [
+                    [ id:'stub' ],
+                    file('${table}', checkIfExists: true),
+                    file('${extra.order}', checkIfExists: true),
+                    file('${extra.qc}', checkIfExists: true),
+                    file('${extra.derivation}', checkIfExists: true),
+                    file('${re2}', checkIfExists: true),
+                    [],
+                ]
+                """
+            }
+        }
+
+        then {
+            def candidate = new File(process.out.candidate.get(0).get(1).toString())
+            def table = readCandidate(candidate)
+            def derivation = readJson(process.out.derivation.get(0).get(1))
+            def versions = new File(process.out.versions.get(0).toString())
+            assertAll(
+                { assert process.success },
+                { assert candidate.name == 'stub.candidate.tsv.gz' },
+                { assert candidate.isFile() },
+                { assert table.header.first() == 'SNPID' },
+                { assert table.header.contains('P_RE2') },
+                { assert !table.header.any { column -> column.startsWith('MRMEGA_') } },
+                { assert table.header.last() == 'META_VARIANT_KEY' },
+                { assert derivation.operation == 'normalise_common_variant_meta' },
+                { assert derivation.stub },
+                { assert derivation.models.re2_joined },
+                { assert !derivation.models.mrmega_joined },
+                { assert derivation.candidate_columns == table.header },
+                { assert versions.readLines().first().endsWith(':') },
+                { assert versions.text.contains('python:') },
+            )
+        }
+    }
+}

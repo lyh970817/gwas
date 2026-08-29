@@ -1,0 +1,95 @@
+name: "extract_mrmega_axes"
+description: Read MR-MEGA's derived ancestry axes from a pass-1 log, canonicalize their signs and emit the precalculated manifest for a scattered pass 2
+keywords:
+  - gwas
+  - genome-wide association study
+  - meta-analysis
+  - multi-ancestry
+  - meta-regression
+  - multidimensional scaling
+  - ancestry axes
+tools:
+  - "python":
+      description: Deterministic log parsing and sign canonicalization implemented with the Python standard library
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      licence:
+        - "PSF-2.0"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing the derived summary-statistics information
+    - mrmega_log:
+        type: file
+        description: |
+          The `.log` written by a genome-wide MR-MEGA pass-1 run. Its `Principal components:` block is the
+          only place study coordinates are emitted, at six significant figures with no way to raise the
+          precision.
+        pattern: "*.log"
+        ontologies: []
+    - filelist:
+        type: file
+        description: |
+          The pass-1 study manifest. Line order defines the cohort index, which is the order of the log's
+          coordinate rows, so coordinates are matched to studies by position and never by the path echoed in
+          the log.
+        pattern: "*.txt"
+        ontologies: []
+    - axes:
+        type: integer
+        description: |
+          Number of axes the pass-1 run used. Must satisfy `1 <= axes <= K - 3`; the native gate is
+          `cohortCount - 2 > pc`, and violating it exits 0 with every row flagged SmallCohortCount.
+output:
+  precalculated_axes:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.precalculated_axes.txt":
+          type: file
+          description: |
+            One line per study in cohort order: the study filename followed by exactly `axes` sign-canonical
+            coordinates. This is what a scattered pass 2 passes to `--precalculated`, which makes every shard
+            fit the same axes instead of deriving its own. A block narrower than `--pc` is a silent
+            wrong answer in MR-MEGA, so the width is fixed here and re-checked before invocation.
+          pattern: "*.precalculated_axes.txt"
+          ontologies: []
+  coordinates:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.ancestry_axes.tsv":
+          type: file
+          description: Ordered study index, study name and sign-canonicalized axis coordinates, for publication and provenance
+          pattern: "*.ancestry_axes.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  qc:
+    - - meta:
+          type: map
+          description: Groovy Map containing the derived summary-statistics information
+      - "*.axes_qc.json":
+          type: file
+          description: |
+            Axis count, cohort order, the sign rule applied, which axes were flipped, each axis's span across
+            studies, and the paths MR-MEGA echoed so a positional match remains auditable.
+          pattern: "*.axes_qc.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"
