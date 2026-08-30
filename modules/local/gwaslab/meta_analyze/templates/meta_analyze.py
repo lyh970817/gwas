@@ -85,8 +85,8 @@ def main():
         for _, row in aligned.iterrows():
             fields = [str(row["META_VARIANT_KEY"])]
             for index in range(1, study_count + 1):
-                beta = row.get("BETA_{}".format(index))
-                error = row.get("SE_{}".format(index))
+                beta = row["BETA_{}".format(index)]
+                error = row["SE_{}".format(index)]
                 if pd.isna(beta) or pd.isna(error):
                     fields.extend(["NA", "NA"])
                 else:
@@ -110,7 +110,7 @@ def main():
         for _, row in aligned.iterrows():
             fields = []
             for column in view_columns:
-                value = row.get(column)
+                value = row[column]
                 if column in {"META_VARIANT_KEY", "SNPID", "CHR", "EA", "NEA"}:
                     fields.append("NA" if pd.isna(value) else str(value))
                 elif column == "POS":
@@ -120,7 +120,7 @@ def main():
             handle.write(("\\t".join(fields) + "\\n").encode("utf-8"))
 
     with open("{}.gwaslab.log".format(prefix), "w", encoding="utf-8", newline="\\n") as handle:
-        handle.write(getattr(multi.log, "log_text", ""))
+        handle.write(multi.log.log_text)
         handle.write("\\n")
 
     with open("versions.yml", "w", encoding="utf-8", newline="\\n") as handle:

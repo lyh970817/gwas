@@ -3,6 +3,7 @@ nextflow_process {
     name "Test Process GWASLAB_META_ANALYZE"
     script "../main.nf"
     process "GWASLAB_META_ANALYZE"
+    config "./nextflow.config"
 
     tag "modules"
     tag "modules_local"
@@ -44,6 +45,9 @@ nextflow_process {
             def fixed = gunzip(process.out.fixed.get(0)[1]).readLines()
             def matrix = new File(process.out.metasoft_input.get(0)[1].toString()).readLines()
             def mrmega = gunzip(process.out.mrmega_input.get(0)[1]).readLines()
+            def fixedHeader = fixed[0].split('\t')
+            def fixedRs1 = fixed[1].split('\t')
+            def versions = new File(process.out.versions.get(0).toString()).text
             assertAll(
                 { assert process.success },
                 { assert process.out.fixed.size() == 1 },
@@ -54,6 +58,11 @@ nextflow_process {
                 { assert matrix[0] == '1:1000:A:G 0.1 0.02 0.14 0.02 0.08 0.02' },
                 { assert mrmega[0].startsWith('META_VARIANT_KEY\tSNPID\tCHR\tPOS\tEA\tNEA\tEAF_1\tBETA_1\tSE_1\tN_1') },
                 { assert mrmega[1].startsWith('1:1000:A:G\trs1\t1\t1000\tA\tG\t0.25\t0.1\t0.02\t4000.0') },
+                { assert fixedRs1[fixedHeader.findIndexOf { column -> column == 'BETA' }] == '0.10666666666666667' },
+                { assert fixedRs1[fixedHeader.findIndexOf { column -> column == 'SE' }] == '0.011547005383792516' },
+                { assert fixedRs1[fixedHeader.findIndexOf { column -> column == 'P' }] == '2.5207777672308624e-20' },
+                { assert versions.contains('gwaslab: 4.1.9') },
+                { assert versions.contains('python:') },
             )
         }
     }
@@ -78,12 +87,17 @@ nextflow_process {
         }
 
         then {
-            def random = gunzip(process.out.random_effects.get(0)[1])
+            def random = gunzip(process.out.random_effects.get(0)[1]).readLines()
+            def randomHeader = random[0].split('\t')
+            def randomRs1 = random[1].split('\t')
             assertAll(
                 { assert process.success },
                 { assert process.out.fixed.size() == 1 },
                 { assert process.out.random_effects.size() == 1 },
-                { assert random.readLines()[0].split('\t').contains('BETA_RANDOM') },
+                { assert randomHeader.contains('BETA_RANDOM') },
+                { assert randomRs1[randomHeader.findIndexOf { column -> column == 'BETA_RANDOM' }] == '0.20000000000000004' },
+                { assert randomRs1[randomHeader.findIndexOf { column -> column == 'SE_RANDOM' }] == '0.17320508075688776' },
+                { assert randomRs1[randomHeader.findIndexOf { column -> column == 'P_RANDOM' }] == '0.24821307898992373' },
             )
         }
     }

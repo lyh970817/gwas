@@ -10,38 +10,24 @@ workflow COMMON_VARIANT_META_ANALYSIS {
     ch_request // channel: [ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models), val(axes) ]
 
     main:
-    ch_context = ch_request.map { meta, parents, study_names, input_format, genome_build, trait_type, models, axes ->
-        def unknown_models = models - ['fixed', 'random', 're2', 'mrmega']
-        if (unknown_models) {
-            error("[nf-core/gwas] ERROR: Common meta-analysis request ${meta.id} selects unknown models: ${unknown_models.join(', ')}.")
-        }
-        if (!models.contains('fixed')) {
-            error("[nf-core/gwas] ERROR: Common meta-analysis request ${meta.id} must select fixed.")
-        }
-        if (models.contains('mrmega') && axes == null) {
-            error("[nf-core/gwas] ERROR: Common meta-analysis request ${meta.id} selects mrmega without an axis count.")
-        }
-        [meta, parents, study_names, input_format, genome_build, trait_type, models, axes]
-    }
-
     GWASLAB_META_ANALYZE(
-        ch_context.map { meta, parents, study_names, input_format, genome_build, _trait_type, models, _axes ->
+        ch_request.map { meta, parents, study_names, input_format, genome_build, _trait_type, models, _axes ->
             [meta, parents, study_names, input_format, genome_build, models.contains('random')]
         }
     )
 
-    ch_selection = ch_context.map { meta, _parents, study_names, _input_format, _genome_build, trait_type, models, axes ->
+    ch_selection = ch_request.map { meta, _parents, study_names, _input_format, _genome_build, trait_type, models, axes ->
         [meta, study_names, trait_type, models, axes]
     }
 
     ch_metasoft = GWASLAB_META_ANALYZE.out.metasoft_input
-        .join(ch_selection, failOnMismatch: true, failOnDuplicate: true)
+        .join(ch_selection)
         .filter { _meta, _matrix, _study_names, _trait_type, models, _axes -> models.contains('re2') }
         .map { meta, matrix, _study_names, _trait_type, _models, _axes -> [meta, matrix] }
     METASOFT_RE2(ch_metasoft)
 
     ch_mrmega = GWASLAB_META_ANALYZE.out.mrmega_input
-        .join(ch_selection, failOnMismatch: true, failOnDuplicate: true)
+        .join(ch_selection)
         .filter { _meta, _aligned, _study_names, _trait_type, models, _axes -> models.contains('mrmega') }
 
     PREPARE_MRMEGA_INPUT(
@@ -55,12 +41,9 @@ workflow COMMON_VARIANT_META_ANALYSIS {
     }
 
     MRMEGA(
-        PREPARE_MRMEGA_INPUT.out.study_files
-            .join(PREPARE_MRMEGA_INPUT.out.filelist, failOnMismatch: true, failOnDuplicate: true)
-            .join(ch_mrmega_context, failOnMismatch: true, failOnDuplicate: true)
-            .map { meta, study_files, filelist, axes, trait_type ->
-                [meta, study_files, filelist, axes, trait_type]
-            }
+        PREPARE_MRMEGA_INPUT.out.study_files.join(PREPARE_MRMEGA_INPUT.out.filelist).join(ch_mrmega_context).map { meta, study_files, filelist, axes, trait_type ->
+            [meta, study_files, filelist, axes, trait_type]
+        }
     )
 
     emit:

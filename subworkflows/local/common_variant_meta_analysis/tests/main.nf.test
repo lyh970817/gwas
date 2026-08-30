@@ -3,6 +3,7 @@ nextflow_workflow {
     name "Test Subworkflow COMMON_VARIANT_META_ANALYSIS"
     script "../main.nf"
     workflow "COMMON_VARIANT_META_ANALYSIS"
+    config "./nextflow.config"
 
     tag "subworkflows"
     tag "subworkflows_local"

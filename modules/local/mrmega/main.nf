@@ -29,10 +29,10 @@ process MRMEGA {
         ${quantitative_flag} \
         -o "${prefix}"
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        mrmega: \$(/MR-MEGA/MR-MEGA --version 2>&1 | sed -n 's/.*version: *//p' | head -n 1)
-    END_VERSIONS
+    printf '"%s":\n    mrmega: %s\n' \
+        "${task.process}" \
+        "\$(/MR-MEGA/MR-MEGA --version 2>&1 | sed -n 's/.*version: *//p' | head -n 1)" \
+        > versions.yml
     """
 
     stub:
@@ -50,9 +50,6 @@ process MRMEGA {
     """
     printf '%s\n' '${stub_header}' > "${prefix}.result"
     printf '###################\n# MR-MEGA v.0.2\n###################\n\nAnalysis finished.\n' > "${prefix}.log"
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        mrmega: 0.2
-    END_VERSIONS
+    printf '"%s":\n    mrmega: 0.2\n' "${task.process}" > versions.yml
     """
 }

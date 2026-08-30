@@ -20,12 +20,8 @@ process GWASLAB_META_ANALYZE {
 
     script:
     prefix = task.ext.prefix ?: meta.id
-    parents_literal = groovy.json.JsonOutput.toJson(
-        (sumstats instanceof List ? sumstats : [sumstats]).collect { parent -> parent.toString() }
-    )
-    study_names_literal = groovy.json.JsonOutput.toJson(
-        (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
-    )
+    parents_literal = groovy.json.JsonOutput.toJson(sumstats.collect { parent -> parent.toString() })
+    study_names_literal = groovy.json.JsonOutput.toJson(study_names.collect { name -> name.toString() })
     input_format_literal = groovy.json.JsonOutput.toJson(input_format.toString())
     genome_build_literal = groovy.json.JsonOutput.toJson(genome_build.toString())
     random_effects_literal = groovy.json.JsonOutput.toJson(random_effects as boolean)
@@ -34,7 +30,7 @@ process GWASLAB_META_ANALYZE {
 
     stub:
     prefix = task.ext.prefix ?: meta.id
-    def studies = (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
+    def studies = study_names.collect { name -> name.toString() }
     def matrix_fields = (1..studies.size()).collect { _index -> "0 1" }.join(' ')
     def view_header = (1..studies.size()).collect { index -> "EAF_${index}\tBETA_${index}\tSE_${index}\tN_${index}" }.join('\t')
     def random_write = random_effects

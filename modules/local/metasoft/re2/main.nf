@@ -16,7 +16,7 @@ process METASOFT_RE2 {
 
     script:
     prefix = task.ext.prefix ?: meta.id
-    def heap = task.memory ? (task.memory.toMega() * 0.8).intValue() : 3072
+    def heap = (task.memory.toMega() * 0.8).intValue()
     """
     JAVA_TOOL_OPTIONS="-Xmx${heap}M" metasoft \
         -input "${effect_matrix}" \

@@ -13,9 +13,7 @@ Z_95 = 1.959963984540054
 
 
 def open_text(path):
-    if str(path).endswith(".gz"):
-        return gzip.open(path, "rt", encoding="utf-8", newline="")
-    return open(path, "r", encoding="utf-8", newline="")
+    return gzip.open(path, "rt", encoding="utf-8", newline="")
 
 
 def chromosome_code(value):

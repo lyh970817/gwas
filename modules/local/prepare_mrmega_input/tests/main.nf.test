@@ -40,6 +40,7 @@ nextflow_process {
             def filelist = new File(process.out.filelist.get(0)[1].toString()).readLines()
             def first = gunzip(files[0]).readLines()
             def second = gunzip(files[1]).readLines()
+            def versions = new File(process.out.versions.get(0).toString()).text
             assertAll(
                 { assert process.success },
                 { assert files.collect { path -> path.toString().split('/').last() } == ['01_STUDY_B.txt.gz', '02_STUDY_A.txt.gz'] },
@@ -48,6 +49,7 @@ nextflow_process {
                 { assert first[1] == '1:1000:A:G\tA\tG\t0.25\t0.1\t0.01\t4000\t1\t1000' },
                 { assert first[2].endsWith('\t23\t2000') },
                 { assert second.size() == 2 },
+                { assert versions.contains('python:') },
             )
         }
     }
@@ -92,6 +94,7 @@ nextflow_process {
                 { assert process.success },
                 { assert process.out.study_files.get(0)[1].size() == 2 },
                 { assert new File(process.out.filelist.get(0)[1].toString()).readLines() == ['stub.mrmega_inputs/01_ONE.txt.gz', 'stub.mrmega_inputs/02_TWO.txt.gz'] },
+                { assert new File(process.out.versions.get(0).toString()).text.contains('python:') },
             )
         }
     }

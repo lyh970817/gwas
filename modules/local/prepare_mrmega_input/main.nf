@@ -18,16 +18,14 @@ process PREPARE_MRMEGA_INPUT {
     script:
     prefix = task.ext.prefix ?: meta.id
     aligned_studies_literal = groovy.json.JsonOutput.toJson(aligned_studies.toString())
-    study_names_literal = groovy.json.JsonOutput.toJson(
-        (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
-    )
+    study_names_literal = groovy.json.JsonOutput.toJson(study_names.collect { name -> name.toString() })
     trait_type_literal = groovy.json.JsonOutput.toJson(trait_type.toString())
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     template("prepare_mrmega_input.py")
 
     stub:
     prefix = task.ext.prefix ?: meta.id
-    def studies = (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
+    def studies = study_names.collect { name -> name.toString() }
     def width = Math.max(2, studies.size().toString().length())
     def effect_header = trait_type.toString() == 'binary'
         ? 'OR\tOR_95L\tOR_95U'
