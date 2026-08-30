@@ -4,7 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 // MODULE: Local to the pipeline
-include { NORMALISE_PHENOTYPES               } from '../modules/local/normalise_phenotypes/main'
+include { PREPARE_PHENOTYPE_INPUTS           } from '../modules/local/prepare_phenotype_inputs/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepare_cohort_genotypes'
@@ -46,9 +46,9 @@ workflow GWAS {
 
     // This is the pipeline spine and owns exactly ten things: the public `take:` contract above, run-level
     // analysis and method metadata, the union of genotype consumers and their single preparation, the union
-    // of relatedness-matrix consumers and their single preparation, phenotype normalisation plus the
+    // of relatedness-matrix consumers and their single preparation, phenotype preparation plus the
     // tool-neutral per-analysis seams derived from it, the route-controller calls and the dependencies
-    // between their semantic results, the fan-out of canonical summaries to the summary-scale routes,
+    // between their semantic results, the fan-out of GWASLab-standard summaries to the summary-scale routes,
     // run-wide version collection and collation, the reporting call, and the public `emit:` block below.
     //
     // Every route controller is a pipeline-owned subworkflow that receives all configuration values and
@@ -58,7 +58,7 @@ workflow GWAS {
     //   ch_analyses / ch_relationships
     //          |
     //          v
-    //   PREPARE_COHORT_GENOTYPES ---> PREPARE_RELATEDNESS_MATRICES     NORMALISE_PHENOTYPES
+    //   PREPARE_COHORT_GENOTYPES ---> PREPARE_RELATEDNESS_MATRICES     PREPARE_PHENOTYPE_INPUTS
     //          |                                |                              |
     //          +--------------------------------+------------------------------+   shared resources,
     //          |                                |                              |   each built once
@@ -69,7 +69,7 @@ workflow GWAS {
     //          v                                                         |
     //   ROUTE_CANONICAL_SUMMARY_STATISTICS <---------------------------- +
     //          |
-    //          | summary_statistics (canonical convergence point)
+    //          | summary_statistics (GWASLab convergence point)
     //          +--> ROUTE_LDAK_SUMMARY_ANALYSES
     //          +--> ROUTE_LDSC_SUMMARY_ANALYSES
     //          +--> SIBLING SEAM: a future meta-analysis route attaches here (issue #9)
@@ -139,9 +139,9 @@ workflow GWAS {
     )
 
     //
-    // MODULE: Normalise each analysis unit's phenotype and covariates into the canonical layout
+    // MODULE: Prepare each analysis unit's phenotype and covariates in the shared tool-compatible layout
     //
-    NORMALISE_PHENOTYPES(
+    PREPARE_PHENOTYPE_INPUTS(
         ch_analyses.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract, _ldak_weights ->
             [meta, phenotype, quant_covariates, cat_covariates]
         }
@@ -151,9 +151,9 @@ workflow GWAS {
     // estimator therefore consume the headerless phenotype and covariate serialisations. This one prepared
     // stream is built here because it has consumers in more than one route, and is passed to the association
     // and heritability controllers explicitly. Optional covariates are represented by [], which stages nothing.
-    def ch_gcta_phenotypes = NORMALISE_PHENOTYPES.out.phenotype_headerless
-        .join(NORMALISE_PHENOTYPES.out.quant_covariates_headerless, remainder: true)
-        .join(NORMALISE_PHENOTYPES.out.cat_covariates_headerless, remainder: true)
+    def ch_gcta_phenotypes = PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless
+        .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates_headerless, remainder: true)
+        .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates_headerless, remainder: true)
         .map { meta, phenotype, quant_covariates, cat_covariates ->
             [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
         }
@@ -161,7 +161,7 @@ workflow GWAS {
     //
     // SUBWORKFLOW: Pipeline route for PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA associations
     //
-    // Cohort genotype preparation, relatedness-matrix construction and phenotype normalisation stay above on
+    // Cohort genotype preparation, relatedness-matrix construction and phenotype preparation stay above on
     // the spine so each shared resource is built once and fanned out to every consumer across every domain.
     // The controller owns association-method selection, the adaptation of those prepared streams into each
     // family's native call shape, the two prediction-reusing routes, and the fan-in of four native result
@@ -173,8 +173,8 @@ workflow GWAS {
     ROUTE_ASSOCIATION_ANALYSES(
         PREPARE_COHORT_GENOTYPES.out.genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
-        NORMALISE_PHENOTYPES.out.phenotype,
-        NORMALISE_PHENOTYPES.out.covariates,
+        PREPARE_PHENOTYPE_INPUTS.out.phenotype,
+        PREPARE_PHENOTYPE_INPUTS.out.covariates,
         ch_gcta_phenotypes,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_sparse,
         ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract, _ldak_weights ->
@@ -204,7 +204,7 @@ workflow GWAS {
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> !meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
         ch_gcta_phenotypes,
-        NORMALISE_PHENOTYPES.out.adjustment_covariates,
+        PREPARE_PHENOTYPE_INPUTS.out.adjustment_covariates,
     )
 
     //
@@ -212,26 +212,25 @@ workflow GWAS {
     //
     // Individual-level relationships are their own domain, disjoint from the summary-statistics pair requests
     // routed below. Dense and LDMS share one controller because they share the relationship definition, the
-    // endpoint resolution against the normalised phenotypes and the bivariate trait table built from them. The
-    // spine keeps matrix construction and phenotype normalisation; the controller owns relationship
-    // de-duplication, declared orientation, preparation reuse, native identity and normalization. The matrix
+    // endpoint resolution against the prepared phenotypes and the bivariate trait table built from them. The
+    // spine keeps matrix and phenotype preparation; the controller owns relationship
+    // de-duplication, declared orientation, preparation reuse and native identity. The matrix
     // streams are narrowed to the relationship-scoped rows here, mirroring the unary narrowing above, so the
     // controller never sees a unary analysis matrix.
     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS(
         ch_relationships,
-        NORMALISE_PHENOTYPES.out.phenotype_headerless,
+        PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> meta.relationship_id },
     )
 
     //
-    // SUBWORKFLOW: Pipeline route for canonical summary statistics from every internal and external origin
+    // SUBWORKFLOW: Pipeline route for GWASLab-standard summary statistics from every origin
     //
     // The single convergence point of the summary-statistics half of the pipeline: it takes the raw
     // association results produced above and the externally supplied sources from the validated manifest, and
-    // emits one canonical serialisation per summary_statistics_id. The controller owns the internal producer
-    // metadata, the producer-specific GWASLab mappings, the raw/canonical convergence, the strict source
-    // reattribution and the canonical serialisation. The spine keeps the seam between the association
+    // emits one GWASLab result per summary_statistics_id. The controller owns the internal producer metadata
+    // and producer-specific GWASLab mappings. The spine keeps the seam between the association
     // controller above and the fan-out below, and resolves the build-keyed GWASLab resources here because
     // they are pipeline parameters rather than request-owned references.
     def gwaslab_references = getGwaslabReferences()
@@ -243,12 +242,12 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: Pipeline route for LDAK SumHer and SumCors from canonical summary statistics
+    // SUBWORKFLOW: Pipeline route for LDAK SumHer and SumCors from GWASLab-standard summary statistics
     //
-    // First sibling on the canonical summary-statistics fan-out. Both summary-scale LDAK methods share one
-    // controller because they share the canonical-to-LDAK preparation and the endpoint resolution that feeds
+    // First sibling on the summary-statistics fan-out. Both summary-scale LDAK methods share one
+    // controller because they share the GWASLab-to-LDAK preparation and the endpoint resolution that feeds
     // it. The spine selects the route; the controller owns preparation reuse, ordered pair resolution,
-    // native-argument and runtime policy, and normalization. It receives the full validated request tuple so
+    // native-argument and runtime policy, and native outputs. It receives the full validated request tuple so
     // the reference-bundle convention stays request-owned rather than becoming spine knowledge.
     def ch_sumher_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumher' }
     def ch_sumcors_requests = ch_pair_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldak_sumcors' }
@@ -262,11 +261,11 @@ workflow GWAS {
     //
     // SUBWORKFLOW: Pipeline route for standalone CBIIT Python 3 LDSC munging, H2 and RG
     //
-    // Second sibling on the canonical summary-statistics fan-out. Both summary-scale LDSC methods share one
-    // controller because they share the content-addressed munging that feeds them: a canonical summary
+    // Second sibling on the summary-statistics fan-out. Both summary-scale LDSC methods share one
+    // controller because they share the content-addressed munging that feeds them: a GWASLab summary
     // consumed by a unary H2 request and by either side of any number of RG requests is munged exactly once.
     // The spine selects the route; the controller owns the munging reuse identity, endpoint resolution in
-    // declared pair order, observed- and liability-scale selection, native log gathering and normalization. It
+    // declared pair order, observed- and liability-scale selection, and native logs. It
     // receives the full validated request tuple so the reference-bundle convention stays request-owned rather
     // than becoming spine knowledge.
     def ch_ldsc_h2_requests = ch_unary_requests.filter { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> meta.method == 'ldsc_h2' }
@@ -282,7 +281,7 @@ workflow GWAS {
     //
     // ROUTE_LDAK_SUMMARY_ANALYSES and ROUTE_LDSC_SUMMARY_ANALYSES are siblings, not a chain: each reads
     // ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics independently and neither observes the other.
-    // A meta-analysis route is the same kind of sibling and attaches at this point, after canonical
+    // A meta-analysis route is the same kind of sibling and attaches at this point, after GWASLab
     // convergence and after the two existing consumers, by the same three-part pattern they both follow:
     //
     //   1. Select the route on the spine by filtering the validated request stream that carries it — for a
@@ -290,16 +289,15 @@ workflow GWAS {
     //      on `meta.method` exactly as the two blocks above filter theirs. The spine narrows; it does not
     //      interpret the request.
     //   2. Call ROUTE_META_ANALYSIS(<selected requests>, ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
-    //      <any explicit configuration values>). Pass the canonical stream unmodified: it is a plain queue
+    //      <any explicit configuration values>). Pass the GWASLab-standard stream unmodified: it is a plain queue
     //      channel and a third reader adds no barrier, no reuse change and no cardinality change to the two
     //      existing readers. Do not insert a collect()/groupTuple() here to materialise it for the new route.
     //   3. Let the controller own everything downstream of that seam — endpoint resolution, per-cohort
-    //      preparation and its reuse identity, native meta-analysis invocation, and result normalisation —
-    //      and have it emit normalised semantic results upward the way its siblings do.
+    //      preparation and its reuse identity, native meta-analysis invocation, and model-specific outputs.
     //
     // Nothing else on this spine changes: the union channels, the shared-resource preparations, the version
-    // topic and the public `emit:` block below are all independent of how many canonical-summary consumers
-    // exist. If meta-analysed output must itself become a canonical summary, that is a change to
+    // topic and the public `emit:` block below are all independent of how many summary consumers exist. If a
+    // meta-analysed output must itself become a pipeline summary, that is a change to
     // ROUTE_CANONICAL_SUMMARY_STATISTICS's inputs rather than a second convergence point here.
 
     //
@@ -352,7 +350,6 @@ workflow GWAS {
     )
 
     emit:
-    canonical_summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(canonical_summary_statistics) ]
-    summary_statistics_provenance = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.provenance // channel: [ val(meta), path(provenance) ]
-    multiqc_report                = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
+    summary_statistics = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
+    multiqc_report     = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
 }

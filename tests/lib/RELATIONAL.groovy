@@ -148,7 +148,6 @@ class RELATIONAL {
             'trait_id',
             'trait_type',
             'source',
-            'source_mode',
             'source_format',
             'producer_analysis_id',
             'producer_association_method',
@@ -174,9 +173,8 @@ class RELATIONAL {
                 summary_statistics_id: 'external_qt',
                 trait_id: 'QT_external',
                 trait_type: 'quantitative',
-                source: canonicalSummary(outputDir, 'external_qt'),
-                source_mode: 'canonical',
-                source_format: 'nfcore_gwas_canonical_v1',
+                source: gwaslabSummary(outputDir, 'external_qt'),
+                source_format: 'gwaslab',
                 producer_analysis_id: '',
                 producer_association_method: '',
                 genome_build: 'GRCh37',
@@ -192,9 +190,8 @@ class RELATIONAL {
                 summary_statistics_id: 'external_bt',
                 trait_id: 'BT_external',
                 trait_type: 'binary',
-                source: canonicalSummary(outputDir, 'external_bt'),
-                source_mode: 'canonical',
-                source_format: 'nfcore_gwas_canonical_v1',
+                source: gwaslabSummary(outputDir, 'external_bt'),
+                source_format: 'gwaslab',
                 producer_analysis_id: '',
                 producer_association_method: '',
                 genome_build: 'GRCh37',
@@ -219,7 +216,6 @@ class RELATIONAL {
             trait_id: '',
             trait_type: '',
             source: '',
-            source_mode: '',
             source_format: '',
             producer_analysis_id: analysisId,
             producer_association_method: associationMethod,
@@ -393,16 +389,16 @@ class RELATIONAL {
         ])
     }
 
-    static String canonicalSummary(Object outputDir, String name) {
+    static String gwaslabSummary(Object outputDir, String name) {
         return resource(
             outputDir,
-            "${name}.canonical.tsv",
+            "${name}.gwaslab.tsv",
             'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN\n' +
                 'rs1\t1\t1\tA\tG\t1900000\t0.25\t0.1\t0.01\t1e-4\t1000\n',
         )
     }
 
-    static String ldakCanonicalSummary(Object projectDir, Object outputDir, String name, String fixtureName) {
+    static String ldakGwaslabSummary(Object projectDir, Object outputDir, String name, String fixtureName) {
         def source = new File(projectDir.toString(), "modules/local/ldak/sumcors/tests/fixtures/${fixtureName}.summaries")
         def rows = []
         source.readLines().tail().eachWithIndex { line, index ->
@@ -424,7 +420,7 @@ class RELATIONAL {
         }
         return resource(
             outputDir,
-            "${name}.canonical.tsv",
+            "${name}.gwaslab.tsv",
             'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN\n' + rows.join('\n') + '\n',
         )
     }

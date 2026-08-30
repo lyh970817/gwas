@@ -2,9 +2,9 @@
 // four native result contracts on one raw-association stream. This is pipeline routing, method selection,
 // per-method call-shape adaptation and method attribution, not an nf-core/modules submission candidate.
 //
-// Genotype preparation, relatedness-matrix construction and phenotype normalisation are deliberately NOT here.
+// Genotype, relatedness-matrix and phenotype preparation are deliberately NOT here.
 // They stay on the pipeline spine so each distinct cohort bundle, each scientifically distinct matrix and each
-// analysis unit's normalised phenotype is built once and fanned out to every consumer across every domain. What
+// analysis unit's prepared phenotype is built once and fanned out to every consumer across every domain. What
 // this controller owns is the adaptation of those prepared streams into each association family's native call
 // shape, the per-method selection, and the naming of the producing method on the way out.
 //
@@ -38,7 +38,7 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
 
     main:
 
-    // The genotype bundle, the normalised phenotype and the merged covariate file, one element per analysis
+    // The genotype bundle, the prepared phenotype and the merged covariate file, one element per analysis
     // unit. This is the call shape PLINK 2 and REGENIE share, and the only two routes that consume it are in
     // this controller. `join` is correct here where `combine` was correct at the cohort seam: all three
     // channels are keyed one-to-one on the analysis meta, so a missing or duplicated key is a defect and the
@@ -163,10 +163,10 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     )
 
     //
-    // Association result fan-in ahead of canonical serialisation
+    // Association result fan-in ahead of GWASLab standardisation
     //
     // One record per analysis per association method actually exercised. Each route contributes an
-    // adapter that names its method on the meta map and normalises whatever emissions the programme
+    // adapter that names its method on the meta map and routes whatever emissions the programme
     // splits its results across; everything downstream is method-agnostic. `meta.id` stays the analysis
     // identifier — the method is a separate key, because the analysis is what the published summary
     // statistics directory is keyed by and the method is what distinguishes the files inside it.
@@ -193,12 +193,6 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     ch_association_results = ch_association_results.mix(
         GCTA_FASTGWA.out.results.map { meta, sumstats -> [meta + [method: 'gcta_fastgwa'], sumstats] }
     )
-
-    // The emitted metadata is the focal analysis identity plus the producing method, derived immutably with
-    // `meta + [method: ...]`. Every reuse key this controller and its two nested routes computed — the REGENIE
-    // and LDAK-KVIK Step 1 prediction keys, the synthetic fit ids they address those fits by, the fastGWA
-    // analysis-id join key — stayed in a tuple position or inside the nested route and is absent here. The
-    // PLINK 2 result family is a channel selection, not a metadata key, and is likewise absent.
 
     emit:
     association_results = ch_association_results // channel: [ val(meta), path(raw_summary_statistics) ], one per analysis unit per association method actually exercised, `meta.method` naming the producing route
