@@ -1,5 +1,0 @@
-name: gather_meta_shards
-channels:
-  - conda-forge
-dependencies:
-  - python=3.14.5

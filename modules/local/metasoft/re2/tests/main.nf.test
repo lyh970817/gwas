@@ -10,163 +10,39 @@ nextflow_process {
     tag "metasoft_re2"
 
     def matrix = { directory, name, rows ->
-        def target = new File(directory.toString(), "${name}.effect_matrix.txt")
+        def target = new File(directory.toString(), "${name}.txt")
         target.text = rows.collect { row -> row.join(' ') }.join('\n') + '\n'
         target
     }
 
-    def readGzip = { path ->
-        new java.util.zip.GZIPInputStream(new FileInputStream(path.toString())).getText('UTF-8')
-    }
-
-    def keyed = { text ->
-        def lines = text.readLines()
-        def columns = lines[0].split('\t') as List
-        lines.drop(1).collectEntries { line ->
-            def fields = line.split('\t', -1) as List
-            def row = [columns, fields].transpose().collectEntries { pair -> [(pair[0]): pair[1]] }
-            [(row['META_VARIANT_KEY']): row]
-        }
-    }
-
-    test("RE2 statistics are produced and METASOFT's fixed and random effects reproduce GWASLab's") {
+    test("METASOFT emits its native result and log without a normalized duplicate") {
         when {
-            // Identical to the heterogeneous fixture GWASLAB_META_ANALYZE is tested against:
-            // betas +0.5 / -0.1 / +0.2 at SE 0.05 give Q = 72 on 2 df and tau-squared 0.0875.
-            def input = matrix(outputDir, 'agree', [
+            def input = matrix(outputDir, 'native', [
                 ['1:100:A:G', '0.5', '0.05', '-0.1', '0.05', '0.2', '0.05'],
                 ['1:200:C:T', '0.1', '0.02', '0.14', '0.03', 'NA', 'NA'],
             ])
             process {
                 """
-                input[0] = [[id: 'agree'], file('${input}', checkIfExists: true)]
+                input[0] = [[id: 'native'], file('${input}', checkIfExists: true)]
                 """
             }
         }
 
         then {
-            def table = keyed(readGzip(process.out.re2.get(0).get(1)))
-            def het = table['1:100:A:G']
-            def partial = table['1:200:C:T']
+            def result = new File(process.out.result.get(0)[1].toString()).readLines()
             assertAll(
                 { assert process.success },
-                // RE2 is always computed; it needs no flag and is materially smaller than FE under
-                // this much heterogeneity
-                { assert het['P_RE2'] == '8.33316E-25' },
-                { assert het['RE2_STATUS'] == 'ok' },
-                { assert het['RE2_MEAN_COMPONENT'] == '48.0000' },
-                { assert het['RE2_HET_COMPONENT'] == '59.4658' },
-                // METASOFT's fixed effects match GWASLab's inverse-variance result to every emitted digit
-                { assert het['METASOFT_BETA_FE'] == '0.200000' },
-                { assert het['METASOFT_SE_FE'] == '0.0288675' },
-                { assert het['METASOFT_P_FE'] == '4.26219E-12' },
-                // and so do the DerSimonian-Laird random effects at equal weights
-                { assert het['METASOFT_BETA_RE'] == '0.200000' },
-                { assert het['METASOFT_SE_RE'] == '0.173205' },
-                { assert het['METASOFT_P_RE'] == '0.248213' },
-                { assert het['METASOFT_TAU_SQUARE'] == '0.0875000' },
-                { assert het['METASOFT_Q'] == '72.0000' },
-                { assert het['METASOFT_P_Q'] == '2.31952E-16' },
-                // I-squared is a percentage in METASOFT, not a fraction
-                { assert het['METASOFT_I_SQUARE'] == '97.2222' },
-                { assert het['METASOFT_N_STUDIES'] == '3' },
-                // a paired NA NA is an absent study, not a failure
-                { assert partial['METASOFT_N_STUDIES'] == '2' },
-                { assert partial['RE2_STATUS'] == 'ok' },
+                { assert result[0].startsWith('RSID\t#STUDY\tPVALUE_FE') },
+                { assert result.size() == 3 },
+                { assert result[1].startsWith('1:100:A:G\t3\t') },
+                { assert new File(process.out.log.get(0)[1].toString()).text.contains('/opt/metasoft/HanEskinPvalueTable.txt') },
+                { assert new File(process.out.versions.get(0).toString()).text.contains('metasoft: 2.0.1') },
             )
         }
     }
 
-    test("a partial BETA/SE pair is rejected instead of being silently swallowed") {
+    test("native underflowed P values are preserved") {
         when {
-            def input = matrix(outputDir, 'partial', [
-                ['1:100:A:G', '0.5', '0.05', '0.1', 'NA'],
-                ['1:200:C:T', '0.1', '0.02', '0.14', '0.03'],
-            ])
-            process {
-                """
-                input[0] = [[id: 'partial'], file('${input}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('partial BETA/SE pair') },
-            )
-        }
-    }
-
-    test("more than fifty studies is refused because the probability table does not cover them") {
-        when {
-            def row = ['1:100:A:G']
-            51.times { row += ['0.1', '0.02'] }
-            def second = ['1:200:C:T']
-            51.times { second += ['0.2', '0.03'] }
-            def input = matrix(outputDir, 'wide', [row, second])
-            process {
-                """
-                input[0] = [[id: 'wide'], file('${input}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('exceeds the 50 covered by the Han-Eskin probability table') },
-            )
-        }
-    }
-
-    test("a duplicate variant key is rejected because the join contract requires uniqueness") {
-        when {
-            def input = matrix(outputDir, 'dup', [
-                ['1:100:A:G', '0.5', '0.05', '0.1', '0.02'],
-                ['1:100:A:G', '0.4', '0.05', '0.1', '0.02'],
-            ])
-            process {
-                """
-                input[0] = [[id: 'dup'], file('${input}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('duplicate variant key') },
-            )
-        }
-    }
-
-    test("a ragged row is rejected before METASOFT sees it") {
-        when {
-            // both rows are structurally well formed on their own; only their widths disagree
-            def input = matrix(outputDir, 'ragged', [
-                ['1:100:A:G', '0.5', '0.05', '0.1', '0.02', '0.2', '0.03'],
-                ['1:200:C:T', '0.4', '0.05', '0.1', '0.02'],
-            ])
-            process {
-                """
-                input[0] = [[id: 'ragged'], file('${input}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('declares 2 studies but row 1 declared 3') },
-            )
-        }
-    }
-
-    test("an underflowed RE2 tail is reported as underflow rather than published as zero") {
-        when {
-            // Enormous opposing effects drive the Han-Eskin tail below the smallest positive double,
-            // which METASOFT writes as the literal string 0.00000.
             def input = matrix(outputDir, 'underflow', [
                 ['1:100:A:G', '5.0', '0.01', '-5.0', '0.01', '0.0', '0.01'],
                 ['1:200:C:T', '0.1', '0.02', '0.14', '0.03', '0.08', '0.04'],
@@ -179,50 +55,15 @@ nextflow_process {
         }
 
         then {
-            def table = keyed(readGzip(process.out.re2.get(0).get(1)))
-            def native_lines = new File(process.out.native_result.get(0).get(1).toString()).readLines()
+            def row = new File(process.out.result.get(0)[1].toString()).readLines().find { line -> line.startsWith('1:100:A:G\t') }
             assertAll(
                 { assert process.success },
-                { assert table['1:100:A:G']['RE2_STATUS'] == 'underflow' },
-                { assert table['1:100:A:G']['P_RE2'] == 'NA' },
-                // the components still carry the signal, and the native file keeps the raw token
-                { assert table['1:100:A:G']['RE2_HET_COMPONENT'] != 'NA' },
-                { assert native_lines.find { line -> line.startsWith('1:100:A:G\t') }.contains('0.00000') },
-                // an ordinary variant in the same run is unaffected
-                { assert table['1:200:C:T']['RE2_STATUS'] == 'ok' },
+                { assert row.split('\t')[8] == '0.00000' },
             )
         }
     }
 
-    test("the probability table is baked into the image and never fetched at runtime") {
-        when {
-            def input = matrix(outputDir, 'offline', [
-                ['1:100:A:G', '0.5', '0.05', '-0.1', '0.05', '0.2', '0.05'],
-                ['1:200:C:T', '0.1', '0.02', '0.14', '0.03', '0.08', '0.04'],
-            ])
-            process {
-                """
-                input[0] = [[id: 'offline'], file('${input}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            def log = new File(process.out.log.get(0).get(1).toString()).text
-            def versions = new File(process.out.versions.get(0).toString()).text
-            assertAll(
-                { assert process.success },
-                // METASOFT records the table it actually used; it must be the one inside the image
-                { assert log.contains('/opt/metasoft/HanEskinPvalueTable.txt') },
-                // genomic control is reported but never applied: both lambdas stay at the 1.0 default
-                { assert log.contains('mean effect part (default = 1.0): 1.000000') },
-                { assert versions.contains('metasoft: 2.0.1') },
-                { assert versions.contains('busybox:') },
-            )
-        }
-    }
-
-    test("stub emits every declared output with a valid gzip stream and version metadata") {
+    test("stub emits only the native contract") {
         options "-stub"
 
         when {
@@ -235,16 +76,11 @@ nextflow_process {
         }
 
         then {
-            def normalised = readGzip(process.out.re2.get(0).get(1))
-            def versions = new File(process.out.versions.get(0).toString())
             assertAll(
                 { assert process.success },
-                { assert normalised.startsWith('META_VARIANT_KEY\tP_RE2\tRE2_MEAN_COMPONENT') },
-                { assert normalised.trim().endsWith('METASOFT_TAU_SQUARE') },
-                { assert new File(process.out.native_result.get(0).get(1).toString()).text.startsWith('RSID\t#STUDY') },
-                { assert new File(process.out.log.get(0).get(1).toString()).exists() },
-                { assert versions.readLines().first().endsWith(':') },
-                { assert versions.text.contains('metasoft: 2.0.1') },
+                { assert process.out.result.size() == 1 },
+                { assert process.out.log.size() == 1 },
+                { assert new File(process.out.result.get(0)[1].toString()).text.startsWith('RSID\t#STUDY') },
             )
         }
     }

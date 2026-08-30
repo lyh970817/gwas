@@ -1,78 +1,44 @@
 name: "metasoft_re2"
-description: Compute Han-Eskin RE2 heterogeneous-effect discovery statistics from a cross-study effect matrix with METASOFT
+description: Run METASOFT and preserve its native meta-analysis result
 keywords:
   - gwas
   - genome-wide association study
   - meta-analysis
   - random effects
   - RE2
-  - Han-Eskin
-  - heterogeneity
 tools:
   - "metasoft":
-      description: |
-        Meta-analysis tool for genome-wide association studies providing fixed effects, conventional random
-        effects, Han and Eskin's RE2 random-effects model and binary-effects models. The image bundles
-        Metasoft.jar and HanEskinPvalueTable.txt, so no resource is downloaded at runtime. The upstream
-        LICENSE forbids redistribution on its own terms; the author's subsequent grant of redistribution
-        permission is recorded alongside it at /usr/share/doc/metasoft/REDISTRIBUTION-PERMISSION.md inside
-        the image, and the two files must be read together.
+      description: Meta-analysis software implementing fixed, random, and Han-Eskin random-effects models
       homepage: "http://genetics.cs.ucla.edu/meta/"
       documentation: "http://genetics.cs.ucla.edu/meta/"
-      doi: "10.1016/j.ajhg.2011.04.014"
       licence:
-        - "LicenseRef-METASOFT-author-permission"
+        - "custom"
 input:
   - - meta:
         type: map
-        description: Groovy Map containing the derived summary-statistics information
+        description: Groovy Map containing the meta-analysis request information
     - effect_matrix:
         type: file
-        description: |
-          Headerless, space-delimited effect matrix `META_VARIANT_KEY BETA_1 SE_1 ... BETA_K SE_K`, one row
-          per variant, as emitted by GWASLAB_META_ANALYZE. It is headerless because METASOFT's parser treats
-          any non-numeric token that is not NA as a fatal error. An absent contribution must be the paired
-          `NA NA`; a partial pair is rejected before METASOFT runs, because METASOFT would otherwise drop
-          that study silently and emit a row indistinguishable from a correctly paired one. The number of
-          studies is derived from the field count and must be between 2 and 50 inclusive.
+        description: Native METASOFT effect matrix
         pattern: "*.txt"
         ontologies: []
 output:
-  native_result:
+  result:
     - - meta:
           type: map
-          description: Groovy Map containing the derived summary-statistics information
+          description: Groovy Map containing the meta-analysis request information
       - "*.metasoft.txt":
           type: file
-          description: |
-            Unmodified native METASOFT output: 16 fixed columns followed by one per-study p-value block and
-            one per-study m-value block. Retained for audit; the normalised table is the stable contract.
+          description: Native METASOFT result
           pattern: "*.metasoft.txt"
           ontologies: []
-  re2:
-    - - meta:
-          type: map
-          description: Groovy Map containing the derived summary-statistics information
-      - "*.re2.tsv.gz":
-          type: file
-          description: |
-            Normalised fields keyed by META_VARIANT_KEY. Publishes P_RE2, RE2_MEAN_COMPONENT (native
-            STAT1_RE2), RE2_HET_COMPONENT (native STAT2_RE2) and RE2_STATUS. RE2_STATUS is `ok`, `underflow`
-            when METASOFT wrote the literal 0.00000 that IEEE double underflow produces below roughly 1e-307,
-            or `nan`; P_RE2 is NA in the latter two cases and is never published as zero. The remaining
-            METASOFT_* columns carry METASOFT's own fixed- and random-effects estimates, Q, I-squared as a
-            percentage and tau-squared. Those are numerical validation checks against the GWASLab result,
-            not a published result family.
-          pattern: "*.re2.tsv.gz"
-          ontologies:
-            - edam: "http://edamontology.org/format_3475" # TSV
   log:
     - - meta:
           type: map
-          description: Groovy Map containing the derived summary-statistics information
+          description: Groovy Map containing the meta-analysis request information
       - "*.metasoft.log":
           type: file
-          description: Native METASOFT log, including the observed inflation factors that are reported but not applied
+          description: Native METASOFT log
           pattern: "*.metasoft.log"
           ontologies: []
   versions:

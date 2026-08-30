@@ -1,89 +1,46 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
 name: "prepare_mrmega_input"
-description: Adapt aligned per-study summary-statistics views into native MR-MEGA per-study input files and a manifest
+description: Convert aligned GWASLab study columns into ordered native MR-MEGA study inputs
 keywords:
+  - gwas
   - genome-wide association study
   - meta-analysis
-  - meta-regression of multi-ethnic genetic association
-  - multi-ancestry
-  - summary statistics
-  - odds ratio
+  - MR-MEGA
+  - adapter
 input:
   - - meta:
         type: map
-        description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
-    - study_views:
+        description: Groovy Map containing the meta-analysis request information
+    - aligned_studies:
         type: file
-        description: |
-          Aligned per-study view table emitted by GWASLAB_META_ANALYZE. Columns are
-          `META_VARIANT_KEY SNPID CHR POS EA NEA` followed by
-          `STATUS_i EAF_i BETA_i SE_i P_i N_i` for each study `i` in manifest order,
-          with numeric values written as shortest round-tripping floats or `NA`.
-        pattern: "*.{tsv,tsv.gz}"
+        description: GWASLab-aligned study columns
+        pattern: "*.tsv.gz"
         ontologies:
-          - edam: http://edamontology.org/format_3475
+          - edam: "http://edamontology.org/format_3475"
     - study_names:
         type: list
-        description: |
-          Study names in manifest order, one per per-study column block. Names must be
-          unique and free of whitespace and path separators because they become
-          file-name components inside a whitespace-tokenised manifest.
+        description: Study labels in deterministic declared order
     - trait_type:
         type: string
-        description: |
-          Mutually exclusive native effect parameterisation. `quantitative` emits
-          `BETA`/`SE`; `binary` emits `OR`/`OR_95L`/`OR_95U` derived from the canonical
-          log odds ratio.
-        pattern: "{quantitative,binary}"
+        description: Quantitative or binary trait selector
 output:
   study_files:
     - - meta:
           type: map
-          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+          description: Groovy Map containing the meta-analysis request information
       - "*.mrmega_inputs/*.txt.gz":
           type: file
-          description: |
-            One gzipped native MR-MEGA study file per study, named with a zero-padded
-            one-based index so that lexical order equals manifest order.
-          pattern: "*.mrmega_inputs/*.txt.gz"
-          ontologies:
-            - edam: http://edamontology.org/format_3475
+          description: Native MR-MEGA study inputs in declared order
+          pattern: "*.txt.gz"
+          ontologies: []
   filelist:
     - - meta:
           type: map
-          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
+          description: Groovy Map containing the meta-analysis request information
       - "*.filelist.txt":
           type: file
-          description: Study file paths, one per line, in manifest order
+          description: Ordered list of the generated native study inputs
           pattern: "*.filelist.txt"
           ontologies: []
-  join_map:
-    - - meta:
-          type: map
-          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
-      - "*.join_map.tsv.gz":
-          type: file
-          description: |
-            `META_VARIANT_KEY SNPID CHR POS EA NEA` for every emitted marker, so that the
-            original variant annotation can be rejoined to native MR-MEGA output keyed on
-            the allele-aware marker key.
-          pattern: "*.join_map.tsv.gz"
-          ontologies:
-            - edam: http://edamontology.org/format_3475
-  qc:
-    - - meta:
-          type: map
-          description: Groovy Map containing the meta-analysis identity, for example `[ id:'trait1' ]`
-      - "*.adapter_qc.json":
-          type: file
-          description: |
-            Shard-composable adaptation counts: per-study emitted rows, marker union and
-            intersection sizes, markers and study rows excluded per reason, and for the
-            binary route the odds-ratio round-trip error and the native standard-error
-            reconstruction bias.
-          pattern: "*.adapter_qc.json"
-          ontologies:
-            - edam: http://edamontology.org/format_3464
   versions:
     - "versions.yml":
         type: file

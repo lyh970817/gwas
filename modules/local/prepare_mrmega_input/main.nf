@@ -8,18 +8,16 @@ process PREPARE_MRMEGA_INPUT {
         : 'community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927'}"
 
     input:
-    tuple val(meta), path(study_views), val(study_names), val(trait_type)
+    tuple val(meta), path(aligned_studies), val(study_names), val(trait_type)
 
     output:
     tuple val(meta), path("${prefix}.mrmega_inputs/*.txt.gz"), emit: study_files
     tuple val(meta), path("${prefix}.filelist.txt"), emit: filelist
-    tuple val(meta), path("${prefix}.join_map.tsv.gz"), emit: join_map
-    tuple val(meta), path("${prefix}.adapter_qc.json"), emit: qc
     path "versions.yml", emit: versions, topic: versions
 
     script:
     prefix = task.ext.prefix ?: meta.id
-    study_views_literal = groovy.json.JsonOutput.toJson(study_views.toString())
+    aligned_studies_literal = groovy.json.JsonOutput.toJson(aligned_studies.toString())
     study_names_literal = groovy.json.JsonOutput.toJson(
         (study_names instanceof List ? study_names : [study_names]).collect { name -> name.toString() }
     )
@@ -34,30 +32,21 @@ process PREPARE_MRMEGA_INPUT {
     def effect_header = trait_type.toString() == 'binary'
         ? 'OR\tOR_95L\tOR_95U'
         : 'BETA\tSE'
-    def staged = studies.withIndex().collect { name, index ->
-        "${prefix}.mrmega_inputs/${(index + 1).toString().padLeft(width, '0')}_${name}.txt.gz"
-    }
+    def staged = studies
+        .withIndex()
+        .collect { name, index ->
+            "${prefix}.mrmega_inputs/${(index + 1).toString().padLeft(width, '0')}_${name}.txt.gz"
+        }
     def study_writes = staged
         .collect { target ->
-            "printf 'MARKERNAME\tEA\tNEA\tEAF\t${effect_header}\tN\tCHROMOSOME\tPOSITION\\n' | gzip -n -c > \"${target}\""
+            "printf 'MARKERNAME\\tEA\\tNEA\\tEAF\\t${effect_header}\\tN\\tCHROMOSOME\\tPOSITION\\n' | gzip -n -c > \"${target}\""
         }
         .join('\n    ')
     def filelist_lines = staged.join('\\n')
-    def qc = groovy.json.JsonOutput.toJson(
-        [
-            schema_version: '1.0',
-            trait_type: trait_type.toString(),
-            study_count: studies.size(),
-            stub: true,
-        ]
-    )
-
     """
     mkdir -p "${prefix}.mrmega_inputs"
     ${study_writes}
-    printf '${filelist_lines}\\n' > "${prefix}.filelist.txt"
-    printf 'META_VARIANT_KEY\tSNPID\tCHR\tPOS\tEA\tNEA\\n' | gzip -n -c > "${prefix}.join_map.tsv.gz"
-    printf '%s\\n' '${qc}' > "${prefix}.adapter_qc.json"
-    printf '"${task.process}":\\n    python: %s\\n' "\$(python3 --version | sed 's/^Python //')" > "versions.yml"
+    printf '${filelist_lines}\n' > "${prefix}.filelist.txt"
+    printf '"${task.process}":\n    python: %s\n' "\$(python3 --version | sed 's/^Python //')" > "versions.yml"
     """
 }

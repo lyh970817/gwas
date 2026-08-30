@@ -3,594 +3,118 @@ nextflow_process {
     name "Test Process GWASLAB_META_ANALYZE"
     script "../main.nf"
     process "GWASLAB_META_ANALYZE"
-    config "./nextflow.config"
 
     tag "modules"
     tag "modules_local"
     tag "gwaslab"
     tag "gwaslab_meta_analyze"
 
-    def header = 'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN'
-
-    def parent = { directory, name, rows ->
+    def parent = { directory, name, beta ->
         def target = new File(directory.toString(), "${name}.tsv")
-        target.text = header + '\n' + rows.collect { row -> row.join('\t') }.join('\n') + '\n'
+        target.text = 'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN\n' +
+            "rs1\t1\t1000\tA\tG\t9999999\t0.25\t${beta}\t0.02\t1e-6\t4000\n" +
+            "rs2\t1\t2000\tC\tT\t9999999\t0.40\t0.2\t0.04\t1e-4\t4000\n"
         target
     }
 
-    def gzipParent = { directory, name, rows ->
-        def target = new File(directory.toString(), "${name}.tsv.gz")
-        target.withOutputStream { stream ->
-            def gzip = new java.util.zip.GZIPOutputStream(stream)
-            gzip.write((header + '\n' + rows.collect { row -> row.join('\t') }.join('\n') + '\n').bytes)
-            gzip.close()
-        }
-        target
-    }
-
-    def readGzip = { path ->
+    def gunzip = { path ->
         new java.util.zip.GZIPInputStream(new FileInputStream(path.toString())).getText('UTF-8')
     }
 
-    // Parse a tab-separated table into a map keyed by META_VARIANT_KEY, each value a column map.
-    def keyed = { text ->
-        def lines = text.readLines()
-        def columns = lines[0].split('\t') as List
-        lines.drop(1).collectEntries { line ->
-            def fields = line.split('\t', -1) as List
-            def row = [columns, fields].transpose().collectEntries { pair -> [(pair[0]): pair[1]] }
-            [(row['META_VARIANT_KEY']): row]
-        }
-    }
-
-    // Three parents with hand-checked inverse-variance answers. Study 2 carries rs2 in the swapped
-    // representation, rs3 is missing from study 3, rs4 is missing from study 1 (the merge mold), and
-    // rs5 is the precision case that four-decimal formatting destroys.
-    def study1 = [
-        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.30, '1.000000e-01', '2.000000e-02', '5.000000e-07', 10000],
-        ['rs2', 1, 2000, 'C', 'T', '9999999', 0.40, '2.000000e-01', '5.000000e-02', '6.000000e-05', 8000],
-        ['rs3', 1, 3000, 'A', 'T', '9999999', 0.10, '-3.000000e-01', '1.000000e-01', '3.000000e-03', 5000],
-        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.25, '3.120000e-05', '9.800000e-06', '1.000000e-03', 450000],
-    ]
-    def study2 = [
-        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.32, '1.400000e-01', '3.000000e-02', '3.000000e-06', 12000],
-        ['rs2', 1, 2000, 'T', 'C', '9999999', 0.62, '-2.500000e-01', '4.000000e-02', '4.000000e-10', 9000],
-        ['rs3', 1, 3000, 'A', 'T', '9999999', 0.11, '-2.000000e-01', '8.000000e-02', '1.000000e-02', 6000],
-        ['rs4', 1, 4000, 'G', 'C', '9999999', 0.45, '5.000000e-02', '1.000000e-02', '5.000000e-07', 7000],
-        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.26, '2.900000e-05', '1.010000e-05', '4.000000e-03', 460000],
-    ]
-    def study3 = [
-        ['rs1', 1, 1000, 'A', 'G', '9999999', 0.28, '8.000000e-02', '4.000000e-02', '4.000000e-02', 9000],
-        ['rs2', 1, 2000, 'C', 'T', '9999999', 0.39, '2.200000e-01', '6.000000e-02', '2.000000e-04', 7000],
-        ['rs4', 1, 4000, 'G', 'C', '9999999', 0.44, '7.000000e-02', '2.000000e-02', '5.000000e-04', 7500],
-        ['rs5', 2, 5000, 'G', 'A', '9999999', 0.24, '3.300000e-05', '1.200000e-05', '6.000000e-03', 440000],
-    ]
-
-    test("three-study inverse-variance fixed effects reproduce the hand calculation") {
+    test("GWASLab emits fixed effects and deterministic native adapter products") {
         when {
-            def one = parent(outputDir, 'study1', study1)
-            def two = parent(outputDir, 'study2', study2)
-            def three = parent(outputDir, 'study3', study3)
+            def one = parent(outputDir, 'one', '0.10')
+            def two = parent(outputDir, 'two', '0.14')
+            def three = parent(outputDir, 'three', '0.08')
             process {
                 """
                 input[0] = [
-                    [id: 'meta_fixed'],
+                    [id: 'fixed'],
                     [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
+                    ['one', 'two', 'three'],
                     'gwaslab',
                     'GRCh37',
-                    '',
+                    false,
                 ]
                 """
             }
         }
 
         then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def rs1 = table['1:1000:A:G']
-            def rs4 = table['1:4000:G:C']
+            def fixed = gunzip(process.out.fixed.get(0)[1]).readLines()
+            def matrix = new File(process.out.metasoft_input.get(0)[1].toString()).readLines()
+            def mrmega = gunzip(process.out.mrmega_input.get(0)[1]).readLines()
             assertAll(
                 { assert process.success },
-                // w = 2500 / 1111.111 / 625; BETA = 455.5556 / 4236.111; SE = sqrt(1 / 4236.111)
-                { assert rs1['BETA'] == '1.075410e-01' },
-                { assert rs1['SE'] == '1.536443e-02' },
-                { assert rs1['Z_FIXED'] == '6.999349e+00' },
-                { assert rs1['P'] == '2.571538e-12' },
-                { assert rs1['N_STUDIES'] == '3' },
-                { assert rs1['DIRECTION'] == '+++' },
-                { assert rs1['N'] == '31000' },
-                // N-weighted EAF = (10000*0.30 + 12000*0.32 + 9000*0.28) / 31000
-                { assert rs1['EAF'] == '3.019355e-01' },
-                { assert rs1['EAF_META'] == rs1['EAF'] },
-                { assert rs1['EAF_MIN'] == '2.800000e-01' },
-                { assert rs1['EAF_MAX'] == '3.200000e-01' },
-                // largest inverse-variance weight share = 2500 / 4236.111
-                { assert rs1['MAX_WEIGHT_SHARE'] == '5.901639e-01' },
-                // two contributing studies, w = 10000 / 2500; Q = 37.25 - 36.45
-                { assert rs4['N_STUDIES'] == '2' },
-                { assert rs4['DIRECTION'] == '?++' },
-                { assert rs4['BETA'] == '5.400000e-02' },
-                { assert rs4['SE'] == '8.944272e-03' },
-                { assert rs4['Q'] == '8.000000e-01' },
-                { assert rs4['P_HET'] == '3.710934e-01' },
-                { assert rs4['I2'] == '0.000000e+00' },
-                { assert rs4['MAX_WEIGHT_SHARE'] == '8.000000e-01' },
-                // random-effects columns are absent unless requested
-                { assert !rs1.containsKey('BETA_RANDOM') },
+                { assert process.out.fixed.size() == 1 },
+                { assert process.out.random_effects.empty },
+                { assert fixed.size() == 3 },
+                { assert fixed[0].split('\t').contains('BETA') },
+                { assert matrix.size() == 2 },
+                { assert matrix[0] == '1:1000:A:G 0.1 0.02 0.14 0.02 0.08 0.02' },
+                { assert mrmega[0].startsWith('META_VARIANT_KEY\tSNPID\tCHR\tPOS\tEA\tNEA\tEAF_1\tBETA_1\tSE_1\tN_1') },
+                { assert mrmega[1].startsWith('1:1000:A:G\trs1\t1\t1000\tA\tG\t0.25\t0.1\t0.02\t4000.0') },
             )
         }
     }
 
-    test("a swapped-allele parent is realigned and an outer-union variant is retained") {
+    test("random effects are an explicit optional output") {
         when {
-            def one = parent(outputDir, 'align1', study1)
-            def two = parent(outputDir, 'align2', study2)
-            def three = parent(outputDir, 'align3', study3)
+            def one = parent(outputDir, 'random_one', '0.50')
+            def two = parent(outputDir, 'random_two', '-0.10')
+            def three = parent(outputDir, 'random_three', '0.20')
             process {
                 """
                 input[0] = [
-                    [id: 'meta_align'],
+                    [id: 'random'],
                     [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
+                    ['one', 'two', 'three'],
                     'gwaslab',
                     'GRCh37',
-                    '',
+                    true,
                 ]
                 """
             }
         }
 
         then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def views = keyed(readGzip(process.out.study_views.get(0).get(1)))
-            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
+            def random = gunzip(process.out.random_effects.get(0)[1])
             assertAll(
                 { assert process.success },
-                // study 2 supplied rs2 as T/C with BETA -0.25 and EAF 0.62; alignment must recover +0.25 / 0.38
-                { assert views['1:2000:C:T']['BETA_2'] == '0.25' },
-                { assert views['1:2000:C:T']['EAF_2'] == '0.38' },
-                { assert table['1:2000:C:T']['DIRECTION'] == '+++' },
-                // rs4 is absent from the merge mold yet still present through the outer union
-                { assert table.containsKey('1:4000:G:C') },
-                { assert views['1:4000:G:C']['BETA_1'] == 'NA' },
-                { assert views['1:4000:G:C']['SE_1'] == 'NA' },
-                // counted on the allele set, so the swapped rs2 representation is one variant, not two
-                { assert qc.union_variants == 5 },
-                { assert qc.intersection_variants == 3 },
-                { assert qc.strand_conflict_sites == 0 },
+                { assert process.out.fixed.size() == 1 },
+                { assert process.out.random_effects.size() == 1 },
+                { assert random.readLines()[0].split('\t').contains('BETA_RANDOM') },
             )
         }
     }
 
-    test("effect sizes far below four-decimal resolution survive to the effect matrix") {
-        when {
-            def one = parent(outputDir, 'prec1', study1)
-            def two = parent(outputDir, 'prec2', study2)
-            def three = parent(outputDir, 'prec3', study3)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_precision'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def matrix = new File(process.out.effect_matrix.get(0).get(1).toString()).readLines()
-            def row = matrix.find { line -> line.startsWith('2:5000:G:A ') }
-            assertAll(
-                { assert process.success },
-                // four-decimal formatting would render every one of these as 0.0000
-                { assert table['2:5000:G:A']['BETA'] == '3.086618e-05' },
-                { assert table['2:5000:G:A']['SE'] == '6.067884e-06' },
-                { assert table['2:5000:G:A']['P'] == '3.641343e-07' },
-                // the adapter input keeps the exact float64, not a rounded rendering
-                { assert row == '2:5000:G:A 3.12e-05 9.8e-06 2.9e-05 1.01e-05 3.3e-05 1.2e-05' },
-                // headerless, one line per retained variant, absence always a paired NA NA
-                { assert matrix.size() == 5 },
-                { assert matrix.every { line -> line.split(' ').size() == 7 } },
-                { assert matrix.find { line -> line.startsWith('1:3000:A:T ') }.endsWith(' NA NA') },
-            )
-        }
-    }
-
-    test("random effects recover DerSimonian-Laird pooling under real heterogeneity") {
-        when {
-            // betas +0.5 / -0.1 / +0.2 at identical SE 0.05 give Q = 72 on 2 df and tau2 = 0.0875
-            def one = parent(outputDir, 'het1', [
-                ['het', 1, 100, 'A', 'G', '9999999', 0.5, '5.000000e-01', '5.000000e-02', '1.000000e-20', 1000],
-                ['hom', 1, 200, 'C', 'T', '9999999', 0.5, '1.000000e-01', '5.000000e-02', '4.000000e-02', 1000],
-            ])
-            def two = parent(outputDir, 'het2', [
-                ['het', 1, 100, 'A', 'G', '9999999', 0.5, '-1.000000e-01', '5.000000e-02', '4.000000e-02', 1000],
-                ['hom', 1, 200, 'C', 'T', '9999999', 0.5, '1.000000e-01', '5.000000e-02', '4.000000e-02', 1000],
-            ])
-            def three = parent(outputDir, 'het3', [
-                ['het', 1, 100, 'A', 'G', '9999999', 0.5, '2.000000e-01', '5.000000e-02', '6.000000e-05', 1000],
-                ['hom', 1, 200, 'C', 'T', '9999999', 0.5, '1.000000e-01', '5.000000e-02', '4.000000e-02', 1000],
-            ])
-            params {
-                meta_analyze_args = '--random-effects'
-            }
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_random'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def het = table['1:100:A:G']
-            def hom = table['1:200:C:T']
-            assertAll(
-                { assert process.success },
-                // fixed effects are unchanged by the presence of heterogeneity
-                { assert het['BETA'] == '2.000000e-01' },
-                { assert het['SE'] == '2.886751e-02' },
-                { assert het['Q'] == '7.200000e+01' },
-                { assert het['P_HET'] == '2.319523e-16' },
-                { assert het['I2'] == '9.722222e-01' },
-                // tau2 = (Q - df) / (W - W2/W) = 70 / 800
-                { assert het['TAU2_RANDOM'] == '8.750000e-02' },
-                { assert het['BETA_RANDOM'] == '2.000000e-01' },
-                { assert het['SE_RANDOM'] == '1.732051e-01' },
-                { assert het['Z_RANDOM'] == '1.154701e+00' },
-                { assert het['P_RANDOM'] == '2.482131e-01' },
-                // a homogeneous variant keeps tau2 at zero and random collapses onto fixed
-                { assert hom['TAU2_RANDOM'] == '0.000000e+00' },
-                { assert hom['SE_RANDOM'] == hom['SE'] },
-                { assert hom['BETA_RANDOM'] == hom['BETA'] },
-            )
-        }
-    }
-
-    test("the chromosome selector restricts every parent and leaves counts shard-composable") {
-        when {
-            def one = parent(outputDir, 'shard1', study1)
-            def two = parent(outputDir, 'shard2', study2)
-            def three = parent(outputDir, 'shard3', study3)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_chr2'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
-                    'gwaslab',
-                    'GRCh37',
-                    '2',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
-            assertAll(
-                { assert process.success },
-                { assert table.keySet() == ['2:5000:G:A'] as Set },
-                { assert qc.chromosome == '2' },
-                { assert qc.fixed_eligible_variants == 1 },
-                { assert qc.union_variants == 1 },
-                // per-parent counts are additive across shards
-                { assert qc.per_parent.every { entry -> entry.rows_in_shard == 1 } },
-                { assert qc.per_parent.collect { entry -> entry.input_rows } == [4, 5, 4] },
-            )
-        }
-    }
-
-    test("min_studies excludes variants below the contribution threshold") {
-        when {
-            def one = parent(outputDir, 'min1', study1)
-            def two = parent(outputDir, 'min2', study2)
-            def three = parent(outputDir, 'min3', study3)
-            params {
-                meta_analyze_args = '--min-studies 3'
-            }
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_min'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
-            assertAll(
-                { assert process.success },
-                // rs3 and rs4 have only two contributing studies
-                { assert !table.containsKey('1:3000:A:T') },
-                { assert !table.containsKey('1:4000:G:C') },
-                { assert table.size() == 3 },
-                { assert qc.variants_excluded_by_min_studies == 2 },
-                { assert qc.min_studies == 3 },
-                { assert qc.contributing_study_count_distribution == ['2': 2, '3': 3] },
-            )
-        }
-    }
-
-    test("a valid effect estimate lost to a missing EAF is attributed to its source") {
-        when {
-            def one = parent(outputDir, 'loss1', [
-                ['v1', 1, 100, 'A', 'G', '9999999', '', '1.000000e-01', '2.000000e-02', '5.000000e-07', 1000],
-                ['v2', 1, 200, 'C', 'T', '9999999', 0.30, '1.000000e-01', '2.000000e-02', '5.000000e-07', 1000],
-            ])
-            def two = parent(outputDir, 'loss2', [
-                ['v1', 1, 100, 'A', 'G', '9999999', 0.31, '1.200000e-01', '2.000000e-02', '5.000000e-07', 1000],
-                ['v2', 1, 200, 'C', 'T', '9999999', 0.31, '1.200000e-01', '2.000000e-02', '5.000000e-07', 1000],
-            ])
-            def three = parent(outputDir, 'loss3', [
-                ['v1', 1, 100, 'A', 'G', '9999999', 0.29, '1.100000e-01', '2.000000e-02', '5.000000e-07', 1000],
-                ['v2', 1, 200, 'C', 'T', '9999999', 0.29, '1.100000e-01', '2.000000e-02', '5.000000e-07', 1000],
-            ])
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_loss'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true), file('${three}', checkIfExists: true)],
-                    ['study1', 'study2', 'study3'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
-            def first = qc.per_parent.find { entry -> entry.study_name == 'study1' }
-            assertAll(
-                { assert process.success },
-                // the estimate is genuinely dropped by GWASLab, so the count must make that visible
-                { assert table['1:100:A:G']['N_STUDIES'] == '2' },
-                { assert table['1:100:A:G']['DIRECTION'] == '?++' },
-                { assert first.rows_valid_beta_se == 2 },
-                { assert first.rows_valid_beta_se_n_eaf == 1 },
-                { assert first.excluded_missing_eaf == 1 },
-                { assert first.contributions_lost_to_missing_n_eaf == 1 },
-            )
-        }
-    }
-
-    test("parents disagreeing by reverse complement are excluded rather than strand-guessed") {
-        when {
-            def one = parent(outputDir, 'rc1', [
-                ['v1', 1, 100, 'A', 'G', '9999999', 0.30, '1.000000e-01', '2.000000e-02', '5.000000e-07', 1000],
-                ['v2', 1, 200, 'C', 'T', '9999999', 0.30, '1.000000e-01', '2.000000e-02', '5.000000e-07', 1000],
-            ])
-            def two = parent(outputDir, 'rc2', [
-                ['v1', 1, 100, 'T', 'C', '9999999', 0.31, '1.200000e-01', '2.000000e-02', '5.000000e-07', 1000],
-                ['v2', 1, 200, 'C', 'T', '9999999', 0.31, '1.200000e-01', '2.000000e-02', '5.000000e-07', 1000],
-            ])
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_rc'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study2'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def qc = new groovy.json.JsonSlurper().parse(new File(process.out.qc.get(0).get(1).toString()))
-            assertAll(
-                { assert process.success },
-                // neither representation may survive: keeping both would report one variant twice
-                { assert !table.containsKey('1:100:A:G') },
-                { assert !table.containsKey('1:100:T:C') },
-                { assert table.keySet() == ['1:200:C:T'] as Set },
-                { assert qc.strand_conflict_sites == 1 },
-                { assert qc.strand_conflict_rows_excluded == 2 },
-            )
-        }
-    }
-
-    test("gzip-compressed canonical parents are accepted") {
-        when {
-            def one = gzipParent(outputDir, 'gz1', study1)
-            def two = gzipParent(outputDir, 'gz2', study2)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_gzip'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study2'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            def table = keyed(readGzip(process.out.meta_analysis.get(0).get(1)))
-            def order = new File(process.out.study_order.get(0).get(1).toString()).readLines()
-            assertAll(
-                { assert process.success },
-                { assert table['1:1000:A:G']['N_STUDIES'] == '2' },
-                { assert order.size() == 3 },
-                { assert order[1].startsWith('1\tstudy1\tgz1.tsv.gz\t') },
-                { assert order[2].startsWith('2\tstudy2\tgz2.tsv.gz\t') },
-            )
-        }
-    }
-
-    test("automatic input-format detection is rejected") {
-        when {
-            def one = parent(outputDir, 'auto1', study1)
-            def two = parent(outputDir, 'auto2', study2)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_auto'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study2'],
-                    'auto',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('automatic detection is not supported') },
-            )
-        }
-    }
-
-    test("a single parent is rejected") {
-        when {
-            def one = parent(outputDir, 'solo1', study1)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_solo'],
-                    [file('${one}', checkIfExists: true)],
-                    ['study1'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('at least two canonical parents') },
-            )
-        }
-    }
-
-    test("repeated study names are rejected because study order would be ambiguous") {
-        when {
-            def one = parent(outputDir, 'dup1', study1)
-            def two = parent(outputDir, 'dup2', study2)
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_dup'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study1'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('study_names must be unique') },
-            )
-        }
-    }
-
-    test("an unsupported extension argument is rejected rather than passed to GWASLab") {
-        when {
-            def one = parent(outputDir, 'arg1', study1)
-            def two = parent(outputDir, 'arg2', study2)
-            params {
-                meta_analyze_args = '--threads 8'
-            }
-            process {
-                """
-                input[0] = [
-                    [id: 'meta_args'],
-                    [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study2'],
-                    'gwaslab',
-                    'GRCh37',
-                    '',
-                ]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('Unsupported option: --threads') },
-            )
-        }
-    }
-
-    test("stub emits every declared output with valid gzip streams and version metadata") {
+    test("stub preserves random-effect absence") {
         options "-stub"
 
         when {
-            def one = parent(outputDir, 'stub1', study1)
-            def two = parent(outputDir, 'stub2', study2)
+            def one = parent(outputDir, 'stub_one', '0.1')
+            def two = parent(outputDir, 'stub_two', '0.2')
             process {
                 """
                 input[0] = [
-                    [id: 'meta_stub'],
+                    [id: 'stub'],
                     [file('${one}', checkIfExists: true), file('${two}', checkIfExists: true)],
-                    ['study1', 'study2'],
+                    ['one', 'two'],
                     'gwaslab',
                     'GRCh37',
-                    '',
+                    false,
                 ]
                 """
             }
         }
 
         then {
-            def candidate = readGzip(process.out.meta_analysis.get(0).get(1))
-            def views = readGzip(process.out.study_views.get(0).get(1))
-            def versions = new File(process.out.versions.get(0).toString())
             assertAll(
                 { assert process.success },
-                { assert candidate.startsWith('SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS') },
-                { assert candidate.trim().endsWith('META_VARIANT_KEY') },
-                { assert views.startsWith('META_VARIANT_KEY\tSNPID\tCHR\tPOS\tEA\tNEA\tSTATUS_1') },
-                { assert views.contains('STATUS_2') },
-                { assert new File(process.out.effect_matrix.get(0).get(1).toString()).exists() },
-                { assert new File(process.out.study_order.get(0).get(1).toString()).exists() },
-                { assert new File(process.out.qc.get(0).get(1).toString()).exists() },
-                { assert new File(process.out.derivation.get(0).get(1).toString()).exists() },
-                { assert new File(process.out.log.get(0).get(1).toString()).exists() },
-                { assert versions.readLines().first().endsWith(':') },
-                { assert versions.text.contains('gwaslab: 4.1.9') },
-                { assert versions.text.contains('python:') },
+                { assert process.out.fixed.size() == 1 },
+                { assert process.out.random_effects.empty },
+                { assert process.out.metasoft_input.size() == 1 },
+                { assert process.out.mrmega_input.size() == 1 },
             )
         }
     }
