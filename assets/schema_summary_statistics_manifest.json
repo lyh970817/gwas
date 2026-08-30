@@ -137,10 +137,7 @@
                 "title": "Pipeline-generated summary-statistics origin",
                 "required": ["producer_analysis_id", "producer_association_method"],
                 "not": {
-                    "anyOf": [
-                        { "required": ["source"] },
-                        { "required": ["source_format"] }
-                    ]
+                    "anyOf": [{ "required": ["source"] }, { "required": ["source_format"] }]
                 }
             }
         ]
