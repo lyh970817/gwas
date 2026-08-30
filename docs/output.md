@@ -292,7 +292,7 @@ Relatedness matrices are the only current `quality_control/` publication family;
 
 </details>
 
-These files show the exact representation consumed by downstream tools. They are unpublished by default because they are derived intermediates. Headerless tool-specific serialisations, the LDAK matrix-adjustment serialisation and the preparation log are never published. The public save parameter remains `--save_normalised_phenotypes`.
+These files show the exact representation consumed by downstream tools. They are unpublished by default because they are derived intermediates. Headerless tool-specific serialisations and the LDAK matrix-adjustment serialisation are never published. The public save parameter remains `--save_normalised_phenotypes`.
 
 ## MultiQC
 

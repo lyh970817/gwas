@@ -88,7 +88,6 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 
     emit:
     results     = REGENIE_STEP2.out.results // channel: [ val(meta), path(regenie_results) ]
-    logs        = PLINK_FIT_REGENIE.out.logs.mix(REGENIE_STEP2.out.log) // channel: [ val(meta), path(log) ]
     predictions = ch_attributed_predictions.map { meta, predictions, _loco -> [meta, predictions] } // channel: [ val(meta), path(predictions) ]
     loco        = ch_attributed_predictions.map { meta, _predictions, loco -> [meta, loco] } // channel: [ val(meta), path(loco) ]
 }

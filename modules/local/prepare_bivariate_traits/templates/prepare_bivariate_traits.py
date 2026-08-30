@@ -96,19 +96,6 @@ if quant_header:
 if cat_header:
     write_rows(PREFIX + ".covar", cat_rows)
 
-diagnostics = [
-    ("left_samples", len(left)),
-    ("right_samples", len(right)),
-    ("endpoint_overlap_samples", len(set(left) & set(right))),
-    ("union_samples", len(union)),
-    ("left_nonmissing", sum(value != MISSING for value in left.values())),
-    ("right_nonmissing", sum(value != MISSING for value in right.values())),
-    ("both_nonmissing", sum(left.get(identity, MISSING) != MISSING and right.get(identity, MISSING) != MISSING for identity in union)),
-    ("quantitative_covariate_samples", len(quant_rows)),
-    ("categorical_covariate_samples", len(cat_rows)),
-]
-write_rows(PREFIX + ".pair.log", [[name, str(value)] for name, value in diagnostics])
-
 with open("versions.yml", "w", newline="") as handle:
     handle.write('"{}":\\n'.format(PROCESS_NAME))
     handle.write("    python: {}\\n".format(sys.version.split()[0]))

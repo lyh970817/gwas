@@ -113,7 +113,7 @@
                 "save_normalised_phenotypes": {
                     "type": "boolean",
                     "description": "Save the phenotype and covariate inputs prepared for each analysis unit.",
-                    "help_text": "Prepared files are published to `<outdir>/phenotypes/<analysis_id>/` so that you can check the exact representation consumed by association and heritability programmes. The set is the headered phenotype file, the separate quantitative and categorical covariate files, and the merged covariate file; headerless programme-specific serialisations and the preparation log are never published. The parameter name is retained as `save_normalised_phenotypes`.",
+                    "help_text": "Prepared files are published to `<outdir>/phenotypes/<analysis_id>/` so that you can check the exact representation consumed by association and heritability programmes. The set is the headered phenotype file, the separate quantitative and categorical covariate files, and the merged covariate file; headerless programme-specific serialisations are never published. The parameter name is retained as `save_normalised_phenotypes`.",
                     "fa_icon": "fas fa-download"
                 },
                 "save_relatedness_matrices": {

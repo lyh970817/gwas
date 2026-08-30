@@ -37,11 +37,6 @@ output:
       structure: [map meta, path results]
       pattern: "*.regenie.gz"
       ontologies: []
-  - logs:
-      description: REGENIE Step 1 and Step 2 logs
-      structure: [map meta, path log]
-      pattern: "*.log"
-      ontologies: []
   - predictions:
       description: REGENIE Step 1 prediction list attributed to each consuming analysis
       structure: [map meta, path predictions]

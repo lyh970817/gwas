@@ -43,11 +43,10 @@ workflow PLINK_PREPARE_GRM_GCTA {
             [groupKey(meta, nparts_gcta), grm_part_files]
         }
         .groupTuple()
-        .map { key, grm_part_file_lists -> [key.getGroupTarget(), grm_part_file_lists.flatten(), grm_part_file_lists.size()] }
+        .map { key, grm_part_file_lists -> [key.getGroupTarget(), grm_part_file_lists.flatten()] }
 
-    CUSTOM_GCTAMERGEGRMPARTS(ch_gathered_parts.map { meta, grm_part_files, _effective_parts -> [meta, grm_part_files] })
+    CUSTOM_GCTAMERGEGRMPARTS(ch_gathered_parts)
 
     emit:
-    grm_files       = CUSTOM_GCTAMERGEGRMPARTS.out.grm_files // channel: [ val(meta), path(grm_files) ]
-    effective_parts = ch_gathered_parts.map { meta, _grm_part_files, effective_parts -> [meta, effective_parts] } // channel: [ val(meta), val(effective_parts) ]
+    grm_files = CUSTOM_GCTAMERGEGRMPARTS.out.grm_files // channel: [ val(meta), path(grm_files) ]
 }

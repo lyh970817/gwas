@@ -40,17 +40,6 @@ output:
       structure: "[map meta, path harmonisation_input]"
       pattern: "*.step2*.harmonisation.tsv"
       ontologies: []
-  - summaries:
-      description: Required LDAK-KVIK Step 2 summary-statistics files
-      structure: "[map meta, path summaries]"
-      pattern: "*.step2*.summaries"
-      ontologies: []
-  - pvalues:
-      description: Optional LDAK-KVIK Step 2 p-value files
-      structure: "[map meta, path pvalues]"
-      pattern: "*.step2*.pvalues"
-      optional: true
-      ontologies: []
   - predictions:
       description: LDAK-KVIK Step 1 prediction bundles, once per scientifically distinct shared fit
       structure: "[map meta, path root, path loco_details, path loco_prs]"
@@ -67,11 +56,6 @@ output:
       structure: "[map meta, path progress]"
       pattern: "*.progress"
       optional: true
-      ontologies: []
-  - logs:
-      description: LDAK-KVIK Step 1 and Step 2 log files
-      structure: "[map meta, path log]"
-      pattern: "*.step*.log"
       ontologies: []
 authors:
   - "@andongni"

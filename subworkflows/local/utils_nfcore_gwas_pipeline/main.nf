@@ -394,11 +394,6 @@ def digestFileBytes(input_file) {
     return digest.digest().encodeHex().toString()
 }
 
-// Retain the established public helper contract while new owners keep their own absence representation.
-def digestScientificInput(input_file) {
-    return input_file ? digestFileBytes(input_file) : 'absent'
-}
-
 // Reuse keys share one short SHA-256 primitive over already-canonical UTF-8 text.
 def digestIdentityText(canonical) {
     return java.security.MessageDigest

@@ -27,7 +27,6 @@ process PREPARE_PHENOTYPE_INPUTS {
     tuple val(meta), path("${prefix}.noheader.catcovar"), emit: cat_covariates_headerless, optional: true
     tuple val(meta), path("${prefix}.covar"), emit: covariates, optional: true
     tuple val(meta), path("${prefix}.adjustcovar"), emit: adjustment_covariates, optional: true
-    tuple val(meta), path("${prefix}.prepare.log"), emit: log
     // `eval()` is the house style for version capture, but Nextflow rejects an `eval` output on any
     // process whose script is not Bash — and this one is a Python `template`. The interpreter
     // version is therefore written from inside the template.
@@ -75,7 +74,6 @@ process PREPARE_PHENOTYPE_INPUTS {
     ${cat_covariates_stub}
     ${merged_covariates_stub}
     ${adjustment_covariates_stub}
-    touch "${prefix}.prepare.log"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -14,7 +14,6 @@ process PREPARE_BIVARIATE_TRAITS {
     tuple val(meta), path("${prefix}.pheno"), emit: phenotype
     tuple val(meta), path("${prefix}.qcovar"), emit: quant_covariates, optional: true
     tuple val(meta), path("${prefix}.covar"), emit: cat_covariates, optional: true
-    tuple val(meta), path("${prefix}.pair.log"), emit: log
     path 'versions.yml', emit: versions, topic: versions
 
     when:
@@ -39,17 +38,6 @@ process PREPARE_BIVARIATE_TRAITS {
     printf 'stub stub 0 0\n' > "${prefix}.pheno"
     ${qcovar_stub}
     ${covar_stub}
-    printf '%b\n' \
-        'left_samples\t1' \
-        'right_samples\t1' \
-        'endpoint_overlap_samples\t1' \
-        'union_samples\t1' \
-        'left_nonmissing\t1' \
-        'right_nonmissing\t1' \
-        'both_nonmissing\t1' \
-        'quantitative_covariate_samples\t${pair_quant_covariates ? 1 : 0}' \
-        'categorical_covariate_samples\t${pair_cat_covariates ? 1 : 0}' \
-        > "${prefix}.pair.log"
     printf '"%s":\n    python: %s\n' \
         '${task.process}' \
         "\$(python3 --version | sed 's/^Python //')" \

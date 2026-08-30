@@ -128,16 +128,6 @@ output:
           pattern: "*.adjustcovar"
           ontologies:
             - edam: "http://edamontology.org/format_3475" # TSV
-  log:
-    - - meta:
-          type: map
-          description: Metadata map propagated from input
-      - "${prefix}.prepare.log":
-          type: file
-          description: Record of the source trait column and its position, the sample count, the case, control and missing tallies, and any sample-set mismatch warning
-          pattern: "*.prepare.log"
-          ontologies:
-            - edam: "http://edamontology.org/format_2330" # Text
   versions:
     - versions.yml:
         type: file

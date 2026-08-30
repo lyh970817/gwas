@@ -40,7 +40,7 @@ PROCESS_NAME = ${task_process_literal}
 
 MISSING = "NA"
 
-# Keep raw-value diagnostics useful without allowing an unbounded error or log line for bad input.
+# Keep raw-value errors useful without allowing an unbounded message for bad input.
 MAX_UNMATCHED_VALUES = 10
 
 # `NA` is the one missing code all four programmes accept. `-9` is read as missing on the way in
@@ -121,8 +121,7 @@ def normalise_trait(value):
     way -- by comparing the source cell against the declared case and control values as strings. The
     samplesheet carries both as text precisely so that PLINK's 1/2, a 0/1 file and labels such as
     'Case' all work without the pipeline guessing which convention is in force. A cell matching
-    neither is missing, which is what makes a third level or a typo visible in the log tally rather
-    than silently recoded.
+    neither is missing. The ingress checks below require both declared binary values to occur.
     """
     if TRAIT_TYPE == "binary":
         stripped = value.strip()
@@ -260,13 +259,6 @@ def format_raw_value_examples(counts, kind):
     return summary
 
 
-def format_unmatched_raw_values(counts):
-    """Render the additive binary unmatched-value policy line for the normalisation log."""
-    if not counts:
-        return "unmatched raw values: none"
-    return "unmatched raw values: {}".format(format_raw_value_examples(counts, "unmatched raw"))
-
-
 def binary_match_counts(raw_values):
     """Count declared binary values with the exact stripping semantics normalise_trait uses."""
     case_matches = 0
@@ -313,11 +305,6 @@ raw_trait_values = [row[trait_index] for row in phenotype_body]
 raw_counts = raw_value_counts(raw_trait_values)
 case_raw_matches, control_raw_matches = binary_match_counts(raw_trait_values)
 numeric_raw_matches = numeric_match_count(raw_trait_values)
-raw_unmatched = {
-    value: count
-    for value, count in raw_counts.items()
-    if not is_missing(value) and normalise_trait(value) == MISSING
-}
 normalised_trait_values = [normalise_trait(value) for value in raw_trait_values]
 trait_rows = [
     [row[0], row[1], normalised_value]
@@ -332,35 +319,13 @@ cat_covariates = load_covariates(CAT_COVARIATES_FILE, "categorical covariate")
 merged = merge_covariates(quant_covariates, cat_covariates)
 adjustment = adjustment_covariates(quant_covariates, cat_covariates)
 
-tally = {}
-for trait_row in trait_rows:
-    tally[trait_row[2]] = tally.get(trait_row[2], 0) + 1
-
-report = [
-    "analysis: {}".format(ANALYSIS_ID),
-    "trait type: {}".format(TRAIT_TYPE),
-    "phenotype source: {} column '{}' at source position {} of {}".format(
-        PHENOTYPE_FILE, PHENOTYPE_COLUMN, trait_index + 1, len(phenotype_header)
-    ),
-    "phenotype target: column 'PHENO' at position 3 of 3",
-    "samples: {}".format(len(trait_rows)),
-    "missing trait values: {}".format(tally.get(MISSING, 0)),
-]
-if TRAIT_TYPE == "binary":
-    report.append("cases (source value '{}' recoded to 1): {}".format(CASE_VALUE, tally.get("1", 0)))
-    report.append("controls (source value '{}' recoded to 0): {}".format(CONTROL_VALUE, tally.get("0", 0)))
-
 phenotype_identities = identities(phenotype_body)
-for covariates, label, source in [
+for covariates, label, source in (
     (quant_covariates, "quantitative covariates", QUANT_COVARIATES_FILE),
     (cat_covariates, "categorical covariates", CAT_COVARIATES_FILE),
-]:
+):
     if covariates is None:
-        report.append("{}: none supplied".format(label))
         continue
-    report.append(
-        "{}: {} over {} samples from {}".format(label, ", ".join(covariates[0][2:]), len(covariates[1]), source)
-    )
     covariate_identities = identities(covariates[1])
     if covariate_identities != phenotype_identities:
         # A warning rather than an error: every consumer intersects sample sets natively, and
@@ -372,23 +337,7 @@ for covariates, label, source in [
             len(covariate_identities - phenotype_identities),
             len(phenotype_identities - covariate_identities),
         )
-        report.append(warning)
         print("[nf-core/gwas]: analysis '{}': {}".format(ANALYSIS_ID, warning))
-
-if merged is not None:
-    report.append("merged covariate file: {} columns over {} samples".format(len(merged[0]), len(merged[1])))
-if adjustment is not None:
-    report.append(
-        "LDAK matrix-adjustment covariates: {} columns over {} samples".format(
-            len(adjustment[0]), len(adjustment[1])
-        )
-    )
-
-# Deliberately final: every pre-existing report line above retains its order, and this diagnostic is
-# always emitted even when validation below stops normalisation before any phenotype/covariate output.
-unmatched_diagnostic = format_unmatched_raw_values(raw_unmatched)
-report.append(unmatched_diagnostic)
-write_lines("{}.prepare.log".format(PREFIX), report)
 
 if TRAIT_TYPE == "binary":
     if case_raw_matches == 0 or control_raw_matches == 0:

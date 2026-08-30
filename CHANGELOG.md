@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- [#27](https://github.com/lyh970817/gwas/issues/27) - Removed five orphan LDAK modules and two association compositions superseded by the production reuse-aware routes. The active execution graph, native scientific results, prediction publication and intentionally standalone meta-analysis composition are unchanged.
+- [#27](https://github.com/lyh970817/gwas/issues/27) - Removed five orphan LDAK modules, two association compositions superseded by the production reuse-aware routes, and unconsumed phenotype, bivariate-trait, GRM-part-count and association-route outputs. The active execution graph, native scientific results, prediction publication and intentionally standalone meta-analysis composition are unchanged.
 - [#25](https://github.com/lyh970817/gwas/issues/25) - Removed `source_mode`, the external summary bypass, `CANONICALISE_SUMMARY_STATISTICS`, custom summary provenance, the GCTA/LDAK/LDSC output normalizers, normalized estimand families, common meta-analysis assembly, and the MR-MEGA thinning, first-pass axis derivation, precalculated-axis, chromosome-scatter and gather machinery.
 
 ### Fixed

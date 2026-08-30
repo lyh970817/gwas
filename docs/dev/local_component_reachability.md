@@ -105,7 +105,7 @@ The baseline contains 67 local components:
 
 ## Dead surface in retained components
 
-The same reference scan found five dead public or implementation surfaces in retained components:
+The same reference scan found the following dead public or implementation surfaces in retained components:
 
 - `PLINK_PREPARE_GRM_GCTA.effective_parts` is calculated only to be emitted and has no caller, publication rule
   or documented consumer. The gather still derives its group size internally; only the dead re-export is removed.
@@ -113,17 +113,20 @@ The same reference scan found five dead public or implementation surfaces in ret
   and covariate outputs, explicit ingress errors and scientific normalization behavior remain unchanged.
 - `PREPARE_BIVARIATE_TRAITS.log` and its `.pair.log` diagnostic are not consumed or published. The ordered trait
   union and relationship-covariate outputs remain unchanged.
-- `ROUTE_CANONICAL_SUMMARY_STATISTICS.harmonization_log` duplicates an unconsumed route-level channel. The
-  atomic `GWASLAB_HARMONIZE.log` output remains part of that module's contract and continues to publish beside
-  each canonical summary-statistics table.
+- `ROUTE_REGENIE_ASSOCIATIONS.logs` has no caller or publication rule. The constituent atomic and
+  `PLINK_FIT_REGENIE` log contracts remain intact.
+- `ROUTE_LDAK_KVIK_ASSOCIATIONS.summaries`, `.pvalues` and `.logs` have no caller or publication rule. The
+  supported native association result and GWASLab adapter input remain, as do the atomic Step 1 and Step 2
+  contracts.
 - `digestScientificInput` has no caller. The active identity helpers call `digestFileBytes` directly, so the
   unused compatibility wrapper is removed.
 
-The scan also established boundaries that are deliberately unchanged here. LDAK `maxrel` state belongs to the
-relatedness identity work, LDMS `strata` metadata must remain aligned with MGRM order, ThinCommon reuse is a
-separate route change, validation is an ingress-contract change, LDSC preparation is a separate scaling change,
-and prediction attribution and publication remain part of the prediction-cache work. None is changed by this
-pruning pass.
+The scan also established boundaries that are deliberately unchanged here. The published
+`ROUTE_CANONICAL_SUMMARY_STATISTICS.harmonization_log` remains the user-facing GWASLab log contract. LDAK
+`maxrel` state belongs to the relatedness identity work, LDMS `strata` metadata must remain aligned with MGRM
+order, ThinCommon reuse is a separate route change, validation is an ingress-contract change, LDSC preparation
+is a separate scaling change, and prediction attribution and publication remain part of the prediction-cache
+work. None is changed by this pruning pass.
 
 ## Expected post-deletion graph
 

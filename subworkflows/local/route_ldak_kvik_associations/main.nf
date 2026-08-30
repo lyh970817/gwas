@@ -93,12 +93,9 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     emit:
     results             = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ]
     harmonisation_input = LDAK_KVIKSTEP2.out.harmonisation_input // channel: [ val(meta), path(tsv) ]
-    summaries           = LDAK_KVIKSTEP2.out.summaries // channel: [ val(meta), path(summaries) ]
-    pvalues             = LDAK_KVIKSTEP2.out.pvalues // channel: [ val(meta), path(pvalues) ], optional
     predictions         = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ], once per shared fit
     effects             = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per shared fit
     progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], only for thin_common fits
-    logs                = LDAK_KVIKSTEP1.out.log.mix(LDAK_KVIKSTEP2.out.log) // channel: [ val(meta), path(log) ]
 }
 
 /*

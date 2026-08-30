@@ -54,13 +54,6 @@ output:
           type: file
           optional: true
           description: Headerless normalized relationship categorical covariates
-  log:
-    - - meta:
-          type: map
-          description: Pair-request metadata propagated from input
-      - "${prefix}.pair.log":
-          type: file
-          description: Deterministic endpoint union, overlap, missingness and relationship-covariate diagnostics
   versions:
     - versions.yml:
         type: file
