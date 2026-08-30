@@ -5,18 +5,19 @@ own task procedure, gates, evidence, and reporting rather than stable contracts.
 
 ## Topics
 
-| File                                                                                                     | Covers                                                                                 |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`docs/coding-standards/nextflow-code-style.md`](docs/coding-standards/nextflow-code-style.md)           | Pipeline `.nf` and Groovy layout, naming, channels, workflows, diagnostics, and style |
-| [`docs/coding-standards/configuration-and-schema.md`](docs/coding-standards/configuration-and-schema.md) | Configuration, parameters, schema, assets, and `.nf-core.yml`                         |
-| [`docs/coding-standards/ci-and-testing.md`](docs/coding-standards/ci-and-testing.md)                     | Pipeline nf-test, CI, lint/format tooling, and repository hygiene                     |
-| [`docs/coding-standards/documentation-and-assets.md`](docs/coding-standards/documentation-and-assets.md) | Public documentation, assets, citations, changelog, and scripts                       |
-| [`docs/coding-standards/contribution-boundaries.md`](docs/coding-standards/contribution-boundaries.md) | Repository/workspace identity, personal/public tracks, and reviewer-facing boundaries |
-| [`docs/coding-standards/nf-core-modules.md`](docs/coding-standards/nf-core-modules.md) | Atomic upstream-bound module contracts |
-| [`docs/coding-standards/nf-core-subworkflows.md`](docs/coding-standards/nf-core-subworkflows.md) | Reusable upstream-bound composition contracts |
-| [`docs/coding-standards/gwas-component-contracts.md`](docs/coding-standards/gwas-component-contracts.md) | GWAS/population-genetics tuple, identity, selector, and bundle contracts |
-| [`docs/coding-standards/component-containers.md`](docs/coding-standards/component-containers.md) | Component packages, runtime directives, and container metadata |
-| [`docs/coding-standards/component-fixtures-and-testing.md`](docs/coding-standards/component-fixtures-and-testing.md) | Component fixture, assertion, snapshot, and readiness contracts |
+| File                                                                                                                 | Covers                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [`docs/coding-standards/nextflow-code-style.md`](docs/coding-standards/nextflow-code-style.md)                       | Pipeline `.nf` and Groovy layout, naming, channels, workflows, diagnostics, and style      |
+| [`docs/coding-standards/pipeline-architecture.md`](docs/coding-standards/pipeline-architecture.md)                   | Pipeline ingress, representation, work selection, reuse, cardinality, and stage boundaries |
+| [`docs/coding-standards/configuration-and-schema.md`](docs/coding-standards/configuration-and-schema.md)             | Configuration, parameters, schema, assets, and `.nf-core.yml`                              |
+| [`docs/coding-standards/ci-and-testing.md`](docs/coding-standards/ci-and-testing.md)                                 | Pipeline nf-test, CI, lint/format tooling, and repository hygiene                          |
+| [`docs/coding-standards/documentation-and-assets.md`](docs/coding-standards/documentation-and-assets.md)             | Public documentation, assets, citations, changelog, and scripts                            |
+| [`docs/coding-standards/contribution-boundaries.md`](docs/coding-standards/contribution-boundaries.md)               | Repository/workspace identity, personal/public tracks, and reviewer-facing boundaries      |
+| [`docs/coding-standards/nf-core-modules.md`](docs/coding-standards/nf-core-modules.md)                               | Atomic upstream-bound module contracts                                                     |
+| [`docs/coding-standards/nf-core-subworkflows.md`](docs/coding-standards/nf-core-subworkflows.md)                     | Reusable upstream-bound composition contracts                                              |
+| [`docs/coding-standards/gwas-component-contracts.md`](docs/coding-standards/gwas-component-contracts.md)             | GWAS/population-genetics tuple, identity, selector, and bundle contracts                   |
+| [`docs/coding-standards/component-containers.md`](docs/coding-standards/component-containers.md)                     | Component packages, runtime directives, and container metadata                             |
+| [`docs/coding-standards/component-fixtures-and-testing.md`](docs/coding-standards/component-fixtures-and-testing.md) | Component fixture, assertion, snapshot, and readiness contracts                            |
 
 ## Severity
 

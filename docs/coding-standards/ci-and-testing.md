@@ -49,6 +49,13 @@ failed mechanism evidence rather than hand-policing mechanically repairable form
 - **[MUST]** The download-pipeline workflow independently exercises the packaged pipeline stub path with its
   configured non-stub fallback.
 
+## Cache-boundary refactors
+
+- **[MUST]** A refactor that changes a scientific-stage cache boundary records positive and negative two-run
+  evidence. The unchanged rerun must resume the intended work and preserve output cardinality and order; a
+  rerun with a changed identity input must rerun the affected work while preserving the required cardinality and
+  order of its assembled result.
+
 ## CI policy
 
 - **[MUST]** Pipeline nf-test CI shards changed tests across the supported runtime profiles and pinned/current

@@ -5,7 +5,9 @@
 Recommend designs on their merits. Do not discount a design because implementation or refactoring mistakes may
 be introduced; assume testing and review can catch them later.
 
-Ask for the user's explicit approval before deciding to patch an existing programme's source code.
+Ask for the user's explicit approval before deciding to patch the source of a third-party programme that this
+pipeline invokes directly and that we did not write. Changes to pipeline code and programmes owned by this
+repository do not require that approval.
 
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
 

@@ -31,7 +31,9 @@ synchronization in this repository.
    using the live template, current authorized base-update mode, and canonical reviewer boundary.
 8. Request review only after the applicable CI and local gates are green and the user authorizes the external
    action.
+9. Close the linked origin issue after the contribution is integrated into every intended track and its required
+   verification is complete.
 
 Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
 wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;
-CI state; and skipped tests or profiles.
+CI state; linked origin issue and closure state; and skipped tests or profiles.
