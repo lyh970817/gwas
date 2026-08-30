@@ -88,7 +88,7 @@ nextflow_pipeline {
         return [
             { assert workflow.success },
             { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
-            { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == analysisIds.size() },
+            { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == analysisIds.size() },
             { assert TRACE.count(workflow, 'LDAK_CALCKINS') == matrixKeys.size() },
             { assert TRACE.count(workflow, 'LDAK_FILTER') == routeCounts.filter },
             { assert TRACE.count(workflow, 'LDAK_SUBGRM') == routeCounts.subgrm },

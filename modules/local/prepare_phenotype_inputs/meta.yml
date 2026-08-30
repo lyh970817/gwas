@@ -1,13 +1,13 @@
-name: normalise_phenotypes
-description: Normalise one analysis unit's phenotype and covariate files into the canonical layout every association and heritability programme in the pipeline can read
+name: prepare_phenotype_inputs
+description: Prepare one analysis unit's phenotype and covariate files in the layouts required by association and heritability programmes
 keywords:
   - phenotype
   - covariates
   - gwas
-  - normalisation
+  - preparation
 tools:
   - python:
-      description: Python programming language runtime; the normaliser uses the standard library only
+      description: Python programming language runtime; the adapter uses the standard library only
       homepage: https://www.python.org/
       documentation: https://docs.python.org/3/
 input:
@@ -132,10 +132,10 @@ output:
     - - meta:
           type: map
           description: Metadata map propagated from input
-      - "${prefix}.normalise.log":
+      - "${prefix}.prepare.log":
           type: file
           description: Record of the source trait column and its position, the sample count, the case, control and missing tallies, and any sample-set mismatch warning
-          pattern: "*.normalise.log"
+          pattern: "*.prepare.log"
           ontologies:
             - edam: "http://edamontology.org/format_2330" # Text
   versions:

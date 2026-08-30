@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Normalise one analysis unit's phenotype and covariate files into the canonical layout.
+"""Prepare one analysis unit's phenotype and covariate files for downstream programmes.
 
 The four association and heritability programmes this pipeline drives disagree irreconcilably about
 two things. REGENIE requires a header row and GCTA forbids one, so the phenotype and the covariates
@@ -388,7 +388,7 @@ if adjustment is not None:
 # always emitted even when validation below stops normalisation before any phenotype/covariate output.
 unmatched_diagnostic = format_unmatched_raw_values(raw_unmatched)
 report.append(unmatched_diagnostic)
-write_lines("{}.normalise.log".format(PREFIX), report)
+write_lines("{}.prepare.log".format(PREFIX), report)
 
 if TRAIT_TYPE == "binary":
     if case_raw_matches == 0 or control_raw_matches == 0:

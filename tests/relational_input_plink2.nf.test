@@ -49,13 +49,13 @@ nextflow_pipeline {
             )
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES').sort() == analysisIds },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == analysisIds.size() },
+                { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == analysisIds },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == analysisIds.size() },
                 { assert TRACE.count(workflow, 'PLINK2_GLM') == analysisIds.size() },
                 { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds.collect { id -> "${id}--plink2" }.sort() },
                 { assert plink2.list().toList().sort() == analysisIds },
                 { assert harmonised.list().toList().sort() == analysisIds.collect { id -> "${id}--plink2" }.sort() },
-                { assert analysisIds.every { id -> new File(harmonised, "${id}--plink2/${id}--plink2.canonical.tsv.gz").exists() } },
+                { assert analysisIds.every { id -> new File(harmonised, "${id}--plink2/${id}--plink2.gwaslab.tsv.gz").exists() } },
                 { assert snapshot(stable_name_association, stable_path_association).match('association') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
@@ -196,7 +196,7 @@ nextflow_pipeline {
                     { assert report.contains(scenario.field) },
                     { assert report.contains(scenario.message) },
                     { assert !scenario.accepted || report.contains(scenario.accepted) },
-                    { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                    { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
                 )
             }
         }
@@ -222,7 +222,7 @@ nextflow_pipeline {
                 { assert report.contains("row 2 (analysis_id 'example_pgen_qt')") },
                 { assert report.contains("field 'sample_prevalence'") },
                 { assert report.contains('sample prevalence has no meaning on a quantitative trait') },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -247,7 +247,7 @@ nextflow_pipeline {
                 { assert report.contains("row 2 (analysis_id 'example_pgen_qt')") },
                 { assert report.contains("field 'cohort_id'") },
                 { assert report.contains("undefined cohort_id 'missing_cohort'") },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -273,7 +273,7 @@ nextflow_pipeline {
                 { assert report.contains("field 'cohort_id'") },
                 { assert report.contains("duplicate cohort_id 'example_pgen'") },
                 { assert report.contains('identical definition on row 2') },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -300,7 +300,7 @@ nextflow_pipeline {
                 { assert report.contains("row 3 (analysis_id 'example_pgen_qt')") },
                 { assert report.contains("field 'analysis_id'") },
                 { assert report.contains("duplicate analysis_id 'example_pgen_qt', already declared on row 2") },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -321,7 +321,7 @@ nextflow_pipeline {
             assertAll(
                 { assert !workflow.success },
                 { assert report.contains('--analysis_manifest is missing; linked manifests require both') },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -343,7 +343,7 @@ nextflow_pipeline {
                 { assert !workflow.success },
                 { assert report.contains('--analysis_manifest') },
                 { assert report.contains('--cohort_manifest is missing; linked manifests require both') },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }

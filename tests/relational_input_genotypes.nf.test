@@ -43,7 +43,7 @@ nextflow_pipeline {
                 )
                 assertAll(
                     { assert workflow.success },
-                    { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES') == [analysisId] },
+                    { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS') == [analysisId] },
                     { assert TRACE.count(workflow, 'PLINK2_GLM') == 1 },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == (fixture.conversion == 'PLINK2_MAKEPGEN' ? 1 : 0) },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == (fixture.conversion == 'PLINK2_VCF' ? 1 : 0) },
@@ -82,7 +82,7 @@ nextflow_pipeline {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 0 },
-                { assert TRACE.tags(workflow, 'NORMALISE_PHENOTYPES').sort() == expected },
+                { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == expected },
                 { assert TRACE.count(workflow, 'PLINK2_GLM') == expected.size() },
                 { assert new File("${params.outdir}/association/plink2").list().toList().sort() == expected },
             )
@@ -133,7 +133,7 @@ nextflow_pipeline {
                     { assert report.contains("row 2 (cohort_id 'example_pgen')") },
                     { invalid.fields.each { field -> assert report.contains("'${field}'") } },
                     { assert report.contains(invalid.message) },
-                    { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                    { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == 0 },
                 )
@@ -162,7 +162,7 @@ nextflow_pipeline {
                 { assert report.contains(params.cohort_manifest.toString()) },
                 { assert report.contains('header row 1') },
                 { assert report.contains("unexpected column headers: 'vcf_index'") },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }
@@ -190,7 +190,7 @@ nextflow_pipeline {
                 { assert report.contains("field 'cohort_id'") },
                 { assert report.contains("duplicate cohort_id 'example_pgen' conflicts with row 2") },
                 { assert report.contains("field 'ancestry'") },
-                { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
     }

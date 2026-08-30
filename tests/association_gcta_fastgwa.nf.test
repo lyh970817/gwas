@@ -89,7 +89,7 @@ nextflow_pipeline {
                     new File(association, "${analysis_id}/${analysis_id}.gcta_fastgwa.fastGWA")
                 }
                 def harmonised_results = analysis_ids.collect { analysis_id ->
-                    new File(summary_statistics, "${analysis_id}--gcta_fastgwa/${analysis_id}--gcta_fastgwa.canonical.tsv.gz")
+                    new File(summary_statistics, "${analysis_id}--gcta_fastgwa/${analysis_id}--gcta_fastgwa.gwaslab.tsv.gz")
                 }
 
                 if (mode.stub) {
@@ -153,7 +153,7 @@ nextflow_pipeline {
                         { assert binary_written != null },
                         { assert binary_written.isFile() },
                         { assert binary_published.bytes == binary_written.bytes },
-                        // GWASLab preserves a canonical BETA and a populated sample count for every row.
+                        // GWASLab preserves a standard BETA and a populated sample count for every row.
                         { assert harmonised_tables.every { table -> table.header.containsAll(['BETA', 'N']) } },
                         { assert harmonised_tables.every { table ->
                             def beta = table.header.indexOf('BETA')

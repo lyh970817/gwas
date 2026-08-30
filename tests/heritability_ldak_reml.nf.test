@@ -69,7 +69,7 @@ nextflow_pipeline {
                     assertAll(
                         { assert workflow.success },
                         { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
-                        { assert TRACE.count(workflow, 'NORMALISE_PHENOTYPES') == 2 },
+                        { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 2 },
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                         { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },

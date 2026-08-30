@@ -1,4 +1,4 @@
-process NORMALISE_PHENOTYPES {
+process PREPARE_PHENOTYPE_INPUTS {
     tag "${meta.id}"
     label 'process_single'
 
@@ -27,7 +27,7 @@ process NORMALISE_PHENOTYPES {
     tuple val(meta), path("${prefix}.noheader.catcovar"), emit: cat_covariates_headerless, optional: true
     tuple val(meta), path("${prefix}.covar"), emit: covariates, optional: true
     tuple val(meta), path("${prefix}.adjustcovar"), emit: adjustment_covariates, optional: true
-    tuple val(meta), path("${prefix}.normalise.log"), emit: log
+    tuple val(meta), path("${prefix}.prepare.log"), emit: log
     // `eval()` is the house style for version capture, but Nextflow rejects an `eval` output on any
     // process whose script is not Bash — and this one is a Python `template`. So the interpreter
     // version is written from inside the template instead, exactly as the repo's other template
@@ -51,7 +51,7 @@ process NORMALISE_PHENOTYPES {
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
-    template('normalise_phenotypes.py')
+    template('prepare_phenotype_inputs.py')
 
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
@@ -76,7 +76,7 @@ process NORMALISE_PHENOTYPES {
     ${cat_covariates_stub}
     ${merged_covariates_stub}
     ${adjustment_covariates_stub}
-    touch "${prefix}.normalise.log"
+    touch "${prefix}.prepare.log"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
