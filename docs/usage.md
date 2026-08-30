@@ -67,31 +67,30 @@ At least one unary method selector must be populated unless the analysis is refe
 
 ### Summary-statistics manifest fields
 
-The summary-statistics manifest has exactly sixteen columns and owns one stable `summary_statistics_id` per row. Each row declares exactly one mutually exclusive origin:
+The summary-statistics manifest has exactly fifteen columns and owns one stable `summary_statistics_id` per row. Each row declares exactly one mutually exclusive origin:
 
-- An external result populates `source`, `source_mode` and `source_format`, leaves both producer fields blank, and declares its trait and provenance metadata.
-- A pipeline-generated result populates `producer_analysis_id` and `producer_association_method`, leaves the three external source fields blank, and uses the exact deterministic ID `<producer_analysis_id>--<producer_association_method>`. Trait, build, ancestry, source method and prevalence are derived from the producer analysis and remain blank on the summary row.
+- An external result populates `source` and `source_format`, leaves both producer fields blank, and declares its trait metadata. Every external source passes through GWASLab; use the `gwaslab` format for a pre-harmonised GWASLab table.
+- A pipeline-generated result populates `producer_analysis_id` and `producer_association_method`, leaves the two external source fields blank, and uses the exact deterministic ID `<producer_analysis_id>--<producer_association_method>`. Trait, build, ancestry, source method and prevalence are derived from the producer analysis and remain blank on the summary row.
 
-| Column                        | Required        | Description                                                                                                                                  |
-| ----------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `summary_statistics_id`       | Yes             | Unique stable result identity. Internal results must use `<analysis_id>--<association_method>`.                                              |
-| `trait_id`                    | External        | Declared trait identity for an external result; derived for an internal result.                                                              |
-| `trait_type`                  | External        | `quantitative` or `binary` for an external result; derived for an internal result.                                                           |
-| `source`                      | External        | Existing external `.tsv`, `.txt` or `.csv` table, optionally gzip-compressed.                                                                |
-| `source_mode`                 | External        | `raw` to harmonise through GWASLab or `canonical` to validate without reharmonising.                                                         |
-| `source_format`               | External        | Explicit named GWASLab format for `raw`, or exactly `nfcore_gwas_canonical_v1` for `canonical`. Automatic format detection is not supported. |
-| `producer_analysis_id`        | Internal        | Declared analysis that produced the summary result.                                                                                          |
-| `producer_association_method` | Internal        | Association method selected by that analysis.                                                                                                |
-| `genome_build`                | External        | `GRCh37` or `GRCh38`; derived from the producer cohort for an internal result.                                                               |
-| `ancestry`                    | External        | Researcher-declared provenance label; derived from the producer cohort for an internal result.                                               |
-| `source_method`               | External        | Program or method that produced the external table; derived from the producer association method for an internal result.                     |
-| `source_release`              | No              | Optional external source or release token.                                                                                                   |
-| `heritability_methods`        | By row          | Optional comma-delimited unary summary selector: `ldak_sumher` and/or `ldsc_h2`.                                                             |
-| `population_prevalence`       | Binary external | Optional population prevalence strictly between `0` and `1`; derived for an internal result.                                                 |
-| `sample_prevalence`           | Binary external | Optional sample case fraction strictly between `0` and `1`; derived for an internal result.                                                  |
-| `access_constraints`          | No              | Optional one-line, non-secret access or redistribution note retained in provenance; accepted for either origin.                              |
+| Column                        | Required        | Description                                                                                                                          |
+| ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `summary_statistics_id`       | Yes             | Unique stable result identity. Internal results must use `<analysis_id>--<association_method>`.                                      |
+| `trait_id`                    | External        | Declared trait identity for an external result; derived for an internal result.                                                      |
+| `trait_type`                  | External        | `quantitative` or `binary` for an external result; derived for an internal result.                                                   |
+| `source`                      | External        | Existing external `.tsv`, `.txt` or `.csv` table, optionally gzip-compressed.                                                        |
+| `source_format`               | External        | Explicit named GWASLab input format; use `gwaslab` for a pre-harmonised GWASLab table. Automatic format detection is not supported.  |
+| `producer_analysis_id`        | Internal        | Declared analysis that produced the summary result.                                                                                  |
+| `producer_association_method` | Internal        | Association method selected by that analysis.                                                                                        |
+| `genome_build`                | External        | `GRCh37` or `GRCh38`; derived from the producer cohort for an internal result.                                                       |
+| `ancestry`                    | External        | Researcher-declared provenance label; derived from the producer cohort for an internal result.                                       |
+| `source_method`               | External        | Program or method that produced the external table; derived from the producer association method for an internal result.             |
+| `source_release`              | No              | Optional external source or release token.                                                                                           |
+| `heritability_methods`        | By row          | Optional comma-delimited unary summary selector: `ldak_sumher` and/or `ldsc_h2`.                                                     |
+| `population_prevalence`       | Binary external | Optional population prevalence strictly between `0` and `1`; derived for an internal result.                                         |
+| `sample_prevalence`           | Binary external | Optional sample case fraction strictly between `0` and `1`; derived for an internal result.                                          |
+| `access_constraints`          | No              | Optional one-line, non-secret access or redistribution note associated with the declared summary result; accepted for either origin. |
 
-An external canonical table must contain at least `SNPID`, `CHR`, `POS`, `EA`, `NEA`, `STATUS`, `EAF`, `BETA`, `SE`, `P` and `N`, with one non-empty variant row and a consistent tab-delimited field count. Raw and internal results converge on that same `nfcore_gwas_canonical_v1` contract before downstream summary methods consume them.
+Every external and internal source crosses `GWASLAB_HARMONIZE`. The process emits the pipeline-standard GWASLab table directly; the pipeline does not add a second serializer, schema validator or provenance sidecar after GWASLab.
 
 Each declared summary must either select a unary method or be referenced by a relationship. The primary unary request ID is deterministic:
 
@@ -114,7 +113,7 @@ The optional relationship manifest has exactly eight columns. Endpoint slots are
 | `pair_quant_covariates`       | No       | Relationship-owned headered quantitative covariates beginning with `FID` and `IID`.                                                                                     |
 | `pair_cat_covariates`         | No       | Relationship-owned headered categorical covariates beginning with `FID` and `IID`.                                                                                      |
 
-The two populated endpoints must be different IDs and their declared trait IDs must differ. Different IDs may still represent related biological phenotypes; the pipeline does not police naming conventions. GCTA additionally requires two analysis IDs from one cohort. A reversed duplicate such as `height,disease` plus `disease,height` is invalid because it requests the same unordered binding twice. Left and right still matter and are recorded in every result and provenance file.
+The two populated endpoints must be different IDs and their declared trait IDs must differ. Different IDs may still represent related biological phenotypes; the pipeline does not police naming conventions. GCTA additionally requires two analysis IDs from one cohort. A reversed duplicate such as `height,disease` plus `disease,height` is invalid because it requests the same unordered binding twice. Left and right still matter and are retained in request identity and native execution order.
 
 `gcta_bivariate_he` and `gcta_bivariate_he_ldms` add GCTA's `--HEreg-bivar` Haseman-Elston cross-product estimator alongside `gcta_bivariate_reml` and `gcta_bivariate_reml_ldms`, using one dense GRM or the same LD- and MAF-stratified `--mgrm` family respectively. Both are explicit-GRM moment estimators: HE-CP only makes the _fitting_ stage cheaper than REML, and it still requires the same full dense (or LDMS-stratified) matrix construction, storage and I/O. Document and treat them as a deterministic moment reference and sensitivity analysis, not as a matrix-free or more scalable route.
 
@@ -129,7 +128,7 @@ relationship_id,left_analysis_id,right_analysis_id,left_summary_statistics_id,ri
 height_bmi,height,bmi,,,"gcta_bivariate_reml,gcta_bivariate_he",,
 ```
 
-The pair phenotype is a deterministic full union of the two normalized endpoint sample sets in `FID`,`IID` order, with `NA` on a side where that trait is missing. Pair covariates belong to the relationship, not either endpoint analysis. The primary pair request ID is deterministic:
+The pair phenotype is a deterministic full union of the two prepared endpoint sample sets in `FID`,`IID` order, with `NA` on a side where that trait is missing. Pair covariates belong to the relationship, not either endpoint analysis. The primary pair request ID is deterministic:
 
 ```text
 gcta_bivariate_reml--<relationship_id>
@@ -209,7 +208,7 @@ nextflow run nf-core/gwas \
     --outdir results
 ```
 
-The [mixed summary-statistics manifest](../assets/examples/relational/summary_statistics_manifest.csv) illustrates both origins: one internal PLINK 2 result from `heterogeneous_qt` and one already-canonical external result. The companion [summary relationship](../assets/examples/relational/relationship_manifest_summary.csv), [request options](../assets/examples/relational/method_options_summary.json), and [reference-catalog shape](../assets/examples/relational/reference_catalog.json) show the complete declaration surface. Replace every `/refs/...` value in the catalog with a locally available scientific reference before launching; the pipeline deliberately rejects unavailable paths and does not infer a bundle from ancestry.
+The [mixed summary-statistics manifest](../assets/examples/relational/summary_statistics_manifest.csv) illustrates both origins: one internal PLINK 2 result from `heterogeneous_qt` and external results loaded through the explicit `gwaslab` format. The companion [summary relationship](../assets/examples/relational/relationship_manifest_summary.csv), [request options](../assets/examples/relational/method_options_summary.json), and [reference-catalog shape](../assets/examples/relational/reference_catalog.json) show the complete declaration surface. Replace every `/refs/...` value in the catalog with a locally available scientific reference before launching; the pipeline deliberately rejects unavailable paths and does not infer a bundle from ancestry.
 
 ### Advanced method options
 
@@ -238,9 +237,9 @@ The wrapper rejects whitespace or shell syntax, path separators, environment ass
 
 Summary requests use the same deterministic ownership boundary. LDAK receives exactly one staged `tagging_file`; LDSC receives separate staged `hapmap3_snplist`, `reference_ld_scores` and `regression_weights` roles. `native_args` may contain non-file scientific tokens only. Wrapper-owned operation, input, output and thread flags are rejected, as are every LDSC option that selects an alternate operation or consumes an undeclared file role. These structural rejections apply to both bare `--option value` and inline `--option=value` forms without depending on whether a path exists or resembles a known extension.
 
-For `ldak_sumher` and `ldak_sumcors`, the pipeline converts each distinct canonical summary once to LDAK's `Predictor A1 A2 Z n A1Freq` contract, with `A1` equal to the canonical effect allele and `Z = BETA / SE`; the canonical artifact and its provenance remain unchanged. Both routes use `--cutoff 0.01` unless a request explicitly supplies `--cutoff` or `--truncate`, and those two large-effect policies cannot be combined. SumCors initially accepts `LDAK-Thin`, `Uniform-GCTA` and `Human-Default` tagging bundles. Binary SumHer receives population prevalence and sample ascertainment only when both are declared. SumCors receives the two ordered prevalence/ascertainment pairs only when both endpoints are binary and all four values are present; mixed-trait and incomplete binary pairs run without liability arguments. LDAK's native ambiguous-variant exclusion and complete-summary checks remain enabled unless an accepted scientific override changes them.
+For `ldak_sumher` and `ldak_sumcors`, the pipeline adapts each distinct GWASLab summary once to LDAK's `Predictor A1 A2 Z n A1Freq` contract, with `A1` equal to the GWASLab effect allele and `Z = BETA / SE`; the GWASLab artifact remains unchanged. Both routes use `--cutoff 0.01` unless a request explicitly supplies `--cutoff` or `--truncate`, and those two large-effect policies cannot be combined. SumCors initially accepts `LDAK-Thin`, `Uniform-GCTA` and `Human-Default` tagging bundles. Binary SumHer receives population prevalence and sample ascertainment only when both are declared. SumCors receives the two ordered prevalence/ascertainment pairs only when both endpoints are binary and all four values are present; mixed-trait and incomplete binary pairs run without liability arguments. LDAK's native ambiguous-variant exclusion and complete-summary checks remain enabled unless an accepted scientific override changes them.
 
-LDSC H2 always retains an observed-scale invocation. A binary summary additionally receives a liability-scale invocation only when both `sample_prevalence` and `population_prevalence` are declared. LDSC RG follows the same rule for its ordered endpoints: the observed-scale result is always retained, and a second invocation supplies prevalence only when at least one endpoint is binary and every binary endpoint declares both values. Quantitative endpoints in that mixed invocation use LDSC's native `nan` prevalence placeholder. In normalized mixed-trait output the quantitative marginal remains `observed`, the binary marginal is `liability`, and covariance records the ordered cross-scale combination. Request-level `native_args` cannot override either prevalence flag.
+LDSC H2 always retains an observed-scale native log. A binary summary additionally receives a liability-scale invocation only when both `sample_prevalence` and `population_prevalence` are declared. LDSC RG follows the same rule for its ordered endpoints: the observed-scale log is always retained, and a second invocation supplies prevalence only when at least one endpoint is binary and every binary endpoint declares both values. Quantitative endpoints in that mixed invocation use LDSC's native `nan` prevalence placeholder. The pipeline does not parse these logs into a common heritability, covariance or correlation family. Request-level `native_args` cannot override either prevalence flag.
 
 ```json
 {
@@ -305,7 +304,7 @@ Each selected entity–method binding creates one deterministic primary request.
 }
 ```
 
-The catalog may also declare a SHA-256 digest beside each role. Preflight checks the document shape, family, required roles, digest syntax and path availability. In the first release, `genome_build`, `ancestry`, `variant_id_system` and `model` are recorded provenance rather than a pipeline certification of scientific compatibility. The user owns reference selection.
+The catalog may also declare a SHA-256 digest beside each role. Preflight checks the document shape, family, required roles, digest syntax and path availability. In the first release, `genome_build`, `ancestry`, `variant_id_system` and `model` are recorded request metadata rather than a pipeline certification of scientific compatibility. The user owns reference selection.
 
 | GCTA option          | Type and default                      | Consumer and constraints                                                                                |
 | -------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -359,28 +358,25 @@ The authoritative structural contracts are [`schema_cohort_manifest.json`](../as
 
 Structural failures name the manifest and invalid column. Cross-row preflight failures additionally name the CSV row and `cohort_id`, `analysis_id`, `summary_statistics_id` or `relationship_id`: examples include an incomplete genotype group, conflicting duplicates, an invalid or mixed summary origin, an internal producer mismatch, orphan endpoints, same-endpoint or same-trait pairs, cross-cohort GCTA pairs, reversed duplicates, unknown or repeated method tokens, invalid binary coding, route-inapplicable prevalence, a binary or mixed pair selecting a quantitative-only method such as `gcta_bivariate_he` or `gcta_bivariate_he_ldms`, and declared pair covariates against a method with no native covariate parameter. Method-options and reference-catalog failures name the document, request or bundle ID, qualified option or resource role, and reason before task submission.
 
-### Phenotype normalisation
+### Phenotype input preparation
 
-The pipeline normalises each selected phenotype to a common two-identifier-plus-trait layout. Binary
-source values matching `control_value` and `case_value` become `0` and `1`; missing values and unmatched
-binary values become `NA`. Quantitative values must be numeric. Quantitative and categorical covariates
-remain distinct for tools with separate native interfaces.
+`PREPARE_PHENOTYPE_INPUTS` prepares each selected phenotype in a shared two-identifier-plus-trait layout. Binary source values matching `control_value` and `case_value` become `0` and `1`; missing values and unmatched binary values become `NA`. Quantitative values must be numeric. Quantitative and categorical covariates remain distinct for tools with separate native interfaces.
 
 ### Run-level defaults
 
-| Parameter or behaviour            | Default and rationale                                                                                                                                                                                                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| PLINK 2 binary association        | Firth fallback is enabled so separated or sparse binary-trait tests can still produce estimates. Binary phenotypes are passed with `--1` because the common normalised coding is `0`/`1`/`NA`; covariates are variance-standardised to prevent numerical failure when their scales differ. |
-| `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                                                                                           |
-| `--regenie_lowmem`                | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                                                                                                      |
-| REGENIE scientific method options | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                                                                                                    |
-| GWASLab reference parameters      | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource.                                                                           |
-| Save controls                     | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                                                                                            |
+| Parameter or behaviour            | Default and rationale                                                                                                                                                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PLINK 2 binary association        | Firth fallback is enabled so separated or sparse binary-trait tests can still produce estimates. Binary phenotypes are passed with `--1` because the prepared coding is `0`/`1`/`NA`; covariates are variance-standardised to prevent numerical failure when their scales differ. |
+| `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                                                                                  |
+| `--regenie_lowmem`                | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                                                                                             |
+| REGENIE scientific method options | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                                                                                           |
+| GWASLab reference parameters      | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource.                                                                  |
+| Save controls                     | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                                                                                   |
 
 The four opt-in save controls are:
 
 - `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
-- `--save_normalised_phenotypes`: publish headered normalised phenotype and covariate files under `phenotypes/<analysis_id>/`.
+- `--save_normalised_phenotypes`: publish headered prepared phenotype and covariate files under `phenotypes/<analysis_id>/`. The parameter name is retained for compatibility.
 - `--save_relatedness_matrices`: publish merged GCTA or LDAK matrix bundles under `quality_control/relatedness_matrices/<key>/`.
 - `--save_association_predictions`: publish reusable REGENIE and LDAK-KVIK Step 1 bundles under `intermediates/association_predictions/<method>/<analysis_id>/`.
 
@@ -538,7 +534,7 @@ Selected resource failures are retried with larger requests, subject to `--max_c
 
 - Confirm that the analysis, summary-statistics or relationship row selected the method whose result you expected.
 - Check the route-specific paths in the [output documentation](output.md).
-- Prepared genotypes, normalised phenotypes and covariates, relatedness matrices and REGENIE predictions are unpublished by default; enable the corresponding save control before expecting those directories.
+- Prepared genotypes, prepared phenotypes and covariates, relatedness matrices and REGENIE predictions are unpublished by default; enable the corresponding save control before expecting those directories.
 - GWASLab reference parameters are optional. Standardised association output is still produced without them, but reference-dependent allele checks, flips, rsID assignment and strand inference are not. `genome_build`, not `ancestry`, selects the build-specific resources.
 - Published intermediates are retention outputs, not importable cross-run caches. Supported reuse requires retained Nextflow work and `-resume`.
 

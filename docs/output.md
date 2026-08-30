@@ -2,11 +2,11 @@
 
 ## Introduction
 
-This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source converges on one canonical summary-statistics contract with a provenance sidecar. Run-level provenance is collected in MultiQC and `pipeline_info/`.
+This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source passes through GWASLab, whose table and log are published directly. Run-level provenance is collected in MultiQC and `pipeline_info/`.
 
 Intermediates are unpublished by default. The optional directories described below appear only when their corresponding save control is enabled.
 
-### Naming and provenance
+### Naming and attribution
 
 The shared result prefix grammar is:
 
@@ -16,16 +16,16 @@ The shared result prefix grammar is:
 
 `<analysis_id>` is copied from the analysis manifest and identifies one cohort-trait analysis unit. `<method>` is one of the method-selector tokens documented in [Usage](usage.md#relational-manifest-input). A producing tool can add a native result suffix after that prefix.
 
-Summary results use a separate first-class identity. Pipeline-generated association summaries use `<analysis_id>--<association_method>`; external summaries use the declared `summary_statistics_id`. Both publish as `<summary_statistics_id>.canonical.tsv.gz` with `<summary_statistics_id>.provenance.json` in the same identity-addressed directory.
+Summary results use a separate first-class identity. Pipeline-generated association summaries use `<analysis_id>--<association_method>`; external summaries use the declared `summary_statistics_id`. Both publish as `<summary_statistics_id>.gwaslab.tsv.gz` with `<summary_statistics_id>.gwaslab.log` in the same identity-addressed directory.
 
 Use the following provenance chain for any result:
 
 1. For an analysis result, read `<analysis_id>` and `<method>` from its parent directories and filename. Find that analysis row, follow its `cohort_id`, and inspect its method options.
-2. For a summary result, read `summary_statistics_id` from its directory and provenance sidecar. The sidecar identifies an internal producer analysis/method or the external source basename and checksum, plus the transformation path.
+2. For a summary result, read `summary_statistics_id` from its directory and filename. Resolve its declared internal producer or external source from the retained summary-statistics manifest.
 3. Map the method to its producing tool using the table below.
 4. Read tool versions from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline version and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
-Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right analysis IDs into `--analysis_manifest`, and use `requests/<method>/<request_id>/provenance.json` for the exact endpoint orientation, dense or LDMS matrix reuse key and native basename, effective prevalence, native arguments, all parsed native components, warnings and completion classification.
+Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table, diagnostics table or per-result provenance sidecar.
 
 | Method token                                                                                                                                      | Producing tool |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
@@ -53,7 +53,9 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
 - [Heritability](#heritability)
   - [GCTA GREML and GREML-LDMS](#gcta-greml-and-greml-ldms)
   - [LDAK estimators](#ldak-estimators)
+  - [Summary-level LDSC H2 and RG](#summary-level-ldsc-h2-and-rg)
 - [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
+- [LDAK summary-statistics heritability and correlation](#ldak-summary-statistics-heritability-and-correlation)
 - [Quality control and optional prepared data](#quality-control-and-optional-prepared-data)
 - [MultiQC](#multiqc)
 - [Pipeline information](#pipeline-information)
@@ -67,7 +69,7 @@ Native association output is published by method and then analysis. The native t
 <details markdown="1">
 <summary>Output files</summary>
 
-[PLINK 2](https://www.cog-genomics.org/plink/2.0/assoc) receives the normalised phenotype, preserves its native result columns and is configured to include `A1_FREQ`, `OBS_CT`, `BETA`, `SE` and `P` for harmonisation. The pipeline removes PLINK 2's fixed `.PHENO` token from the published filename; file content is unchanged.
+[PLINK 2](https://www.cog-genomics.org/plink/2.0/assoc) receives the prepared phenotype, preserves its native result columns and is configured to include `A1_FREQ`, `OBS_CT`, `BETA`, `SE` and `P` for harmonisation. The pipeline removes PLINK 2's fixed `.PHENO` token from the published filename; file content is unchanged.
 
 - `association/plink2/<analysis_id>/`
   - `<analysis_id>.plink2.glm.linear`: Native PLINK 2 `--glm` result for a quantitative trait.
@@ -75,7 +77,7 @@ Native association output is published by method and then analysis. The native t
 
 </details>
 
-For binary traits, Firth fallback is enabled by default so complete or quasi-complete separation, often encountered for rare variants, can still produce an estimate; this is why the result uses the `.logistic.hybrid` extension. The common normalised binary coding is `0`/`1`/`NA`, so the pipeline passes `--1`. It also uses `--covar-variance-standardize` when covariates are present to avoid PLINK 2's numerical-stability failure for differently scaled covariates; this invertible covariate reparameterisation does not change the reported genotype effect.
+For binary traits, Firth fallback is enabled by default so complete or quasi-complete separation, often encountered for rare variants, can still produce an estimate; this is why the result uses the `.logistic.hybrid` extension. The prepared binary coding is `0`/`1`/`NA`, so the pipeline passes `--1`. It also uses `--covar-variance-standardize` when covariates are present to avoid PLINK 2's numerical-stability failure for differently scaled covariates; this invertible covariate reparameterisation does not change the reported genotype effect.
 
 ### REGENIE
 
@@ -129,21 +131,19 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 <details markdown="1">
 <summary>Output files</summary>
 
-[GWASLab](https://cloufield.github.io/gwaslab/) standardises every pipeline-generated association result and every external source declared with `source_mode: raw`; native association results remain available under `association/`. An external `source_mode: canonical` table bypasses GWASLab but passes through the same canonical validator. The external source itself and the temporary GWASLab table are not republished, so each scientific summary result appears only once.
+[GWASLab](https://cloufield.github.io/gwaslab/) standardises every pipeline-generated association result and every external source; native association results remain available under `association/`. External rows declare one explicit GWASLab input format, including `gwaslab` for a pre-harmonised GWASLab table. No source bypasses the process, and the external source itself is not republished.
 
 - `summary_statistics/<summary_statistics_id>/`
-  - `<summary_statistics_id>.canonical.tsv.gz`: Gzip-compressed, tab-delimited `nfcore_gwas_canonical_v1` table.
-  - `<summary_statistics_id>.provenance.json`: Safe source, producer, transformation, checksum and canonical-contract provenance.
+  - `<summary_statistics_id>.gwaslab.tsv.gz`: Gzip-compressed, tab-delimited GWASLab-standard summary-statistics table.
+  - `<summary_statistics_id>.gwaslab.log`: GWASLab harmonisation log for the same source.
 
 </details>
 
-The required columns are `SNPID`, `CHR`, `POS`, `EA`, `NEA`, `STATUS`, `EAF`, `BETA`, `SE`, `P` and `N`. `EA` and `NEA` are the effect and non-effect alleles. `STATUS` is GWASLab's [seven-digit status code](https://cloufield.github.io/gwaslab/StatusCode/): the first two digits record genome build, followed by one digit each for identifier checking, coordinate checking, allele standardisation, reference alignment, and palindromic-variant/indel handling. A `9` means the corresponding check was not performed. The validator also rejects duplicate headers, empty tables and rows with inconsistent field counts.
-
-The sidecar records `summary_statistics_id`, trait type and declared prevalence metadata, build, ancestry, origin, source format/method/release/basename and SHA-256, internal producer identity when applicable, canonical filename/SHA-256/columns/variant count, transformation and serialization, harmonisation metadata, and the optional non-secret access constraint. An already-gzipped canonical candidate is copied byte-for-byte; an uncompressed candidate is gzip-compressed deterministically.
+The table uses GWASLab's standard field names, including `SNPID`, `CHR`, `POS`, `EA`, `NEA`, `STATUS`, `EAF`, `BETA`, `SE`, `P` and `N` where the declared source format supplies or derives them. `EA` and `NEA` are the effect and non-effect alleles. `STATUS` is GWASLab's [seven-digit status code](https://cloufield.github.io/gwaslab/StatusCode/). Downstream program adapters consume this GWASLab artifact directly; there is no second canonical serializer, post-GWASLab schema validator or custom checksum/provenance artifact.
 
 All build-specific GWASLab reference parameters default to unset because no compact bundled reference is scientifically adequate. With no references, raw output is still standardised for names, columns and allele roles. Supplying `--gwaslab_reference_fasta_grch37` or `--gwaslab_reference_fasta_grch38` enables reference-allele checks and flips; the corresponding `--gwaslab_rsid_vcf_*` enables rsID assignment, and `--gwaslab_strand_vcf_*` enables palindromic-strand inference. The declared genome build chooses the resource set per summary.
 
-GWASLab drops variants that fail its sanity checks and duplicated variants. Its log is not published because timestamps and container-local paths make it non-reproducible provenance noise.
+GWASLab drops variants that fail its sanity checks and duplicated variants. The emitted log is published beside the table as the native record of harmonisation.
 
 ## Heritability
 
@@ -190,85 +190,61 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 <details markdown="1">
 <summary>Output files</summary>
 
-[LDSC](https://github.com/CBIIT/ldsc) consumes each canonical summary through one content-addressed HapMap3 munging step. Unary H2 and ordered pairwise RG requests reuse that munged result when the summary identity, adapter contract and HapMap3 bytes are identical. Munged summaries are workflow intermediates and are not published.
+[LDSC](https://github.com/CBIIT/ldsc) consumes each GWASLab summary through one content-addressed HapMap3 munging step. Unary H2 and ordered pairwise RG requests reuse that munged result when the summary identity, adapter contract and HapMap3 bytes are identical. Munged summaries are workflow intermediates and are not published.
 
 - `requests/ldsc_h2/<request_id>/`
   - `native.observed.log`: Complete native observed-scale LDSC H2 log.
   - `native.liability.log`: Optional native liability-scale log for a binary summary declaring both sample and population prevalence.
-  - `diagnostics.tsv`: Completion classification, native scales, regression-SNP count, LDSC diagnostics and unmodified warnings.
-  - `provenance.json`: Summary identity, request and reference-bundle metadata, accepted native arguments, munging keys/diagnostics, native estimates, LDSC source revision/container, warnings, classification and artifact inventory.
-- `heritability/ldsc_h2/<request_id>/heritability.tsv`: One normalized H2 row per native scale.
-- `requests/ldsc_rg/<request_id>/`: The same observed/optional-liability native logs, diagnostics and provenance for the ordered summary pair.
-- `heritability/ldsc_rg/<request_id>/heritability.tsv`: Ordered left/right marginal H2 rows with endpoint-specific scale attribution.
-- `genetic_covariance/ldsc_rg/<request_id>/genetic_covariance.tsv`: Genetic covariance and standard error with ordered scale attribution.
-- `genetic_correlation/ldsc_rg/<request_id>/genetic_correlation.tsv`: Observed-invocation genetic correlation, standard error, z score and p value.
+- `requests/ldsc_rg/<request_id>/`
+  - `native.observed.log`: Complete native observed-scale LDSC RG log.
+  - `native.liability.log`: Optional native liability-scale log when every binary endpoint declares both prevalence values.
 
 </details>
 
-Normalized results preserve the native values and classify successful completion as `estimable`, `estimable_with_warning` or `completed_nonestimable`; native warnings and boundary violations never cause clipping or method selection. A malformed or incomplete mandatory native log fails the request. The pipeline presents every requested method and does not rank or combine them. Observed-scale LDSC is always retained. Liability-scale output is added only when all binary endpoints in the request declare both prevalence values. In a mixed RG invocation, a quantitative endpoint remains `observed`, the binary endpoint is `liability`, and the ordered covariance scale is written as `observed_x_liability` or `liability_x_observed`. The provenance retains LDSC's native labels separately from these scientifically attributed normalized scales.
+The pipeline presents every requested LDSC invocation without converting its log into a common heritability, covariance or correlation family. Observed-scale LDSC is always retained. Liability-scale output is added only when all binary endpoints in the request declare both prevalence values; quantitative endpoints use LDSC's native `nan` placeholder in a mixed RG invocation.
 
 ## Pairwise GCTA bivariate REML and HEreg
 
 <details markdown="1">
 <summary>Output files</summary>
 
-The dense route uses one explicit all-variant GCTA matrix. The relationship's deterministic LDMS request owns one LD-by-MAF-stratified MGRM family. Neither route inherits matrix settings from an endpoint's unary analysis, and scientifically identical unary and pair LDMS settings reuse one matrix family regardless of which method token requested it. `gcta_bivariate_he` and `gcta_bivariate_he_ldms` run GCTA's `--HEreg-bivar` Haseman-Elston cross-product (HE-CP) estimator on that same dense matrix or MGRM family. HE-CP only makes the fitting stage cheaper than REML; it still requires the same full dense (or LDMS-stratified) matrix construction, storage and I/O, so it is published as a deterministic moment reference and sensitivity analysis, not a matrix-free or more scalable route. Native results remain request-addressed, while lightweight TSV views expose each native estimand family without selecting, aggregating or ranking a result.
+The dense route uses one explicit all-variant GCTA matrix. The relationship's deterministic LDMS request owns one LD-by-MAF-stratified MGRM family. Neither route inherits matrix settings from an endpoint's unary analysis, and scientifically identical unary and pair LDMS settings reuse one matrix family regardless of which method token requested it. `gcta_bivariate_he` and `gcta_bivariate_he_ldms` run GCTA's `--HEreg-bivar` Haseman-Elston cross-product (HE-CP) estimator on that same dense matrix or MGRM family. HE-CP only makes the fitting stage cheaper than REML; it still requires the same full dense (or LDMS-stratified) matrix construction, storage and I/O, so it is published as a deterministic moment reference and sensitivity analysis, not a matrix-free or more scalable route. Each method retains its separate native result contract.
 
 - `requests/gcta_bivariate_reml/<request_id>/`
   - `native.hsq`: Complete native GCTA bivariate REML variance-component result.
   - `native.log`: Native command, version, convergence and sample-overlap log.
-  - `diagnostics.tsv`: Full-union endpoint counts, native common/non-missing counts, convergence, residual covariance when estimated, whether that component was retained or dropped by an explicit native option or GCTA's native overlap rule, warnings and the Q43 completion classification.
-  - `provenance.json`: Ordered endpoint identities, cohort, matrix kind/key/native basename/settings, effective prevalence, accepted native arguments, all parsed native component values, tool version, warnings, classification and artifact inventory.
-- `heritability/gcta_bivariate_reml/<request_id>/heritability.tsv`: Left and right `V(G)/Vp` estimates on every scale the native result emitted.
-- `genetic_covariance/gcta_bivariate_reml/<request_id>/genetic_covariance.tsv`: Native observed-scale `C(G)_tr12` estimate and standard error.
-- `genetic_correlation/gcta_bivariate_reml/<request_id>/genetic_correlation.tsv`: Native ordered `rG` estimate and standard error.
-- `requests/gcta_bivariate_reml_ldms/<request_id>/`: The same native, diagnostics and provenance artifact set for REML-LDMS.
-- `heritability/gcta_bivariate_reml_ldms/<request_id>/heritability.tsv`: Ordered trait-specific `V(Gk)/Vp` rows for every native LDMS component `Gk` and scale emitted by GCTA.
-- `genetic_covariance/gcta_bivariate_reml_ldms/<request_id>/genetic_covariance.tsv`: Native observed-scale `C(Gk)_tr12` estimate and standard error for every LDMS component.
-- `genetic_correlation/gcta_bivariate_reml_ldms/<request_id>/genetic_correlation.tsv`: Native ordered `rGk` estimate and standard error for every LDMS component.
+- `requests/gcta_bivariate_reml_ldms/<request_id>/`
+  - `native.hsq`: Complete native GCTA bivariate REML-LDMS result.
+  - `native.log`: Native command, version, convergence and sample-overlap log.
 - `requests/gcta_bivariate_he/<request_id>/`
   - `native.HEreg`: Complete native GCTA `--HEreg-bivar` dense result: `Intercept_tr1`, `Intercept_tr2`, `Intercept_tr12`, `V(G)/Vp_tr1`, `V(G)/Vp_tr2`, `C(G)/Vp_tr12`, `rG`, `N_tr1` and `N_tr2` rows, each with `Estimate`, `SE_OLS`, `SE_Jackknife`, `P_OLS` and `P_Jackknife` columns.
   - `native.log`: Native command and version, plus the complete jackknife sampling variance/covariance matrix of the estimates; GCTA writes that matrix only to the log, never to `.HEreg`.
-  - `diagnostics.tsv`: Full-union endpoint counts, native `N_tr1`/`N_tr2` counts, `native_estimator`, `standard_error_basis`, `covariance_scale`, `covariate_adjustment`, `native_cross_product_orientation`, `residual_covariance_status`, `jackknife_sampling_covariance`, warnings and completion classification.
-  - `provenance.json`: Ordered endpoint identities, cohort, matrix kind/key/native basename/settings, accepted native arguments, all parsed native component values, the complete native jackknife sampling variance/covariance matrix under `native_sampling_covariance` with its `parameter_order`, tool version, warnings, classification and artifact inventory.
-- `heritability/gcta_bivariate_he/<request_id>/heritability.tsv`: Left and right `V(G)/Vp` estimates using GCTA's jackknife standard error.
-- `genetic_covariance/gcta_bivariate_he/<request_id>/genetic_covariance.tsv`: Native `C(G)/Vp_tr12` estimate and jackknife standard error, `scale = observed_standardised`.
-- `genetic_correlation/gcta_bivariate_he/<request_id>/genetic_correlation.tsv`: Native ordered `rG` estimate and jackknife standard error.
-- `requests/gcta_bivariate_he_ldms/<request_id>/`: The same native `.HEreg`/`.log`, diagnostics and provenance artifact set for HEreg-LDMS. The native `.HEreg` table additionally carries per-component `V(Gk)/Vp_tr1`, `V(Gk)/Vp_tr2`, `C(Gk)/Vp_tr12` and `rGk` rows, plus native totals `Sum of V(G)/Vp_tr1`, `Sum of V(G)/Vp_tr2`, `Sum of C(G)/Vp_tr12` and `Total rG`, each with its own OLS and jackknife standard error.
-- `heritability/gcta_bivariate_he_ldms/<request_id>/heritability.tsv`: A `component` column distinguishes the native genome-wide `total` row from secondary per-component `G1`, `G2`, ... rows.
-- `genetic_covariance/gcta_bivariate_he_ldms/<request_id>/genetic_covariance.tsv`: Native total and per-component `C(Gk)/Vp_tr12` estimates and jackknife standard errors, `scale = observed_standardised`.
-- `genetic_correlation/gcta_bivariate_he_ldms/<request_id>/genetic_correlation.tsv`: Native total and per-component `rGk` estimates and jackknife standard errors.
+- `requests/gcta_bivariate_he_ldms/<request_id>/`
+  - `native.HEreg`: Native GCTA HEreg-LDMS table, including its per-component and native total rows.
+  - `native.log`: Native command, version and jackknife sampling variance/covariance matrix.
 
 </details>
 
-Successful native completion is classified as `estimable`, `estimable_with_warning` or `completed_nonestimable`. An explicit native nonconvergence, corrupt or incomplete mandatory output, or execution error is the fourth state, `failed`; it fails the request and the run rather than publishing a misleading normalized result. A warning or out-of-range native estimate is retained rather than clipped or discarded. The pipeline does not compare methods or choose a best result. For binary endpoints, a declared `population_prevalence` is passed only through GCTA's endpoint-aware `--reml-bivar-prevalence` interface; ordinary unary `--prevalence` is never used on this route. Liability-scale heritability rows appear only when GCTA itself emits the corresponding native `_L` component.
-
-`gcta_bivariate_he` and `gcta_bivariate_he_ldms` accept quantitative pairs only; a binary or mixed-endpoint pair is rejected before execution, and `gcta_bivariate_reml`/`gcta_bivariate_reml_ldms` remain the supported route for binary and mixed pairs rather than a slow fallback in that trait domain. Diagnostics record `native_estimator = haseman_elston_cross_product` and `standard_error_basis = jackknife`: the published `standard_error` in every normalized TSV is GCTA's jackknife SE, while the OLS SE is retained separately in `provenance.json`. `covariance_scale = observed_standardised` because HEreg standardises both phenotypes before fitting, so `genetic_covariance.tsv` for these methods is not on the same scale as the REML routes' `observed` covariance; genetic correlation remains scale-free and directly comparable. `covariate_adjustment = not_supported_by_method` because GCTA 1.94.1 lists `--qcovar` and `--covar` as accepted options for `--HEreg-bivar` and then silently ignores them — the output is byte-identical with and without covariate files — so the pipeline refuses a relationship that declares `pair_quant_covariates` or `pair_cat_covariates` together with an HE selector, before execution. `residual_covariance_status = no_residual_covariance_parameter` records that HE-CP regresses off-diagonal cross-products on off-diagonal relatedness and has no residual-covariance parameter at all; this is a different fact from REML dropping a residual-covariance component for disjoint samples. `native_cross_product_orientation = left_trait_row_right_trait_column` records that GCTA fits the cross-trait coefficient on the lower triangle of the GRM only, with the left trait on the row member and the right trait on the column member; verified empirically, reversing which trait is left and which is right changes the point estimate, which is why reversed duplicate relationships remain validation errors here as for the REML routes. `jackknife_sampling_covariance` in `diagnostics.tsv` is `available` or `unavailable`, recording whether GCTA's complete jackknife sampling variance/covariance matrix was captured from the log; when available, the full matrix and its `parameter_order` are stored under `native_sampling_covariance` in `provenance.json` and are never duplicated into a TSV. For the LDMS selector, `primary_result_component = total` and `total_result_origin` record that the published total is GCTA's own native total (from the `.HEreg` "Sum of"/"Total rG" rows), not a value the pipeline derives from marginal per-component standard errors. `native_component_layout` distinguishes the usual `multi_component` layout from the `single_component` layout GCTA writes when a component plan resolves to one stratum: there is nothing to sum, so GCTA emits no "Sum of" or "Total rG" rows and the single component is itself the genome-wide total and is published under the `total` component.
+The pipeline preserves GCTA's native values and does not compare methods or choose a preferred result. For binary endpoints, a declared `population_prevalence` is passed only through GCTA's endpoint-aware `--reml-bivar-prevalence` interface; ordinary unary `--prevalence` is never used on this route. `gcta_bivariate_he` and `gcta_bivariate_he_ldms` accept quantitative pairs only and do not accept pair covariates. HEreg fits the declared left-trait-by-right-trait orientation on the lower triangle of the GRM, so reversed duplicate relationships remain invalid.
 
 ## LDAK summary-statistics heritability and correlation
 
 <details markdown="1">
 <summary>Output files</summary>
 
-SumHer and SumCors are request-addressed thin wrappers over native LDAK 6.3. Every native result is retained; the normalized TSVs are additional views and never rank, aggregate or select a preferred method.
+SumHer and SumCors are request-addressed wrappers over native LDAK 6.3. Every native result is retained directly; the pipeline does not create normalized estimand, diagnostics or provenance views.
 
 - `requests/ldak_sumher/<request_id>/`
   - `native.hers`, `native.cats`, `native.share`, `native.enrich`, `native.extra`, `native.cross`, `native.taus`: Native SumHer estimates and category results.
   - `native.labels`, `native.progress`, `native.overlap`, `native.log`: Native labels, progress, overlap diagnostics and captured execution log.
   - `native.hers.liab`, `native.cats.liab`, `native.factor`: Optional native liability-scale artifacts, present only when LDAK receives a complete binary-trait prevalence/ascertainment pair.
-  - `diagnostics.tsv`, `provenance.json`: Completion classification, warnings, exact request/reference identities, effective native arguments, adapter evidence, native log likelihoods, tool/runtime identity and native-artifact inventory. The wrapper does not invent a universal parameter count or derive AIC when the native output does not report the model-specific parameter count.
-- `heritability/ldak_sumher/<request_id>/heritability.tsv`: Observed-scale and, when emitted by LDAK, liability-scale SumHer estimates.
 - `requests/ldak_sumcors/<request_id>/`
   - `native.cors`, `native.cors.full`, `native.labels`, `native.progress`, `native.overlap`, `native.log`: Complete native SumCors result family.
   - `native.cors.liab`: Optional native liability-scale pair result when both ordered binary endpoints have complete prevalence/ascertainment declarations.
-  - `diagnostics.tsv`, `provenance.json`: Ordered endpoint identities, reference ownership, effective native arguments, adapter evidence, classification, warnings and native-artifact inventory.
-- `heritability/ldak_sumcors/<request_id>/heritability.tsv`: Ordered endpoint heritability estimates emitted by SumCors.
-- `genetic_covariance/ldak_sumcors/<request_id>/genetic_covariance.tsv`: Native ordered coheritability estimate and uncertainty.
-- `genetic_correlation/ldak_sumcors/<request_id>/genetic_correlation.tsv`: Native ordered genetic-correlation estimate and uncertainty.
 
 </details>
 
-Successful native completion uses the same `estimable`, `estimable_with_warning` and `completed_nonestimable` vocabulary as the GCTA bivariate views. Non-estimable compact or real datasets remain visible with native evidence and `NA` normalized estimates. Malformed or incomplete mandatory native results fail the request rather than being reinterpreted as a scientific result.
+The native files retain LDAK's own result structure, warnings and missing-value representation. They are not parsed into a pipeline-wide estimand vocabulary.
 
 ## Quality control and optional prepared data
 
@@ -303,20 +279,20 @@ Relatedness matrices are the only current `quality_control/` publication family;
 
 </details>
 
-### Normalised phenotypes and covariates
+### Prepared phenotypes and covariates
 
 <details markdown="1">
 <summary>Output files</summary>
 
 - `phenotypes/<analysis_id>/` (with `--save_normalised_phenotypes`)
-  - `<analysis_id>.pheno`: Headered normalised phenotype file.
+  - `<analysis_id>.pheno`: Headered prepared phenotype file.
   - `<analysis_id>.qcovar`: Headered quantitative covariates, when supplied.
   - `<analysis_id>.catcovar`: Headered categorical covariates, when supplied.
   - `<analysis_id>.covar`: Headered merged covariates, when either covariate input was supplied.
 
 </details>
 
-These files show the exact recoding consumed by downstream tools and are useful for auditing case/control normalisation. They are unpublished by default because they are derived intermediates. Headerless tool-specific serialisations, the LDAK matrix-adjustment serialisation and the normalisation log are never published.
+These files show the exact representation consumed by downstream tools. They are unpublished by default because they are derived intermediates. Headerless tool-specific serialisations, the LDAK matrix-adjustment serialisation and the preparation log are never published. The public save parameter remains `--save_normalised_phenotypes`.
 
 ## MultiQC
 

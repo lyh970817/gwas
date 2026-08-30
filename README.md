@@ -21,7 +21,7 @@
 
 ## Introduction
 
-**nf-core/gwas** is a bioinformatics pipeline for association, individual-level and summary-level heritability, and declared pairwise genetic-correlation analysis. A cohort manifest owns genotype facts, an analysis manifest links traits and individual-level methods to those cohorts, a summary-statistics manifest declares external or pipeline-generated summary results and their unary methods, and an optional relationship manifest binds explicit analysis or summary endpoints. The pipeline reuses compatible work, retains native results, and converges every summary result on one versioned canonical contract.
+**nf-core/gwas** is a bioinformatics pipeline for association, individual-level and summary-level heritability, and declared pairwise genetic-correlation analysis. A cohort manifest owns genotype facts, an analysis manifest links traits and individual-level methods to those cohorts, a summary-statistics manifest declares external or pipeline-generated summary results and their unary methods, and an optional relationship manifest binds explicit analysis or summary endpoints. The pipeline reuses compatible work, retains native analytical results, and passes every internal and external summary-statistics source through one GWASLab harmonisation boundary.
 
 Genotype quality control is not performed by the pipeline. Input genotypes must already have suitable samples, variants, alleles, coordinates, genome build and analysis filters.
 
@@ -31,14 +31,14 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 
 1. Validate linked cohort, analysis, summary-statistics, relationship, reference and request declarations.
 2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input.
-3. Normalise the selected phenotype and optional quantitative and categorical covariates.
+3. Prepare the selected phenotype and optional quantitative and categorical covariates for the native tools.
 4. Run selected association routes:
    - PLINK 2 `--glm`
    - REGENIE
    - GCTA fastGWA-MLM
    - LDAK-KVIK
 5. Assign every association result a stable `<analysis_id>--<association_method>` summary-statistics identity and standardise it with GWASLab while preserving the native result.
-6. Ingest external raw summary statistics through an explicit named GWASLab format, or validate already-canonical external tables without reharmonising them.
+6. Load every external summary-statistics table through GWASLab using an explicit named format, including pre-harmonised tables declared with the `gwaslab` format.
 7. Build and reuse relatedness matrices for selected heritability routes:
    - GCTA GREML
    - GCTA GREML-LDMS
@@ -46,8 +46,8 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
    - LDAK Haseman-Elston regression
    - LDAK PCGC
 8. Resolve declared unary and pair summary-statistics requests against explicit LDAK or LDSC reference bundles, including LDAK SumHer heritability and SumCors genetic correlation.
-9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML, retaining native output plus normalized heritability, genetic-covariance, genetic-correlation, diagnostics and request provenance.
-10. Run declared LDSC H2 and ordered RG requests, reusing content-identical munging and retaining observed- and available liability-scale native results plus normalized estimand views, diagnostics and provenance.
+9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg and publish each native result and log directly.
+10. Run declared LDSC H2 and ordered RG requests, reusing content-identical munging and publishing the observed- and available liability-scale native logs directly.
 11. Collect run and software provenance with MultiQC and Nextflow reports.
 
 ## Usage
@@ -92,9 +92,9 @@ For more details and further functionality, please refer to the [usage documenta
 
 ## Pipeline output
 
-Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.canonical.tsv.gz` plus a provenance sidecar. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA and LDSC requests publish native results, diagnostics and provenance under `requests/<method>/<request_id>/` plus normalized estimand views under `heritability/`, `genetic_covariance/` and `genetic_correlation/`. Munged LDSC summaries and other intermediates are not republished; prepared genotypes, normalised phenotypes, relatedness matrices and REGENIE predictions remain unpublished unless their save controls are enabled.
+Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.gwaslab.tsv.gz` with its GWASLab log. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA, LDAK and LDSC requests publish only their native result families under `requests/<method>/<request_id>/`; the pipeline does not assemble a common estimand family or add per-result provenance sidecars. Munged LDSC summaries and other adapters are not republished; prepared genotypes, prepared phenotypes, relatedness matrices and REGENIE predictions remain unpublished unless their save controls are enabled.
 
-For exact filenames, provenance lookup and optional output, see the [output documentation](https://nf-co.re/gwas/output).
+For exact filenames, output layout and optional prepared data, see the [output documentation](https://nf-co.re/gwas/output).
 
 ## Credits
 

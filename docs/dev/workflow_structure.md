@@ -15,10 +15,10 @@ This page describes the code structure only; the scientific overview is `assets/
 3. The union of genotype consumers, and `PREPARE_COHORT_GENOTYPES`, which prepares each distinct cohort once.
 4. The union of relatedness-matrix consumers, and `PREPARE_RELATEDNESS_MATRICES`, which builds each
    scientifically distinct matrix once.
-5. `NORMALISE_PHENOTYPES` and the tool-neutral per-analysis seams derived from it, such as the headerless
+5. `PREPARE_PHENOTYPE_INPUTS` and the tool-neutral per-analysis seams derived from it, such as the headerless
    phenotype/covariate stream that GCTA-, LDAK- and fastGWA-shaped consumers share.
 6. The route-controller calls and the visible dependencies between their semantic results.
-7. The fan-out of canonical summary statistics to the summary-scale sibling routes.
+7. The fan-out of GWASLab-standard summary statistics to the summary-scale sibling routes.
 8. Run-wide `versions` topic collection and collation into `pipeline_info/`.
 9. The `ROUTE_GWAS_REPORTING` call.
 10. The public `emit:` block.
@@ -33,8 +33,8 @@ emission.
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | `ROUTE_ASSOCIATION_ANALYSES`         | PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA selection, and the fan-in to one raw-association stream |
 | `ROUTE_GRM_HERITABILITY`             | Individual-level GCTA GREML/GREML-LDMS and LDAK REML/HE/PCGC estimator selection                     |
-| `ROUTE_GCTA_BIVARIATE_RELATIONSHIPS` | GCTA bivariate REML and REML-LDMS relationship requests                                              |
-| `ROUTE_CANONICAL_SUMMARY_STATISTICS` | Internal and external origins converging on one canonical serialisation per summary ID               |
+| `ROUTE_GCTA_BIVARIATE_RELATIONSHIPS` | GCTA bivariate REML, HEreg and their LDMS relationship requests                                      |
+| `ROUTE_CANONICAL_SUMMARY_STATISTICS` | Every internal and external origin crossing GWASLab once per summary ID                              |
 | `ROUTE_LDAK_SUMMARY_ANALYSES`        | LDAK SumHer and SumCors                                                                              |
 | `ROUTE_LDSC_SUMMARY_ANALYSES`        | LDSC munging reuse, H2 and RG                                                                        |
 | `ROUTE_GWAS_REPORTING`               | MultiQC assembly                                                                                     |
@@ -57,14 +57,29 @@ Route controllers are pipeline-routing components, not component-library submiss
 PLINK 2 and REGENIE compositions they call remain free of route selection, relational-manifest interpretation,
 reuse identity and publication policy.
 
+## Common meta-analysis composition
+
+`COMMON_VARIANT_META_ANALYSIS` is implemented but is not yet wired into `GWAS`, the method registry, a manifest
+contract or publication configuration. Its contract is deliberately model-specific:
+
+- `GWASLAB_META_ANALYZE` emits `*.fixed.tsv.gz`, an optional `*.random.tsv.gz`, the native adapter inputs
+  required by METASOFT and MR-MEGA, and its GWASLab log.
+- `METASOFT_RE2` is a thin native invocation and emits `*.metasoft.txt` with `*.metasoft.log`.
+- `PREPARE_MRMEGA_INPUT` adapts the aligned parents once in declared study order, using the request's explicit
+  quantitative or binary trait type.
+- `MRMEGA` runs once genome-wide without precalculated axes and emits its native `.result` and `.log`.
+
+The composition does not scatter by chromosome, derive axes in a first pass, gather shards, normalize any
+program's result, recompute native values or assemble columns from different models into one table.
+
 ## Adding a route
 
-Attach a new summary-scale route at the SIBLING SEAM comment in `workflows/gwas.nf`, after canonical
+Attach a new summary-scale route at the SIBLING SEAM comment in `workflows/gwas.nf`, after GWASLab
 convergence. The three-part pattern is: filter the validated request stream on `meta.method` on the spine; call
 the controller with that selection plus `ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics` unmodified;
-let the controller own everything downstream. The canonical stream is a plain queue channel, so an additional
-reader adds no barrier and changes no existing cardinality — do not introduce a `collect()` or `groupTuple()`
-to materialise it.
+let the controller own everything downstream. The GWASLab-standard stream is a plain queue channel, so an
+additional reader adds no barrier and changes no existing cardinality — do not introduce a `collect()` or
+`groupTuple()` to materialise it.
 
 An individual-level route attaches instead alongside `ROUTE_GRM_HERITABILITY`, consuming the prepared genotype,
 matrix and phenotype streams the spine already fans out.
@@ -72,7 +87,6 @@ matrix and phenotype streams the spine already fans out.
 ## Process names
 
 A process's fully qualified `task.process` includes its controller scope, for example
-`NFCORE_GWAS:GWAS:ROUTE_LDSC_SUMMARY_ANALYSES:NORMALISE_LDSC`. Several modules serialise `task.process` into a
-published `provenance.json`, so that scope is visible in results. Trace, resume and version surfaces are
-leaf-normalised and unaffected. `withName:` selectors in `conf/modules/` are `.*:`-prefixed and match the leaf
-regardless of controller scope; do not anchor one to a full path.
+`NFCORE_GWAS:GWAS:ROUTE_LDSC_SUMMARY_ANALYSES:LDSC_H2_OBSERVED`. Trace, resume and version surfaces retain that
+scope. `withName:` selectors in `conf/modules/` are `.*:`-prefixed where the same leaf can be nested and match
+the leaf regardless of controller scope; do not anchor one to a full path.
