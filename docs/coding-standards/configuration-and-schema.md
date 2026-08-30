@@ -225,9 +225,12 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   validation pass so summary-only runs remain valid.
 - **[MUST]** `summary_statistics_manifest` is the single declaration surface for both external and
   pipeline-generated summary results. Every row has one `summary_statistics_id` and exactly one origin family:
-  either complete external `source` / `source_mode` / `source_format` fields plus declared trait, build,
-  ancestry, and source-method metadata, or a complete `producer_analysis_id` /
+  either complete external `source` / `source_format` fields plus declared trait, build, ancestry, and
+  source-method metadata, or a complete `producer_analysis_id` /
   `producer_association_method` pair. The two origin families are mutually exclusive.
+- **[MUST]** Every external summary declares an explicit GWASLab `source_format` and crosses the same
+  `GWASLAB_HARMONIZE` boundary. A pre-harmonised GWASLab table uses the `gwaslab` format; no source mode bypasses
+  the handler and automatic format detection remains unsupported.
 - **[MUST]** An internal summary ID is exactly
   `<producer_analysis_id>--<producer_association_method>`. The producer analysis must exist and must select that
   association method. An external ID may be researcher-defined but may not collide with an internal deterministic
