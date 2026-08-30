@@ -420,6 +420,7 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result.sort() == [
+                    'gcta_bivariate_he_ldms',
                     'gcta_bivariate_reml_ldms',
                     'gcta_greml_ldms',
                     'ldak_he',
