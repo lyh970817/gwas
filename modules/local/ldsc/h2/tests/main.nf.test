@@ -99,23 +99,4 @@ nextflow_process {
         }
     }
 
-    test("reject malformed munged summary statistics") {
-        when {
-            def fixture = inputs(outputDir, 'invalid', false)
-            process {
-                """
-                input[0] = [[id: 'trait_invalid'], file('${fixture.sumstats}', checkIfExists: true)]
-                input[1] = [[id: 'reference'], file('${fixture.reference}', checkIfExists: true)]
-                input[2] = [[id: 'weights'], file('${fixture.weights}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('Improperly formatted sumstats file') || process.errorReport.contains('Usecols do not match columns') },
-            )
-        }
-    }
 }

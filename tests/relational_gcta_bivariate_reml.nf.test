@@ -36,7 +36,7 @@ nextflow_pipeline {
         return files
     }
 
-    test("mixed quantitative-binary pair publishes native outputs, estimand views and provenance") {
+    test("mixed quantitative-binary pair publishes native outputs") {
         when {
             def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_primary')
             params {
@@ -56,55 +56,26 @@ nextflow_pipeline {
 
         then {
             def request = new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt")
-            def heritability = new File("${params.outdir}/heritability/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt/heritability.tsv")
-            def correlation = new File("${params.outdir}/genetic_correlation/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt/genetic_correlation.tsv")
-            def covariance = new File("${params.outdir}/genetic_covariance/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt/genetic_covariance.tsv")
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
-            def provenance = new groovy.json.JsonSlurper().parse(new File(request, 'provenance.json'))
-            def diagnosticText = new File(request, 'diagnostics.tsv').text
             def nativeCommand = workFiles(outputDir).find { entry ->
                 entry.name == '.command.sh' && entry.text.contains('--reml-bivar 1 2')
             }
             def stableRequestNames = request.listFiles()*.name.sort()
-            def stableProvenance = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(provenance))
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
                 { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_REML') == 0 },
                 { assert new File(request, 'native.hsq').isFile() },
                 { assert new File(request, 'native.log').isFile() },
-                { assert heritability.readLines().size() >= 3 },
-                { assert correlation.readLines().size() == 2 },
-                { assert covariance.readLines().size() == 2 },
-                { assert heritability.readLines().tail().every { line -> !line.contains('\tNA\t') } },
-                { assert correlation.readLines().tail().every { line -> !line.contains('\tNA\t') } },
-                { assert covariance.readLines().tail().every { line -> !line.contains('\tNA\t') } },
-                { assert diagnosticText.contains('\tclassification\t') },
-                { assert diagnosticText.contains('\tunion_samples\t') },
-                { assert provenance.relationship_id == 'qt_bt' },
-                { assert provenance.request_id == 'gcta_bivariate_reml--qt_bt' },
-                { assert provenance.orientation.left.analysis_id == 'example_pgen_qt' },
-                { assert provenance.orientation.right.analysis_id == 'example_pgen_bt' },
-                { assert provenance.matrix.kind == 'gcta_dense' },
-                { assert provenance.matrix.settings == [:] },
-                { assert provenance.matrix.key },
-                { assert provenance.matrix.basename != provenance.request_id },
-                { assert provenance.native_args == ['--reml-maxit', '500'] },
-                { assert provenance.effective_prevalence == [0.1] },
-                { assert provenance.declared_prevalence == [left: null, right: 0.1] },
-                { assert provenance.diagnostics.residual_covariance_status == 'retained' },
-                { assert provenance.execution.container.contains('python:3.14.5') },
-                { assert provenance.native_components.containsKey('C(e)_tr12') },
                 { assert nativeCommand != null },
                 { assert nativeCommand.text.contains('--reml-bivar-prevalence 0.1') },
                 { assert nativeCommand.text.contains('--reml-maxit 500') },
                 { assert !nativeCommand.text.contains('\n        --prevalence ') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
-                { assert snapshot(stableRequestNames, heritability.text, correlation.text, covariance.text, diagnosticText, stableProvenance).match('results') },
+                { assert snapshot(stableRequestNames, new File(request, 'native.hsq').text).match('results') },
             )
         }
     }
@@ -125,14 +96,11 @@ nextflow_pipeline {
 
         then {
             def request = new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt")
-            def provenance = new groovy.json.JsonSlurper().parse(new File(request, 'provenance.json'))
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 1 },
                 { assert new File(request, 'native.hsq').isFile() },
-                { assert provenance.stub == true },
-                { assert provenance.classification == 'completed_nonestimable' },
+                { assert new File(request, 'native.log').isFile() },
             )
         }
     }
@@ -168,7 +136,7 @@ nextflow_pipeline {
                 { assert new File(unaryRoot, 'example_pgen_qt/example_pgen_qt.gcta_greml.hsq').isFile() },
                 { assert new File(unaryRoot, 'example_pgen_bt/example_pgen_bt.gcta_greml.hsq').isFile() },
                 { assert new File(pairRequest, 'native.hsq').isFile() },
-                { assert new File(pairRequest, 'provenance.json').isFile() },
+                { assert new File(pairRequest, 'native.log').isFile() },
             )
         }
     }

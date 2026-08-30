@@ -28,7 +28,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == '5d5b4c2b85c3' },
+                { assert function.result == '4e1eb0db2ace' },
             )
         }
     }
@@ -48,7 +48,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == '5d5b4c2b85c3' },
+                { assert function.result == '4e1eb0db2ace' },
             )
         }
     }
@@ -68,7 +68,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == '06e0d3682f84' },
+                { assert function.result == '9119e4d34437' },
             )
         }
     }
@@ -88,7 +88,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == '6b299cd8c1d8' },
+                { assert function.result == '7f8d35e12b5b' },
             )
         }
     }
@@ -107,7 +107,7 @@ nextflow_function {
                     right_summary_statistics_id: 'external_bt',
                     reference_bundle_id: 'ldsc_eur',
                     native_scale: 'observed',
-                    munging_keys: ['5d5b4c2b85c3', '6b299cd8c1d8'],
+                    munging_keys: ['4e1eb0db2ace', '7f8d35e12b5b'],
                 ]
                 """
             }

@@ -1,61 +1,54 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_ldsc_summary_analyses
-description: Route nf-core/gwas summary-scale LDSC heritability and genetic-correlation requests through one shared content-addressed munging to normalized results
+description: Route summary-scale LDSC requests through shared content-addressed munging into native observed- and liability-scale logs
 keywords:
   - ldsc
   - munge
   - heritability
   - genetic correlation
-  - liability scale
   - summary statistics
 components:
   - ldsc/mungesumstats
   - ldsc/h2
   - ldsc/rg
-  - normalise/ldsc
   - digestfilebytes
   - digestidentitytext
 input:
   - ch_h2_requests:
-      description: Every validated ldsc_h2 unary request with its request-owned reference-bundle resources; an LDSC-family bundle supplies the HapMap3 SNP list, the LD-score directory and the regression-weight directory, and `[]` for the LDAK-family tagging file
+      description: Validated H2 requests with request-owned LDSC resources
       structure: "[map meta, path hapmap3_snplist, path reference_ld_scores, path regression_weights, path tagging_file|[]]"
       pattern: "*.{snplist,txt,tsv}"
       ontologies: []
   - ch_rg_requests:
-      description: Every validated ldsc_rg pair request with the same request-owned reference-bundle resources; meta carries the declared left and right summary-statistics identities and each endpoint's binariness and prevalence fields
+      description: Validated ordered RG requests with request-owned LDSC resources
       structure: "[map meta, path hapmap3_snplist, path reference_ld_scores, path regression_weights, path tagging_file|[]]"
       pattern: "*.{snplist,txt,tsv}"
       ontologies: []
-  - ch_canonical_summary_statistics:
-      description: The canonical summary statistics, exactly one element per distinct summary_statistics_id
-      structure: "[map meta, path canonical_summary_statistics]"
-      pattern: "*.canonical.tsv.gz"
+  - ch_summary_statistics:
+      description: GWASLab-standard summary statistics, one per summary_statistics_id
+      structure: "[map meta, path summary_statistics]"
+      pattern: "*.gwaslab.tsv.gz"
       ontologies: []
 output:
-  - heritability:
-      description: Normalized heritability table, one per ldsc_h2 request and one per ldsc_rg request carrying both declared endpoints
-      structure: "[map meta, path heritability]"
-      pattern: "heritability.tsv"
+  - h2_observed_log:
+      description: Native observed-scale LDSC H2 log
+      structure: "[map meta, path log]"
+      pattern: "*.observed.log"
       ontologies: []
-  - genetic_correlation:
-      description: Normalized genetic correlation table, one per ldsc_rg request; an ldsc_h2 request contributes no record
-      structure: "[map meta, path genetic_correlation]"
-      pattern: "genetic_correlation.tsv"
+  - h2_liability_log:
+      description: Native liability-scale LDSC H2 log when selected by endpoint prevalence
+      structure: "[map meta, path log]"
+      pattern: "*.liability.log"
       ontologies: []
-  - genetic_covariance:
-      description: Normalized genetic covariance table, one per ldsc_rg request; an ldsc_h2 request contributes no record
-      structure: "[map meta, path genetic_covariance]"
-      pattern: "genetic_covariance.tsv"
+  - rg_observed_log:
+      description: Native observed-scale LDSC RG log
+      structure: "[map meta, path log]"
+      pattern: "*.observed.log"
       ontologies: []
-  - diagnostics:
-      description: Normalized diagnostic metrics, one per ldsc_h2 request and one per ldsc_rg request
-      structure: "[map meta, path diagnostics]"
-      pattern: "diagnostics.tsv"
-      ontologies: []
-  - provenance:
-      description: Normalized provenance record, one per request, recording the reference bundle, the native artifacts and the reusable munging identity
-      structure: "[map meta, path provenance]"
-      pattern: "provenance.json"
+  - rg_liability_log:
+      description: Native liability-scale LDSC RG log when selected by endpoint prevalence
+      structure: "[map meta, path log]"
+      pattern: "*.liability.log"
       ontologies: []
 authors:
   - "@andongni"

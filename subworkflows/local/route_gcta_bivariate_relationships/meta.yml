@@ -1,68 +1,79 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_gcta_bivariate_relationships
-description: Route nf-core/gwas individual-level relationship requests through one shared bivariate trait preparation into GCTA bivariate REML, REML-LDMS, HEreg and HEreg-LDMS normalized results
+description: Route declared individual-level relationship requests through shared bivariate trait preparation into native GCTA bivariate REML and HEreg outputs
 keywords:
   - gcta
   - bivariate reml
   - haseman-elston regression
-  - hereg
   - ldms
-  - genetic correlation
   - relationship
-  - relatedness matrix
 components:
   - prepare/bivariate/traits
   - gcta/bivariatereml
   - gcta/bivariateremlldms
   - gcta/bivariatehereg
   - gcta/bivariateheregldms
-  - normalise/gcta/bivariate
 input:
   - ch_relationships:
-      description: Every validated individual-level relationship request, one row per selected method per relationship; meta carries the relationship identity, the request identity, the method token, the declared left and right analysis identities in their declared orientation, each endpoint's trait identity, trait type, binariness and prevalence declarations, and the bivariate prevalence and native-argument policy the method resolved. Reversed duplicates are refused by validation and never reach this controller
+      description: Validated relationship requests, one row per selected method
       structure: "[map meta, [ path genotype_file, ... ], path pair_quant_covariates|[], path pair_cat_covariates|[]]"
       pattern: "*.{bed,bim,fam,pgen,psam,pvar,vcf,vcf.gz,tsv,txt}"
       ontologies: []
-  - ch_normalised_phenotypes:
-      description: The headerless canonical phenotype serialisation of every analysis unit, keyed one-to-one on the analysis meta; each relationship endpoint is resolved against this stream by the declared analysis identity, and one analysis may be an endpoint of several relationships
+  - ch_prepared_phenotypes:
+      description: Headerless prepared phenotype for every analysis unit
       structure: "[map meta, path phenotype]"
       pattern: "*.pheno"
       ontologies: []
   - ch_relationship_dense_matrices:
-      description: The dense GCTA relatedness matrices built for relationship requests and already fanned out one element per request; meta carries the request identity and the content-derived matrix reuse key, and the staged family must include its `.grm.id` member because the installed component addresses the matrix by staged basename. A relationship selecting both dense estimators carries one reuse key across both requests, so the matrix is constructed once
+      description: Dense GCTA relatedness matrices fanned out per request
       structure: "[map meta, [ path grm_file, ... ]]"
       pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
   - ch_relationship_ldms_matrices:
-      description: The LD- and MAF-stratified GCTA matrix families built for relationship requests and already fanned out one element per request, each with its MGRM manifest; meta carries the same request identity and matrix reuse key
+      description: LD- and MAF-stratified GCTA matrix families fanned out per request
       structure: "[map meta, path mgrm, [ path grm_file, ... ]]"
       pattern: "*.{mgrm,grm.bin,grm.N.bin,grm.id}"
       ontologies: []
 output:
-  - heritability:
-      description: Normalized heritability table, one per relationship request, carrying both declared endpoints in declared left/right order
-      structure: "[map meta, path heritability]"
-      pattern: "heritability.tsv"
+  - reml_results:
+      description: Native dense bivariate REML result
+      structure: "[map meta, path result]"
+      pattern: "*.hsq"
       ontologies: []
-  - genetic_correlation:
-      description: Normalized genetic correlation table, one per relationship request, presented in the declared left/right orientation
-      structure: "[map meta, path genetic_correlation]"
-      pattern: "genetic_correlation.tsv"
+  - reml_log:
+      description: Native dense bivariate REML log
+      structure: "[map meta, path log]"
+      pattern: "*.log"
       ontologies: []
-  - genetic_covariance:
-      description: Normalized genetic covariance table, one per relationship request, presented in the declared left/right orientation; the REML estimators report the observed phenotype scale and the HEreg estimators the standardised scale they fit on, and a multi-component request carries its native genome-wide total as the primary row beside the per-component rows
-      structure: "[map meta, path genetic_covariance]"
-      pattern: "genetic_covariance.tsv"
+  - hereg_results:
+      description: Native dense bivariate HEreg result
+      structure: "[map meta, path result]"
+      pattern: "*.HEreg"
       ontologies: []
-  - diagnostics:
-      description: Normalized diagnostic metrics, one per relationship request, including the endpoint sample counts recorded while the two-trait table was built
-      structure: "[map meta, path diagnostics]"
-      pattern: "diagnostics.tsv"
+  - hereg_log:
+      description: Native dense bivariate HEreg log
+      structure: "[map meta, path log]"
+      pattern: "*.log"
       ontologies: []
-  - provenance:
-      description: Normalized provenance record, one per relationship request, recording the native GCTA artifacts, the bivariate preparation log and the matrix identity the request was executed against
-      structure: "[map meta, path provenance]"
-      pattern: "provenance.json"
+  - reml_ldms_results:
+      description: Native LDMS bivariate REML result
+      structure: "[map meta, path result]"
+      pattern: "*.hsq"
+      ontologies: []
+  - reml_ldms_log:
+      description: Native LDMS bivariate REML log
+      structure: "[map meta, path log]"
+      pattern: "*.log"
+      ontologies: []
+  - hereg_ldms_results:
+      description: Native LDMS bivariate HEreg result
+      structure: "[map meta, path result]"
+      pattern: "*.HEreg"
+      ontologies: []
+  - hereg_ldms_log:
+      description: Native LDMS bivariate HEreg log
+      structure: "[map meta, path log]"
+      pattern: "*.log"
       ontologies: []
 authors:
   - "@andongni"

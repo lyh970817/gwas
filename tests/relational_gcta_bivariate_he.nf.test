@@ -57,9 +57,8 @@ nextflow_pipeline {
 
     // Selecting HEreg beside REML for one relationship must construct each required matrix once. That is a
     // scheduling and identity property of the reuse key, so it is asserted under `-stub`: the matrix
-    // construction, the two estimators and the normalizer all still run, while the numerical behaviour of a
-    // 200-sample bivariate likelihood stays out of a test about task counts. The real HEreg numbers are
-    // asserted separately below.
+    // construction and both estimators still run, while the numerical behaviour of a 200-sample bivariate
+    // likelihood stays out of a test about task counts. The real HEreg output is asserted separately below.
     test("selecting dense HEreg beside dense REML constructs the shared GRM exactly once") {
         options "-stub"
 
@@ -94,7 +93,6 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 2 },
                 // Each estimator keeps its own request identity and published request directory.
                 { assert new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--qt_qt2/native.HEreg").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--qt_qt2/native.hsq").isFile() },
@@ -147,7 +145,7 @@ nextflow_pipeline {
         }
     }
 
-    test("dense HEreg publishes native moment estimands, its standardised covariance scale and its diagnostics") {
+    test("dense HEreg publishes its native result and log") {
         when {
             def inputs = quantitativePair(projectDir, outputDir, 'gcta_bivariate_he_dense', 'gcta_bivariate_he')
             params {
@@ -162,10 +160,6 @@ nextflow_pipeline {
 
         then {
             def heRequest = new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--qt_qt2")
-            def heProvenance = new groovy.json.JsonSlurper().parse(new File(heRequest, 'provenance.json'))
-            def correlation = new File("${params.outdir}/genetic_correlation/gcta_bivariate_he/gcta_bivariate_he--qt_qt2/genetic_correlation.tsv")
-            def covariance = new File("${params.outdir}/genetic_covariance/gcta_bivariate_he/gcta_bivariate_he--qt_qt2/genetic_covariance.tsv")
-            def heritability = new File("${params.outdir}/heritability/gcta_bivariate_he/gcta_bivariate_he--qt_qt2/heritability.tsv")
             def nativeCommand = workFiles(outputDir).find { entry ->
                 entry.name == '.command.sh' && entry.text.contains('--HEreg-bivar 1 2')
             }
@@ -174,47 +168,21 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
-                { assert heProvenance.matrix.kind == 'gcta_dense' },
-                { assert heProvenance.matrix.basename != heProvenance.request_id },
                 { assert new File(heRequest, 'native.HEreg').isFile() },
                 { assert new File(heRequest, 'native.log').isFile() },
-                { assert heRequest.list().sort() == ['diagnostics.tsv', 'native.HEreg', 'native.log', 'provenance.json'] },
-                { assert heritability.readLines().size() == 3 },
-                { assert correlation.readLines().size() == 2 },
-                { assert covariance.readLines().size() == 2 },
-                { assert heritability.readLines().tail().every { line -> line.split('\t')[-3] != 'NA' } },
-                { assert correlation.readLines().tail().every { line -> line.split('\t')[-3] != 'NA' } },
-                // Single-component output carries no `component` column, matching the dense REML view.
-                { assert !heritability.readLines().first().split('\t').contains('component') },
-                // HEreg standardises both phenotypes, so its covariance is on the standardised scale and is
-                // labelled as such rather than borrowing REML's observed-scale label.
-                { assert covariance.readLines()[1].split('\t')[-4] == 'observed_standardised' },
-                // Declared orientation survives into presentation and is load-bearing for this estimator.
-                { assert heProvenance.orientation.left.analysis_id == 'example_pgen_qt' },
-                { assert heProvenance.orientation.right.analysis_id == 'example_pgen_qt2' },
-                { assert heritability.readLines()[1..2].collect { line -> line.split('\t')[4] } == ['example_pgen_qt', 'example_pgen_qt2'] },
-                // A moment estimator has no residual-covariance parameter and no covariate seam at all.
-                { assert heProvenance.diagnostics.residual_covariance_status == 'no_residual_covariance_parameter' },
-                { assert heProvenance.diagnostics.covariate_adjustment == 'not_supported_by_method' },
-                { assert heProvenance.diagnostics.standard_error_basis == 'jackknife' },
-                { assert heProvenance.diagnostics.native_estimator == 'haseman_elston_cross_product' },
-                { assert heProvenance.diagnostics.native_cross_product_orientation == 'left_trait_row_right_trait_column' },
-                { assert heProvenance.diagnostics.jackknife_sampling_covariance == 'available' },
-                { assert heProvenance.native_sampling_covariance.parameter_order == ['G_tr1', 'G_tr2', 'G_tr12'] },
-                { assert heProvenance.native_sampling_covariance.matrix.size() == 3 },
-                { assert heProvenance.effective_prevalence == [] },
-                { assert heProvenance.tool.version == '1.94.1' },
+                { assert heRequest.list().sort() == ['native.HEreg', 'native.log'] },
                 // The wrapper owns the invocation: no covariate flag and no prevalence flag is emitted.
                 { assert nativeCommand != null },
                 { assert !nativeCommand.text.contains('--qcovar') },
                 { assert !nativeCommand.text.contains('--covar') },
                 { assert !nativeCommand.text.contains('--prevalence') },
                 { assert snapshot(removeNextflowVersion("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")).match('versions') },
+                { assert snapshot(new File(heRequest, 'native.HEreg').text).match('results') },
             )
         }
     }
 
-    test("a one-stratum LDMS component plan publishes GCTA's one-component layout as the total") {
+    test("a one-stratum LDMS component plan publishes GCTA's native one-component layout") {
         when {
             // One LD stratum and one MAF stratum: GCTA has nothing to sum, so it writes the one-component
             // layout with no `Sum of ...` rows and no `Total rG`, and that single component is the
@@ -244,24 +212,18 @@ nextflow_pipeline {
 
         then {
             def heRequest = new File("${params.outdir}/requests/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2")
-            def heProvenance = new groovy.json.JsonSlurper().parse(new File(heRequest, 'provenance.json'))
-            def correlation = new File("${params.outdir}/genetic_correlation/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2/genetic_correlation.tsv").readLines()
             assertAll(
                 { assert workflow.success },
-                { assert heProvenance.matrix.kind == 'gcta_ldms' },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
+                { assert new File(heRequest, 'native.HEreg').isFile() },
+                { assert new File(heRequest, 'native.log').isFile() },
                 { assert !new File(heRequest, 'native.HEreg').text.contains('Total rG') },
-                { assert heProvenance.diagnostics.native_component_layout == 'single_component' },
-                { assert heProvenance.diagnostics.primary_result_component == 'total' },
-                { assert heProvenance.genetic_components == ['total'] },
-                { assert correlation.size() == 2 },
-                { assert correlation[1].split('\t')[3] == 'total' },
-                { assert correlation[1].split('\t')[-3] != 'NA' },
             )
         }
     }
 
 
-    test("multi-component LDMS HEreg publishes a native total alongside its per-component rows") {
+    test("multi-component LDMS HEreg publishes GCTA's native component layout") {
         when {
             // Two LD-score strata: the bins are quantile defined, so both are non-empty by construction and
             // GCTA writes the multi-component layout with its own `Sum of ...` totals and `Total rG`.
@@ -290,38 +252,13 @@ nextflow_pipeline {
 
         then {
             def heRequest = new File("${params.outdir}/requests/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2")
-            def heProvenance = new groovy.json.JsonSlurper().parse(new File(heRequest, 'provenance.json'))
-            def correlation = new File("${params.outdir}/genetic_correlation/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2/genetic_correlation.tsv").readLines()
-            def covariance = new File("${params.outdir}/genetic_covariance/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2/genetic_covariance.tsv").readLines()
-            def heritability = new File("${params.outdir}/heritability/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2/heritability.tsv").readLines()
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
                 { assert new File(heRequest, 'native.HEreg').isFile() },
+                { assert new File(heRequest, 'native.log').isFile() },
                 { assert new File(heRequest, 'native.HEreg').text.contains('Total rG') },
-                // The primary published result is the native genome-wide total; the per-component rows stay
-                // as secondary diagnostics of the same fit.
-                { assert heProvenance.diagnostics.native_component_layout == 'multi_component' },
-                { assert heProvenance.diagnostics.primary_result_component == 'total' },
-                { assert heProvenance.diagnostics.total_result_origin == 'native' },
-                { assert heProvenance.genetic_components == ['total', 'G1', 'G2'] },
-                { assert correlation.first().split('\t').contains('component') },
-                { assert correlation.tail().collect { line -> line.split('\t')[3] } == ['total', 'G1', 'G2'] },
-                { assert covariance.tail().collect { line -> line.split('\t')[3] } == ['total', 'G1', 'G2'] },
-                { assert heritability.tail().collect { line -> line.split('\t')[3] } == ['total', 'total', 'G1', 'G1', 'G2', 'G2'] },
-                // Whatever the total's uncertainty turns out to be, it comes from GCTA's own `Total rG` row.
-                // Two hundred samples split across two LD strata is far too little for the moment estimator
-                // to resolve every jackknife standard error, so the classification is asserted rather than
-                // assumed: a nonfinite primary uncertainty must be reported, never filled in from the
-                // marginal component standard errors. The finite-uncertainty case is covered by the module
-                // test in `modules/local/gcta/bivariateheregldms/tests`.
-                { assert correlation[1].split('\t')[-3] != 'NA' },
-                { assert correlation[1].split('\t')[-1] in ['estimable', 'estimable_with_warning', 'completed_nonestimable'] },
-                { assert covariance[1].split('\t')[-3] != 'NA' },
-                // The complete sampling covariance matrix GCTA writes only to the log is retained.
-                { assert heProvenance.native_sampling_covariance.parameter_order == ['G1_tr1', 'G1_tr2', 'G1_tr12', 'G2_tr1', 'G2_tr2', 'G2_tr12'] },
-                { assert heProvenance.native_sampling_covariance.matrix.size() == 6 },
             )
         }
     }
@@ -343,13 +280,11 @@ nextflow_pipeline {
 
         then {
             def request = new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--qt_qt2")
-            def provenance = new groovy.json.JsonSlurper().parse(new File(request, 'provenance.json'))
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 1 },
                 { assert new File(request, 'native.HEreg').isFile() },
-                { assert provenance.stub == true },
+                { assert new File(request, 'native.log').isFile() },
             )
         }
     }

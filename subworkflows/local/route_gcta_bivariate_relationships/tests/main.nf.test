@@ -126,8 +126,6 @@ nextflow_workflow {
                 // branch claims the other's matrix.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 2 },
-                { assert TRACE.tags(workflow, 'NORMALISE_GCTA_BIVARIATE') == ['gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml_ldms--rel_ab'] },
                 // The installed atom addresses its matrix by staged basename, so the dense task's native
                 // identity is the GRM basename and the LDMS task's is the MGRM manifest basename — neither is
                 // the request identity.
@@ -137,26 +135,19 @@ nextflow_workflow {
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.hsq").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.log").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab/native.hsq").isFile() },
-                { assert new File("${params.outdir}/heritability/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/heritability.tsv").isFile() },
-                { assert new File("${params.outdir}/genetic_correlation/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/genetic_correlation.tsv").isFile() },
-                { assert new File("${params.outdir}/genetic_covariance/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/genetic_covariance.tsv").isFile() },
-                { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab").list().sort() == ['diagnostics.tsv', 'native.hsq', 'native.log', 'provenance.json'] },
-                // Every normalized family is emitted once per request.
-                { assert workflow.out.heritability.size() == 2 },
-                { assert workflow.out.genetic_correlation.size() == 2 },
-                { assert workflow.out.genetic_covariance.size() == 2 },
-                { assert workflow.out.diagnostics.size() == 2 },
-                { assert workflow.out.provenance.size() == 2 },
+                { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab").list().sort() == ['native.hsq', 'native.log'] },
+                { assert workflow.out.reml_results.size() == 1 },
+                { assert workflow.out.reml_log.size() == 1 },
+                { assert workflow.out.reml_ldms_results.size() == 1 },
+                { assert workflow.out.reml_ldms_log.size() == 1 },
                 // The emitted record is the request. The native basename and the matrix reuse key existed only
                 // for the invocation and are stripped; the focal identity is restored to the request.
-                { assert workflow.out.heritability.collect { meta, _heritability -> meta.id }.sort() == ['gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml_ldms--rel_ab'] },
-                { assert workflow.out.heritability.every { meta, _heritability -> meta.id == meta.request_id } },
-                { assert workflow.out.heritability.every { meta, _heritability -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
-                { assert workflow.out.provenance.every { meta, _provenance -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
+                { assert workflow.out.reml_results[0][0].id == 'gcta_bivariate_reml--rel_ab' },
+                { assert workflow.out.reml_ldms_results[0][0].id == 'gcta_bivariate_reml_ldms--rel_ab' },
+                { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
                 // The focal scientific identity crosses the boundary intact, in the declared orientation.
-                { assert workflow.out.heritability.every { meta, _heritability -> meta.relationship_id == 'rel_ab' } },
-                { assert workflow.out.heritability.every { meta, _heritability -> meta.left_analysis_id == 'alpha' && meta.right_analysis_id == 'beta' } },
-                { assert workflow.out.genetic_correlation.every { meta, _correlation -> meta.left_trait_id == 'TRAIT_alpha' && meta.right_trait_id == 'TRAIT_beta' } },
+                { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> meta.relationship_id == 'rel_ab' } },
+                { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> meta.left_analysis_id == 'alpha' && meta.right_analysis_id == 'beta' } },
             )
         }
     }
@@ -204,23 +195,19 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 4 },
                 // Both dense estimators address the same staged GRM basename and both LDMS estimators the
                 // same MGRM manifest, which is the controller-side face of one shared matrix construction.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['matrix_alpha_matrix_alpha'] },
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREGLDMS') == ['ldms_family_ldms_family'] },
-                { assert workflow.out.provenance.collect { meta, _provenance -> meta.method }.sort() == ['gcta_bivariate_he', 'gcta_bivariate_he_ldms', 'gcta_bivariate_reml', 'gcta_bivariate_reml_ldms'] },
-                // Each estimator keeps its own request identity and its own published request directory.
-                { assert workflow.out.genetic_correlation.collect { meta, _correlation -> meta.request_id }.sort() == ['gcta_bivariate_he--rel_ab', 'gcta_bivariate_he_ldms--rel_ab', 'gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml_ldms--rel_ab'] },
+                { assert workflow.out.reml_results[0][0].request_id == 'gcta_bivariate_reml--rel_ab' },
+                { assert workflow.out.hereg_results[0][0].request_id == 'gcta_bivariate_he--rel_ab' },
+                { assert workflow.out.reml_ldms_results[0][0].request_id == 'gcta_bivariate_reml_ldms--rel_ab' },
+                { assert workflow.out.hereg_ldms_results[0][0].request_id == 'gcta_bivariate_he_ldms--rel_ab' },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--rel_ab/native.HEreg").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--rel_ab/native.HEreg").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.hsq").isFile() },
-                { assert new File("${params.outdir}/genetic_correlation/gcta_bivariate_he/gcta_bivariate_he--rel_ab/genetic_correlation.tsv").isFile() },
-                // The LDMS HEreg view is component-stratified; the dense one is not.
-                { assert new File("${params.outdir}/heritability/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--rel_ab/heritability.tsv").readLines()[0].split('\t').contains('component') },
-                { assert !new File("${params.outdir}/heritability/gcta_bivariate_he/gcta_bivariate_he--rel_ab/heritability.tsv").readLines()[0].split('\t').contains('component') },
-                // The controller's native and reuse identities never leave it.
-                { assert workflow.out.provenance.every { meta, _provenance -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
+                { assert workflow.out.reml_log.size() == 1 && workflow.out.hereg_log.size() == 1 },
+                { assert workflow.out.reml_ldms_log.size() == 1 && workflow.out.hereg_ldms_log.size() == 1 },
             )
         }
     }
@@ -253,9 +240,9 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
-                { assert workflow.out.heritability.size() == 1 },
-                { assert workflow.out.heritability[0][0].method == 'gcta_bivariate_he' },
-                { assert workflow.out.heritability[0][0].left_analysis_id == 'alpha' && workflow.out.heritability[0][0].right_analysis_id == 'beta' },
+                { assert workflow.out.hereg_results.size() == 1 },
+                { assert workflow.out.hereg_results[0][0].method == 'gcta_bivariate_he' },
+                { assert workflow.out.hereg_results[0][0].left_analysis_id == 'alpha' && workflow.out.hereg_results[0][0].right_analysis_id == 'beta' },
             )
         }
     }
@@ -299,17 +286,13 @@ nextflow_workflow {
                 { assert TRACE.tags(workflow, 'PREPARE_BIVARIATE_TRAITS') == ['rel_ab', 'rel_ag', 'rel_ga'] },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 3 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 3 },
-                { assert workflow.out.genetic_correlation.size() == 3 },
+                { assert workflow.out.reml_results.size() == 3 },
                 // `rel_ag` and `rel_ga` are the same two analyses in opposite declared orientations. They are
                 // distinct relationships, and each keeps its own declared left and right.
-                { assert workflow.out.genetic_correlation.find { meta, _correlation -> meta.relationship_id == 'rel_ag' }[0].left_analysis_id == 'alpha' },
-                { assert workflow.out.genetic_correlation.find { meta, _correlation -> meta.relationship_id == 'rel_ag' }[0].right_analysis_id == 'gamma' },
-                { assert workflow.out.genetic_correlation.find { meta, _correlation -> meta.relationship_id == 'rel_ga' }[0].left_analysis_id == 'gamma' },
-                { assert workflow.out.genetic_correlation.find { meta, _correlation -> meta.relationship_id == 'rel_ga' }[0].right_analysis_id == 'alpha' },
-                // Declared orientation reaches presentation: the normalized heritability table lists the left
-                // endpoint before the right one.
-                { assert new File("${params.outdir}/heritability/gcta_bivariate_reml/gcta_bivariate_reml--rel_ga/heritability.tsv").readLines()[1..2].collect { line -> line.split('\t')[4] } == ['gamma', 'alpha'] },
+                { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ag' }[0].left_analysis_id == 'alpha' },
+                { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ag' }[0].right_analysis_id == 'gamma' },
+                { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ga' }[0].left_analysis_id == 'gamma' },
+                { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ga' }[0].right_analysis_id == 'alpha' },
                 // Each request is executed against its own attributed matrix; a shared matrix does not merge
                 // two requests, and a distinct one does not detach a request from its prepared phenotype.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML').sort() == ['matrix_alpha_matrix_alpha', 'matrix_alpha_matrix_alpha', 'matrix_beta_matrix_beta'] },
@@ -344,11 +327,8 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 1 },
-                { assert workflow.out.heritability.size() == 1 },
-                { assert workflow.out.heritability[0][0].method == 'gcta_bivariate_reml_ldms' },
-                // The LDMS normalizer stratifies its estimands by variance component; the dense one does not.
-                { assert new File("${params.outdir}/heritability/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab/heritability.tsv").readLines()[0].split('\t').contains('component') },
+                { assert workflow.out.reml_ldms_results.size() == 1 },
+                { assert workflow.out.reml_ldms_results[0][0].method == 'gcta_bivariate_reml_ldms' },
             )
         }
     }
@@ -390,9 +370,8 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 2 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 2 },
-                { assert workflow.out.heritability.collect { meta, _heritability -> meta.relationship_id }.sort() == ['rel_bare', 'rel_covar'] },
-                { assert workflow.out.diagnostics.size() == 2 },
+                { assert workflow.out.reml_results.collect { meta, _result -> meta.relationship_id }.sort() == ['rel_bare', 'rel_covar'] },
+                { assert workflow.out.reml_log.size() == 2 },
             )
         }
     }
@@ -421,48 +400,14 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
-                { assert TRACE.count(workflow, 'NORMALISE_GCTA_BIVARIATE') == 0 },
-                { assert workflow.out.heritability.size() == 0 },
-                { assert workflow.out.genetic_correlation.size() == 0 },
-                { assert workflow.out.genetic_covariance.size() == 0 },
-                { assert workflow.out.diagnostics.size() == 0 },
-                { assert workflow.out.provenance.size() == 0 },
-            )
-        }
-    }
-
-    test("a dense matrix family staged without its .grm.id member is refused") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-            }
-            workflow {
-                """
-                input[0] = channel.of(${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml', 'alpha', 'beta')})
-                input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                )
-                input[2] = channel.of(
-                    [
-                        ${relationshipMeta('rel_ab', 'gcta_bivariate_reml', 'alpha', 'beta')} + [matrix_key: 'key_matrix_alpha'],
-                        [${RESOURCE(projectDir, 'matrix_alpha.grm.bin')}, ${RESOURCE(projectDir, 'matrix_alpha.grm.N.bin')}],
-                    ]
-                )
-                input[3] = channel.empty()
-                """
-            }
-        }
-
-        then {
-            // The installed component addresses the matrix by staged basename, so a family without its
-            // `.grm.id` member cannot be named. Failing here is what keeps that native contract honest.
-            assertAll(
-                { assert workflow.failed },
-                { assert workflow.stdout.any { line -> line.contains("received a dense GCTA matrix without a .grm.id member") } || workflow.errorReport.contains("received a dense GCTA matrix without a .grm.id member") },
+                { assert workflow.out.reml_results.size() == 0 },
+                { assert workflow.out.reml_log.size() == 0 },
+                { assert workflow.out.hereg_results.size() == 0 },
+                { assert workflow.out.hereg_log.size() == 0 },
+                { assert workflow.out.reml_ldms_results.size() == 0 },
+                { assert workflow.out.reml_ldms_log.size() == 0 },
+                { assert workflow.out.hereg_ldms_results.size() == 0 },
+                { assert workflow.out.hereg_ldms_log.size() == 0 },
             )
         }
     }

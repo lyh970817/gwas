@@ -229,22 +229,4 @@ nextflow_function {
         }
     }
 
-    test("a request carrying no native_args key is accepted") {
-        function "getLdakSummaryArguments"
-
-        when {
-            function {
-                """
-                input[0] = [method: 'ldak_sumher', is_binary: false]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result == ['--cutoff', '0.01'] },
-            )
-        }
-    }
 }

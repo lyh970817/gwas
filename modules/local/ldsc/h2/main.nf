@@ -27,19 +27,17 @@ process LDSC_H2 {
     export OMP_NUM_THREADS="${task.cpus}"
     export MKL_NUM_THREADS="${task.cpus}"
 
+    # This LDSC release writes the complete native analysis log to stdout. Retain that stream under the
+    # declared result name; the file it opens at the same name is empty.
     ldsc.py \
         --h2 "${sumstats}" \
         --ref-ld-chr "reference_ld_scores/" \
         --w-ld-chr "regression_weights/" \
         --out "${prefix}" \
         ${args} \
-        | tee "${prefix}.stdout.log"
+        > "${prefix}.stdout.log"
 
-    if [[ -s "${prefix}.log" ]]; then
-        rm "${prefix}.stdout.log"
-    else
-        mv "${prefix}.stdout.log" "${prefix}.log"
-    fi
+    mv "${prefix}.stdout.log" "${prefix}.log"
     """
 
     stub:

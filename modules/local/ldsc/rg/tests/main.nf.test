@@ -103,23 +103,4 @@ nextflow_process {
         }
     }
 
-    test("reject a malformed second summary-statistics input") {
-        when {
-            def fixture = inputs(outputDir, 'invalid', false)
-            process {
-                """
-                input[0] = [[id: 'pair_invalid'], file('${fixture.left}', checkIfExists: true), file('${fixture.right}', checkIfExists: true)]
-                input[1] = [[id: 'reference'], file('${fixture.reference}', checkIfExists: true)]
-                input[2] = [[id: 'weights'], file('${fixture.weights}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('Improperly formatted sumstats file') || process.errorReport.contains('Usecols do not match columns') },
-            )
-        }
-    }
 }

@@ -28,7 +28,7 @@ input:
       pattern: "*.{grm.bin,grm.id,grm.details,grm.adjust,keep}"
       ontologies: []
   - ch_headerless_phenotypes:
-      description: The headerless canonical phenotype and covariate serialisations of every analysis unit, keyed one-to-one on the analysis meta. GCTA and LDAK reject a header row, and normalisation writes the trait at a fixed third column, which is what makes `--mpheno` a constant. An absent optional covariate file is `[]`, never a placeholder file and never a null path
+      description: The headerless prepared phenotype and covariate serialisations of every analysis unit, keyed one-to-one on the analysis meta. GCTA and LDAK reject a header row, and preparation writes the trait at a fixed third column, which is what makes `--mpheno` a constant. An absent optional covariate file is `[]`, never a placeholder file and never a null path
       structure: "[map meta, path phenotype, path quant_covariates|[], path cat_covariates|[]]"
       pattern: "*.{pheno,qcovar,covar}"
       ontologies: []
