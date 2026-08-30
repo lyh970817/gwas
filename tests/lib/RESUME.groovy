@@ -34,7 +34,7 @@ class RESUME {
         // The first run's log and trace destinations are the only two options that must not be
         // reused; everything else — the config files, the params file, the profile, the work
         // directory — is exactly what makes this a resume of that run rather than a fresh one.
-        def trace = new File(test_dir, 'resume_trace.txt')
+        def trace = new File(test_dir, "resume_trace_${java.util.UUID.randomUUID()}.txt")
         def command = []
         for (int index = 0; index < argv.size(); index++) {
             if (argv[index] in ['-log', '-with-trace']) {

@@ -347,11 +347,6 @@ def getMethodRegistry() {
             citation_key: 'gcta_bivariate_reml',
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
-        // GCTA bivariate Haseman-Elston regression is a deterministic moment reference, not a matrix-free
-        // route: it consumes exactly the dense or LDMS GRM family its REML sibling consumes and only makes
-        // the fitting stage cheaper. `trait_support` is quantitative-only because GCTA 1.94.1 HEreg exposes
-        // no prevalence or ascertainment parameter, and `supports_covariates` is false because the native
-        // analysis lists `--qcovar`/`--covar` among its accepted options and then never reads them.
         gcta_bivariate_he: [
             domain: 'pairwise',
             endpoint_domain: 'analysis',
@@ -630,16 +625,12 @@ def getInternalSummaryMetadata(meta, association_method) {
         build: meta.build,
         ancestry: meta.ancestry,
         source_kind: 'pipeline_generated',
-        source_mode: 'raw',
         source_format: "pipeline_${association_method}",
         source_method: association_method,
         source_release: null,
         source_name: "${meta.id}.${association_method}",
         producer_analysis_id: meta.id,
         producer_association_method: association_method,
-        canonical_contract_version: 'nfcore_gwas_canonical_v1',
-        transformation: 'gwaslab_harmonised',
-        harmonization: [tool: 'GWASLab', version: '4.1.9'],
         access_constraints: null,
     ]
 }
@@ -1675,35 +1666,22 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
     def options_document = readMethodOptionsDocument(method_options)
     def method_options_by_analysis = validateMethodOptions(method_options, analysis_rows, options_document)
     def reference_bundles = readReferenceCatalog(reference_catalog)
-    def pair_prevalence_analysis_ids = relationship_rows
-        .findAll { row ->
-            tokenizeMethodSelector(row[0].relationship_methods).any { method ->
-                def capability = getMethodCapabilities()[method]
-                capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
-            }
+    def pair_prevalence_analysis_ids = relationship_rows.findAll { row ->
+        tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+            def capability = getMethodCapabilities()[method]
+            capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
         }
-        .collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }
-        .findAll { analysis_id -> analysis_id }
-        .collect { analysis_id -> analysis_id.toString() } as Set
-    def pair_prevalence_summary_statistics_ids = relationship_rows
-        .findAll { row ->
-            tokenizeMethodSelector(row[0].relationship_methods).any { method ->
-                def capability = getMethodCapabilities()[method]
-                capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
-            }
+    }.collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }.findAll { analysis_id -> analysis_id }.collect { analysis_id -> analysis_id.toString() } as Set
+    def pair_prevalence_summary_statistics_ids = relationship_rows.findAll { row ->
+        tokenizeMethodSelector(row[0].relationship_methods).any { method ->
+            def capability = getMethodCapabilities()[method]
+            capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
         }
-        .collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }
-        .findAll { summary_statistics_id -> summary_statistics_id }
-        .collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
-    def summary_prevalence_analysis_ids = summary_statistics_rows
-        .findAll { row ->
-            def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
-            normaliseCellValue(row[0].producer_analysis_id) && (
-                tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } ||
-                summary_statistics_id in pair_prevalence_summary_statistics_ids
-            )
-        }
-        .collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
+    }.collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }.findAll { summary_statistics_id -> summary_statistics_id }.collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
+    def summary_prevalence_analysis_ids = summary_statistics_rows.findAll { row ->
+        def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
+        normaliseCellValue(row[0].producer_analysis_id) && (tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } || summary_statistics_id in pair_prevalence_summary_statistics_ids)
+    }.collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
 
     cohort_rows.eachWithIndex { row, index ->
         def line = index + 2
@@ -1839,15 +1817,14 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
             line_by_summary_statistics_id[summary_statistics_id] = line
         }
         def source = normaliseCellValue(cells.source)
-        def source_mode = normaliseCellValue(summary_meta.source_mode)?.toString()
         def source_format = normaliseCellValue(summary_meta.source_format)?.toString()
         def producer_analysis_id = normaliseCellValue(summary_meta.producer_analysis_id)?.toString()
         def producer_association_method = normaliseCellValue(summary_meta.producer_association_method)?.toString()
-        def has_external_origin = source || source_mode || source_format
+        def has_external_origin = source || source_format
         def has_internal_origin = producer_analysis_id || producer_association_method
         if (has_external_origin && has_internal_origin) {
             reject.call(
-                ['source', 'source_mode', 'source_format', 'producer_analysis_id', 'producer_association_method'],
+                ['source', 'source_format', 'producer_analysis_id', 'producer_association_method'],
                 'external source fields and pipeline-generated producer fields are mutually exclusive',
             )
         }
@@ -1857,8 +1834,8 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
                 'no summary-statistics origin is declared; supply a complete external source or producer analysis/method pair',
             )
         }
-        if (has_external_origin && (!source || !source_mode || !source_format)) {
-            reject.call(['source', 'source_mode', 'source_format'], 'external origin requires all three source fields')
+        if (has_external_origin && (!source || !source_format)) {
+            reject.call(['source', 'source_format'], 'external origin requires both source fields')
         }
         if (has_internal_origin && (!producer_analysis_id || !producer_association_method)) {
             reject.call(['producer_analysis_id', 'producer_association_method'], 'pipeline-generated origin requires both producer fields')
@@ -1910,18 +1887,15 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
                 ]
             }
         }
-        if (has_external_origin && source && source_mode && source_format) {
+        if (has_external_origin && source && source_format) {
             if (generated_summaries_by_id.containsKey(summary_statistics_id)) {
                 reject.call(
                     'summary_statistics_id',
                     "external result collides with pipeline-generated result '${summary_statistics_id}'; choose a distinct external identity",
                 )
             }
-            if (source_mode == 'canonical' && source_format != 'nfcore_gwas_canonical_v1') {
-                reject.call('source_format', "canonical input must declare 'nfcore_gwas_canonical_v1'")
-            }
-            if (source_mode == 'raw' && (source_format == 'nfcore_gwas_canonical_v1' || source_format.startsWith('auto'))) {
-                reject.call('source_format', "raw input must declare an explicit GWASLab format name and cannot use canonical or automatic detection")
+            if (source_format.startsWith('auto')) {
+                reject.call('source_format', 'external input must declare an explicit GWASLab format name; automatic detection is not supported')
             }
             def is_binary = summary_meta.trait_type == 'binary'
             def population_prevalence = normaliseCellValue(summary_meta.population_prevalence)
@@ -1944,7 +1918,6 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
                 build: summary_meta.build,
                 ancestry: summary_meta.ancestry,
                 source_kind: 'external',
-                source_mode: source_mode,
                 source_format: source_format,
                 source_method: summary_meta.source_method,
                 source_release: normaliseCellValue(summary_meta.source_release),
@@ -1952,9 +1925,6 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
                 producer_analysis_id: null,
                 producer_association_method: null,
                 heritability_methods: methods,
-                canonical_contract_version: 'nfcore_gwas_canonical_v1',
-                transformation: source_mode == 'raw' ? 'gwaslab_harmonised' : 'validated_without_harmonisation',
-                harmonization: source_mode == 'raw' ? [tool: 'GWASLab', version: '4.1.9'] : null,
                 access_constraints: normaliseCellValue(summary_meta.access_constraints),
             ]
             validated_external_summaries << [resolved_meta, source]

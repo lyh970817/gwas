@@ -1,6 +1,6 @@
 nextflow_workflow {
 
-    name "Test canonical summary-statistics route"
+    name "Test GWASLab summary-statistics route"
     script "../main.nf"
     workflow "ROUTE_CANONICAL_SUMMARY_STATISTICS"
     tag "subworkflow"
@@ -8,15 +8,9 @@ nextflow_workflow {
     tag "summary_statistics"
     tag "external_summary"
 
-    // Every case is stubbed, so the staged tables and reference resources only have to exist. What is under
-    // test is the routing: which origins reach GWASLab, which bypass it, that every origin reaches exactly one
-    // canonical serialisation, that each harmonised candidate is rejoined to its own source, and that the
-    // build-keyed reference resources are selected per record with `[]` for an unconfigured build.
     def TESTS = { project_dir -> "${project_dir}/subworkflows/local/route_canonical_summary_statistics/tests" }
     def RESOURCE = { project_dir, name -> "file('${TESTS(project_dir)}/${name}', checkIfExists: true)" }
 
-    // GRCh37 is fully configured; GRCh38 is configured with nothing, which is the documented shape for a build
-    // whose optional resources were never supplied. Both must harmonise.
     def gwaslabReferences = { project_dir ->
         """[
             GRCh37: [
@@ -38,8 +32,6 @@ nextflow_workflow {
         ]"""
     }
 
-    // The analysis meta as an association route hands it over: the analysis identity plus the method token the
-    // route named. The producer summary identity is derived from it inside the controller.
     def associationResult = { project_dir, analysis_id, method, source, overrides = '' ->
         """[
             [
@@ -59,7 +51,7 @@ nextflow_workflow {
         ]"""
     }
 
-    def externalSummary = { project_dir, summary_id, source_mode, source_format, source, overrides = '' ->
+    def externalSummary = { project_dir, summary_id, source_format, source, overrides = '' ->
         """[
             [
                 id: '${summary_id}',
@@ -73,15 +65,12 @@ nextflow_workflow {
                 build: 'GRCh37',
                 ancestry: 'EUR',
                 source_kind: 'external',
-                source_mode: '${source_mode}',
                 source_format: '${source_format}',
                 source_method: 'gwas',
                 source_release: null,
                 source_name: '${source}',
                 producer_analysis_id: null,
                 producer_association_method: null,
-                canonical_contract_version: 'nfcore_gwas_canonical_v1',
-                transformation: '${source_mode == 'raw' ? 'gwaslab_harmonised' : 'validated_without_harmonisation'}',
                 access_constraints: null,
                 ${overrides}
             ],
@@ -89,7 +78,7 @@ nextflow_workflow {
         ]"""
     }
 
-    test("every internal and external origin converges on exactly one canonical serialisation") {
+    test("every internal and external origin crosses GWASLab exactly once") {
 
         options "-stub"
 
@@ -102,11 +91,13 @@ nextflow_workflow {
                 input[0] = channel.of(
                     ${associationResult(projectDir, 'qt1', 'plink2', 'plink2_results.tsv')},
                     ${associationResult(projectDir, 'qt1', 'regenie', 'regenie_results.tsv')},
+                    ${associationResult(projectDir, 'qt2', 'gcta_fastgwa', 'plink2_results.tsv')},
+                    ${associationResult(projectDir, 'qt3', 'ldak_kvik', 'plink2_results.tsv')},
                     ${associationResult(projectDir, 'bt1', 'plink2', 'plink2_results.tsv', "trait_type: 'binary', is_binary: true, population_prevalence: 0.1, sample_prevalence: 0.4,")},
                 )
                 input[1] = channel.of(
-                    ${externalSummary(projectDir, 'external_raw', 'raw', 'gwaslab', 'external_raw.tsv')},
-                    ${externalSummary(projectDir, 'external_canonical', 'canonical', 'nfcore_gwas_canonical_v1', 'external_canonical.tsv')},
+                    ${externalSummary(projectDir, 'external_ssf', 'ssf', 'external_raw.tsv')},
+                    ${externalSummary(projectDir, 'external_gwaslab', 'gwaslab', 'external_canonical.tsv')},
                 )
                 input[2] = ${gwaslabReferences(projectDir)}
                 """
@@ -116,114 +107,26 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // Three internal results and the one raw external row are harmonised; the already-canonical
-                // external row bypasses GWASLab entirely.
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 4 },
-                { assert TRACE.count(workflow, 'CANONICALISE_SUMMARY_STATISTICS') == 5 },
-                // The internal producer identity is deterministic: <analysis_id>--<association_method>. One
-                // analysis exercising two methods is two summaries, not one.
-                { assert TRACE.tags(workflow, 'CANONICALISE_SUMMARY_STATISTICS').sort() == ['bt1--plink2', 'external_canonical', 'external_raw', 'qt1--plink2', 'qt1--regenie'] },
-                { assert workflow.out.summary_statistics.size() == 5 },
-                { assert workflow.out.provenance.size() == 5 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 7 },
+                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == ['bt1--plink2', 'external_gwaslab', 'external_ssf', 'qt1--plink2', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
+                { assert workflow.out.summary_statistics.size() == 7 },
+                { assert workflow.out.harmonization_log.size() == 7 },
                 { assert workflow.out.summary_statistics.every { record -> record.size() == 2 } },
-                { assert workflow.out.summary_statistics.collect { meta, _canonical -> meta.summary_statistics_id }.sort() == ['bt1--plink2', 'external_canonical', 'external_raw', 'qt1--plink2', 'qt1--regenie'] },
-                // The provenance emission is one-to-one with the canonical table on the same task.
-                { assert workflow.out.provenance.collect { meta, _provenance -> meta.summary_statistics_id }.sort() == workflow.out.summary_statistics.collect { meta, _canonical -> meta.summary_statistics_id }.sort() },
-                // The focal summary identity crosses the boundary intact. It is the record the canonicalisation
-                // adapter serialises whole, and the key the LDAK and LDSC routes resolve endpoints against.
-                { assert workflow.out.summary_statistics.every { meta, _canonical -> meta.canonical_contract_version == 'nfcore_gwas_canonical_v1' } },
-                { assert workflow.out.summary_statistics.every { meta, _canonical -> meta.id == meta.summary_statistics_id } },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'qt1--regenie' }[0].source_kind == 'pipeline_generated' },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'qt1--regenie' }[0].producer_association_method == 'regenie' },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'external_canonical' }[0].source_kind == 'external' },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'external_canonical' }[0].transformation == 'validated_without_harmonisation' },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'external_raw' }[0].transformation == 'gwaslab_harmonised' },
-                // Publication is keyed by the summary identity and is unchanged by the controller scope; the
-                // harmonisation intermediate is never republished alongside it.
-                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.provenance.json").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/qt1--regenie/qt1--regenie.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/bt1--plink2/bt1--plink2.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/external_raw/external_raw.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/external_canonical/external_canonical.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/external_raw").list().sort() == ['external_raw.canonical.tsv.gz', 'external_raw.provenance.json'] },
+                { assert workflow.out.summary_statistics.collect { meta, _sumstats -> meta.summary_statistics_id }.sort() == ['bt1--plink2', 'external_gwaslab', 'external_ssf', 'qt1--plink2', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
+                { assert workflow.out.summary_statistics.every { meta, _sumstats -> meta.id == meta.summary_statistics_id } },
+                { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'qt1--regenie' }[0].source_kind == 'pipeline_generated' },
+                { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'qt1--regenie' }[0].producer_association_method == 'regenie' },
+                { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'external_gwaslab' }[0].source_format == 'gwaslab' },
+                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.gwaslab.tsv.gz").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.gwaslab.log").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/external_ssf/external_ssf.gwaslab.tsv.gz").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/external_gwaslab/external_gwaslab.gwaslab.tsv.gz").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/external_ssf").list().sort() == ['external_ssf.gwaslab.log', 'external_ssf.gwaslab.tsv.gz'] },
             )
         }
     }
 
-    test("each harmonised candidate is canonicalised against its own declared source") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-            }
-            workflow {
-                """
-                input[0] = channel.of(
-                    ${associationResult(projectDir, 'qt1', 'plink2', 'plink2_results.tsv')},
-                    ${associationResult(projectDir, 'qt1', 'regenie', 'regenie_results.tsv')},
-                    ${associationResult(projectDir, 'qt2', 'plink2', 'plink2_results.tsv')},
-                )
-                input[1] = channel.empty()
-                input[2] = ${gwaslabReferences(projectDir)}
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert workflow.success },
-                // The reattribution join is strict on both mismatch and duplication, so a successful run over
-                // three distinct summary identities is itself the evidence that each candidate found exactly
-                // one source. Two analyses sharing a source file do not collapse into one summary.
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 3 },
-                { assert TRACE.count(workflow, 'CANONICALISE_SUMMARY_STATISTICS') == 3 },
-                { assert workflow.out.summary_statistics.size() == 3 },
-                { assert workflow.out.summary_statistics.collect { meta, _canonical -> meta.summary_statistics_id }.sort() == ['qt1--plink2', 'qt1--regenie', 'qt2--plink2'] },
-                // The source is attributed by name from the record that declared it, not from the harmonised
-                // intermediate, so the two methods over one analysis keep distinct source names.
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'qt1--plink2' }[0].source_name == 'plink2_results.tsv' },
-                { assert workflow.out.summary_statistics.find { meta, _canonical -> meta.summary_statistics_id == 'qt1--regenie' }[0].source_name == 'regenie_results.tsv' },
-            )
-        }
-    }
-
-    test("an already-canonical external source bypasses harmonisation entirely") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-            }
-            workflow {
-                """
-                input[0] = channel.empty()
-                input[1] = channel.of(
-                    ${externalSummary(projectDir, 'external_canonical_a', 'canonical', 'nfcore_gwas_canonical_v1', 'external_canonical.tsv')},
-                    ${externalSummary(projectDir, 'external_canonical_b', 'canonical', 'nfcore_gwas_canonical_v1', 'external_canonical.tsv')},
-                )
-                input[2] = ${gwaslabReferences(projectDir)}
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 0 },
-                { assert TRACE.count(workflow, 'CANONICALISE_SUMMARY_STATISTICS') == 2 },
-                { assert workflow.out.summary_statistics.size() == 2 },
-                { assert workflow.out.provenance.size() == 2 },
-                { assert new File("${params.outdir}/summary_statistics/external_canonical_a/external_canonical_a.canonical.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/external_canonical_b/external_canonical_b.canonical.tsv.gz").isFile() },
-            )
-        }
-    }
-
-    test("a build with no configured GWASLab resource is still harmonised and canonicalised") {
+    test("GWASLab accepts configured and resource-free genome builds") {
 
         options "-stub"
 
@@ -246,17 +149,14 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // The reference resources are selected per record by the declared build. The unconfigured build
-                // passes `[]` in every reference position, which stages nothing rather than a placeholder.
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 2 },
-                { assert TRACE.count(workflow, 'CANONICALISE_SUMMARY_STATISTICS') == 2 },
-                { assert workflow.out.summary_statistics.collect { meta, _canonical -> meta.build }.sort() == ['GRCh37', 'GRCh38'] },
-                { assert new File("${params.outdir}/summary_statistics/grch38--plink2/grch38--plink2.canonical.tsv.gz").isFile() },
+                { assert workflow.out.summary_statistics.collect { meta, _sumstats -> meta.build }.sort() == ['GRCh37', 'GRCh38'] },
+                { assert new File("${params.outdir}/summary_statistics/grch38--plink2/grch38--plink2.gwaslab.tsv.gz").isFile() },
             )
         }
     }
 
-    test("a run producing no summary statistics executes nothing and emits nothing") {
+    test("an empty route executes and emits nothing") {
 
         options "-stub"
 
@@ -277,9 +177,8 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 0 },
-                { assert TRACE.count(workflow, 'CANONICALISE_SUMMARY_STATISTICS') == 0 },
                 { assert workflow.out.summary_statistics.size() == 0 },
-                { assert workflow.out.provenance.size() == 0 },
+                { assert workflow.out.harmonization_log.size() == 0 },
             )
         }
     }

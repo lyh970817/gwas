@@ -1,15 +1,13 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_canonical_summary_statistics
-description: Converge internal association results and external raw and canonical summary sources on the one nf-core/gwas canonical summary-statistics contract
+description: Route every internal and external summary-statistics source through GWASLab and expose its standardised output directly
 keywords:
   - summary statistics
   - harmonisation
   - gwaslab
-  - canonical contract
-  - provenance
+  - standardisation
 components:
   - gwaslab/harmonize
-  - canonicalise/summary/statistics
   - getassociationcolumnmappingjson
   - getinternalsummarymetadata
 input:
@@ -19,7 +17,7 @@ input:
       pattern: "*.{tsv,tsv.gz,txt,regenie.gz,assoc,fastGWA,linear,hybrid}"
       ontologies: []
   - ch_external_summary_statistics:
-      description: Every validated external summary-statistics row, both source modes; a `raw` row declares its own GWASLab input format in `meta.source_format` and is harmonised, while a `canonical` row bypasses harmonisation and is validated against the canonical contract only
+      description: Every validated external summary-statistics row; each declares its explicit GWASLab input format in `meta.source_format`, including `gwaslab` for a pre-harmonised table
       structure: "[map meta, path source]"
       pattern: "*.{tsv,tsv.gz,txt,gz}"
       ontologies: []
@@ -29,14 +27,14 @@ input:
       ontologies: []
 output:
   - summary_statistics:
-      description: The canonical summary-statistics table, exactly one per `summary_statistics_id`, whatever origin produced it
-      structure: "[map meta, path canonical_summary_statistics]"
-      pattern: "*.canonical.tsv.gz"
+      description: The GWASLab-standard summary-statistics table, exactly one per `summary_statistics_id`, whatever origin produced it
+      structure: "[map meta, path gwaslab_summary_statistics]"
+      pattern: "*.gwaslab.tsv.gz"
       ontologies: []
-  - provenance:
-      description: The canonical provenance sidecar, one-to-one with `summary_statistics` on the same task, recording the source kind, mode, format and checksum alongside the canonical checksum and contract version
-      structure: "[map meta, path provenance]"
-      pattern: "*.provenance.json"
+  - harmonization_log:
+      description: The GWASLab processing and export log, one-to-one with `summary_statistics`
+      structure: "[map meta, path gwaslab_log]"
+      pattern: "*.gwaslab.log"
       ontologies: []
 authors:
   - "@andongni"
