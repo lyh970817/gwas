@@ -33,11 +33,11 @@
                 "example_pgen.ldak_kinship.f299aab0058a.grm.id:md5,bee126b7afe8985da84d031c0eb3f47e"
             ]
         ],
+        "timestamp": "2026-08-12T21:15:56.026974402",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:15:56.026974402"
+        }
     },
     "same-weights-relatedness-matrices": {
         "content": [
@@ -55,11 +55,11 @@
                 "example_pgen.ldak_kinship.d9895671716c.grm.id:md5,bee126b7afe8985da84d031c0eb3f47e"
             ]
         ],
+        "timestamp": "2026-08-12T21:16:44.949659776",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:16:44.949659776"
+        }
     },
     "versions": {
         "content": [
@@ -76,22 +76,22 @@
                 "LDAK_SUBGRM": {
                     "ldak6": 6
                 },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
+                },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
                 },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-30T23:27:13.538686946",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-07-30T01:49:56.66030107"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "different-weights-heritability": {
         "content": [
@@ -110,11 +110,11 @@
                 "example_pgen_bt_second.ldak_reml.reml.liab:md5,b04888d6be654ae9c3c1d9e41102a643"
             ]
         ],
+        "timestamp": "2026-08-12T21:17:35.880578377",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:17:35.880578377"
+        }
     },
     "different-weights-relatedness-matrices": {
         "content": [
@@ -141,11 +141,11 @@
                 "example_pgen.ldak_kinship.d9895671716c.grm.id:md5,bee126b7afe8985da84d031c0eb3f47e"
             ]
         ],
+        "timestamp": "2026-08-12T21:17:35.8159824",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:17:35.8159824"
+        }
     },
     "distinct-heritability": {
         "content": [
@@ -169,11 +169,11 @@
                 "example_pgen_bt_human.ldak_reml.reml.liab:md5,a88497a44b9d91f9467cb6f4a5059840"
             ]
         ],
+        "timestamp": "2026-08-12T21:15:56.06786835",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:15:56.06786835"
+        }
     },
     "same-weights-heritability": {
         "content": [
@@ -192,10 +192,10 @@
                 "example_pgen_bt_second.ldak_reml.reml.liab:md5,494cf60f71bb73577234335cf1d706fd"
             ]
         ],
+        "timestamp": "2026-08-12T21:16:44.990008736",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:16:44.990008736"
+        }
     }
 }

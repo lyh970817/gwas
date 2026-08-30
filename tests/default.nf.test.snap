@@ -2,15 +2,9 @@
     "versions": {
         "content": [
             {
-                "CANONICALISE_SUMMARY_STATISTICS": {
-                    "python": "3.14.5"
-                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
-                },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
                 },
                 "PLINK2_GLM": {
                     "plink2": "2.0.0-a.6.9LM"
@@ -18,16 +12,19 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-30T23:45:25.057683712",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-24T02:50:16.617583182"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "association": {
         "content": [
@@ -40,28 +37,28 @@
                 "example_quantitative.plink2.glm.linear:md5,d90113562b608a71d4f69f961b6ddfcb"
             ]
         ],
+        "timestamp": "2026-08-24T02:59:35.765728314",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-24T02:59:35.765728314"
+        }
     },
     "summary_statistics": {
         "content": [
             [
                 "example_quantitative--plink2",
-                "example_quantitative--plink2/example_quantitative--plink2.canonical.tsv.gz",
-                "example_quantitative--plink2/example_quantitative--plink2.provenance.json"
+                "example_quantitative--plink2/example_quantitative--plink2.gwaslab.log",
+                "example_quantitative--plink2/example_quantitative--plink2.gwaslab.tsv.gz"
             ],
             [
-                "example_quantitative--plink2/example_quantitative--plink2.canonical.tsv.gz:md5,d713f6552c48f21c495c454f3686ed45"
+                "example_quantitative--plink2/example_quantitative--plink2.gwaslab.tsv.gz:md5,d713f6552c48f21c495c454f3686ed45"
             ]
         ],
+        "timestamp": "2026-08-30T23:45:25.071103653",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-24T03:36:42.90723335"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "multiqc": {
         "content": [
@@ -89,23 +86,25 @@
                 "multiqc_nf-core-gwas-analysis-plan-table.txt:md5,8e693726660f64ba09e7e037818b986b"
             ]
         ],
+        "timestamp": "2026-08-13T13:52:30.611629782",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-13T13:52:30.611629782"
+        }
     },
     "pipeline_info": {
         "content": [
             [
                 "nf_core_gwas_software_mqc_versions.yml"
             ],
-            []
+            [
+
+            ]
         ],
+        "timestamp": "2026-07-30T05:11:18.631927776",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-07-30T05:11:18.631927776"
+        }
     }
 }

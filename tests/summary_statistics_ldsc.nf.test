@@ -31,6 +31,13 @@ nextflow_pipeline {
         [summary: summaries, relationship: relationships, catalog: resources.catalog, options: options]
     }
 
+    def stableLdscLog = { entry ->
+        entry.text
+            .replaceAll(/(?m)^Beginning analysis at .+$/, 'Beginning analysis at <NORMALIZED>')
+            .replaceAll(/(?m)^Analysis finished at .+$/, 'Analysis finished at <NORMALIZED>')
+            .replaceAll(/(?m)^Total time elapsed: .+$/, 'Total time elapsed: <NORMALIZED>')
+    }
+
     test("run H2 and RG with shared content-addressed munging") {
         when {
             def manifests = inputs(projectDir, outputDir, 'ldsc_real')
@@ -65,11 +72,11 @@ nextflow_pipeline {
                 { assert new File(rgRequest, 'native.liability.log').isFile() },
                 { assert snapshot(
                     RELATIONAL.gzipTextHashes("${params.outdir}/summary_statistics"),
-                    new File(h2QtRequest, 'native.observed.log').text,
-                    new File(h2BtRequest, 'native.observed.log').text,
-                    new File(h2BtRequest, 'native.liability.log').text,
-                    new File(rgRequest, 'native.observed.log').text,
-                    new File(rgRequest, 'native.liability.log').text,
+                    stableLdscLog(new File(h2QtRequest, 'native.observed.log')),
+                    stableLdscLog(new File(h2BtRequest, 'native.observed.log')),
+                    stableLdscLog(new File(h2BtRequest, 'native.liability.log')),
+                    stableLdscLog(new File(rgRequest, 'native.observed.log')),
+                    stableLdscLog(new File(rgRequest, 'native.liability.log')),
                     removeNextflowVersion(versions.toString()),
                 ).match() },
             )

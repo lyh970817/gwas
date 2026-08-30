@@ -17,22 +17,22 @@
                 "LDAK_REML": {
                     "ldak6": 6
                 },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
+                },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
                 },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-31T00:08:31.873899901",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-07-31T19:47:33.393764671"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "heritability": {
         "content": [
@@ -69,10 +69,10 @@
                 "example_pgen_qt.ldak_reml.reml:md5,5ad47d3301856c0cd821140d8dcd1825"
             ]
         ],
+        "timestamp": "2026-08-12T23:14:38.917722013",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T23:14:38.917722013"
+        }
     }
 }

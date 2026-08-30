@@ -11,7 +11,7 @@
                 "GCTA_REML": {
                     "gcta": "1.94.1"
                 },
-                "NORMALISE_PHENOTYPES": {
+                "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
                 "Workflow": {
@@ -19,11 +19,11 @@
                 }
             }
         ],
+        "timestamp": "2026-08-30T23:53:48.880151159",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-07-31T19:44:46.147060468"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "heritability": {
         "content": [
@@ -38,10 +38,10 @@
                 "example_pgen_qt.gcta_greml.hsq:md5,3475afa4e0119452ee59e94502a1ccd7"
             ]
         ],
+        "timestamp": "2026-08-12T21:20:00.721414961",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T21:20:00.721414961"
+        }
     }
 }

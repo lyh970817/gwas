@@ -10,24 +10,18 @@
                 "example_vcf_relational_qt.plink2.glm.linear:md5,e7a2df794ed53292921b94b05582d6e8"
             ]
         ],
+        "timestamp": "2026-08-12T22:13:09.582495081",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T22:13:09.582495081"
+        }
     },
     "vcf-versions": {
         "content": [
             {
-                "CANONICALISE_SUMMARY_STATISTICS": {
-                    "python": "3.14.5"
-                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
-                },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
                 },
                 "PLINK2_GLM": {
                     "plink2": "2.0.0-a.6.9LM"
@@ -35,43 +29,43 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-31T00:00:00.438287165",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-25T08:50:00.7368076"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "plink2-versions": {
         "content": [
             {
-                "CANONICALISE_SUMMARY_STATISTICS": {
-                    "python": "3.14.5"
-                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "PLINK2_GLM": {
                     "plink2": "2.0.0-a.6.9LM"
+                },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
                 },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-30T23:58:46.16255871",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-25T08:49:06.782674489"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     },
     "plink2-association": {
         "content": [
@@ -84,11 +78,11 @@
                 "example_pgen_relational_qt.plink2.glm.linear:md5,e7a2df794ed53292921b94b05582d6e8"
             ]
         ],
+        "timestamp": "2026-08-12T22:12:03.744297059",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T22:12:03.744297059"
+        }
     },
     "plink1-association": {
         "content": [
@@ -101,24 +95,18 @@
                 "example_bfile_relational_qt.plink2.glm.linear:md5,c115c5a7b608871c13a4bfb00c5d4992"
             ]
         ],
+        "timestamp": "2026-08-12T22:12:36.002468769",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-12T22:12:36.002468769"
+        }
     },
     "plink1-versions": {
         "content": [
             {
-                "CANONICALISE_SUMMARY_STATISTICS": {
-                    "python": "3.14.5"
-                },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
-                },
-                "NORMALISE_PHENOTYPES": {
-                    "python": "3.14.5"
                 },
                 "PLINK2_GLM": {
                     "plink2": "2.0.0-a.6.9LM"
@@ -126,15 +114,18 @@
                 "PLINK2_MAKEPGEN": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
+        "timestamp": "2026-08-30T23:59:24.828335802",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-08-25T08:49:33.573290965"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
     }
 }
