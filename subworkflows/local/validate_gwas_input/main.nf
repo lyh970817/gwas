@@ -347,6 +347,11 @@ def getMethodRegistry() {
             citation_key: 'gcta_bivariate_reml',
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
+        // GCTA bivariate Haseman-Elston regression is a deterministic moment reference, not a matrix-free
+        // route: it consumes exactly the dense or LDMS GRM family its REML sibling consumes and only makes
+        // the fitting stage cheaper. `trait_support` is quantitative-only because GCTA 1.94.1 HEreg exposes
+        // no prevalence or ascertainment parameter, and `supports_covariates` is false because the native
+        // analysis lists `--qcovar`/`--covar` among its accepted options and then never reads them.
         gcta_bivariate_he: [
             domain: 'pairwise',
             endpoint_domain: 'analysis',
