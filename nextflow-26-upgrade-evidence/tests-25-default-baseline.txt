@@ -1,2 +1,0 @@
-    [32mPASSED[0m (58.494s)
-[1m[32mSUCCESS: [0m[0mExecuted 1 tests in 58.504s
