@@ -168,7 +168,35 @@
                     "type": "boolean",
                     "description": "Use REGENIE's low-memory Step 1 implementation, keeping temporary predictions in the task work directory."
                 }
-            }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "regenie_step1_mode": {
+                                "const": "chunked"
+                            }
+                        },
+                        "required": ["regenie_step1_mode"]
+                    },
+                    "then": {
+                        "properties": {
+                            "regenie_step1_jobs": {
+                                "type": "integer",
+                                "minimum": 1
+                            }
+                        },
+                        "required": ["regenie_step1_jobs"]
+                    },
+                    "else": {
+                        "properties": {
+                            "regenie_step1_jobs": {
+                                "type": "null"
+                            }
+                        }
+                    }
+                }
+            ]
         },
         "harmonisation_options": {
             "title": "Harmonisation options",
@@ -393,32 +421,6 @@
         },
         {
             "$ref": "#/$defs/generic_options"
-        },
-        {
-            "if": {
-                "properties": {
-                    "regenie_step1_mode": {
-                        "const": "chunked"
-                    }
-                },
-                "required": ["regenie_step1_mode"]
-            },
-            "then": {
-                "properties": {
-                    "regenie_step1_jobs": {
-                        "type": "integer",
-                        "minimum": 1
-                    }
-                },
-                "required": ["regenie_step1_jobs"]
-            },
-            "else": {
-                "properties": {
-                    "regenie_step1_jobs": {
-                        "type": "null"
-                    }
-                }
-            }
         }
     ]
 }
