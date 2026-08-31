@@ -72,7 +72,7 @@ output:
     - - meta:
           type: map
           description: |
-            Groovy map containing the unchanged input MGRM analysis metadata
+            Groovy map containing the unchanged input GRM-family analysis metadata
             e.g. `[ id:'plink_simulated_ldms' ]`
       - "*.hsq":
           type: file
@@ -84,7 +84,7 @@ output:
     - - meta:
           type: map
           description: |
-            Groovy map containing the unchanged input MGRM analysis metadata
+            Groovy map containing the unchanged input GRM-family analysis metadata
             e.g. `[ id:'plink_simulated_ldms' ]`
       - "*.log":
           type: file

@@ -43,7 +43,7 @@ Changes in 'gcta/bivariateremlldms/meta.yml':
  keywords:
    - gcta
    - genome-wide complex trait analysis
-@@ -24,21 +24,16 @@
+@@ -24,26 +24,21 @@
    - - meta:
          type: map
          description: |
@@ -71,6 +71,48 @@ Changes in 'gcta/bivariateremlldms/meta.yml':
    - - meta2:
          type: map
          description: |
+           Groovy map containing phenotype file metadata for the same analysis
+-          unit as the primary MGRM metadata
++          unit as the primary GRM-family metadata
+           e.g. `[ id:'plink_simulated_ldms' ]`
+     - phenotype_file:
+         type: file
+@@ -67,7 +62,7 @@
+         type: map
+         description: |
+           Groovy map containing quantitative covariate metadata for the same
+-          analysis unit as the primary MGRM metadata
++          analysis unit as the primary GRM-family metadata
+           e.g. `[ id:'plink_simulated_ldms' ]`
+     - quant_covariates_file:
+         type: file
+@@ -79,7 +74,7 @@
+         type: map
+         description: |
+           Groovy map containing categorical covariate metadata for the same
+-          analysis unit as the primary MGRM metadata
++          analysis unit as the primary GRM-family metadata
+           e.g. `[ id:'plink_simulated_ldms' ]`
+     - cat_covariates_file:
+         type: file
+@@ -92,7 +87,7 @@
+     - - meta:
+           type: map
+           description: |
+-            Groovy map containing MGRM metadata
++            Groovy map containing GRM-family metadata
+             `meta.id` is used as the default output prefix
+       - "*.hsq":
+           type: file
+@@ -104,7 +99,7 @@
+     - - meta:
+           type: map
+           description: |
+-            Groovy map containing MGRM metadata
++            Groovy map containing GRM-family metadata
+             `meta.id` is used as the default output prefix
+       - "*.log":
+           type: file
 
 Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
 --- modules/nf-core/gcta/bivariateremlldms/tests/main.nf.test
