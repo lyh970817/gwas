@@ -2,19 +2,19 @@
 // Every component reports on the run-wide versions topic, so this subworkflow emits no versions.
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { PLINK_PREPARE_GRM_GCTA           } from '../plink_prepare_grm_gcta/main'
-include { PLINK_PREPARE_GRM_LDMS_GCTA      } from '../plink_prepare_grm_ldms_gcta/main'
-include { PLINK_PREPARE_GRM_LDAK           } from '../plink_prepare_grm_ldak/main'
+include { PLINK_PREPARE_GRM_GCTA } from '../plink_prepare_grm_gcta/main'
+include { PLINK_PREPARE_GRM_LDMS_GCTA } from '../plink_prepare_grm_ldms_gcta/main'
+include { PLINK_PREPARE_GRM_LDAK } from '../plink_prepare_grm_ldak/main'
 
 // MODULE: Local to the pipeline
-include { GCTA_MAKEBKSPARSE                } from '../../../modules/local/gcta/makebksparse/main'
+include { GCTA_MAKEBKSPARSE } from '../../../modules/local/gcta/makebksparse/main'
 
 // FUNCTION: Local to the pipeline
-include { buildScientificArtifactKey       } from '../utils_nfcore_gwas_pipeline'
+include { buildScientificArtifactKey } from '../utils_nfcore_gwas_pipeline'
 include { canonicaliseScientificIdentifier } from '../utils_nfcore_gwas_pipeline'
-include { canonicaliseScientificValue      } from '../utils_nfcore_gwas_pipeline'
-include { digestFileBytes                  } from '../utils_nfcore_gwas_pipeline'
-include { getMethodCapabilities            } from '../validate_gwas_input/method_registry'
+include { canonicaliseScientificValue } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes } from '../utils_nfcore_gwas_pipeline'
+include { getMethodCapabilities } from '../validate_gwas_input/method_registry'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:
@@ -32,9 +32,9 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         getRelatednessMatrixKinds(meta).collect { kind ->
             def weights_policy = kind == 'ldak_kinship' ? meta.method_options.ldak.weights_policy : 'equal'
             def weights_identity = kind == 'ldak_kinship' ? getLdakWeightsIdentity(ldak_weights, weights_policy) : [mode: 'equal']
-            def gcta_extract = kind == 'gcta_dense' && !meta.relationship_id ? meta.method_options.gcta.grm_extract : []
-            def extract_identity = kind == 'gcta_dense' ? getMethodResourceIdentity(gcta_extract) : [mode: 'all']
-            def request = buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity, extract_identity)
+            def gcta_extract = kind in ['gcta_dense', 'gcta_sparse'] && !meta.relationship_id ? meta.method_options.gcta.grm_extract : []
+            def extract_identity = kind in ['gcta_dense', 'gcta_sparse'] ? getMethodResourceIdentity(gcta_extract) : [mode: 'all']
+            def request = buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity, extract_identity, gcta_extract)
             def weights_file = kind == 'ldak_kinship' ? ldak_weights ?: [] : []
             [request.selected_key, meta, request, weights_file]
         }
@@ -225,9 +225,9 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     def ch_ldak_kinship = ch_ldak_unfiltered.mix(ch_ldak_filtered)
 
     emit:
-    gcta_dense   = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
-    gcta_sparse  = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
-    gcta_ldms    = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
+    gcta_dense = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
+    gcta_sparse = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
+    gcta_ldms = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
     ldak_kinship = ch_ldak_kinship // channel: [ val(meta), val(artifact_key), path(grm_files), path(keep) ]
 }
 
@@ -300,7 +300,7 @@ def getMethodResourceIdentity(resource) {
 }
 
 def getRelatednessBaseSettings(meta, requested_kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
-    if (requested_kind == 'gcta_dense') {
+    if (requested_kind in ['gcta_dense', 'gcta_sparse']) {
         if (meta.relationship_id) {
             return meta.matrix_settings
         }
@@ -312,9 +312,6 @@ def getRelatednessBaseSettings(meta, requested_kind, weights_identity = [mode: '
             settings.extract = gcta_extract_identity
         }
         return settings
-    }
-    if (requested_kind == 'gcta_sparse') {
-        return [:]
     }
     if (requested_kind == 'gcta_ldms') {
         return meta.relationship_id
@@ -344,7 +341,7 @@ def getRelatednessDerivedSettings(meta, requested_kind) {
     return [:]
 }
 
-def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
+def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all'], gcta_extract = []) {
     def view_compatibility_key = buildPreparedViewCompatibilityKey(meta, genotype_files)
     def base_type = kind == 'gcta_sparse' ? 'gcta_dense' : kind
     def base_settings = getRelatednessBaseSettings(meta, kind, weights_identity, gcta_extract_identity)
@@ -361,7 +358,7 @@ def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity
         cohort: meta.cohort,
     ]
     if (base_type == 'gcta_dense') {
-        base.gcta_extract = kind == 'gcta_dense' && !meta.relationship_id ? meta.method_options.gcta.grm_extract : []
+        base.gcta_extract = gcta_extract
     }
 
     def derived = [:]

@@ -155,6 +155,43 @@ nextflow_pipeline {
         }
     }
 
+    test("combined fastGWA and GREML options select one configured dense parent") {
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'gcta_combined_dense_parent')
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'gcta_combined_dense_parent', { rows ->
+                    rows[0].association_methods = 'gcta_fastgwa'
+                    rows[0].heritability_methods = 'gcta_greml'
+                })
+                method_options = RELATIONAL.methodOptions(outputDir, 'gcta_combined_dense_parent', [
+                    example_pgen_qt: [gcta: [
+                        grm_maf: 0.01,
+                        grm_extract: RELATIONAL.resource(outputDir, 'combined-gcta-extract.txt', 'rs1\nrs2\n'),
+                        sparse_cutoff: 0.025,
+                    ]],
+                ])
+                gcta_grm_parts = 1
+                save_relatedness_matrices = true
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
+                { assert matrices.list().size() == 2 },
+            )
+        }
+    }
+
     def invalidOptions = [
         [
             name: 'invalid scalar type',
