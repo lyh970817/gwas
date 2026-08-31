@@ -164,7 +164,7 @@ Every selector carries only capabilities that validation, routing, reporting or 
 | `ldsc_h2`, `ldsc_rg`            | LD-score regression        | Summary statistics     | Quantitative and binary               | Population and sample values consumed |
 | `ldak_sumher`, `ldak_sumcors`   | Summary tagging regression | Summary statistics     | Quantitative and binary               | Population and sample values consumed |
 
-Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`. The exact registry fields and their active code consumers are documented in [Workflow structure](dev/workflow_structure.md#validation-and-method-registry-ownership).
+Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`.
 
 ### Examples
 
