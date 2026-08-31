@@ -4,7 +4,7 @@ Changes in 'gcta/bivariateremlldms/main.nf':
 +++ modules/nf-core/gcta/bivariateremlldms/main.nf
 @@ -7,7 +7,7 @@
          : 'community.wave.seqera.io/library/gcta:1.94.1--9bc35dc424fcf6e9'}"
- 
+
      input:
 -    tuple val(meta), path(mgrm_file), path(grm_files)
 +    tuple val(meta), path(grm_files), val(grm_prefixes)
@@ -77,7 +77,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
 +++ modules/nf-core/gcta/bivariateremlldms/tests/main.nf.test
 @@ -89,7 +89,7 @@
          }
- 
+
          run("GCTA_MAKEGRMPART", alias: "GCTA_MAKEGRMPART_LDMS1") {
 -            script "../../makegrmpart/main.nf"
 +            script "../../../../local/gcta/makegrmpart/main.nf"
@@ -86,7 +86,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                  file('plink_simulated.mbfile').text = 'plink_simulated\\n'
 @@ -118,7 +118,7 @@
          }
- 
+
          run("GCTA_MAKEGRMPART", alias: "GCTA_MAKEGRMPART_LDMS2") {
 -            script "../../makegrmpart/main.nf"
 +            script "../../../../local/gcta/makegrmpart/main.nf"
@@ -106,7 +106,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                      .map { meta, grm_files, nparts_gcta, part_gcta_job -> grm_files }
                      .collect()
                      .map { rows -> rows.flatten() }
- 
+
 -                input[0] = mgrm_file
 -                    .combine(ldms_grm_files)
 -                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
@@ -118,7 +118,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                  input[3] = GAWK_CATEGORICAL_COVARIATES.out.output.map { meta, cat_covariates_file -> [[ id:'plink_simulated_ldms' ], cat_covariates_file] }
 @@ -169,6 +165,8 @@
          }
- 
+
          then {
 +            def workDirectory = path(process.out.log_file.get(0).get(1)).parent
 +            def mgrm = workDirectory.resolve('plink_simulated_ldms.mgrm').text
@@ -146,7 +146,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                      .map { meta, grm_files, nparts_gcta, part_gcta_job -> grm_files }
                      .collect()
                      .map { rows -> rows.flatten() }
- 
+
 -                input[0] = mgrm_file
 -                    .combine(ldms_grm_files)
 -                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
@@ -169,7 +169,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                      .map { meta, grm_files, nparts_gcta, part_gcta_job -> grm_files }
                      .collect()
                      .map { rows -> rows.flatten() }
- 
+
 -                input[0] = broken_mgrm_file
 -                    .combine(ldms_grm_files)
 -                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
@@ -192,7 +192,7 @@ Changes in 'gcta/bivariateremlldms/tests/main.nf.test':
                      .map { meta, grm_files, nparts_gcta, part_gcta_job -> grm_files }
                      .collect()
                      .map { rows -> rows.flatten() }
- 
+
 -                input[0] = mgrm_file
 -                    .combine(ldms_grm_files)
 -                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
