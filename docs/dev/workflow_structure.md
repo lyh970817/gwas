@@ -27,6 +27,52 @@ A shared resource is built on the spine so that it is built once and fanned out 
 domain. A route controller never owns shared genotype or matrix preparation, global validation, or a public
 emission.
 
+## Validation and method-registry ownership
+
+`VALIDATE_GWAS_INPUT` is the one public ingress boundary. The four JSON schemas own manifest column names,
+required fields, scalar types, enumerations, file existence and rejection of additional columns. nf-schema
+converts each schema-approved row once. The only pre-conversion header check detects repeated CSV names,
+because conversion to a map necessarily discards that information; it does not duplicate schema-required or
+optional-column policy. Quoted headers and values are accepted, and schema-optional columns may be absent.
+
+Relational checks are decomposed by the object they resolve:
+
+- `resolve_cohorts.nf`, `resolve_analyses.nf`, `resolve_summary_statistics.nf` and
+  `resolve_relationships.nf` own entity and cross-manifest contracts;
+- `method_options.nf`, `native_option_policy.nf` and `request_contracts.nf` own public request capability and
+  native-argument contracts;
+- `resolve_references.nf` owns reference-catalog parsing and resource resolution;
+- `resolve_input.nf` only orders those resolvers, reports their accumulated relational errors and constructs
+  the five canonical streams.
+
+The method registry contains no descriptive inventory. Every stored field has a live consumer:
+
+| Registry field       | Active consumer                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `domain`             | Selector vocabularies, request namespaces and methods reporting                                                  |
+| `option_family`      | Per-family method-options validation and native-argument firewalls                                               |
+| `matrix_kind`        | Relatedness construction, pair request settings and dense/LDMS controller routing                               |
+| `endpoint_domain`    | Analysis-versus-summary relationship endpoint validation and resolution                                         |
+| `reference_family`   | Reference-bundle requirements, family compatibility and request-resource routing                                |
+| `estimator_family`   | GCTA REML method-options capability selection                                                                    |
+| `input_backend`      | PLINK 1 preparation, matrix-family selection and summary-native policy                                           |
+| `trait_support`      | Pair endpoint trait validation                                                                                   |
+| `supports_covariates`| Pair covariate capability validation                                                                             |
+| `prevalence`         | Analysis, generated-summary and pair prevalence validation                                                       |
+| `citation_keys`      | Run-specific methods citations                                                                                   |
+| `mapping`            | Association-result GWASLab column mapping                                                                        |
+
+After this boundary, controllers and representation adapters trust the typed metadata they receive. The GCTA
+bivariate controller routes on `matrix_kind`; it does not re-derive method groups. `PREPARE_BIVARIATE_TRAITS`
+trusts the three-column phenotype emitted by `PREPARE_PHENOTYPE_INPUTS` and performs only ordered union and
+left/right reshaping. Relationship-owned covariate files are raw public inputs, so that adapter still validates
+their native table shape while removing their headers.
+
+GWASLab 4.1.9 has no LDAK/SumHer/SumCors exporter. `PREPARE_LDAK_SUMMARY_STATISTICS` is therefore the one
+minimal representation converter between the GWASLab-standard producer table and LDAK's native `Predictor`,
+`A1`, `A2`, `n`, `Z` input. It neither revalidates the whole GWASLab table nor writes policy or provenance
+sidecars.
+
 ## Route controllers
 
 | Controller                           | Owns                                                                                                 |

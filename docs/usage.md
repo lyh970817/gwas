@@ -16,6 +16,8 @@ nf-core/gwas runs association, individual-level and summary-level heritability, 
 
 Every run supplies at least one input family: the linked `--cohort_manifest` and `--analysis_manifest`, `--summary_statistics_manifest`, or both. The linked cohort and analysis manifests must always be supplied together. `--relationship_manifest` is optional; when absent, no pair is inferred.
 
+The JSON schemas own column names, required fields, types, enumerations and file existence. Schema-optional columns may be omitted entirely or supplied with blank cells. Unexpected and repeated column names are rejected; quoted CSV headers and values are supported, and column order is not significant.
+
 ```bash
 nextflow run nf-core/gwas \
     -r <VERSION> \
@@ -67,7 +69,7 @@ At least one unary method selector must be populated unless the analysis is refe
 
 ### Summary-statistics manifest fields
 
-The summary-statistics manifest has exactly fifteen columns and owns one stable `summary_statistics_id` per row. Each row declares exactly one mutually exclusive origin:
+The summary-statistics manifest owns one stable `summary_statistics_id` per row. Each row declares exactly one mutually exclusive origin:
 
 - An external result populates `source` and `source_format`, leaves both producer fields blank, and declares its trait metadata. Every external source passes through GWASLab; use the `gwaslab` format for a pre-harmonised GWASLab table.
 - A pipeline-generated result populates `producer_analysis_id` and `producer_association_method`, leaves the two external source fields blank, and uses the exact deterministic ID `<producer_analysis_id>--<producer_association_method>`. Trait, build, ancestry, source method and prevalence are derived from the producer analysis and remain blank on the summary row.
@@ -100,7 +102,7 @@ Each declared summary must either select a unary method or be referenced by a re
 
 ### Relationship manifest fields
 
-The optional relationship manifest has exactly eight columns. Endpoint slots are method-domain specific: `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he` and `gcta_bivariate_he_ldms` consume two analysis IDs, while `ldak_sumcors` and `ldsc_rg` consume two summary-statistics IDs. A row may select several methods for the same pair and may populate both endpoint domains only when each same-side summary is provably produced by the same-side analysis.
+The optional relationship manifest uses method-domain-specific endpoint slots: `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he` and `gcta_bivariate_he_ldms` consume two analysis IDs, while `ldak_sumcors` and `ldsc_rg` consume two summary-statistics IDs. A row may select several methods for the same pair and may populate both endpoint domains only when each same-side summary is provably produced by the same-side analysis.
 
 | Column                        | Required | Description                                                                                                                                                             |
 | ----------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,32 +145,26 @@ Summary pair request IDs use the same rule:
 <method>--<relationship_id>
 ```
 
-### Method roles and capabilities
+### Method capabilities
 
-Every selector carries a declared scientific role and a declared computational capability, so the menu is not flat. Selection stays explicit: the pipeline never substitutes one estimator for another according to sample size, memory, trait type, or a failed task.
+Every selector carries only capabilities that validation, routing, reporting or GWASLab adaptation actively consumes. Selection stays explicit: the pipeline never substitutes one estimator for another according to sample size, memory, trait type or a failed task.
 
-| Method                                            | Role                                                                              | Input backend              | Component model                                             | Trait support                                |
-| ------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------- | -------------------------------------------- |
-| `plink2`                                          | Unrelated-sample generalised linear association baseline                          | Direct PLINK genotypes     | Not applicable                                              | Quantitative and binary                      |
-| `regenie`                                         | Whole-genome-regression association for related or structured samples             | Direct PLINK genotypes     | Not applicable                                              | Quantitative and binary                      |
-| `gcta_fastgwa`                                    | Sparse-GRM mixed-linear-model association for related samples                     | Sparse GRM                 | One component                                               | Quantitative and binary                      |
-| `ldak_kvik`                                       | LDAK mixed-model association under the LDAK heritability model                    | Direct PLINK genotypes     | One component                                               | Quantitative and binary                      |
-| `gcta_greml`                                      | Established exact/reference REML                                                  | Dense GRM                  | One component                                               | Quantitative and binary                      |
-| `gcta_greml_ldms`                                 | Established exact/reference REML                                                  | LDMS GRM family            | LD-by-MAF components                                        | Quantitative and binary                      |
-| `ldak_reml`                                       | Model-specific exact/reference REML                                               | LDAK kinship               | One component                                               | Quantitative and binary                      |
-| `ldak_he`                                         | Exact/reference moment estimator                                                  | LDAK kinship               | One component                                               | Quantitative and binary, observed scale only |
-| `ldak_pcgc`                                       | Exact/reference moment estimator                                                  | LDAK kinship               | One component                                               | Binary; `population_prevalence` required     |
-| `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms` | Canonical likelihood reference and the supported binary or mixed-trait pair route | Dense GRM, LDMS GRM family | One component, LD-by-MAF components                         | Quantitative and binary                      |
-| `ldsc_h2`, `ldsc_rg`                              | Recommended robust baseline                                                       | Summary statistics         | One component                                               | Quantitative and binary                      |
-| `ldak_sumher`, `ldak_sumcors`                     | Heritability-model sensitivity                                                    | Summary statistics         | Set by the tagging bundle (SumHer), one component (SumCors) | Quantitative and binary                      |
+| Method group                                       | Estimator family             | Input backend              | Trait support                           | Prevalence contract                  |
+| -------------------------------------------------- | ---------------------------- | -------------------------- | --------------------------------------- | ------------------------------------ |
+| `plink2`                                           | Generalised linear model     | Direct PLINK genotypes     | Quantitative and binary                 | Not consumed                         |
+| `regenie`                                          | Whole-genome regression      | Direct PLINK genotypes     | Quantitative and binary                 | Not consumed                         |
+| `gcta_fastgwa`                                     | Mixed linear model           | Sparse GRM                 | Quantitative and binary                 | Not consumed                         |
+| `ldak_kvik`                                        | Mixed linear model           | Direct PLINK genotypes     | Quantitative and binary                 | Not consumed                         |
+| `gcta_greml`, `gcta_greml_ldms`                   | REML                         | Dense or LDMS GRM          | Quantitative and binary                 | Population value consumed            |
+| `ldak_reml`                                        | REML                         | LDAK kinship               | Quantitative and binary                 | Population value consumed            |
+| `ldak_he`                                          | Moment HE                    | LDAK kinship               | Quantitative and binary                 | Not consumed                         |
+| `ldak_pcgc`                                        | PCGC                         | LDAK kinship               | Binary only                             | Population value required            |
+| GCTA bivariate REML                                | REML                         | Dense or LDMS GRM          | Quantitative and binary                 | Population value consumed            |
+| GCTA bivariate HE                                  | Moment HE                    | Dense or LDMS GRM          | Quantitative only; no pair covariates   | Not consumed                         |
+| `ldsc_h2`, `ldsc_rg`                               | LD-score regression          | Summary statistics         | Quantitative and binary                 | Population and sample values consumed|
+| `ldak_sumher`, `ldak_sumcors`                      | Summary tagging regression   | Summary statistics         | Quantitative and binary                 | Population and sample values consumed|
 
-Further declared capabilities:
-
-- **Stochastic estimators.** `ldak_he`, `ldak_pcgc`, and `ldak_kvik` use a randomised step, so repeated runs vary unless a native seed is supplied. Every other current estimator is deterministic given its inputs.
-- **Likelihood.** Only the REML estimators (`gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`) report a model log-likelihood.
-- **Partial sample overlap.** `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `ldsc_rg`, and `ldak_sumcors` accept endpoints whose samples only partly overlap.
-- **Reference strictness.** LDSC tolerates an imperfect external LD reference; LDAK SumHer and SumCors are interpreted only against the tagging model their bundle declares.
-- **Reusable intermediates.** Every GRM or kinship route produces a matrix that is reused across compatible requests and published only under `--save_relatedness_matrices`. Direct-genotype and summary routes produce none.
+Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`. The exact registry fields and their active code consumers are documented in [Workflow structure](dev/workflow_structure.md#validation-and-method-registry-ownership).
 
 ### Examples
 
@@ -505,7 +501,8 @@ Read the reported CSV path, row number, entity ID, field name and reason from le
 
 | Diagnostic fragment                                                                                                       | Supported action                                                                                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `header row 1 does not match the mandatory ...-column input contract`                                                     | Start from a shipped example and restore missing columns; remove unexpected or repeated column names. Optional values may be blank, but their columns must remain present. Column order is not significant.             |
+| `Validation of samplesheet failed` and a named field                                                                      | Correct the schema violation. Required columns must be present; schema-optional columns may be omitted; unexpected columns are rejected. Column order is not significant.                                                |
+| `header row 1 repeats column ...`                                                                                          | Keep each column name once. Quoted header names are accepted.                                                                                                                                                           |
 | `no genotype group is populated`, `a second genotype group is populated` or `genotype group ... is only partly populated` | Populate exactly one complete representation: `pgen`/`psam`/`pvar`, `bed`/`bim`/`fam` or `vcf`.                                                                                                                         |
 | `duplicate cohort_id` or `duplicate analysis_id`                                                                          | Keep one row for each identity. Conflicting duplicates also report the fields that differ.                                                                                                                              |
 | `undefined cohort_id`                                                                                                     | Make the analysis row's `cohort_id` match one cohort-manifest identity exactly.                                                                                                                                         |
