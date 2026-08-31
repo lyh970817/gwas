@@ -29,6 +29,9 @@
     "association-versions": {
         "content": [
             {
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
+                },
                 "GCTA_FASTGWA": {
                     "gcta": "1.94.1"
                 },
@@ -37,9 +40,6 @@
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
-                },
-                "CUSTOM_GCTAMERGEGRMPARTS": {
-                    "coreutils": 9.5
                 },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
@@ -74,7 +74,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T01:15:50.377205623",
+        "timestamp": "2026-09-01T02:46:18.356456934",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -83,6 +83,9 @@
     "heritability-versions": {
         "content": [
             {
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
+                },
                 "CUSTOM_GCTASTRATIFYLDSCORES": {
                     "r-base": "4.2.1"
                 },
@@ -91,9 +94,6 @@
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
-                },
-                "CUSTOM_GCTAMERGEGRMPARTS": {
-                    "coreutils": 9.5
                 },
                 "GCTA_REML": {
                     "gcta": "1.94.1"
@@ -130,7 +130,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T01:16:10.401565262",
+        "timestamp": "2026-09-01T02:46:37.093690818",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
