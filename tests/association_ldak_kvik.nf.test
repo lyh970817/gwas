@@ -218,7 +218,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
-                        { assert step1 =~ /--extract "example_vcf\.ldak_kvik\.[0-9a-f]+\.ldak_kvik\.step1\.in"/ },
+                        { assert step1 =~ /--extract "example_vcf\.ldak_thin_common\.thin_common\.[0-9a-f]+\.ldak_kvik\.step1\.in"/ },
                         { assert snapshot(stable_name_native, stable_path_native).match('thin-common-native') },
                         { assert snapshot(stable_name_harmonised, stable_path_harmonised).match('thin-common-harmonised') },
                     )
