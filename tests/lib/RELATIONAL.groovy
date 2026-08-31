@@ -84,6 +84,21 @@ class RELATIONAL {
         return manifestPath
     }
 
+    static String retainColumns(String manifestPath, List<String> columns) {
+        def manifest = new File(manifestPath)
+        def rows = manifest.readLines().collect { line -> line.split(',', -1).toList() }
+        def indices = columns.collect { column -> rows.first().indexOf(column) }
+        manifest.text = rows.collect { row -> indices.collect { index -> row[index] }.join(',') }.join('\n') + '\n'
+        return manifestPath
+    }
+
+    static String quoteHeaders(String manifestPath) {
+        def manifest = new File(manifestPath)
+        def lines = manifest.readLines()
+        manifest.text = ([lines.first().split(',', -1).collect { column -> quote(column) }.join(',')] + lines.tail()).join('\n') + '\n'
+        return manifestPath
+    }
+
     static String analyses(Object projectDir, Object outputDir, String name, Closure mutate = null) {
         def header = [
             'analysis_id',

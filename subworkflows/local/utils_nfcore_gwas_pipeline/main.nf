@@ -284,7 +284,7 @@ def selectedCitationKeys(selected_methods) {
 
     def citation_order = ['plink2', 'regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'ldak_sumstats', 'ldsc']
     def keys = (association + heritability + pairwise)
-        .collectMany { token -> capabilities[token].citation_keys ?: [capabilities[token].citation_key] }
+        .collectMany { token -> capabilities[token].citation_keys }
         .findAll { key -> key }
         .unique()
         .sort { key -> citation_order.indexOf(key) }

@@ -14,30 +14,17 @@ def getSamplesheetPositionalColumns(schema) {
     return properties.findAll { _column, definition -> !definition.containsKey('meta') }.keySet().toList()
 }
 
-// Optional columns remain mandatory headers. Diagnose missing, unexpected and repeated names before
-// nf-schema can inject defaults or discard missing optional cells.
-def validateSamplesheetHeader(samplesheet, schema, role) {
-    def expected = new groovy.json.JsonSlurper().parseText(file(schema).text).items.properties.keySet().toList()
+// nf-schema applies the schema contract but cannot distinguish repeated names once it has created a map.
+// Read the header as CSV solely to preserve that one piece of ingress information for validation.
+def validateUniqueSamplesheetHeaders(samplesheet, role) {
     def header_line = file(samplesheet).readLines().find { line -> line.trim() }
     def observed = header_line
-        ? header_line.split(',', -1).collect { column -> column.trim().replaceAll(/^"|"$/, '') }
+        ? header_line.split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/, -1).collect { name -> name.trim().replaceAll(/^\"|\"$/, '').replace('""', '"') }
         : []
-    def missing = expected.findAll { column -> !observed.contains(column) }
-    def unexpected = observed.findAll { column -> !expected.contains(column) }.unique()
     def repeated = observed.countBy { column -> column }.findAll { _column, count -> count > 1 }.keySet().toList()
 
-    def problems = []
-    if (missing) {
-        problems << "missing column headers: ${missing.collect { column -> "'${column}'" }.join(', ')}"
-    }
-    if (unexpected) {
-        problems << "unexpected column headers: ${unexpected.collect { column -> "'${column}'" }.join(', ')}"
-    }
     if (repeated) {
-        problems << "repeated column headers: ${repeated.collect { column -> "'${column}'" }.join(', ')}"
-    }
-    if (problems) {
-        error("[nf-core/gwas] ERROR: ${role} '${samplesheet}' header row 1 does not match the mandatory ${expected.size()}-column input contract.\n\n  - ${problems.join('\n  - ')}\n")
+        error("[nf-core/gwas] ERROR: ${role} '${samplesheet}' header row 1 repeats column${repeated.size() > 1 ? 's' : ''} ${repeated.collect { name -> "'${name}'" }.join(', ')}.\n")
     }
 }
 
@@ -63,10 +50,10 @@ def getMethodRoutes(association_methods, heritability_methods) {
     def ldms_heritability = getMethodTokensWithCapabilities([domain: 'heritability', input_backend: 'ldms_grm_family'])
     return [
         runs_heritability: selected.any { details -> details.domain == 'heritability' },
-        consumes_population_prevalence: selected.any { details -> details.consumes_population_prevalence },
+        consumes_population_prevalence: selected.any { details -> details.prevalence.population != 'not_consumed' },
         runs_ldak_kvik: association_methods.any { method -> method in ldak_association },
         runs_ldak_heritability: heritability_methods.any { method -> capabilities[method] && capabilities[method].option_family == 'ldak' },
-        runs_ldak_pcgc: heritability_methods.any { method -> capabilities[method] && capabilities[method].requires_population_prevalence },
+        runs_ldak_pcgc: heritability_methods.any { method -> capabilities[method] && capabilities[method].prevalence.population == 'required' },
         runs_gcta: selected.any { details -> details.option_family == 'gcta' },
         runs_gcta_fastgwa: association_methods.any { method -> method in sparse_grm_association },
         runs_greml_ldms: heritability_methods.any { method -> method in ldms_heritability },

@@ -338,4 +338,119 @@ nextflow_workflow {
             )
         }
     }
+
+    test("schema-optional manifest columns may be omitted") {
+        tag "manifest_schema"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.retainColumns(
+                    RELATIONAL.cohorts(projectDir, outputDir, 'omitted_optional_columns'),
+                    ['cohort_id', 'genome_build', 'ancestry', 'pgen', 'psam', 'pvar'],
+                )}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.retainColumns(
+                    RELATIONAL.analyses(projectDir, outputDir, 'omitted_optional_columns'),
+                    ['analysis_id', 'cohort_id', 'trait_id', 'trait_type', 'phenotype', 'phenotype_column', 'association_methods'],
+                )}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            def analysis = workflow.out.analyses[0]
+            assertAll(
+                { assert workflow.success },
+                { assert analysis[0].id == 'example_pgen_qt' },
+                { assert analysis[1].collect { genotype -> genotype.toString().tokenize('.').last() } == ['pgen', 'psam', 'pvar'] },
+                { assert analysis[3..6].every { optional -> optional == [] } },
+            )
+        }
+    }
+
+    test("quoted manifest headers preserve the schema contract") {
+        tag "manifest_schema"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.quoteHeaders(RELATIONAL.cohorts(projectDir, outputDir, 'quoted_headers'))}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.quoteHeaders(RELATIONAL.analyses(projectDir, outputDir, 'quoted_headers'))}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.analyses[0][0].id == 'example_pgen_qt' },
+            )
+        }
+    }
+
+    test("repeated manifest headers are rejected before schema map conversion") {
+        tag "manifest_schema"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.appendColumn(
+                    RELATIONAL.cohorts(projectDir, outputDir, 'repeated_headers'),
+                    'pgen',
+                    "${FIXTURES.UPSTREAM}results/fixtures/genotypes/example_all.pgen",
+                )}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'repeated_headers')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                { assert workflow.stdout.join('\n').contains("header row 1 repeats column 'pgen'") },
+            )
+        }
+    }
+
+    test("unexpected manifest columns are rejected by the schema") {
+        tag "manifest_schema"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.appendColumn(
+                    RELATIONAL.cohorts(projectDir, outputDir, 'unexpected_header'),
+                    'vcf_index',
+                    'unused.vcf.gz.tbi',
+                )}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'unexpected_header')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains('vcf_index') },
+                { assert report.contains('False schema always fails') },
+            )
+        }
+    }
 }

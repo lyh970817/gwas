@@ -14,18 +14,21 @@ def getPrevalenceConsumers(relationship_rows, summary_statistics_rows) {
     def pair_prevalence_analysis_ids = relationship_rows.findAll { row ->
         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
             def capability = getMethodCapabilities()[method]
-            capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+            capability && capability.domain == 'pairwise' && capability.prevalence.population != 'not_consumed'
         }
     }.collectMany { row -> [normaliseCellValue(row[0].left_analysis_id), normaliseCellValue(row[0].right_analysis_id)] }.findAll { analysis_id -> analysis_id }.collect { analysis_id -> analysis_id.toString() } as Set
     def pair_prevalence_summary_statistics_ids = relationship_rows.findAll { row ->
         tokenizeMethodSelector(row[0].relationship_methods).any { method ->
             def capability = getMethodCapabilities()[method]
-            capability && capability.domain == 'pairwise' && capability.consumes_population_prevalence
+            capability && capability.domain == 'pairwise' && capability.prevalence.population != 'not_consumed'
         }
     }.collectMany { row -> [normaliseCellValue(row[0].left_summary_statistics_id), normaliseCellValue(row[0].right_summary_statistics_id)] }.findAll { summary_statistics_id -> summary_statistics_id }.collect { summary_statistics_id -> summary_statistics_id.toString() } as Set
     def summary_prevalence_analysis_ids = summary_statistics_rows.findAll { row ->
         def summary_statistics_id = normaliseCellValue(row[0].id)?.toString()
-        normaliseCellValue(row[0].producer_analysis_id) && (tokenizeMethodSelector(row[0].heritability_methods).any { method -> getMethodCapabilities()[method]?.consumes_population_prevalence } || summary_statistics_id in pair_prevalence_summary_statistics_ids)
+        normaliseCellValue(row[0].producer_analysis_id) && (tokenizeMethodSelector(row[0].heritability_methods).any { method ->
+            def capability = getMethodCapabilities()[method]
+            capability && capability.prevalence.population != 'not_consumed'
+        } || summary_statistics_id in pair_prevalence_summary_statistics_ids)
     }.collect { row -> normaliseCellValue(row[0].producer_analysis_id).toString() } as Set
     return [
         pair_analysis_ids: pair_prevalence_analysis_ids,

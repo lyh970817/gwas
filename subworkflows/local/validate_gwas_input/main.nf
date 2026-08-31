@@ -8,11 +8,11 @@
 */
 
 // PLUGIN
-include { samplesheetToList         } from 'plugin/nf-schema'
+include { samplesheetToList                } from 'plugin/nf-schema'
 
 // LOCAL FUNCTIONS
-include { validateSamplesheetHeader } from './manifest_contracts'
-include { validateRelationalInput   } from './resolve_input'
+include { validateUniqueSamplesheetHeaders } from './manifest_contracts'
+include { validateRelationalInput          } from './resolve_input'
 
 workflow VALIDATE_GWAS_INPUT {
     take:
@@ -39,14 +39,14 @@ workflow VALIDATE_GWAS_INPUT {
     def summary_statistics_schema = "${projectDir}/assets/schema_summary_statistics_manifest.json"
     def relationship_schema = "${projectDir}/assets/schema_relationship_manifest.json"
     if (cohort_manifest) {
-        validateSamplesheetHeader(cohort_manifest, cohort_schema, 'Cohort manifest')
-        validateSamplesheetHeader(analysis_manifest, analysis_schema, 'Analysis manifest')
+        validateUniqueSamplesheetHeaders(cohort_manifest, 'Cohort manifest')
+        validateUniqueSamplesheetHeaders(analysis_manifest, 'Analysis manifest')
     }
     if (summary_statistics_manifest) {
-        validateSamplesheetHeader(summary_statistics_manifest, summary_statistics_schema, 'Summary-statistics manifest')
+        validateUniqueSamplesheetHeaders(summary_statistics_manifest, 'Summary-statistics manifest')
     }
     if (relationship_manifest) {
-        validateSamplesheetHeader(relationship_manifest, relationship_schema, 'Relationship manifest')
+        validateUniqueSamplesheetHeaders(relationship_manifest, 'Relationship manifest')
     }
 
     def validated = validateRelationalInput(

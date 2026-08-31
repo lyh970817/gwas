@@ -37,6 +37,39 @@ nextflow_pipeline {
         [suffix: ' - stub', stub: true],
     ]
 
+    def invalidRunOptions = [
+        [name: 'chunked mode without jobs', mode: 'chunked', jobs: null],
+        [name: 'standard mode with jobs', mode: 'standard', jobs: 2],
+    ]
+
+    invalidRunOptions.each { scenario ->
+        test("schema rejects REGENIE ${scenario.name}") {
+            config "../conf/test_regenie_standard.config"
+            tag "regenie_schema"
+
+            when {
+                params {
+                    outdir = "$outputDir"
+                    def linked = manifests(outputDir, projectDir, "regenie_schema_${scenario.mode}", { _rows -> })
+                    cohort_manifest = linked.cohort
+                    analysis_manifest = linked.analysis
+                    regenie_step1_mode = scenario.mode
+                    regenie_step1_jobs = scenario.jobs
+                }
+            }
+
+            then {
+                def report = VALIDATION.report(outputDir, workflow.stdout)
+                assertAll(
+                    { assert !workflow.success },
+                    { assert report.contains('regenie_step1_jobs') },
+                    { assert TRACE.count(workflow, 'REGENIE_STEP1') == 0 },
+                    { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
+                )
+            }
+        }
+    }
+
     test("per-analysis REGENIE method options change fitted-model identity and Step 2 policy") {
         config "../conf/test_regenie_standard.config"
         tag "regenie_method_options"

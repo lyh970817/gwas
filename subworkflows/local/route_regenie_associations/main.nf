@@ -24,10 +24,6 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 
     main:
 
-    if (step1_mode == 'chunked' && step1_jobs == null) {
-        error("[nf-core/gwas] ERROR: --regenie_step1_jobs is required when --regenie_step1_mode is 'chunked'")
-    }
-
     // The reuse key is a private routing value rather than a custom meta field. One canonical request
     // drives each fit; the original analysis metadata stays beside every consumer and is restored below.
     def ch_requests = ch_analyses.map { meta, pgen, psam, pvar, phenotype, covariates ->

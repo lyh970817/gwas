@@ -152,26 +152,23 @@ nextflow_function {
                 { assert function.result.gcta_bivariate_he.domain == 'pairwise' },
                 { assert function.result.gcta_bivariate_he.matrix_kind == 'gcta_dense' },
                 { assert function.result.gcta_bivariate_he.estimator_family == 'moment_he' },
-                { assert function.result.gcta_bivariate_he.trait_support == [quantitative: true, binary: false, binary_requires: []] },
+                { assert function.result.gcta_bivariate_he.trait_support == [quantitative: true, binary: false] },
                 { assert function.result.gcta_bivariate_he.supports_covariates == false },
-                { assert !function.result.gcta_bivariate_he.consumes_population_prevalence },
+                { assert function.result.gcta_bivariate_he.prevalence.population == 'not_consumed' },
                 { assert function.result.gcta_bivariate_he_ldms.matrix_kind == 'gcta_ldms' },
-                { assert function.result.gcta_bivariate_he_ldms.component_model == 'ldms_multi_component' },
                 { assert function.result.gcta_bivariate_he_ldms.citation_keys == ['gcta_hereg', 'gcta_greml_ldms'] },
                 { assert function.result.ldak_sumher.domain == 'summary_unary' },
                 { assert function.result.ldak_sumher.reference_family == 'ldak' },
-                { assert function.result.ldak_sumher.consumes_population_prevalence },
+                { assert function.result.ldak_sumher.prevalence.population == 'consumed' },
                 { assert function.result.ldak_sumcors.endpoint_domain == 'summary_statistics' },
-                { assert function.result.ldak_sumcors.consumes_population_prevalence },
-                { assert function.result.ldak_sumcors.consumes_sample_prevalence },
+                { assert function.result.ldak_sumcors.prevalence == [population: 'consumed', sample: 'consumed'] },
                 { assert function.result.ldsc_h2.reference_family == 'ldsc' },
-                { assert function.result.ldsc_h2.consumes_sample_prevalence },
+                { assert function.result.ldsc_h2.prevalence.sample == 'consumed' },
                 { assert function.result.ldsc_rg.endpoint_domain == 'summary_statistics' },
-                { assert function.result.ldsc_rg.consumes_population_prevalence },
-                { assert function.result.ldsc_rg.consumes_sample_prevalence },
+                { assert function.result.ldsc_rg.prevalence == [population: 'consumed', sample: 'consumed'] },
                 { assert function.result.ldak_reml.matrix_kind == 'ldak_kinship' },
-                { assert function.result.ldak_pcgc.requires_population_prevalence },
-                { assert function.result.ldak_he.citation_key == function.result.ldak_pcgc.citation_key },
+                { assert function.result.ldak_pcgc.prevalence.population == 'required' },
+                { assert function.result.ldak_he.citation_keys == function.result.ldak_pcgc.citation_keys },
             )
         }
     }
@@ -187,16 +184,22 @@ nextflow_function {
                     'domain',
                     'estimator_family',
                     'input_backend',
-                    'component_model',
                     'trait_support',
-                    'stochastic',
-                    'produces_likelihood',
-                    'supports_partial_overlap',
-                    'reference_strictness',
-                    'requires_prevalence',
-                    'produces_reusable_intermediates',
-                    'role',
-                    'citation_key',
+                    'prevalence',
+                    'citation_keys',
+                ] },
+                { assert function.result.queryable_fields == [
+                    'domain',
+                    'option_family',
+                    'matrix_kind',
+                    'endpoint_domain',
+                    'reference_family',
+                    'estimator_family',
+                    'input_backend',
+                    'trait_support',
+                    'supports_covariates',
+                    'prevalence',
+                    'citation_keys',
                 ] },
                 { assert function.result.input_backends == [
                     'dense_grm',
@@ -206,10 +209,8 @@ nextflow_function {
                     'direct_plink_genotypes',
                     'summary_statistics',
                 ] },
-                { assert function.result.component_models == ['not_applicable', 'single_component', 'ldms_multi_component', 'tagging_model_defined'] },
                 { assert function.result.prevalence_requirements == ['not_consumed', 'consumed', 'required'] },
-                { assert function.result.reference_strictness == ['tolerant', 'model_matched', 'strict'] },
-                { assert function.result.trait_support_fields == ['quantitative', 'binary', 'binary_requires'] },
+                { assert function.result.trait_support_fields == ['quantitative', 'binary'] },
             )
         }
     }
@@ -223,16 +224,9 @@ nextflow_function {
                 'domain',
                 'estimator_family',
                 'input_backend',
-                'component_model',
                 'trait_support',
-                'stochastic',
-                'produces_likelihood',
-                'supports_partial_overlap',
-                'reference_strictness',
-                'requires_prevalence',
-                'produces_reusable_intermediates',
-                'role',
-                'citation_key',
+                'prevalence',
+                'citation_keys',
             ]
             def estimatorFamilies = [
                 'generalised_linear_model',
@@ -252,163 +246,43 @@ nextflow_function {
                 'direct_plink_genotypes',
                 'summary_statistics',
             ]
-            def componentModels = ['not_applicable', 'single_component', 'ldms_multi_component', 'tagging_model_defined']
             def prevalenceRequirements = ['not_consumed', 'consumed', 'required']
             assertAll(
                 { assert function.success },
                 { assert function.result.every { _token, details -> requiredFields.every { field -> details.containsKey(field) } } },
                 { assert function.result.every { _token, details -> details.estimator_family in estimatorFamilies } },
                 { assert function.result.every { _token, details -> details.input_backend in inputBackends } },
-                { assert function.result.every { _token, details -> details.component_model in componentModels } },
-                { assert function.result.every { _token, details -> details.role instanceof String && details.role.trim() } },
-                { assert function.result.every { _token, details -> details.stochastic instanceof Boolean } },
-                { assert function.result.every { _token, details -> details.produces_likelihood instanceof Boolean } },
-                { assert function.result.every { _token, details -> details.produces_reusable_intermediates instanceof Boolean } },
-                { assert function.result.every { _token, details -> details.requires_prevalence.keySet().toList() == ['population', 'sample'] } },
-                { assert function.result.every { _token, details -> details.requires_prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
-                { assert function.result.every { _token, details -> details.trait_support.keySet().toList() == ['quantitative', 'binary', 'binary_requires'] } },
+                { assert function.result.every { _token, details -> details.prevalence.keySet().toList() == ['population', 'sample'] } },
+                { assert function.result.every { _token, details -> details.prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
+                { assert function.result.every { _token, details -> details.trait_support.keySet().toList() == ['quantitative', 'binary'] } },
                 { assert function.result.every { _token, details -> details.trait_support.quantitative || details.trait_support.binary } },
+                { assert function.result.every { _token, details -> details.citation_keys instanceof List && details.citation_keys } },
             )
         }
     }
 
-    test("declared capability fields agree with the established routing and prevalence contract") {
+    test("the registry contains only fields with active consumers") {
         function "getMethodCapabilities"
         tag "method_capabilities"
 
         then {
+            def activeFields = [
+                'domain',
+                'option_family',
+                'matrix_kind',
+                'endpoint_domain',
+                'reference_family',
+                'estimator_family',
+                'input_backend',
+                'trait_support',
+                'supports_covariates',
+                'prevalence',
+                'citation_keys',
+            ] as Set
             assertAll(
                 { assert function.success },
-                // A reusable matrix or trace artifact exists exactly when a matrix kind is registered.
-                { assert function.result.every { _token, details -> details.produces_reusable_intermediates == (details.matrix_kind != null) } },
-                // Only a pairwise estimator can answer the sample-overlap question.
-                { assert function.result.every { _token, details -> (details.supports_partial_overlap != null) == (details.domain == 'pairwise') } },
-                // Only a method staging an external LD reference carries a strictness grade.
-                { assert function.result.every { _token, details -> (details.reference_strictness != null) == (details.reference_family != null) } },
-                { assert function.result.every { _token, details -> (details.requires_prevalence.population != 'not_consumed') == (details.consumes_population_prevalence == true) } },
-                { assert function.result.every { _token, details -> (details.requires_prevalence.population == 'required') == (details.requires_population_prevalence == true) } },
-                { assert function.result.every { _token, details -> (details.requires_prevalence.sample != 'not_consumed') == (details.consumes_sample_prevalence == true) } },
-                { assert function.result.every { _token, details -> details.trait_support.binary_requires.every { field -> field in ['population_prevalence', 'sample_prevalence'] } } },
-                // A binary-only estimator must state what makes it binary-only.
-                { assert function.result.every { _token, details -> details.trait_support.quantitative || details.trait_support.binary_requires } },
+                { assert function.result.every { _token, details -> activeFields.containsAll(details.keySet()) } },
             )
-        }
-    }
-
-    def backendRepresentatives = [
-        [
-            name: 'GCTA GREML on one dense GRM',
-            method: 'gcta_greml',
-            expected: [
-                estimator_family: 'reml',
-                input_backend: 'dense_grm',
-                component_model: 'single_component',
-                produces_likelihood: true,
-                produces_reusable_intermediates: true,
-                stochastic: false,
-                supports_partial_overlap: null,
-                reference_strictness: null,
-            ],
-        ],
-        [
-            name: 'GCTA GREML-LDMS on the stratified GRM family',
-            method: 'gcta_greml_ldms',
-            expected: [
-                estimator_family: 'reml',
-                input_backend: 'ldms_grm_family',
-                component_model: 'ldms_multi_component',
-                produces_likelihood: true,
-                produces_reusable_intermediates: true,
-                stochastic: false,
-                supports_partial_overlap: null,
-                reference_strictness: null,
-            ],
-        ],
-        [
-            name: 'LDAK Haseman-Elston on a prebuilt kinship',
-            method: 'ldak_he',
-            expected: [
-                estimator_family: 'moment_he',
-                input_backend: 'ldak_kinship',
-                component_model: 'single_component',
-                produces_likelihood: false,
-                produces_reusable_intermediates: true,
-                stochastic: true,
-                supports_partial_overlap: null,
-                reference_strictness: null,
-            ],
-        ],
-        [
-            name: 'GCTA fastGWA against a sparse relatedness matrix',
-            method: 'gcta_fastgwa',
-            expected: [
-                estimator_family: 'mixed_linear_model',
-                input_backend: 'sparse_grm',
-                component_model: 'single_component',
-                produces_likelihood: false,
-                produces_reusable_intermediates: true,
-                stochastic: false,
-                supports_partial_overlap: null,
-                reference_strictness: null,
-            ],
-        ],
-        [
-            name: 'LDAK KVIK streaming genotypes without a prebuilt matrix',
-            method: 'ldak_kvik',
-            expected: [
-                estimator_family: 'mixed_linear_model',
-                input_backend: 'direct_plink_genotypes',
-                component_model: 'single_component',
-                produces_likelihood: false,
-                produces_reusable_intermediates: false,
-                stochastic: true,
-                supports_partial_overlap: null,
-                reference_strictness: null,
-            ],
-        ],
-        [
-            name: 'LDSC heritability from summary statistics and an external reference',
-            method: 'ldsc_h2',
-            expected: [
-                estimator_family: 'ld_score_regression',
-                input_backend: 'summary_statistics',
-                component_model: 'single_component',
-                produces_likelihood: false,
-                produces_reusable_intermediates: false,
-                stochastic: false,
-                supports_partial_overlap: null,
-                reference_strictness: 'tolerant',
-            ],
-        ],
-        [
-            name: 'LDSC genetic correlation across two overlapping summary results',
-            method: 'ldsc_rg',
-            expected: [
-                estimator_family: 'ld_score_regression',
-                input_backend: 'summary_statistics',
-                component_model: 'single_component',
-                produces_likelihood: false,
-                produces_reusable_intermediates: false,
-                stochastic: false,
-                supports_partial_overlap: true,
-                reference_strictness: 'tolerant',
-            ],
-        ],
-    ]
-
-    backendRepresentatives.each { scenario ->
-        test("capabilities describe ${scenario.name}") {
-            function "getMethodCapabilities"
-            tag "method_capabilities"
-
-            then {
-                def details = function.result[scenario.method]
-                assertAll(
-                    { assert function.success },
-                    { assert details },
-                    { assert scenario.expected.every { field, value -> details[field] == value } },
-                )
-            }
         }
     }
 

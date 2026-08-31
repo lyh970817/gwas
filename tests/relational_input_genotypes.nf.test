@@ -160,8 +160,8 @@ nextflow_pipeline {
             assertAll(
                 { assert !workflow.success },
                 { assert report.contains(params.cohort_manifest.toString()) },
-                { assert report.contains('header row 1') },
-                { assert report.contains("unexpected column headers: 'vcf_index'") },
+                { assert report.contains("field 'vcf_index'") },
+                { assert report.contains('False schema always fails') },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
             )
         }
