@@ -1,0 +1,121 @@
+nextflow_function {
+
+    name "Test linked GWAS input contract functions"
+    script "../method_options.nf"
+    tag "function"
+    tag "input"
+
+    test("method option defaults have one canonical resolved shape") {
+        function "getMethodOptionDefaults"
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result.gcta == [
+                    grm_maf: null,
+                    grm_extract: [],
+                    reml_no_constrain: false,
+                    sparse_cutoff: 0.05,
+                    ld_score_region_kb: 200,
+                    ld_bins: 4,
+                    ldms_maf_edges: [0, 0.01, 0.05, 0.2, 0.5],
+                ] },
+                { assert function.result.ldak == [
+                    model: 'human_default',
+                    power: -0.25,
+                    weights_policy: 'equal',
+                    weights: [],
+                    relatedness_filter: false,
+                    kvik_step1_subset: 'all',
+                    predictor_extract: [],
+                ] },
+                { assert function.result.regenie == [
+                    step1_bsize: 1000,
+                    firth: true,
+                    firth_approx: true,
+                    firth_p_threshold: 0.01,
+                    min_mac: null,
+                ] },
+            )
+        }
+    }
+
+    test("method-family object errors retain GCTA-first attribution") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'family_object_order', [
+                    example: [regenie: [], ldak: [], gcta: []],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: 'regenie,gcta_fastgwa', heritability_methods: 'ldak_reml', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            def report = function.stdout.join('\n')
+            assertAll(
+                { assert function.failed },
+                { assert report.contains("option 'gcta': expected an option object") },
+                { assert !report.contains("option 'ldak': expected an option object") },
+                { assert !report.contains("option 'regenie': expected an option object") },
+            )
+        }
+    }
+
+    test("unknown options retain REGENIE-first attribution") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'unknown_option_order', [
+                    example: [gcta: [mystery: true], ldak: [mystery: true], regenie: [mystery: true]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: 'regenie,gcta_fastgwa', heritability_methods: 'ldak_reml', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            def report = function.stdout.join('\n')
+            assertAll(
+                { assert function.failed },
+                { assert report.contains("option 'regenie.mystery': unknown option") },
+                { assert !report.contains("option 'gcta.mystery': unknown option") },
+                { assert !report.contains("option 'ldak.mystery': unknown option") },
+            )
+        }
+    }
+
+    test("invalid resolved values retain REGENIE-first attribution") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'resolution_order', [
+                    example: [
+                        gcta: [sparse_cutoff: 2],
+                        ldak: [power: 'not-a-number'],
+                        regenie: [step1_bsize: 1.5],
+                    ],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: 'regenie,gcta_fastgwa', heritability_methods: 'ldak_reml', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            def report = function.stdout.join('\n')
+            assertAll(
+                { assert function.failed },
+                { assert report.contains("option 'regenie.step1_bsize': expected one positive integer") },
+                { assert !report.contains("option 'gcta.sparse_cutoff'") },
+                { assert !report.contains("option 'ldak.power'") },
+            )
+        }
+    }
+}

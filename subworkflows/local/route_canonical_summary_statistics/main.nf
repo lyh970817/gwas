@@ -13,8 +13,8 @@
 include { GWASLAB_HARMONIZE               } from '../../../modules/local/gwaslab/harmonize/main'
 
 // FUNCTION: Local to the pipeline
-include { getAssociationColumnMappingJson } from '../validate_gwas_input'
-include { getInternalSummaryMetadata      } from '../validate_gwas_input'
+include { getAssociationColumnMappingJson } from '../validate_gwas_input/method_registry'
+include { getInternalSummaryMetadata      } from '../validate_gwas_input/identity_helpers'
 
 workflow ROUTE_CANONICAL_SUMMARY_STATISTICS {
     take:

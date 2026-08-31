@@ -7,7 +7,7 @@ include { PLINK2_MAKEBED                } from '../../../modules/local/plink2/ma
 include { PLINK2_VCF                    } from '../../../modules/local/plink2/vcf/main'
 
 // FUNCTION: Local to the pipeline
-include { getPlink1GenotypeMethodTokens } from '../validate_gwas_input'
+include { getPlink1GenotypeMethodTokens } from '../validate_gwas_input/method_registry'
 
 workflow PREPARE_COHORT_GENOTYPES {
     take:

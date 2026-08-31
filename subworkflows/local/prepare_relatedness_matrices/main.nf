@@ -12,7 +12,7 @@ include { GCTA_MAKEBKSPARSE           } from '../../../modules/local/gcta/makebk
 // FUNCTION: Local to the pipeline
 include { digestFileBytes             } from '../utils_nfcore_gwas_pipeline'
 include { digestIdentityText          } from '../utils_nfcore_gwas_pipeline'
-include { getMethodCapabilities       } from '../validate_gwas_input'
+include { getMethodCapabilities       } from '../validate_gwas_input/method_registry'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:

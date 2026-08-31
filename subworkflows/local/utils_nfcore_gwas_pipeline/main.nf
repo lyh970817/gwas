@@ -18,7 +18,7 @@ include { UTILS_NEXTFLOW_PIPELINE } from '../../nf-core/utils_nextflow_pipeline'
 include { VALIDATE_GWAS_INPUT     } from '../validate_gwas_input'
 
 // FUNCTION: Local to the pipeline
-include { getMethodCapabilities   } from '../validate_gwas_input'
+include { getMethodCapabilities   } from '../validate_gwas_input/method_registry'
 
 // PLUGIN
 include { paramsSummaryMap        } from 'plugin/nf-schema'

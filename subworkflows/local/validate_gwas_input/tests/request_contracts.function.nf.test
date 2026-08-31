@@ -1,0 +1,112 @@
+nextflow_function {
+
+    name "Test linked GWAS input contract functions"
+    script "../request_contracts.nf"
+    tag "function"
+    tag "input"
+
+    test("pair LDMS settings resolve independently of either endpoint analysis") {
+        function "resolvePairLdmsMatrixSettings"
+
+        when {
+            function {
+                """
+                input[0] = [ld_score_region_kb: 50, ld_bins: 1, ldms_maf_edges: [0, 0.5]]
+                input[1] = [ld_score_region_kb: 200, ld_bins: 4, maf_edges: [0, 0.01, 0.05, 0.2, 0.5]]
+                input[2] = { option, reason -> error("\${option}: \${reason}") }
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [ld_score_region_kb: 50, ld_bins: 1, maf_edges: [0, 0.5]] },
+            )
+        }
+    }
+
+    def invalidPairLdmsSettings = [
+        [name: 'non-positive LD bins', options: [ld_bins: 0], expected: 'ld_bins: expected one positive integer'],
+        [name: 'non-increasing MAF boundaries', options: [ldms_maf_edges: [0, 0.05, 0.01, 0.5]], expected: 'ldms_maf_edges: boundaries must be strictly increasing'],
+    ]
+
+    invalidPairLdmsSettings.each { scenario ->
+        test("pair LDMS settings reject ${scenario.name}") {
+            function "resolvePairLdmsMatrixSettings"
+
+            when {
+                function {
+                    """
+                    input[0] = ${scenario.options.inspect()}
+                    input[1] = [ld_score_region_kb: 200, ld_bins: 4, maf_edges: [0, 0.01, 0.05, 0.2, 0.5]]
+                    input[2] = { option, reason -> error("\${option}: \${reason}") }
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.failed },
+                    { assert function.stdout.join('\n').contains(scenario.expected) },
+                )
+            }
+        }
+    }
+
+    def prevalenceCases = [
+        [
+            name: 'quantitative pair omits prevalence',
+            left: [is_binary: false, population_prevalence: null],
+            right: [is_binary: false, population_prevalence: null],
+            expected: [],
+        ],
+        [
+            name: 'binary left mixed pair retains the sole prevalence',
+            left: [is_binary: true, population_prevalence: 0.2],
+            right: [is_binary: false, population_prevalence: null],
+            expected: [0.2],
+        ],
+        [
+            name: 'binary right mixed pair retains the sole prevalence',
+            left: [is_binary: false, population_prevalence: null],
+            right: [is_binary: true, population_prevalence: 0.1],
+            expected: [0.1],
+        ],
+        [
+            name: 'complete binary pair retains ordered prevalences',
+            left: [is_binary: true, population_prevalence: 0.2],
+            right: [is_binary: true, population_prevalence: 0.1],
+            expected: [0.2, 0.1],
+        ],
+        [
+            name: 'incomplete binary pair omits native conversion',
+            left: [is_binary: true, population_prevalence: 0.2],
+            right: [is_binary: true, population_prevalence: null],
+            expected: [],
+        ],
+    ]
+
+    prevalenceCases.each { scenario ->
+        test("${scenario.name}") {
+            function "getGctaBivariatePrevalence"
+
+            when {
+                function {
+                    """
+                    input[0] = new groovy.json.JsonSlurper().parseText('${groovy.json.JsonOutput.toJson(scenario.left)}')
+                    input[1] = new groovy.json.JsonSlurper().parseText('${groovy.json.JsonOutput.toJson(scenario.right)}')
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.success },
+                    { assert function.result == scenario.expected },
+                )
+            }
+        }
+    }
+
+}
