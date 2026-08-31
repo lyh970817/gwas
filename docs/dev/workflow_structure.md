@@ -47,20 +47,20 @@ Relational checks are decomposed by the object they resolve:
 
 The method registry contains no descriptive inventory. Every stored field has a live consumer:
 
-| Registry field       | Active consumer                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `domain`             | Selector vocabularies, request namespaces and methods reporting                                                  |
-| `option_family`      | Per-family method-options validation and native-argument firewalls                                               |
-| `matrix_kind`        | Relatedness construction, pair request settings and dense/LDMS controller routing                               |
-| `endpoint_domain`    | Analysis-versus-summary relationship endpoint validation and resolution                                         |
-| `reference_family`   | Reference-bundle requirements, family compatibility and request-resource routing                                |
-| `estimator_family`   | GCTA REML method-options capability selection                                                                    |
-| `input_backend`      | PLINK 1 preparation, matrix-family selection and summary-native policy                                           |
-| `trait_support`      | Pair endpoint trait validation                                                                                   |
-| `supports_covariates`| Pair covariate capability validation                                                                             |
-| `prevalence`         | Analysis, generated-summary and pair prevalence validation                                                       |
-| `citation_keys`      | Run-specific methods citations                                                                                   |
-| `mapping`            | Association-result GWASLab column mapping                                                                        |
+| Registry field        | Active consumer                                                                   |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `domain`              | Selector vocabularies, request namespaces and methods reporting                   |
+| `option_family`       | Per-family method-options validation and native-argument firewalls                |
+| `matrix_kind`         | Relatedness construction, pair request settings and dense/LDMS controller routing |
+| `endpoint_domain`     | Analysis-versus-summary relationship endpoint validation and resolution           |
+| `reference_family`    | Reference-bundle requirements, family compatibility and request-resource routing  |
+| `estimator_family`    | GCTA REML method-options capability selection                                     |
+| `input_backend`       | PLINK 1 preparation, matrix-family selection and summary-native policy            |
+| `trait_support`       | Pair endpoint trait validation                                                    |
+| `supports_covariates` | Pair covariate capability validation                                              |
+| `prevalence`          | Analysis, generated-summary and pair prevalence validation                        |
+| `citation_keys`       | Run-specific methods citations                                                    |
+| `mapping`             | Association-result GWASLab column mapping                                         |
 
 After this boundary, controllers and representation adapters trust the typed metadata they receive. The GCTA
 bivariate controller routes on `matrix_kind`; it does not re-derive method groups. `PREPARE_BIVARIATE_TRAITS`
