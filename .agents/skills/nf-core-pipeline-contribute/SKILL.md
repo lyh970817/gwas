@@ -29,11 +29,14 @@ synchronization in this repository.
    gates rather than implying that every contribution has the same test surface.
 7. For commits or branch synchronization, apply `dual-track-commit`. Prepare a public PR only when requested,
    using the live template, current authorized base-update mode, and canonical reviewer boundary.
-8. Request review only after the applicable CI and local gates are green and the user authorizes the external
+8. Before closing the linked issue, when practical, delete issue-specific generated audit and evidence documents
+   without an ongoing named consumer.
+9. Request review only after the applicable CI and local gates are green and the user authorizes the external
    action.
-9. Close the linked origin issue after the contribution is integrated into every intended track and its required
-   verification is complete.
+10. Close the linked origin issue after the contribution is integrated into every intended track and its required
+    verification is complete.
 
 Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
 wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;
-CI state; linked origin issue and closure state; and skipped tests or profiles.
+CI state; generated documents retained or deleted; linked origin issue and closure state; and skipped tests or
+profiles.

@@ -43,6 +43,11 @@ PR's head are exceptions and are never swept: `fix-biofuse-storage` is evidence 
 Never merge a branch that still carries files which must never be tracked, anything under `.scratch/` above
 all; the merge reintroduces those blobs. Rewrite the branch first.
 
+## Generated development documents
+
+Commit issue-specific generated audit and evidence documents while they are needed for review or historical
+record. After verification, delete them; retain only documents with an ongoing named consumer.
+
 ## Upstream-bound local components
 
 The LDAK, GWASLab, GCTA, PLINK, and PLINK 2 modules and reusable subworkflows under `modules/local/` and
