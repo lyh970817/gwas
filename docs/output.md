@@ -253,13 +253,16 @@ The native files retain LDAK's own result structure, warnings and missing-value 
 <details markdown="1">
 <summary>Output files</summary>
 
-The pipeline builds each distinct [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) or [LDAK](https://dougspeed.com/ldak/) relatedness matrix once and reuses it across compatible analyses. Matrices are unpublished by default because they are large intermediates. `<key>` is a content-derived digest over cohort identity and every construction setting that changes a matrix. Key-addressing is necessary because one cohort may need several matrices, while one matrix may belong to several analyses. Per-partition construction files and logs are never published.
+The pipeline builds each reusable [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) or [LDAK](https://dougspeed.com/ldak/) base artifact once and derives each requested child artifact once. Compatible GREML and fastGWA routes share a dense GCTA base, while the fastGWA cutoff identifies only its sparse child. Filtered and unrestricted LDAK routes share a kinship base, while unrelated-sample subsetting identifies only its child. LDAK HE and PCGC likewise share a covariate-adjusted child when their selected parent, effective sample subset, covariate content and native options match.
+
+Matrices are unpublished by default because they are large intermediates. `<key>` is a content-derived artifact identity over immutable input or parent identity and effective scientific settings. It never contains focal analysis, estimator or publication state. Key-addressing is necessary because one cohort may need several artifacts, while one artifact may serve unary, pairwise and association consumers. Each base or child is published exactly once by its own key; per-partition construction files and logs are never published.
 
 - `quality_control/relatedness_matrices/<key>/` (with `--save_relatedness_matrices`)
   - `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: Dense GCTA matrix bundle.
-  - `*.grm.sp`, `*.grm.id`: Sparse GCTA fastGWA matrix bundle.
+  - `*.grm.sp`, `*.grm.id`: Sparse GCTA fastGWA child bundle.
   - `*.mgrm`, `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: GCTA GREML-LDMS manifest and stratified matrix bundles.
-  - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`: LDAK matrix bundle.
+  - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`: Base or unrelated-sample child LDAK kinship bundle.
+  - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`, `*.grm.root`: Covariate-adjusted LDAK child bundle.
 
 </details>
 

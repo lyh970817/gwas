@@ -373,7 +373,7 @@ The four opt-in save controls are:
 
 - `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
 - `--save_normalised_phenotypes`: publish headered prepared phenotype and covariate files under `phenotypes/<analysis_id>/`. The parameter name is retained for compatibility.
-- `--save_relatedness_matrices`: publish merged GCTA or LDAK matrix bundles under `quality_control/relatedness_matrices/<key>/`.
+- `--save_relatedness_matrices`: publish each reusable GCTA or LDAK base or derived matrix artifact once under `quality_control/relatedness_matrices/<key>/`.
 - `--save_association_predictions`: publish reusable REGENIE and LDAK-KVIK Step 1 bundles under `intermediates/association_predictions/<method>/<analysis_id>/`.
 
 See the [output documentation](output.md) for the exact files and publication exceptions.

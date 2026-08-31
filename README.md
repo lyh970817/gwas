@@ -39,7 +39,7 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
    - LDAK-KVIK
 5. Assign every association result a stable `<analysis_id>--<association_method>` summary-statistics identity and standardise it with GWASLab while preserving the native result.
 6. Load every external summary-statistics table through GWASLab using an explicit named format, including pre-harmonised tables declared with the `gwaslab` format.
-7. Build and reuse relatedness matrices for selected heritability routes:
+7. Build reusable base relatedness artifacts once and derive sparse, subset or adjusted children for selected association and heritability routes:
    - GCTA GREML
    - GCTA GREML-LDMS
    - LDAK REML
