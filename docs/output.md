@@ -260,7 +260,7 @@ Matrices are unpublished by default because they are large intermediates. `<key>
 - `quality_control/relatedness_matrices/<key>/` (with `--save_relatedness_matrices`)
   - `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: Dense GCTA matrix bundle.
   - `*.grm.sp`, `*.grm.id`: Sparse GCTA fastGWA child bundle.
-  - `*.mgrm`, `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: GCTA GREML-LDMS manifest and stratified matrix bundles.
+  - `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: GCTA GREML-LDMS stratified matrix bundles in their declared non-empty LD-by-MAF order. Each native consumer writes its small MGRM control list inside its own task; the control list is not an independently published artifact.
   - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`: Base or unrelated-sample child LDAK kinship bundle.
   - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`, `*.grm.root`: Covariate-adjusted LDAK child bundle.
 
