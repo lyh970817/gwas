@@ -11,6 +11,7 @@ include { ATTRIBUTE_LDAK_KVIK_PREDICTIONS } from '../../../modules/local/attribu
 // FUNCTION: Local to the pipeline
 include { digestFileBytes                 } from '../utils_nfcore_gwas_pipeline'
 include { buildCanonicalPredictionKey     } from '../utils_nfcore_gwas_pipeline'
+include { buildScientificArtifactKey      } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     take:
@@ -19,67 +20,109 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     ch_extract_policy // channel: [ val(meta3), path(extract), val(subset_policy) ], extract is [] for all/thin_common
 
     main:
-    // The reuse key is a private routing value rather than a custom meta field. One canonical request
-    // drives each fit; the original analysis metadata stays beside every consumer and is restored below.
-    def ch_requests = ch_genotypes
+    // A supplied predictor resource is hashed once per distinct declared path before it reaches the
+    // phenotype-specific request graph. Byte-identical files still share the resulting artifact identity.
+    def ch_provided_predictor_identities = ch_extract_policy
+        .filter { _meta, _extract, subset_policy -> subset_policy == 'provided' }
+        .map { _meta, extract, _subset_policy -> [extract.toString(), extract] }
+        .unique { resource_path, _extract -> resource_path }
+        .map { resource_path, extract -> [resource_path, buildProvidedPredictorArtifactKey(extract)] }
+
+    def ch_predictor_policies = ch_extract_policy
+        .filter { _meta, _extract, subset_policy -> subset_policy != 'provided' }
+        .map { meta, extract, subset_policy -> [meta.id, extract, subset_policy, []] }
+
+    def ch_provided_predictor_policies = ch_extract_policy
+        .filter { _meta, _extract, subset_policy -> subset_policy == 'provided' }
+        .map { meta, extract, subset_policy -> [extract.toString(), meta.id, extract, subset_policy] }
+        .combine(ch_provided_predictor_identities, by: 0)
+        .map { _resource_path, analysis_id, extract, subset_policy, predictor_artifact_key ->
+            [analysis_id, extract, subset_policy, predictor_artifact_key]
+        }
+    ch_predictor_policies = ch_predictor_policies.mix(ch_provided_predictor_policies)
+
+    // The prepared PLINK 1 bundle is currently the pipeline's only LDAK view. Its explicit compatibility
+    // identity is the seam where issue #8 can later supply a durable filtered-view identity without making
+    // this route infer identity from a staged basename or absorb BioFuse policy.
+    //
+    // Predictor artifacts are resolved before Step 1 identity. Thin-common requests collapse on genotype
+    // view plus the fixed native thinning contract; phenotype, covariates and focal analysis identity are not
+    // present at this level.
+    def ch_predictor_requests = ch_genotypes
         .map { meta, bed, bim, fam -> [meta.id, meta, bed, bim, fam] }
+        .join(ch_predictor_policies, failOnDuplicate: true, failOnMismatch: true)
+        .map { _analysis_id, meta, bed, bim, fam, extract, subset_policy, provided_artifact_key ->
+            def view_key = buildCurrentPreparedGenotypeViewKey(meta)
+            def predictor_artifact = buildKvikPredictorArtifact(view_key, subset_policy, extract, provided_artifact_key)
+            [predictor_artifact.key, meta, view_key, bed, bim, fam, predictor_artifact]
+        }
+
+    def ch_thin_common_inputs = ch_predictor_requests
+        .filter { _predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, predictor_artifact -> predictor_artifact.policy == 'thin_common' }
+        .unique { predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, _predictor_artifact -> predictor_artifact_key }
+        .map { predictor_artifact_key, meta, _view_key, bed, bim, fam, _predictor_artifact ->
+            def thin_meta = [id: "${meta.cohort}.ldak_thin_common.${predictor_artifact_key}", predictor_artifact_key: predictor_artifact_key]
+            [thin_meta, bed, bim, fam]
+        }
+    LDAK_THINCOMMON(ch_thin_common_inputs)
+
+    def ch_resolved_predictors = ch_predictor_requests
+        .filter { _predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, predictor_artifact -> predictor_artifact.policy != 'thin_common' }
+        .unique { predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, _predictor_artifact -> predictor_artifact_key }
+        .map { predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, predictor_artifact ->
+            [predictor_artifact_key, predictor_artifact.extract]
+        }
+    ch_resolved_predictors = ch_resolved_predictors.mix(
+        LDAK_THINCOMMON.out.predictors.map { meta, extract -> [meta.predictor_artifact_key, extract] }
+    )
+
+    // Step 1 identity is computed only after the predictor resource has been resolved. It names the selected
+    // artifact directly, so all, provided and thin-common policies cannot collapse onto one fit identity.
+    def ch_resolved_predictor_requests = ch_predictor_requests
+        .combine(ch_resolved_predictors, by: 0)
+        .map { _predictor_artifact_key, meta, view_key, bed, bim, fam, predictor_artifact, resolved_extract ->
+            [meta.id, meta, view_key, bed, bim, fam, predictor_artifact, resolved_extract]
+        }
+
+    def ch_resolved_requests = ch_resolved_predictor_requests
         .join(ch_phenotypes.map { meta, phenotype, quant_covariates, cat_covariates -> [meta.id, phenotype, quant_covariates, cat_covariates] }, failOnDuplicate: true, failOnMismatch: true)
-        .join(ch_extract_policy.map { meta, extract, subset_policy -> [meta.id, extract, subset_policy] }, failOnDuplicate: true, failOnMismatch: true)
-        .map { _analysis_id, meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract, subset_policy ->
-            def prediction_key = buildKvikPredictionKey(meta, phenotype, quant_covariates, cat_covariates, subset_policy, extract)
+        .map { _analysis_id, meta, view_key, bed, bim, fam, predictor_artifact, resolved_extract, phenotype, quant_covariates, cat_covariates ->
+            def prediction_key = buildKvikPredictionKey(meta, view_key, phenotype, quant_covariates, cat_covariates, predictor_artifact.key)
             def fit_meta = meta + [id: "${meta.cohort}.ldak_kvik.${prediction_key}"]
-            [prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract, subset_policy]
+            [prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, resolved_extract]
         }
 
-    def ch_fit_requests = ch_requests.unique { prediction_key, _meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, _subset_policy -> prediction_key }
+    def ch_fit_requests = ch_resolved_requests.unique { prediction_key, _meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract -> prediction_key }
 
-    def ch_thin_common_inputs = ch_fit_requests.filter { _prediction_key, _meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, subset_policy -> subset_policy == 'thin_common' }
-    LDAK_THINCOMMON(ch_thin_common_inputs.map { _prediction_key, _meta, fit_meta, bed, bim, fam, _phenotype, _quant_covariates, _cat_covariates, _extract, _subset_policy -> [fit_meta, bed, bim, fam] })
-
-    def ch_direct_step1_inputs = ch_fit_requests
-        .filter { _prediction_key, _meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, subset_policy -> subset_policy in ['all', 'provided'] }
-        .map { _prediction_key, _meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract, _subset_policy ->
-            [[fit_meta, bed, bim, fam], [fit_meta, phenotype, fit_meta.is_binary], [fit_meta, quant_covariates], [fit_meta, cat_covariates], [fit_meta, extract]]
-        }
-
-    def ch_thin_step1_inputs = ch_thin_common_inputs
-        .map { _prediction_key, _meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, _extract, _subset_policy ->
-            [fit_meta.id, [fit_meta, bed, bim, fam], [fit_meta, phenotype, fit_meta.is_binary], [fit_meta, quant_covariates], [fit_meta, cat_covariates]]
-        }
-        .join(LDAK_THINCOMMON.out.predictors.map { meta, extract -> [meta.id, [meta, extract]] }, failOnDuplicate: true, failOnMismatch: true)
-        .map { _fit_id, genotypes, pheno, qcovar, covar, extract -> [genotypes, pheno, qcovar, covar, extract] }
-
-    def ch_step1 = ch_direct_step1_inputs
-        .mix(ch_thin_step1_inputs)
-        .multiMap { genotypes, pheno, qcovar, covar, extract ->
-            genotypes: genotypes
-            pheno: pheno
-            qcovar: qcovar
-            covar: covar
-            extract: extract
-        }
+    def ch_step1 = ch_fit_requests.multiMap { _prediction_key, _meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract ->
+        genotypes: [fit_meta, bed, bim, fam]
+        pheno: [fit_meta, phenotype, fit_meta.is_binary]
+        qcovar: [fit_meta, quant_covariates]
+        covar: [fit_meta, cat_covariates]
+        extract: [fit_meta, extract]
+    }
 
     LDAK_KVIKSTEP1(ch_step1.genotypes, ch_step1.pheno, ch_step1.qcovar, ch_step1.covar, ch_step1.extract)
 
     // Reattach the private prediction key through the synthetic fit id, then fan the fitted bundle
     // out to every consuming analysis while restoring its original focal metadata for Step 2.
-    def ch_fit_keys = ch_fit_requests.map { prediction_key, _meta, fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, _subset_policy -> [fit_meta.id, prediction_key] }
+    def ch_fit_keys = ch_fit_requests.map { prediction_key, _meta, fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract -> [fit_meta.id, prediction_key] }
     def ch_prediction_bundles = LDAK_KVIKSTEP1.out.predictions
         .map { fit_meta, root, loco_details, loco_prs -> [fit_meta.id, fit_meta, root, loco_details, loco_prs] }
         .join(ch_fit_keys, failOnDuplicate: true, failOnMismatch: true)
         .map { _fit_id, fit_meta, root, loco_details, loco_prs, prediction_key -> [prediction_key, [fit_meta, root, loco_details, loco_prs]] }
 
-    def ch_attributed_predictions = ch_requests
-        .map { prediction_key, meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract, _subset_policy -> [prediction_key, meta.id, meta] }
+    def ch_attributed_predictions = ch_resolved_requests
+        .map { prediction_key, meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract -> [prediction_key, meta.id, meta] }
         .unique { _prediction_key, analysis_id, _meta -> analysis_id }
         .combine(ch_prediction_bundles, by: 0)
         .map { _prediction_key, _analysis_id, meta, predictions -> [meta, predictions[1], predictions[2], predictions[3]] }
 
     ATTRIBUTE_LDAK_KVIK_PREDICTIONS(ch_attributed_predictions)
 
-    def ch_step2 = ch_requests
+    def ch_step2 = ch_resolved_requests
         .combine(ch_prediction_bundles, by: 0)
-        .multiMap { _prediction_key, meta, _fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, _extract, _subset_policy, predictions ->
+        .multiMap { _prediction_key, meta, _fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, _extract, predictions ->
             genotypes: [meta, bed, bim, fam]
             pheno: [meta, phenotype]
             predictions: predictions
@@ -95,7 +138,7 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     harmonisation_input = LDAK_KVIKSTEP2.out.harmonisation_input // channel: [ val(meta), path(tsv) ]
     predictions         = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ], once per shared fit
     effects             = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per shared fit
-    progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], only for thin_common fits
+    progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], once per thin-common predictor artifact
 }
 
 /*
@@ -104,17 +147,49 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// LDAK-KVIK Step 1 reuse additionally depends on predictor policy and optional predictor-list bytes.
-def buildKvikPredictionKey(meta, phenotype, quant_covariates, cat_covariates, subset_policy, predictor_extract) {
+def buildCurrentPreparedGenotypeViewKey(meta) {
+    return buildScientificArtifactKey(
+        [layer: 'compatibility', type: 'prepared_plink1_view'],
+        [
+            contract: 'pending_issue_8',
+            cohort: meta.cohort,
+        ],
+    )
+}
+
+def buildThinCommonKey(view_key, effective_native_options = []) {
+    return "thin_common.${buildScientificArtifactKey(
+        [type: 'ldak_thin_common_predictors', view_key: view_key, adapter_contract: 'ldak6_6.1_thincommon_v1'],
+        effective_native_options,
+    )}"
+}
+
+def buildProvidedPredictorArtifactKey(predictor_extract) {
+    return "provided.${digestFileBytes(predictor_extract)}"
+}
+
+def buildKvikPredictorArtifact(view_key, subset_policy, predictor_extract, provided_artifact_key) {
+    if (subset_policy == 'all') {
+        return [key: 'all_predictors', policy: subset_policy, extract: []]
+    }
+    if (subset_policy == 'provided') {
+        return [key: provided_artifact_key, policy: subset_policy, extract: predictor_extract]
+    }
+    return [key: buildThinCommonKey(view_key), policy: subset_policy, extract: []]
+}
+
+// LDAK-KVIK Step 1 reuse depends on the resolved predictor artifact, not ownership of its construction.
+def buildKvikPredictionKey(meta, view_key, phenotype, quant_covariates, cat_covariates, predictor_artifact_key) {
     def identity = [
-        cohort: meta.cohort,
+        genotype_view: view_key,
         trait: meta.trait,
         is_binary: meta.is_binary,
         phenotype: getPredictionInputIdentity(phenotype),
         quant_covariates: getPredictionInputIdentity(quant_covariates),
         cat_covariates: getPredictionInputIdentity(cat_covariates),
-        subset_policy: subset_policy,
-        predictor_extract: getPredictionInputIdentity(predictor_extract),
+        predictor_artifact: predictor_artifact_key,
+        adapter_contract: 'ldak6_6.1_kvikstep1_v1',
+        native_options: '--mpheno 1',
     ]
     return buildCanonicalPredictionKey(identity)
 }

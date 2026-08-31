@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_ldak_kvik_associations
-description: Route nf-core/gwas analyses through LDAK-KVIK while reusing scientifically identical Step 1 fits
+description: Resolve reusable predictor artifacts and route nf-core/gwas analyses through scientifically identical LDAK-KVIK Step 1 fits
 keywords:
   - ldak
   - kvik
   - genome-wide association study
   - prediction reuse
+  - predictor reuse
 components:
   - ldak/thincommon
   - ldak/kvikstep1
@@ -13,6 +14,7 @@ components:
   - attribute/ldak/kvik/predictions
   - digestfilebytes
   - buildcanonicalpredictionkey
+  - buildscientificartifactkey
 input:
   - ch_genotypes:
       description: PLINK1 genotype bundle for each LDAK-KVIK analysis
@@ -52,7 +54,7 @@ output:
       optional: true
       ontologies: []
   - progress:
-      description: ThinCommon progress files, once per shared thin_common fit
+      description: ThinCommon progress files, once per genotype-view and effective-thinning-options predictor artifact
       structure: "[map meta, path progress]"
       pattern: "*.progress"
       optional: true

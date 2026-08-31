@@ -115,7 +115,7 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 <details markdown="1">
 <summary>Output files</summary>
 
-[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. `ldak.kvik_step1_subset` defaults to `all`; `thin_common` requests deterministic thinning and `provided` requires the stageable `ldak.predictor_extract` resource. The choice changes prediction reuse identity. The native `.assoc` file is published unchanged. The reusable three-file Step 1 bundle is optional output; effects, thinning progress and logs remain in the work directory.
+[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. `ldak.kvik_step1_subset` defaults to `all`; `thin_common` requests deterministic thinning and `provided` requires the stageable `ldak.predictor_extract` resource. One `thin_common` predictor artifact is built per compatible prepared genotype view and effective thinning contract, then shared by every phenotype-specific Step 1 fit on that view. The resolved predictor artifact contributes to prediction reuse identity; phenotype and covariate differences do not fragment thinning reuse. The native `.assoc` file is published unchanged. The reusable three-file Step 1 bundle is optional output; predictor lists, effects, thinning progress and logs remain in the work directory.
 
 - `association/ldak_kvik/<analysis_id>/`
   - `<analysis_id>.ldak_kvik.step2.assoc`: Native LDAK-KVIK Step 2 association table.
