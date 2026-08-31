@@ -62,9 +62,10 @@ nextflow_workflow {
         ]"""
     }
 
-    def kinshipMatrix = { project_dir, meta, keep = null ->
+    def kinshipMatrix = { project_dir, meta, keep = null, artifact_key = 'shared-parent-artifact' ->
         """[
             ${meta},
+            '${artifact_key}',
             [
                 ${RESOURCE(project_dir, 'ldak_kinship.grm.bin')},
                 ${RESOURCE(project_dir, 'ldak_kinship.grm.id')},
@@ -246,13 +247,11 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'LDAK_HE') == 2 },
                 { assert TRACE.count(workflow, 'LDAK_PCGC') == 2 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 1 },
-                // Only `alpha` is adjusted, and only for HE and PCGC. Each alias owns its own adjustment, so
-                // an analysis selecting both non-REML estimators adjusts once under each — the cardinality the
-                // three-alias composition has always had.
-                { assert TRACE.count(workflow, 'LDAK_ADJUSTGRM') == 2 },
-                { assert TRACE.tags(workflow, 'LDAK_ADJUSTGRM') == ['alpha.adjusted_alpha.adjusted', 'alpha.adjusted_alpha.adjusted'] },
-                // The `.adjusted` execution identity is internal to the composition and never becomes the
-                // focal identity of a result.
+                // HE and PCGC consume one child artifact derived from alpha's parent, effective subset and
+                // numerical design. Estimator identity and focal publication state do not fragment it.
+                { assert TRACE.count(workflow, 'LDAK_ADJUSTGRM') == 1 },
+                { assert TRACE.tags(workflow, 'LDAK_ADJUSTGRM').every { tag -> tag.startsWith('ldak_adjusted.') } },
+                // Artifact execution identity never becomes the focal identity of a result.
                 { assert workflow.out.ldak_he_results.collect { meta, _he -> meta.id }.sort() == ['alpha', 'beta'] },
                 { assert workflow.out.ldak_pcgc_results.collect { meta, _pcgc -> meta.id }.sort() == ['alpha', 'beta'] },
                 { assert workflow.out.ldak_reml_results.collect { meta, _reml -> meta.id } == ['alpha'] },

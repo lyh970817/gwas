@@ -81,12 +81,12 @@ nextflow_pipeline {
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             assertAll(
                 { assert workflow.success },
-                // The default and explicit 0.05 settings share one sparse family. A valid 0.025 override
-                // changes the scientific identity and therefore builds a second dense base and sparse matrix.
-                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
-                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 2 },
+                // The default and explicit 0.05 settings share one sparse child. A valid 0.025 override
+                // creates a second child of the same dense base without repeating dense construction.
+                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
-                { assert matrices.list().size() == 2 },
+                { assert matrices.list().size() == 3 },
                 { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 4 },
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 4 },
                 { assert TRACE.tags(workflow, 'GCTA_FASTGWA').sort() == analysisIds },
@@ -109,6 +109,48 @@ nextflow_pipeline {
                 } },
                 { assert snapshot(stableNameAssociation, stablePathAssociation).match('association') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
+            )
+        }
+    }
+
+    test("sparse-child identity controls resume without rebuilding its dense parent") {
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'gcta_sparse_resume')
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'gcta_sparse_resume', { rows ->
+                    rows[0].association_methods = 'gcta_fastgwa'
+                    rows[0].heritability_methods = ''
+                })
+                gcta_grm_parts = 1
+            }
+        }
+
+        then {
+            def unchangedTrace = RESUME.rerun(outputDir, [:])
+            def changedOptions = RELATIONAL.methodOptions(outputDir, 'gcta_sparse_resume_changed', [
+                example_pgen_qt: [gcta: [sparse_cutoff: 0.025]],
+            ])
+            def changedTrace = RESUME.rerun(outputDir, [method_options: changedOptions])
+            def nativeResult = new File(
+                params.outdir.toString(),
+                'association/gcta_fastgwa/example_pgen_qt/example_pgen_qt.gcta_fastgwa.fastGWA',
+            )
+            assertAll(
+                { assert workflow.success },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_MAKEGRMPART') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'CUSTOM_GCTAMERGEGRMPARTS') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_MAKEBKSPARSE') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_FASTGWA') == ['CACHED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_MAKEGRMPART') == ['CACHED'] },
+                { assert RESUME.statuses(changedTrace, 'CUSTOM_GCTAMERGEGRMPARTS') == ['CACHED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_MAKEBKSPARSE') == ['COMPLETED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_FASTGWA') == ['COMPLETED'] },
+                { assert RESUME.tasks(changedTrace, 'GCTA_MAKEBKSPARSE').size() == 1 },
+                { assert RESUME.tasks(changedTrace, 'GCTA_FASTGWA').size() == 1 },
+                { assert nativeResult.isFile() },
             )
         }
     }

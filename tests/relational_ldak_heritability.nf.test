@@ -64,7 +64,7 @@ nextflow_pipeline {
         }
     }
 
-    test("relatedness filtering applies to one analysis and defines a distinct deduplicated matrix") {
+    test("relatedness filtering derives one child from the shared base artifact") {
         options "-stub"
 
         when {
@@ -95,7 +95,7 @@ nextflow_pipeline {
             def keys = matrices.list().toList()
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_REML') == 3 },

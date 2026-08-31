@@ -95,9 +95,9 @@ nextflow_pipeline {
                 if (mode.stub) {
                     assertAll(
                         { assert workflow.success },
-                        // Two cutoff-specific sparse families and one independent dense GREML family.
-                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 3 },
-                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 3 },
+                        // Two cutoff-specific sparse children and GREML share one compatible dense base.
+                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                         { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
                         { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 5 },
                         { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 5 },
@@ -131,13 +131,14 @@ nextflow_pipeline {
                     def stable_path_summary_statistics = RELATIONAL.gzipTextHashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert workflow.success },
-                        // Four declarations canonicalise to cutoff 0.05; the fifth requests 0.025.
-                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 3 },
-                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 3 },
+                        // Four declarations canonicalise to cutoff 0.05; the fifth requests 0.025. Both sparse
+                        // children and compatible GREML consume one dense base artifact.
+                        { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                        { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                         { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 2 },
                         { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 5 },
                         { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 5 },
-                        // GREML gets its own dense build rather than reusing a fastGWA sparse family.
+                        // GREML consumes the dense base; fastGWA consumes only cutoff-specific sparse children.
                         { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
                         { assert association.list().toList().sort() == analysis_ids },
                         { assert summary_statistics.list().toList().sort() == analysis_ids.collect { id -> "${id}--gcta_fastgwa" }.sort() },
