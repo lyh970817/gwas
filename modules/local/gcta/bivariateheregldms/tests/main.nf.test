@@ -107,19 +107,15 @@ nextflow_process {
         when {
             process {
                 """
-                mgrm_file = Channel
-                    .of('plink_simulated_ldms1.part_1_1\\nplink_simulated_ldms2.part_1_1')
-                    .collectFile(name:'plink_simulated_ldms.mgrm', newLine: true)
-
                 ldms_grm_files = GCTA_MAKEGRMPART_LDMS1.out.grm_files
                     .mix(GCTA_MAKEGRMPART_LDMS2.out.grm_files)
                     .map { _meta, grm_files, _nparts_gcta, _part_gcta_job -> grm_files }
                     .collect()
                     .map { rows -> rows.flatten() }
 
-                input[0] = mgrm_file
-                    .combine(ldms_grm_files)
-                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
+                input[0] = ldms_grm_files.map { grm_files ->
+                    [[ id:'plink_simulated_ldms' ], grm_files, ['plink_simulated_ldms1.part_1_1', 'plink_simulated_ldms2.part_1_1']]
+                }
                 input[1] = GAWK_BIVARIATE_PHENO.out.output.map { _meta, phenotype_file -> [[ id:'plink_simulated_ldms' ], phenotype_file, 1, 2] }
                 """
             }
@@ -128,7 +124,9 @@ nextflow_process {
         then {
             def resultFile = file(process.out.hereg_results.get(0).get(1))
             def logText = file(process.out.log.get(0).get(1)).text
-            def command = path(process.out.log.get(0).get(1)).parent.resolve(".command.sh").text.replaceAll(/\s+/, " ")
+            def workDirectory = path(process.out.log.get(0).get(1)).parent
+            def command = workDirectory.resolve(".command.sh").text.replaceAll(/\s+/, " ")
+            def mgrm = workDirectory.resolve('plink_simulated_ldms.mgrm').text
             // `.HEreg` is padded fixed width and `Sum of C(G)/Vp_tr12` fills its 20-character field, so a
             // whitespace split cannot recover the labels: enumerate the coefficient names instead.
             def valueBySource = resultFile.readLines()
@@ -143,6 +141,7 @@ nextflow_process {
                 { assert resultFile.name == "plink_simulated_ldms.HEreg" },
                 { assert command.contains("--HEreg-bivar 1 2") },
                 { assert command.contains('--mgrm "plink_simulated_ldms.mgrm"') },
+                { assert mgrm == 'plink_simulated_ldms1.part_1_1\nplink_simulated_ldms2.part_1_1\n' },
                 { assert process.out.versions_gcta.get(0).get(1) == "gcta" },
                 { assert process.out.versions_gcta.get(0).get(2) == "1.94.1" },
                 // Two declared components produce per-component rows.
@@ -164,19 +163,15 @@ nextflow_process {
         when {
             process {
                 """
-                broken_mgrm_file = Channel
-                    .of('plink_simulated_ldms_missing.part_1_1')
-                    .collectFile(name:'plink_simulated_ldms_broken.mgrm', newLine: true)
-
                 ldms_grm_files = GCTA_MAKEGRMPART_LDMS1.out.grm_files
                     .mix(GCTA_MAKEGRMPART_LDMS2.out.grm_files)
                     .map { _meta, grm_files, _nparts_gcta, _part_gcta_job -> grm_files }
                     .collect()
                     .map { rows -> rows.flatten() }
 
-                input[0] = broken_mgrm_file
-                    .combine(ldms_grm_files)
-                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
+                input[0] = ldms_grm_files.map { grm_files ->
+                    [[ id:'plink_simulated_ldms' ], grm_files, ['plink_simulated_ldms_missing.part_1_1']]
+                }
                 input[1] = GAWK_BIVARIATE_PHENO.out.output.map { _meta, phenotype_file -> [[ id:'plink_simulated_ldms' ], phenotype_file, 1, 2] }
                 """
             }
@@ -196,19 +191,15 @@ nextflow_process {
         when {
             process {
                 """
-                mgrm_file = Channel
-                    .of('plink_simulated_ldms1.part_1_1\\nplink_simulated_ldms2.part_1_1')
-                    .collectFile(name:'plink_simulated_ldms.mgrm', newLine: true)
-
                 ldms_grm_files = GCTA_MAKEGRMPART_LDMS1.out.grm_files
                     .mix(GCTA_MAKEGRMPART_LDMS2.out.grm_files)
                     .map { _meta, grm_files, _nparts_gcta, _part_gcta_job -> grm_files }
                     .collect()
                     .map { rows -> rows.flatten() }
 
-                input[0] = mgrm_file
-                    .combine(ldms_grm_files)
-                    .map { row -> [[ id:'plink_simulated_ldms' ], row[0], row[1..-1]] }
+                input[0] = ldms_grm_files.map { grm_files ->
+                    [[ id:'plink_simulated_ldms' ], grm_files, ['plink_simulated_ldms1.part_1_1', 'plink_simulated_ldms2.part_1_1']]
+                }
                 input[1] = GAWK_BIVARIATE_PHENO.out.output.map { _meta, phenotype_file -> [[ id:'plink_simulated_ldms' ], phenotype_file, 1, 2] }
                 """
             }

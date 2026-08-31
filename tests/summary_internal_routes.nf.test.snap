@@ -2,9 +2,6 @@
     "versions": {
         "content": [
             {
-                "CUSTOM_GCTAMERGEGRMPARTS": {
-                    "coreutils": 9.5
-                },
                 "GCTA_FASTGWA": {
                     "gcta": "1.94.1"
                 },
@@ -13,6 +10,9 @@
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
+                },
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
                 },
                 "GWASLAB_HARMONIZE": {
                     "gwaslab": "4.1.9",
@@ -59,7 +59,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-30T22:22:11.409080165",
+        "timestamp": "2026-09-01T01:25:56.999825708",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

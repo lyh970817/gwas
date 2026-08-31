@@ -57,9 +57,15 @@ output:
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - gcta_ldms:
-      description: The LD-by-MAF-stratified GCTA matrix family of each requesting unary GREML-LDMS analysis or bivariate LDMS request, carrying focal attribution metadata.
-      structure: [map meta, path mgrm_manifest, list grm_files]
-      pattern: "*.mgrm, *.grm.{bin,N.bin,id}"
+      description: The LD-by-MAF-stratified GCTA matrix family of each requesting unary GREML-LDMS analysis or bivariate LDMS request, carrying focal attribution metadata and explicit non-empty stratum prefix order.
+      structure: [map meta, list grm_files, list grm_prefixes]
+      pattern: "*.grm.{bin,N.bin,id}"
+      ontologies:
+        - edam: "http://edamontology.org/format_2330"
+  - gcta_ldms_artifacts:
+      description: Each unique LDMS base artifact before focal fan-out, for pipeline-owned keyed publication.
+      structure: [map matrix_meta, list grm_files, list grm_prefixes]
+      pattern: "*.grm.{bin,N.bin,id}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - ldak_kinship:

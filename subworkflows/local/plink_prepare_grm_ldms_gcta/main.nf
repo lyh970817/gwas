@@ -2,12 +2,11 @@
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULE: Local to the pipeline
-include { GCTA_CALCULATELDSCORES        } from '../../../modules/local/gcta/calculateldscores/main'
-include { CUSTOM_GCTASTRATIFYLDSCORES   } from '../../../modules/local/custom/gctastratifyldscores/main'
-include { CUSTOM_GCTACREATEMGRMMANIFEST } from '../../../modules/local/custom/gctacreatemgrmmanifest/main'
+include { GCTA_CALCULATELDSCORES      } from '../../../modules/local/gcta/calculateldscores/main'
+include { CUSTOM_GCTASTRATIFYLDSCORES } from '../../../modules/local/custom/gctastratifyldscores/main'
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { PLINK_PREPARE_GRM_GCTA        } from '../plink_prepare_grm_gcta/main'
+include { PLINK_PREPARE_GRM_GCTA      } from '../plink_prepare_grm_gcta/main'
 
 workflow PLINK_PREPARE_GRM_LDMS_GCTA {
     take:
@@ -54,24 +53,42 @@ workflow PLINK_PREPARE_GRM_LDMS_GCTA {
                 }
         }
 
-    ch_dense_inputs = ch_stratum_state.multiMap { work_meta, focal_meta, _ordinal, stratum_count, provenance, genotypes, snp_group_file, requested_parts ->
+    ch_dense_inputs = ch_stratum_state.multiMap { work_meta, focal_meta, ordinal, stratum_count, provenance, genotypes, snp_group_file, requested_parts ->
         genotypes: tuple(work_meta, genotypes[1], genotypes[2], genotypes[3], genotypes[4])
         snp_group: tuple(work_meta, snp_group_file)
         n_parts: tuple(work_meta, requested_parts)
-        restore: tuple(work_meta.id, focal_meta, stratum_count)
+        restore: tuple(work_meta.id, focal_meta, ordinal, stratum_count)
         strata: tuple(focal_meta, provenance.model_key, provenance.stratum_key, provenance)
     }
     PLINK_PREPARE_GRM_GCTA(ch_dense_inputs.genotypes, ch_dense_inputs.snp_group, ch_dense_inputs.n_parts)
 
-    ch_mgrm_inputs = PLINK_PREPARE_GRM_GCTA.out.grm_files
+    ch_grm_families = PLINK_PREPARE_GRM_GCTA.out.grm_files
         .map { work_meta, grm_files -> tuple(work_meta.id, grm_files) }
         .join(ch_dense_inputs.restore, by: 0, failOnDuplicate: true, failOnMismatch: true)
-        .map { _work_id, grm_files, focal_meta, stratum_count -> tuple(groupKey(focal_meta, stratum_count), grm_files) }
+        .map { _work_id, grm_files, focal_meta, ordinal, stratum_count -> tuple(groupKey(focal_meta, stratum_count), ordinal, grm_files) }
         .groupTuple()
-        .map { key, grm_file_lists -> tuple(key.getGroupTarget(), grm_file_lists.flatten()) }
-    CUSTOM_GCTACREATEMGRMMANIFEST(ch_mgrm_inputs)
+        .map { key, ordinals, grm_file_lists ->
+            def ordered_strata = orderLdmsStrata(ordinals, grm_file_lists)
+            def grm_prefixes = ordered_strata.collect { _ordinal, grm_files ->
+                def grm_id_name = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.id') }.name
+                grm_id_name.substring(0, grm_id_name.length() - '.grm.id'.length())
+            }
+            tuple(key.getGroupTarget(), ordered_strata.collectMany { _ordinal, grm_files -> grm_files }, grm_prefixes)
+        }
 
     emit:
-    mgrm_bundle = CUSTOM_GCTACREATEMGRMMANIFEST.out.mgrm_bundle // channel: [ val(meta), path(mgrm), path(grm_files) ]
-    strata      = ch_dense_inputs.strata // channel: [ val(meta), val(model_key), val(stratum_key), val(provenance) ], manifest order
+    grm_family = ch_grm_families // channel: [ val(meta), path(grm_files), val(grm_prefixes) ], explicit stratum order
+    strata     = ch_dense_inputs.strata // channel: [ val(meta), val(model_key), val(stratum_key), val(provenance) ], declared non-empty stratum order
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def orderLdmsStrata(ordinals, grm_file_lists) {
+    return [ordinals, grm_file_lists]
+        .transpose()
+        .sort { left, right -> left[0] <=> right[0] }
 }

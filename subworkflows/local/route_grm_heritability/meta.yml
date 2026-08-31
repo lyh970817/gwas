@@ -22,9 +22,9 @@ input:
       pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
   - ch_ldms_matrices:
-      description: The LD- and MAF-stratified GCTA matrix families built for unary analysis units, each with its MGRM manifest, already fanned out one element per requesting analysis. Present only for an analysis that selected `gcta_greml_ldms`. Relationship-scoped rows are excluded by the caller
-      structure: "[map meta, path mgrm, [ path grm_file, ... ]]"
-      pattern: "*.{mgrm,grm.bin,grm.N.bin,grm.id}"
+      description: The LD- and MAF-stratified GCTA matrix families built for unary analysis units, with explicit non-empty stratum prefix order, already fanned out one element per requesting analysis. Present only for an analysis that selected `gcta_greml_ldms`. Relationship-scoped rows are excluded by the caller
+      structure: "[map meta, [ path grm_file, ... ], [ string grm_prefix, ... ]]"
+      pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
   - ch_ldak_kinship_matrices:
       description: The selected base or unrelated-sample child LDAK kinship artifacts, already fanned out one element per requesting analysis. The immutable artifact key remains beside focal metadata, and the keep list is `[]` for a base artifact. Present only for an analysis that selected at least one LDAK heritability method

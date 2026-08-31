@@ -30,9 +30,9 @@ input:
       pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
   - ch_relationship_ldms_matrices:
-      description: LD- and MAF-stratified GCTA matrix families fanned out per request
-      structure: "[map meta, path mgrm, [ path grm_file, ... ]]"
-      pattern: "*.{mgrm,grm.bin,grm.N.bin,grm.id}"
+      description: LD- and MAF-stratified GCTA matrix families with explicit non-empty stratum prefix order, fanned out per request
+      structure: "[map meta, [ path grm_file, ... ], [ string grm_prefix, ... ]]"
+      pattern: "*.grm.{bin,N.bin,id}"
       ontologies: []
 output:
   - reml_results:

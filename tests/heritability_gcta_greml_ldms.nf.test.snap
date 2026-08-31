@@ -2,12 +2,6 @@
     "versions": {
         "content": [
             {
-                "CUSTOM_GCTACREATEMGRMMANIFEST": {
-                    "coreutils": 9.5
-                },
-                "CUSTOM_GCTAMERGEGRMPARTS": {
-                    "coreutils": 9.5
-                },
                 "CUSTOM_GCTASTRATIFYLDSCORES": {
                     "r-base": "4.2.1"
                 },
@@ -16,6 +10,9 @@
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
+                },
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
                 },
                 "GCTA_REMLLDMS": {
                     "gcta": "1.94.1"
@@ -34,7 +31,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-30T23:24:12.675635738",
+        "timestamp": "2026-09-01T00:58:35.009173334",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

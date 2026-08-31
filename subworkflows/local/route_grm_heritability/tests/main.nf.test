@@ -50,7 +50,6 @@ nextflow_workflow {
     def ldmsMatrix = { project_dir, meta ->
         """[
             ${meta},
-            ${RESOURCE(project_dir, 'ldms_family.mgrm')},
             [
                 ${RESOURCE(project_dir, 'ldms_family_stratum1.grm.bin')},
                 ${RESOURCE(project_dir, 'ldms_family_stratum1.grm.N.bin')},
@@ -59,6 +58,7 @@ nextflow_workflow {
                 ${RESOURCE(project_dir, 'ldms_family_stratum2.grm.N.bin')},
                 ${RESOURCE(project_dir, 'ldms_family_stratum2.grm.id')},
             ],
+            ['ldms_family_stratum1', 'ldms_family_stratum2'],
         ]"""
     }
 

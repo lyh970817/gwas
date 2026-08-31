@@ -29,7 +29,7 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     ch_relationships // channel: [ val(meta), [ path(genotype_file), ... ], path(pair_quant_covariates), path(pair_cat_covariates) ], one validated row per selected method per relationship
     ch_prepared_phenotypes // channel: [ val(meta), path(phenotype) ], the headerless phenotype of every analysis unit, keyed one-to-one on the analysis meta
     ch_relationship_dense_matrices // channel: [ val(meta), [ path(grm_file), ... ] ], the dense GCTA matrices built for relationship requests, already fanned out per request
-    ch_relationship_ldms_matrices // channel: [ val(meta), path(mgrm), [ path(grm_file), ... ] ], the LD- and MAF-stratified GCTA matrix families built for relationship requests
+    ch_relationship_ldms_matrices // channel: [ val(meta), [ path(grm_file), ... ], val(grm_prefixes) ], ordered LDMS matrix families built for relationship requests
 
     main:
 
@@ -154,23 +154,23 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     //
     // LDMS GCTA relationship requests: bivariate REML-LDMS and bivariate HEreg-LDMS
     //
-    // The MGRM manifest basename is the installed atom's native identity. The request ID and the matrix
-    // content key remain separate attribution fields so a unary GREML-LDMS request and a pair request can
-    // share one scientifically identical matrix family without sharing result identity.
+    // The request ID and matrix content key remain separate attribution fields so a unary GREML-LDMS request
+    // and a pair request can share one scientifically identical ordered matrix family without sharing result
+    // identity. The consuming task writes its MGRM control list from the supplied prefix order.
     def ch_bivariate_ldms_matrices = ch_relationship_ldms_matrices
-        .filter { meta, _mgrm, _grm_files -> meta.matrix_kind == 'gcta_ldms' }
-        .map { meta, mgrm, grm_files ->
-            [meta.request_id, meta + [matrix_basename: mgrm.baseName], mgrm, grm_files]
+        .filter { meta, _grm_files, _grm_prefixes -> meta.matrix_kind == 'gcta_ldms' }
+        .map { meta, grm_files, grm_prefixes ->
+            [meta.request_id, meta, grm_files, grm_prefixes]
         }
 
     def ch_ldms_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.matrix_kind == 'gcta_ldms' }
 
     def ch_ldms_requests = ch_bivariate_ldms_matrices
         .join(ch_ldms_prepared_pairs, failOnDuplicate: true, failOnMismatch: true)
-        .map { _request_id, matrix_meta, mgrm, grm_files, pair_meta, phenotype, quant_covariates, cat_covariates ->
-            [resolveRouteMeta(matrix_meta, pair_meta), mgrm, grm_files, phenotype, quant_covariates, cat_covariates]
+        .map { _request_id, matrix_meta, grm_files, grm_prefixes, pair_meta, phenotype, quant_covariates, cat_covariates ->
+            [resolveLdmsRouteMeta(matrix_meta, pair_meta), grm_files, grm_prefixes, phenotype, quant_covariates, cat_covariates]
         }
-        .branch { route_meta, _mgrm, _grm_files, _phenotype, _quant_covariates, _cat_covariates ->
+        .branch { route_meta, _grm_files, _grm_prefixes, _phenotype, _quant_covariates, _cat_covariates ->
             reml: route_meta.method == 'gcta_bivariate_reml_ldms'
             hereg: route_meta.method == 'gcta_bivariate_he_ldms'
         }
@@ -178,8 +178,8 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     //
     // MODULE: primary GCTA bivariate REML-LDMS relationship request
     //
-    def ch_bivariate_ldms_invocations = ch_ldms_requests.reml.multiMap { route_meta, mgrm, grm_files, phenotype, quant_covariates, cat_covariates ->
-        mgrm: [route_meta, mgrm, grm_files]
+    def ch_bivariate_ldms_invocations = ch_ldms_requests.reml.multiMap { route_meta, grm_files, grm_prefixes, phenotype, quant_covariates, cat_covariates ->
+        mgrm: [route_meta, grm_files, grm_prefixes]
         pheno: [route_meta, phenotype, 1, 2]
         qcovar: [route_meta, quant_covariates]
         covar: [route_meta, cat_covariates]
@@ -196,8 +196,8 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     // MODULE: primary GCTA bivariate HEreg-LDMS relationship request
     //
     // The multi-component moment fit emits its own native component and total results.
-    def ch_hereg_ldms_invocations = ch_ldms_requests.hereg.multiMap { route_meta, mgrm, grm_files, phenotype, _quant_covariates, _cat_covariates ->
-        mgrm: [route_meta, mgrm, grm_files]
+    def ch_hereg_ldms_invocations = ch_ldms_requests.hereg.multiMap { route_meta, grm_files, grm_prefixes, phenotype, _quant_covariates, _cat_covariates ->
+        mgrm: [route_meta, grm_files, grm_prefixes]
         pheno: [route_meta, phenotype, 1, 2]
     }
 
@@ -236,9 +236,13 @@ def resolveRouteMeta(matrix_meta, pair_meta) {
     ]
 }
 
+def resolveLdmsRouteMeta(matrix_meta, pair_meta) {
+    return pair_meta + [id: matrix_meta.matrix_key, matrix_key: matrix_meta.matrix_key]
+}
+
 // Drop the controller's native and reuse identities from a result record and restore the focal scientific
-// identity. `matrix_basename` exists only because the installed atom addresses its GRM or MGRM family by
-// staged basename, `matrix_key` is the content-derived matrix reuse key, and `id` was rewritten to that
+// identity. `matrix_basename` exists only because the installed dense atom addresses its GRM by staged
+// basename, `matrix_key` is the content-derived matrix reuse key, and dense `id` was rewritten to that
 // basename for the same reason. Downstream the record is the request, so `id` returns to `request_id`; the
 // request, method, relationship and endpoint attribution, trait identity and prevalence declarations are
 // retained untouched.

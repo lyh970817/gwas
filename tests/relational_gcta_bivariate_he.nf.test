@@ -132,8 +132,7 @@ nextflow_pipeline {
         then {
             assertAll(
                 { assert workflow.success },
-                // Two estimators declaring the same component plan share one MGRM family.
-                { assert TRACE.count(workflow, 'CUSTOM_GCTACREATEMGRMMANIFEST') == 1 },
+                // Two estimators declaring the same component plan share one ordered GRM family.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREMLLDMS') == TRACE.tags(workflow, 'GCTA_BIVARIATEHEREGLDMS') },
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },

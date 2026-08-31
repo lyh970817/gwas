@@ -201,7 +201,7 @@ workflow GWAS {
     // that stream is passed as PREPARE_RELATEDNESS_MATRICES emits it.
     ROUTE_GRM_HERITABILITY(
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> !meta.relationship_id },
-        PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> !meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _grm_files, _grm_prefixes -> !meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
         ch_gcta_phenotypes,
         PREPARE_PHENOTYPE_INPUTS.out.adjustment_covariates,
@@ -221,7 +221,7 @@ workflow GWAS {
         ch_relationships,
         PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> meta.relationship_id },
-        PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _mgrm, _grm_files -> meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _grm_files, _grm_prefixes -> meta.relationship_id },
     )
 
     //
@@ -350,6 +350,7 @@ workflow GWAS {
     )
 
     emit:
-    summary_statistics = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
-    multiqc_report     = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
+    summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
+    multiqc_report      = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
+    gcta_ldms_artifacts = PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
 }

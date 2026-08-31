@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
 name: "gcta_bivariateheregldms"
-description: Run bivariate Haseman-Elston cross-product regression for two traits with a multi-GRM component family
+description: Run bivariate Haseman-Elston cross-product regression for two traits with an explicitly ordered multi-GRM component family
 keywords:
   - gcta
   - genome-wide complex trait analysis
@@ -26,20 +26,16 @@ input:
         description: |
           Groovy map containing GRM family metadata
           e.g. `[ id:'plink_simulated_ldms' ]`
-    - mgrm_file:
-        type: file
-        description: |
-          Multi-GRM manifest passed to `--mgrm`, one GRM basename per line, in
-          the component order the results are reported in
-        pattern: "*.mgrm"
-        ontologies: []
     - grm_files:
         type: file
         description: |
-          Every GRM bundle named by the manifest, staged beside it so GCTA can
-          resolve each basename in the task working directory
+          Every GRM bundle named by the ordered prefixes, staged beside the task-local
+          MGRM manifest so GCTA can resolve each basename in the task working directory
         pattern: "*.grm.*"
         ontologies: []
+    - grm_prefixes:
+        type: list
+        description: GRM basenames in the explicit component order written to the task-local MGRM manifest
   - - meta2:
         type: map
         description: |

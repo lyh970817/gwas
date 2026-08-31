@@ -2,12 +2,6 @@
     "versions": {
         "content": [
             {
-                "CUSTOM_GCTACREATEMGRMMANIFEST": {
-                    "coreutils": 9.5
-                },
-                "CUSTOM_GCTAMERGEGRMPARTS": {
-                    "coreutils": 9.5
-                },
                 "CUSTOM_GCTASTRATIFYLDSCORES": {
                     "r-base": "4.2.1"
                 },
@@ -19,6 +13,9 @@
                 },
                 "GCTA_MAKEGRMPART": {
                     "gcta": "1.94.1"
+                },
+                "CUSTOM_GCTAMERGEGRMPARTS": {
+                    "coreutils": 9.5
                 },
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
@@ -34,7 +31,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-30T22:05:48.53959077",
+        "timestamp": "2026-09-01T00:59:36.263181064",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

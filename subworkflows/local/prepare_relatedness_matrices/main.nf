@@ -118,8 +118,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         ch_sparse_inputs.cutoff,
     )
 
-    // LDMS remains one base-family artifact. Its ordered gather/manifest implementation is unchanged here and
-    // remains the explicit scope of issue #31.
+    // LDMS remains one base-family artifact. Its reusable product is the ordered GRM family; each native
+    // consumer writes its own task-local MGRM control list from the explicit prefix order.
     def ch_ldms_builds = ch_gcta_base_types.gcta_ldms
         .map { matrix_meta, base, parts, _pgen, _psam, _pvar -> [base.cohort, matrix_meta, parts] }
         .combine(ch_plink1_cohorts, by: 0)
@@ -195,10 +195,10 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .filter { _selected_key, _meta, request, _weights_file -> request.kind == 'gcta_ldms' }
         .map { selected_key, meta, _request, _weights_file -> [selected_key, meta.relationship_id ? meta + [matrix_key: selected_key] : meta] }
         .combine(
-            PLINK_PREPARE_GRM_LDMS_GCTA.out.mgrm_bundle.map { matrix_meta, mgrm, grm_files -> [matrix_meta.key, mgrm, grm_files] },
+            PLINK_PREPARE_GRM_LDMS_GCTA.out.grm_family.map { matrix_meta, grm_files, grm_prefixes -> [matrix_meta.key, grm_files, grm_prefixes] },
             by: 0
         )
-        .map { _selected_key, meta, mgrm, grm_files -> [meta, mgrm, grm_files] }
+        .map { _selected_key, meta, grm_files, grm_prefixes -> [meta, grm_files, grm_prefixes] }
 
     def ch_ldak_unfiltered = ch_requests
         .filter { _selected_key, _meta, request, _weights_file -> request.kind == 'ldak_kinship' && !request.derived }
@@ -225,10 +225,11 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     def ch_ldak_kinship = ch_ldak_unfiltered.mix(ch_ldak_filtered)
 
     emit:
-    gcta_dense   = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
-    gcta_sparse  = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
-    gcta_ldms    = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
-    ldak_kinship = ch_ldak_kinship // channel: [ val(meta), val(artifact_key), path(grm_files), path(keep) ]
+    gcta_dense          = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
+    gcta_sparse         = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
+    gcta_ldms           = ch_gcta_ldms // channel: [ val(meta), path(grm_files), val(grm_prefixes) ]
+    gcta_ldms_artifacts = PLINK_PREPARE_GRM_LDMS_GCTA.out.grm_family // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
+    ldak_kinship        = ch_ldak_kinship // channel: [ val(meta), val(artifact_key), path(grm_files), path(keep) ]
 }
 
 /*

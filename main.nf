@@ -26,6 +26,8 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_gwas
 
 workflow {
 
+    main:
+
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
@@ -67,6 +69,15 @@ workflow {
         params.monochrome_logs,
         NFCORE_GWAS.out.multiqc_report,
     )
+
+    publish:
+    gcta_ldms_artifacts = params.save_relatedness_matrices ? NFCORE_GWAS.out.gcta_ldms_artifacts : channel.empty()
+}
+
+output {
+    gcta_ldms_artifacts {
+        path { matrix_meta, _grm_files, _grm_prefixes -> "quality_control/relatedness_matrices/${matrix_meta.key}" }
+    }
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -103,5 +114,6 @@ workflow NFCORE_GWAS {
     )
 
     emit:
-    multiqc_report = GWAS.out.multiqc_report // channel: [ [ path(report) ] ]
+    multiqc_report      = GWAS.out.multiqc_report // channel: [ [ path(report) ] ]
+    gcta_ldms_artifacts = GWAS.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
 }

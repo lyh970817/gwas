@@ -8,7 +8,7 @@ process GCTA_BIVARIATEHEREGLDMS {
         : 'community.wave.seqera.io/library/gcta:1.94.1--9bc35dc424fcf6e9'}"
 
     input:
-    tuple val(meta), path(mgrm_file), path(grm_files)
+    tuple val(meta), path(grm_files), val(grm_prefixes)
     tuple val(meta2), path(phenotypes_file), val(phenotype_col1), val(phenotype_col2)
 
     output:
@@ -22,8 +22,12 @@ process GCTA_BIVARIATEHEREGLDMS {
     script:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def mgrm_entries = grm_prefixes.collect { grm_prefix -> "\"${grm_prefix}\"" }.join(' ')
+    def mgrm_file = "${prefix}.mgrm"
     def hereg_bivar_param = phenotype_col1 && phenotype_col2 ? "--HEreg-bivar ${phenotype_col1} ${phenotype_col2}" : '--HEreg-bivar'
     """
+    printf '%s\n' ${mgrm_entries} > "${mgrm_file}"
+
     gcta \\
         ${hereg_bivar_param} \\
         --mgrm "${mgrm_file}" \\

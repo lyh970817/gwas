@@ -19,7 +19,7 @@ include { digestIdentityText                                  } from '../utils_n
 workflow ROUTE_GRM_HERITABILITY {
     take:
     ch_dense_matrices // channel: [ val(meta), [ path(grm_file), ... ] ], dense GCTA matrices fanned to unary consumers
-    ch_ldms_matrices // channel: [ val(meta), path(mgrm), [ path(grm_file), ... ] ], LDMS matrix families fanned to unary consumers
+    ch_ldms_matrices // channel: [ val(meta), [ path(grm_file), ... ], val(grm_prefixes) ], LDMS matrix families fanned to unary consumers
     ch_ldak_kinship_matrices // channel: [ val(meta), val(artifact_key), [ path(grm_file), ... ], path(keep) ], selected LDAK base/subset artifact
     ch_headerless_phenotypes // channel: [ val(meta), path(phenotype), path(quant_covariates), path(cat_covariates) ], optional covariates are []
     ch_adjustment_covariates // channel: [ val(meta), path(adjustment_covariates) ], only analyses with covariates
@@ -28,16 +28,16 @@ workflow ROUTE_GRM_HERITABILITY {
 
     // GCTA GREML and GREML-LDMS preserve their native matrix families and result contracts.
     def ch_greml_matrices = ch_dense_matrices
-        .map { meta, grm_files -> [meta, [], grm_files, 'greml'] }
+        .map { meta, grm_files -> [meta, grm_files, [], 'greml'] }
         .mix(
-            ch_ldms_matrices.map { meta, mgrm, grm_files -> [meta, mgrm, grm_files, 'greml_ldms'] }
+            ch_ldms_matrices.map { meta, grm_files, grm_prefixes -> [meta, grm_files, grm_prefixes, 'greml_ldms'] }
         )
 
     def ch_greml_inputs = ch_greml_matrices
         .combine(ch_headerless_phenotypes, by: 0)
-        .multiMap { meta, mgrm, grm_files, estimator, phenotype, quant_covariates, cat_covariates ->
+        .multiMap { meta, grm_files, grm_prefixes, estimator, phenotype, quant_covariates, cat_covariates ->
             def route_meta = meta + [gcta_estimator: estimator]
-            grm: [route_meta, mgrm, grm_files]
+            grm: [route_meta, grm_files, grm_prefixes]
             pheno: [route_meta, phenotype]
             qcovar: [route_meta, quant_covariates]
             covar: [route_meta, cat_covariates]
