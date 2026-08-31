@@ -2,19 +2,19 @@
 // Every component reports on the run-wide versions topic, so this subworkflow emits no versions.
 
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
-include { PLINK_PREPARE_GRM_GCTA } from '../plink_prepare_grm_gcta/main'
-include { PLINK_PREPARE_GRM_LDMS_GCTA } from '../plink_prepare_grm_ldms_gcta/main'
-include { PLINK_PREPARE_GRM_LDAK } from '../plink_prepare_grm_ldak/main'
+include { PLINK_PREPARE_GRM_GCTA           } from '../plink_prepare_grm_gcta/main'
+include { PLINK_PREPARE_GRM_LDMS_GCTA      } from '../plink_prepare_grm_ldms_gcta/main'
+include { PLINK_PREPARE_GRM_LDAK           } from '../plink_prepare_grm_ldak/main'
 
 // MODULE: Local to the pipeline
-include { GCTA_MAKEBKSPARSE } from '../../../modules/local/gcta/makebksparse/main'
+include { GCTA_MAKEBKSPARSE                } from '../../../modules/local/gcta/makebksparse/main'
 
 // FUNCTION: Local to the pipeline
-include { buildScientificArtifactKey } from '../utils_nfcore_gwas_pipeline'
+include { buildScientificArtifactKey       } from '../utils_nfcore_gwas_pipeline'
 include { canonicaliseScientificIdentifier } from '../utils_nfcore_gwas_pipeline'
-include { canonicaliseScientificValue } from '../utils_nfcore_gwas_pipeline'
-include { digestFileBytes } from '../utils_nfcore_gwas_pipeline'
-include { getMethodCapabilities } from '../validate_gwas_input/method_registry'
+include { canonicaliseScientificValue      } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes                  } from '../utils_nfcore_gwas_pipeline'
+include { getMethodCapabilities            } from '../validate_gwas_input/method_registry'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:
@@ -225,9 +225,9 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     def ch_ldak_kinship = ch_ldak_unfiltered.mix(ch_ldak_filtered)
 
     emit:
-    gcta_dense = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
-    gcta_sparse = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
-    gcta_ldms = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
+    gcta_dense   = ch_gcta_dense // channel: [ val(meta), path(grm_files) ]
+    gcta_sparse  = ch_gcta_sparse // channel: [ val(meta), path(sparse_grm_files) ]
+    gcta_ldms    = ch_gcta_ldms // channel: [ val(meta), path(mgrm), path(grm_files) ]
     ldak_kinship = ch_ldak_kinship // channel: [ val(meta), val(artifact_key), path(grm_files), path(keep) ]
 }
 

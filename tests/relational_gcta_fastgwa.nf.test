@@ -180,6 +180,26 @@ nextflow_pipeline {
 
         then {
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def heritability = new File("${params.outdir}/heritability/individual/gcta_greml")
+            def association = new File("${params.outdir}/association/gcta_fastgwa")
+            def originalMatrixKeys = matrices.list().toList().sort()
+            def originalHeritability = heritability.list().toList().sort()
+            def originalAssociation = association.list().toList().sort()
+            def unchangedTrace = RESUME.rerun(outputDir, [:])
+            def unchangedMatrixKeys = matrices.list().toList().sort()
+            def unchangedHeritability = heritability.list().toList().sort()
+            def unchangedAssociation = association.list().toList().sort()
+            def changedOptions = RELATIONAL.methodOptions(outputDir, 'gcta_combined_dense_parent_changed', [
+                example_pgen_qt: [gcta: [
+                    grm_maf: 0.02,
+                    grm_extract: RELATIONAL.resource(outputDir, 'combined-gcta-extract-changed.txt', 'rs1\nrs3\n'),
+                    sparse_cutoff: 0.025,
+                ]],
+            ])
+            def changedTrace = RESUME.rerun(outputDir, [method_options: changedOptions])
+            def updatedMatrixKeys = matrices.list().toList().sort()
+            def updatedHeritability = heritability.list().toList().sort()
+            def updatedAssociation = association.list().toList().sort()
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
@@ -187,7 +207,29 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_REML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
-                { assert matrices.list().size() == 2 },
+                { assert originalMatrixKeys.size() == 2 },
+                { assert originalHeritability == ['example_pgen_qt'] },
+                { assert originalAssociation == ['example_pgen_qt'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_MAKEGRMPART') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'CUSTOM_GCTAMERGEGRMPARTS') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_MAKEBKSPARSE') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_REML') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'GCTA_FASTGWA') == ['CACHED'] },
+                { assert unchangedMatrixKeys == originalMatrixKeys },
+                { assert unchangedHeritability == originalHeritability },
+                { assert unchangedAssociation == originalAssociation },
+                { assert RESUME.statuses(changedTrace, 'GCTA_MAKEGRMPART') == ['COMPLETED'] },
+                { assert RESUME.statuses(changedTrace, 'CUSTOM_GCTAMERGEGRMPARTS') == ['COMPLETED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_MAKEBKSPARSE') == ['COMPLETED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_REML') == ['COMPLETED'] },
+                { assert RESUME.statuses(changedTrace, 'GCTA_FASTGWA') == ['COMPLETED'] },
+                { assert RESUME.tasks(changedTrace, 'GCTA_MAKEGRMPART').size() == 1 },
+                { assert RESUME.tasks(changedTrace, 'CUSTOM_GCTAMERGEGRMPARTS').size() == 1 },
+                { assert RESUME.tasks(changedTrace, 'GCTA_MAKEBKSPARSE').size() == 1 },
+                { assert updatedMatrixKeys.size() == 4 },
+                { assert updatedMatrixKeys.containsAll(originalMatrixKeys) },
+                { assert updatedHeritability == originalHeritability },
+                { assert updatedAssociation == originalAssociation },
             )
         }
     }
