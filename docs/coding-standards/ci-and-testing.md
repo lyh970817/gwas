@@ -49,6 +49,16 @@ failed mechanism evidence rather than hand-policing mechanically repairable form
 - **[MUST]** The download-pipeline workflow independently exercises the packaged pipeline stub path with its
   configured non-stub fallback.
 
+## Local suite scope
+
+- **[MUST]** Use focused tests while iterating and the sharded suite for broad validation.
+- **[MUST]** When tests, snapshot labels, or snapshot-producing assertions are removed or renamed, run the
+  affected test files unsharded and check for obsolete snapshot entries.
+- **[MUST]** Run the complete unsharded suite only for unbounded snapshot scope, an explicit release or
+  final-integration gate, or behavior the shards cannot adequately cover. Do not repeat a successful complete
+  unsharded run unless relevant pipeline, test, fixture, or snapshot changes occur, or the earlier run ended
+  prematurely.
+
 ## Cache-boundary refactors
 
 - **[MUST]** A refactor that changes a scientific-stage cache boundary records positive and negative two-run

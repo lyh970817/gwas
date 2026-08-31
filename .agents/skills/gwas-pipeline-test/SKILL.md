@@ -25,9 +25,8 @@ For broad validation, use `nf-test-parallel 3 --verbose` when the development sh
 profile with `NFT_PROFILE`. Otherwise run all three native shards with
 `nf-test test --profile=+docker --shard i/3`, distinct `NFT_WORKDIR` values, and aggregated exit statuses.
 
-After a green sharded run, run `nf-test test --profile=+docker --verbose` sequentially to expose obsolete
-snapshot entries. Confirm and remove stale entries deliberately; do not use `--wipe-snapshot` for routine
-validation.
+After broad shard validation, apply the canonical unsharded-suite trigger. When it requires an unsharded run,
+confirm and remove obsolete snapshot entries deliberately; do not use `--wipe-snapshot` for routine validation.
 
 Report exact scope, profile, fixture source, commands, pass/fail counts, snapshot warnings, and environment
 blockers.
