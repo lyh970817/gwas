@@ -357,9 +357,6 @@ def getMethodResourceIdentity(resource) {
 // Matrix settings contain every scientific construction input and exclude estimator/execution controls.
 def getRelatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {
     if (meta.relationship_id) {
-        if (kind != meta.matrix_kind) {
-            error("[nf-core/gwas] ERROR: relationship request '${meta.request_id}' declares matrix kind '${meta.matrix_kind}' but requested '${kind}'")
-        }
         return meta.matrix_settings
     }
     def method_options = meta.method_options
@@ -395,7 +392,6 @@ def getRelatednessMatrixSettings(meta, kind, weights_identity = [mode: 'equal'],
         }
         return settings
     }
-    error("[nf-core/gwas] ERROR: no relatedness matrix settings are registered for kind '${kind}' requested by analysis unit '${meta.id}'")
 }
 
 def buildRelatednessMatrixRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all']) {

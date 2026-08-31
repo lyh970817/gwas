@@ -67,4 +67,31 @@ nextflow_process {
             )
         }
     }
+
+    def invalidCovariates = [
+        [name: 'missing FID and IID header', content: 'age\n10\n', message: 'must begin with FID, IID'],
+        [name: 'duplicate sample identity', content: 'FID\tIID\tage\nF1\tI1\t10\nF1\tI1\t20\n', message: "declares sample 'F1 I1' more than once"],
+    ]
+
+    invalidCovariates.each { scenario ->
+        test("relationship quantitative covariates reject ${scenario.name}") {
+            when {
+                def inputs = pairInputs(outputDir, "invalid_${scenario.name.replace(' ', '_')}")
+                inputs.qcovar.text = scenario.content
+                process {
+                    """
+                    input[0] = [[request_id: 'gcta_bivariate_reml--pair'], file('${inputs.left}', checkIfExists: true), file('${inputs.right}', checkIfExists: true), file('${inputs.qcovar}', checkIfExists: true), []]
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert process.failed },
+                    { assert process.stdout.join('\n').contains('relationship quantitative covariate') },
+                    { assert process.stdout.join('\n').contains(scenario.message) },
+                )
+            }
+        }
+    }
 }

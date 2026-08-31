@@ -28,21 +28,12 @@ def is_missing(value):
     return value.strip().lower() in MISSING_TOKENS
 
 
-def read_phenotype(path, side):
+def read_phenotype(path):
     values = {}
     with open(path) as handle:
-        for line_number, line in enumerate(handle, start=1):
+        for line in handle:
             row = split_row(line)
-            if not row or not any(field.strip() for field in row):
-                continue
-            if len(row) != 3:
-                fail("the {} phenotype '{}' line {} must contain exactly FID, IID and one trait value".format(side, path, line_number))
-            identity = (row[0], row[1])
-            if identity in values:
-                fail("the {} phenotype '{}' declares sample '{} {}' more than once".format(side, path, *identity))
-            values[identity] = MISSING if is_missing(row[2]) else row[2]
-    if not values:
-        fail("the {} phenotype '{}' contains no samples".format(side, path))
+            values[(row[0], row[1])] = row[2]
     return values
 
 
@@ -80,8 +71,8 @@ def write_rows(path, rows):
             handle.write("\\t".join(row) + "\\n")
 
 
-left = read_phenotype(LEFT_PHENOTYPE, "left")
-right = read_phenotype(RIGHT_PHENOTYPE, "right")
+left = read_phenotype(LEFT_PHENOTYPE)
+right = read_phenotype(RIGHT_PHENOTYPE)
 union = sorted(set(left) | set(right))
 phenotype_rows = [
     [fid, iid, left.get((fid, iid), MISSING), right.get((fid, iid), MISSING)]

@@ -98,14 +98,14 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     // three identities reach the native results. Both dense estimators are addressed from the
     // same prepared pair and the same matrix stream, so the branch below is the only place they diverge.
     def ch_bivariate_matrices = ch_relationship_dense_matrices
-        .filter { meta, _grm_files -> meta.method in denseBivariateMethods() }
+        .filter { meta, _grm_files -> meta.matrix_kind == 'gcta_dense' }
         .map { meta, grm_files ->
             def grm_id = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.id') }
             def basename = grm_id.name.substring(0, grm_id.name.length() - '.grm.id'.length())
             [meta.request_id, meta + [matrix_basename: basename], grm_files]
         }
 
-    def ch_dense_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.method in denseBivariateMethods() }
+    def ch_dense_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.matrix_kind == 'gcta_dense' }
 
     def ch_dense_requests = ch_bivariate_matrices
         .join(ch_dense_prepared_pairs, failOnDuplicate: true, failOnMismatch: true)
@@ -158,12 +158,12 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     // content key remain separate attribution fields so a unary GREML-LDMS request and a pair request can
     // share one scientifically identical matrix family without sharing result identity.
     def ch_bivariate_ldms_matrices = ch_relationship_ldms_matrices
-        .filter { meta, _mgrm, _grm_files -> meta.method in ldmsBivariateMethods() }
+        .filter { meta, _mgrm, _grm_files -> meta.matrix_kind == 'gcta_ldms' }
         .map { meta, mgrm, grm_files ->
             [meta.request_id, meta + [matrix_basename: mgrm.baseName], mgrm, grm_files]
         }
 
-    def ch_ldms_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.method in ldmsBivariateMethods() }
+    def ch_ldms_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.matrix_kind == 'gcta_ldms' }
 
     def ch_ldms_requests = ch_bivariate_ldms_matrices
         .join(ch_ldms_prepared_pairs, failOnDuplicate: true, failOnMismatch: true)
@@ -222,17 +222,6 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-// The selectors this controller answers for, grouped by the relatedness matrix they consume. Both members of
-// a group share one matrix reuse key for one relationship, which is what makes selecting REML and HEreg
-// together cost one matrix construction rather than two.
-def denseBivariateMethods() {
-    return ['gcta_bivariate_reml', 'gcta_bivariate_he']
-}
-
-def ldmsBivariateMethods() {
-    return ['gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms']
-}
 
 // Fold the matrix record's native and reuse identities into the request record. `id` becomes the staged
 // matrix basename because the installed REML atoms address their GRM or MGRM family that way; the HEreg atoms

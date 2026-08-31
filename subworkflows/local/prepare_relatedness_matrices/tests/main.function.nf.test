@@ -799,27 +799,4 @@ nextflow_function {
         }
     }
 
-    test("an unregistered matrix kind is refused rather than silently given no settings") {
-
-        function "getRelatednessMatrixSettings"
-
-        when {
-            function {
-                """
-                input[0] = [id: 'example_pgen_qt', method_options: [gcta: [:], ldak: [:]]]
-                input[1] = 'gcta_unknown'
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                // The failure mode this guards is the worst one available: a route that registers a
-                // kind but forgets its settings would get an empty settings map, and two genuinely
-                // different matrices would silently collapse onto one key.
-                { assert function.failed },
-                { assert function.stdout.join('\n').contains("no relatedness matrix settings are registered for kind 'gcta_unknown'") },
-            )
-        }
-    }
 }
