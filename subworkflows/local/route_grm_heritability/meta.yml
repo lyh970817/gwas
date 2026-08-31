@@ -11,6 +11,10 @@ keywords:
 components:
   - grm_heritability_gcta
   - grm_heritability_ldak
+  - ldak/adjustgrm
+  - buildscientificartifactkey
+  - digestfilebytes
+  - digestidentitytext
 input:
   - ch_dense_matrices:
       description: The dense GCTA relatedness matrices built for unary analysis units, already fanned out one element per requesting analysis and carrying that analysis's meta. Present only for an analysis that selected `gcta_greml`, because the matrix kind is derived from the selected methods. Relationship-scoped rows are excluded by the caller
@@ -23,8 +27,8 @@ input:
       pattern: "*.{mgrm,grm.bin,grm.N.bin,grm.id}"
       ontologies: []
   - ch_ldak_kinship_matrices:
-      description: The LDAK kinship matrices, already fanned out one element per requesting analysis, with the unrelated-subset keep list the matrix was derived with. The keep list is `[]` for an analysis that requested no relatedness filter. Present only for an analysis that selected at least one LDAK heritability method
-      structure: "[map meta, [ path grm_file, ... ], path keep|[]]"
+      description: The selected base or unrelated-sample child LDAK kinship artifacts, already fanned out one element per requesting analysis. The immutable artifact key remains beside focal metadata, and the keep list is `[]` for a base artifact. Present only for an analysis that selected at least one LDAK heritability method
+      structure: "[map meta, string artifact_key, [ path grm_file, ... ], path keep|[]]"
       pattern: "*.{grm.bin,grm.id,grm.details,grm.adjust,keep}"
       ontologies: []
   - ch_headerless_phenotypes:
@@ -33,7 +37,7 @@ input:
       pattern: "*.{pheno,qcovar,covar}"
       ontologies: []
   - ch_adjustment_covariates:
-      description: The numerical covariate design built specifically for LDAK kinship-matrix adjustment, present only for an analysis unit that has one. It is folded onto the LDAK stream with a remainder join, so an analysis without one still reaches every estimator with `[]`. Only Haseman-Elston and PCGC use it; REML fits covariates and kinship jointly and never triggers matrix adjustment
+      description: The numerical covariate design built specifically for LDAK kinship-matrix adjustment, present only for an analysis unit that has one. HE and PCGC with the same selected parent artifact, effective sample subset, covariate content and native options share one adjusted child artifact; REML fits covariates and kinship jointly and never triggers matrix adjustment
       structure: "[map meta, path adjustment_covariates]"
       pattern: "*.qcovar"
       ontologies: []

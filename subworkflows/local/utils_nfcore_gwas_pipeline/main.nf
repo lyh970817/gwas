@@ -404,6 +404,52 @@ def digestIdentityText(canonical) {
         .substring(0, 12)
 }
 
+// Scientific values canonicalise numeric spellings while preserving identifiers exactly as declared.
+def canonicaliseScientificValue(value) {
+    if (value == null) {
+        return 'null'
+    }
+    if (value instanceof Boolean) {
+        return value ? 'true' : 'false'
+    }
+    if (value instanceof Map) {
+        return '{' + value.sort { entry -> entry.key }.collect { name, entry -> "${name}=${canonicaliseScientificValue(entry)}" }.join(',') + '}'
+    }
+    if (value instanceof Collection) {
+        return '[' + value.collect { entry -> canonicaliseScientificValue(entry) }.join(',') + ']'
+    }
+    if (value instanceof Number) {
+        return new BigDecimal(value.toString()).stripTrailingZeros().toPlainString()
+    }
+    def text = value.toString().trim()
+    return text ==~ /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/
+        ? new BigDecimal(text).stripTrailingZeros().toPlainString()
+        : text
+}
+
+def canonicaliseScientificIdentifier(value) {
+    if (value == null) {
+        return 'null'
+    }
+    if (value instanceof Map) {
+        return '{' + value.sort { entry -> entry.key }.collect { name, entry -> "${name}=${canonicaliseScientificIdentifier(entry)}" }.join(',') + '}'
+    }
+    if (value instanceof Collection) {
+        return '[' + value.collect { entry -> canonicaliseScientificIdentifier(entry) }.join(',') + ']'
+    }
+    return value.toString().trim()
+}
+
+// Artifact keys contain only immutable parent/input identities and effective scientific settings.
+def buildScientificArtifactKey(identity, settings) {
+    def rendered = identity.collectEntries { name, value -> [(name): canonicaliseScientificIdentifier(value)] } + [settings: canonicaliseScientificValue(settings)]
+    def canonical = rendered
+        .sort { entry -> entry.key }
+        .collect { name, text -> "${name}=${text}" }
+        .join('\n')
+    return digestIdentityText(canonical)
+}
+
 // Prediction reuse keys share one deterministic map serialisation.
 def buildCanonicalPredictionKey(identity) {
     def canonical = identity

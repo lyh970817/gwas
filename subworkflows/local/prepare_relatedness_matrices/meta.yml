@@ -1,11 +1,12 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: "prepare_relatedness_matrices"
-description: Build each distinct relatedness matrix once under a content-derived reuse key and fan it out to every unary analysis or explicit pair request that needs one
+description: Build reusable base relatedness artifacts and their scientifically keyed derivatives once, then fan the selected artifact out to every unary analysis or explicit pair request that needs it
 keywords:
   - relatedness
   - grm
   - kinship
   - deduplication
+  - artifact identity
 # The helper functions are listed alongside the subworkflow because `nf-core subworkflows lint`
 # compares every `include` in main.nf against this list, and it lowercases the include name without
 # lowercasing the entry it is matched against — so a camel-cased function name here is reported as
@@ -15,8 +16,10 @@ components:
   - plink_prepare_grm_ldms_gcta
   - plink_prepare_grm_ldak
   - gcta/makebksparse
+  - buildscientificartifactkey
+  - canonicalisescientificidentifier
+  - canonicalisescientificvalue
   - digestfilebytes
-  - digestidentitytext
   - getmethodcapabilities
 input:
   - ch_analyses:
@@ -60,8 +63,8 @@ output:
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - ldak_kinship:
-      description: The filtered or unfiltered LDAK kinship matrix requested by each analysis unit, carrying its optional unrelated-sample keep list.
-      structure: "[map meta, list grm_files, path keep|[]]"
+      description: The selected base or unrelated-sample child LDAK kinship artifact requested by each analysis unit. The artifact key remains beside unchanged focal metadata, and the keep list is present only for a subset child.
+      structure: "[map meta, string artifact_key, list grm_files, path keep|[]]"
       pattern: "*.{grm.bin,grm.id,grm.details,grm.adjust,keep}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
