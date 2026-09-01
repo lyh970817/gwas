@@ -32,7 +32,12 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
         [prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates ?: [], step1_bsize]
     }
 
-    def ch_fit_requests = ch_requests.unique { prediction_key, _meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates, _step1_bsize -> prediction_key }
+    def ch_fit_requests = ch_requests
+        .map { prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates, step1_bsize ->
+            [prediction_key, [prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates, step1_bsize]]
+        }
+        .groupTuple()
+        .map { _prediction_key, requests -> requests.sort { left, right -> left[1].id <=> right[1].id }.first() }
 
     def ch_fit = ch_fit_requests.multiMap { _prediction_key, _meta, fit_meta, pgen, pvar, psam, phenotype, covariates, step1_bsize ->
         genotypes: [fit_meta, pgen, pvar, psam]

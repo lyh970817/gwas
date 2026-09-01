@@ -60,9 +60,25 @@ class RESUME {
         return rows.tail().collect { row -> [header, row.split('\t').toList()].transpose().collectEntries() }
     }
 
+    // Run the same cache probe while also recording the canonical identity order accepted by a terminal
+    // one-task-per-output consumer. The sort makes the assembled-result contract independent of task
+    // scheduling while retaining duplicates, so both cardinality and identity order remain observable.
+    static Map rerunWithOutputs(Object outputDir, Map overrides, String outputProcess) {
+        def trace = rerun(outputDir, overrides)
+        return [trace: trace, outputIdentities: taskTags(trace, outputProcess)]
+    }
+
     // The trace rows of one process, by simple process name, matching how TRACE reads nf-test's own.
     static List<Map> tasks(List<Map> trace, String process) {
         return trace.findAll { row -> row.name.split(/ \(/).first().tokenize(':').last().trim() == process }
+    }
+
+    // Canonically ordered task tags are output identities when the observed process consumes exactly one task
+    // per assembled result, as GWASLAB_HARMONIZE does for association outputs.
+    static List<String> taskTags(List<Map> trace, String process) {
+        return tasks(trace, process)
+            .collect { row -> (row.name =~ /\(([^()]*)\)$/)[0][1] }
+            .sort()
     }
 
     // The task statuses of one process, sorted, so a test can say "every one of these was reused" and

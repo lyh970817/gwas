@@ -91,7 +91,12 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
             [prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, resolved_extract]
         }
 
-    def ch_fit_requests = ch_resolved_requests.unique { prediction_key, _meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract -> prediction_key }
+    def ch_fit_requests = ch_resolved_requests
+        .map { prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract ->
+            [prediction_key, [prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract]]
+        }
+        .groupTuple()
+        .map { _prediction_key, requests -> requests.sort { left, right -> left[1].id <=> right[1].id }.first() }
 
     def ch_step1 = ch_fit_requests.multiMap { _prediction_key, _meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, extract ->
         genotypes: [fit_meta, bed, bim, fam]

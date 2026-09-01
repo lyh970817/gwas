@@ -312,7 +312,10 @@ nextflow_pipeline {
             params {
                 outdir = "$outputDir"
                 def linked = manifests(outputDir, projectDir, 'regenie_step1_resume', { rows ->
-                    rows[0].analysis_id = 'regenie_resume'
+                    rows[0].analysis_id = 'regenie_resume_a'
+                    def second = new LinkedHashMap(rows[0])
+                    second.analysis_id = 'regenie_resume_b'
+                    rows << second
                 })
                 cohort_manifest = linked.cohort
                 analysis_manifest = linked.analysis
@@ -320,12 +323,12 @@ nextflow_pipeline {
         }
 
         then {
-            def unchangedTrace = RESUME.rerun(outputDir, [:])
+            def unchangedRun = RESUME.rerunWithOutputs(outputDir, [:], 'GWASLAB_HARMONIZE')
 
             def step2Options = RELATIONAL.methodOptions(outputDir, 'regenie_step2_resume', [
-                regenie_resume: [regenie: [min_mac: 5]],
+                regenie_resume_b: [regenie: [min_mac: 5]],
             ])
-            def step2Trace = RESUME.rerun(outputDir, [method_options: step2Options])
+            def step2Run = RESUME.rerunWithOutputs(outputDir, [method_options: step2Options], 'GWASLAB_HARMONIZE')
 
             def changedPhenotype = RELATIONAL.resource(
                 outputDir,
@@ -333,33 +336,40 @@ nextflow_pipeline {
                 new File("${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/example.pheno").text.replaceFirst('-1.128174', '-1.028174'),
             )
             def phenotypeManifest = RELATIONAL.analyses(projectDir, outputDir, 'regenie_step1_resume_changed', { rows ->
-                rows[0].analysis_id = 'regenie_resume'
-                rows[0].phenotype = changedPhenotype
+                rows[0].analysis_id = 'regenie_resume_a'
                 rows[0].association_methods = 'regenie'
+                def second = new LinkedHashMap(rows[0])
+                second.analysis_id = 'regenie_resume_b'
+                second.phenotype = changedPhenotype
+                rows << second
             })
-            def phenotypeTrace = RESUME.rerun(outputDir, [analysis_manifest: phenotypeManifest])
+            def phenotypeRun = RESUME.rerunWithOutputs(outputDir, [analysis_manifest: phenotypeManifest], 'GWASLAB_HARMONIZE')
+            def expectedOutputs = ['regenie_resume_a--regenie', 'regenie_resume_b--regenie']
 
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 2 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
-                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
-                { assert RESUME.statuses(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
-                { assert RESUME.statuses(unchangedTrace, 'REGENIE_STEP1') == ['CACHED'] },
-                { assert RESUME.statuses(unchangedTrace, 'REGENIE_STEP2') == ['CACHED'] },
-                { assert RESUME.statuses(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
-                { assert RESUME.statuses(step2Trace, 'REGENIE_STEP1') == ['CACHED'] },
-                { assert RESUME.statuses(step2Trace, 'REGENIE_STEP2') == ['COMPLETED'] },
-                { assert RESUME.hashes(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
-                { assert RESUME.hashes(step2Trace, 'REGENIE_STEP1') == RESUME.hashes(unchangedTrace, 'REGENIE_STEP1') },
-                { assert RESUME.hashes(step2Trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP2') },
-                { assert RESUME.statuses(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['COMPLETED'] },
-                { assert RESUME.statuses(phenotypeTrace, 'REGENIE_STEP1') == ['COMPLETED'] },
-                { assert RESUME.statuses(phenotypeTrace, 'REGENIE_STEP2') == ['COMPLETED'] },
-                { assert RESUME.hashes(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') != RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
-                { assert RESUME.hashes(phenotypeTrace, 'REGENIE_STEP1') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP1') },
-                { assert RESUME.hashes(phenotypeTrace, 'REGENIE_STEP2') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP2') },
-                { assert new File("${params.outdir}/association/regenie/regenie_resume/regenie_resume.regenie.gz").isFile() },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert RESUME.statuses(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(unchangedRun.trace, 'REGENIE_STEP1') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedRun.trace, 'REGENIE_STEP2') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(step2Run.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(step2Run.trace, 'REGENIE_STEP1') == ['CACHED'] },
+                { assert RESUME.statuses(step2Run.trace, 'REGENIE_STEP2') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.hashes(step2Run.trace, 'PREPARE_PHENOTYPE_INPUTS') == RESUME.hashes(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(step2Run.trace, 'REGENIE_STEP1') == RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP1') },
+                { assert RESUME.hashes(step2Run.trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP2') },
+                { assert RESUME.statuses(phenotypeRun.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP1') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP2') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.hashes(phenotypeRun.trace, 'PREPARE_PHENOTYPE_INPUTS') != RESUME.hashes(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(phenotypeRun.trace, 'REGENIE_STEP1') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP1') },
+                { assert RESUME.hashes(phenotypeRun.trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP2') },
+                { assert unchangedRun.outputIdentities == expectedOutputs },
+                { assert step2Run.outputIdentities == expectedOutputs },
+                { assert phenotypeRun.outputIdentities == expectedOutputs },
+                { assert expectedOutputs.every { id -> new File("${params.outdir}/summary_statistics/${id}/${id}.gwaslab.tsv.gz").isFile() } },
             )
         }
     }
