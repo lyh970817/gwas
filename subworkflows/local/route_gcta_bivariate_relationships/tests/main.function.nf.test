@@ -6,14 +6,14 @@ nextflow_function {
     tag "gcta"
     tag "bivariate"
 
-    test("the native basename and the matrix reuse key are dropped and the request identity is restored") {
-        function "stripNativeMatrixIdentity"
+    test("the dense request identity is preserved while the matrix reuse key is dropped") {
+        function "stripMatrixReuseIdentity"
 
         when {
             function {
                 """
                 input[0] = [
-                    id: 'example_pgen.gcta_dense.3b47382e01cd',
+                    id: 'gcta_bivariate_reml--qt_bt',
                     request_id: 'gcta_bivariate_reml--qt_bt',
                     relationship_id: 'qt_bt',
                     method: 'gcta_bivariate_reml',
@@ -27,7 +27,6 @@ nextflow_function {
                     right_population_prevalence: 0.1,
                     reml_bivar_prevalence: [0.1],
                     matrix_key: '3b47382e01cd',
-                    matrix_basename: 'example_pgen.gcta_dense.3b47382e01cd',
                 ]
                 """
             }
@@ -36,11 +35,10 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                // The two identities that existed only for the native invocation are gone.
+                // The matrix reuse identity existed only for attribution at the invocation boundary.
                 { assert !function.result.containsKey('matrix_key') },
-                { assert !function.result.containsKey('matrix_basename') },
-                // `id` was rewritten to the staged GRM basename for that same reason; downstream the record is
-                // the request, so the focal identity is restored.
+                // Dense atoms derive their native GRM basename from the staged bundle, so the request identity
+                // crosses the invocation unchanged.
                 { assert function.result.id == 'gcta_bivariate_reml--qt_bt' },
                 { assert function.result.id == function.result.request_id },
                 // Everything scientific is retained untouched, in the declared orientation.
@@ -56,17 +54,18 @@ nextflow_function {
         }
     }
 
-    test("a record that never carried a native identity is returned unchanged apart from the restored id") {
+    test("the LDMS native matrix identity is replaced by the request identity") {
         function "stripNativeMatrixIdentity"
 
         when {
             function {
                 """
                 input[0] = [
-                    id: 'gcta_bivariate_reml_ldms--qt_bt',
+                    id: '3b47382e01cd',
                     request_id: 'gcta_bivariate_reml_ldms--qt_bt',
                     relationship_id: 'qt_bt',
                     method: 'gcta_bivariate_reml_ldms',
+                    matrix_key: '3b47382e01cd',
                 ]
                 """
             }

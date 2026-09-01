@@ -93,16 +93,13 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     //
     // Dense GCTA relationship requests: bivariate REML and bivariate HEreg
     //
-    // The installed REML atom requires the primary metadata ID to be the staged GRM basename. Keep that
-    // native basename separate from request attribution and from the content-derived matrix reuse key; all
-    // three identities reach the native results. Both dense estimators are addressed from the
-    // same prepared pair and the same matrix stream, so the branch below is the only place they diverge.
+    // The request identity remains the primary metadata ID while the matrix content key records reuse
+    // attribution. Both dense estimators are addressed from the same prepared pair and the same matrix stream,
+    // so the branch below is the only place they diverge.
     def ch_bivariate_matrices = ch_relationship_dense_matrices
         .filter { meta, _grm_files -> meta.matrix_kind == 'gcta_dense' }
         .map { meta, grm_files ->
-            def grm_id = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.id') }
-            def basename = grm_id.name.substring(0, grm_id.name.length() - '.grm.id'.length())
-            [meta.request_id, meta + [matrix_basename: basename], grm_files]
+            [meta.request_id, meta, grm_files]
         }
 
     def ch_dense_prepared_pairs = ch_prepared_pairs.filter { _request_id, pair_meta, _phenotype, _quant_covariates, _cat_covariates -> pair_meta.matrix_kind == 'gcta_dense' }
@@ -207,10 +204,10 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     )
 
     emit:
-    reml_results       = GCTA_BIVARIATEREML.out.bivariate_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
-    reml_log           = GCTA_BIVARIATEREML.out.log_file.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
-    hereg_results      = GCTA_BIVARIATEHEREG.out.hereg_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
-    hereg_log          = GCTA_BIVARIATEHEREG.out.log.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    reml_results       = GCTA_BIVARIATEREML.out.bivariate_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
+    reml_log           = GCTA_BIVARIATEREML.out.log_file.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    hereg_results      = GCTA_BIVARIATEHEREG.out.hereg_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
+    hereg_log          = GCTA_BIVARIATEHEREG.out.log.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
     reml_ldms_results  = GCTA_BIVARIATEREMLLDMS.out.bivariate_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
     reml_ldms_log      = GCTA_BIVARIATEREMLLDMS.out.log_file.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
     hereg_ldms_results = GCTA_BIVARIATEHEREGLDMS.out.hereg_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
@@ -223,29 +220,23 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// Fold the matrix record's native and reuse identities into the request record. `id` becomes the staged
-// matrix basename because the installed REML atoms address their GRM or MGRM family that way; the HEreg atoms
-// resolve the basename from the staged bundle themselves, but keeping one route identity across the four
-// estimators lets them share preparation and publication. The matrix
-// attribution is carried by the request-keyed join with the prepared phenotype.
+// Fold the matrix reuse identity into the request record. Dense atoms resolve the native GRM basename from the
+// staged bundle, so the request identity remains primary throughout execution.
 def resolveRouteMeta(matrix_meta, pair_meta) {
-    return pair_meta + [
-        id: matrix_meta.matrix_basename,
-        matrix_key: matrix_meta.matrix_key,
-        matrix_basename: matrix_meta.matrix_basename,
-    ]
+    return pair_meta + [matrix_key: matrix_meta.matrix_key]
 }
 
 def resolveLdmsRouteMeta(matrix_meta, pair_meta) {
     return pair_meta + [id: matrix_meta.matrix_key, matrix_key: matrix_meta.matrix_key]
 }
 
-// Drop the controller's native and reuse identities from a result record and restore the focal scientific
-// identity. `matrix_basename` exists only because the installed dense atom addresses its GRM by staged
-// basename, `matrix_key` is the content-derived matrix reuse key, and dense `id` was rewritten to that
-// basename for the same reason. Downstream the record is the request, so `id` returns to `request_id`; the
-// request, method, relationship and endpoint attribution, trait identity and prevalence declarations are
-// retained untouched.
+// Dense inputs carry the matrix reuse key for attribution, but it is not part of the emitted request record.
+def stripMatrixReuseIdentity(meta) {
+    return meta.findAll { key, _value -> key != 'matrix_key' }
+}
+
+// LDMS execution uses the matrix reuse key as its task-local output identity. Drop that key and restore the
+// request identity before emitting the result.
 def stripNativeMatrixIdentity(meta) {
-    return meta.findAll { key, _value -> !(key in ['matrix_basename', 'matrix_key']) } + [id: meta.request_id]
+    return stripMatrixReuseIdentity(meta) + [id: meta.request_id]
 }

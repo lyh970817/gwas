@@ -126,10 +126,9 @@ nextflow_workflow {
                 // branch claims the other's matrix.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                // The installed dense atom addresses its matrix by staged basename. The LDMS consumer writes
-                // its task-local MGRM list and uses the shared matrix key as its execution identity; neither is
-                // the request identity.
-                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML') == ['matrix_alpha_matrix_alpha'] },
+                // The dense atom retains the request identity while deriving its input basename from the
+                // staged GRM. The LDMS consumer still uses the shared matrix key as its execution identity.
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML') == ['gcta_bivariate_reml--rel_ab_gcta_bivariate_reml--rel_ab'] },
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREMLLDMS') == ['key_ldms_family_key_ldms_family'] },
                 // Publication is request-addressed and method-keyed, and is unchanged by the controller scope.
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.hsq").isFile() },
@@ -140,11 +139,11 @@ nextflow_workflow {
                 { assert workflow.out.reml_log.size() == 1 },
                 { assert workflow.out.reml_ldms_results.size() == 1 },
                 { assert workflow.out.reml_ldms_log.size() == 1 },
-                // The emitted record is the request. The native basename and the matrix reuse key existed only
-                // for the invocation and are stripped; the focal identity is restored to the request.
+                // The emitted record is the request. The dense request identity crossed execution unchanged;
+                // the matrix reuse key existed only for invocation attribution and is stripped.
                 { assert workflow.out.reml_results[0][0].id == 'gcta_bivariate_reml--rel_ab' },
                 { assert workflow.out.reml_ldms_results[0][0].id == 'gcta_bivariate_reml_ldms--rel_ab' },
-                { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> !meta.containsKey('matrix_basename') && !meta.containsKey('matrix_key') } },
+                { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> !meta.containsKey('matrix_key') } },
                 // The focal scientific identity crosses the boundary intact, in the declared orientation.
                 { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> meta.relationship_id == 'rel_ab' } },
                 { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> meta.left_analysis_id == 'alpha' && meta.right_analysis_id == 'beta' } },
@@ -195,9 +194,9 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
-                // Both dense estimators address the same staged GRM basename and both LDMS estimators carry
-                // the same matrix key, which is the controller-side face of one shared matrix construction.
-                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['matrix_alpha_matrix_alpha'] },
+                // Both dense estimators retain their request identity while addressing the same staged GRM;
+                // both LDMS estimators carry the same matrix key for the shared matrix construction.
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['gcta_bivariate_he--rel_ab_gcta_bivariate_he--rel_ab'] },
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREGLDMS') == ['key_ldms_family_key_ldms_family'] },
                 { assert workflow.out.reml_results[0][0].request_id == 'gcta_bivariate_reml--rel_ab' },
                 { assert workflow.out.hereg_results[0][0].request_id == 'gcta_bivariate_he--rel_ab' },
@@ -295,7 +294,7 @@ nextflow_workflow {
                 { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ga' }[0].right_analysis_id == 'alpha' },
                 // Each request is executed against its own attributed matrix; a shared matrix does not merge
                 // two requests, and a distinct one does not detach a request from its prepared phenotype.
-                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML').sort() == ['matrix_alpha_matrix_alpha', 'matrix_alpha_matrix_alpha', 'matrix_beta_matrix_beta'] },
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML').sort() == ['gcta_bivariate_reml--rel_ab_gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml--rel_ag_gcta_bivariate_reml--rel_ag', 'gcta_bivariate_reml--rel_ga_gcta_bivariate_reml--rel_ga'] },
             )
         }
     }

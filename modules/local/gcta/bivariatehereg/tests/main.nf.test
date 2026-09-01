@@ -244,6 +244,33 @@ nextflow_process {
         }
     }
 
+    test("homo_sapiens popgen - request identity differs from dense GRM basename") {
+        when {
+            process {
+                """
+                request_dense_grm = GCTA_MAKEGRM_DENSE.out.grm_files.map { _meta, grm_files ->
+                    [[ id:'gcta_bivariate_he--trait1_trait2' ], grm_files]
+                }
+
+                input[0] = request_dense_grm
+                input[1] = GAWK_BIVARIATE_PHENO.out.output.map { _meta, phenotype_file -> [[ id:'gcta_bivariate_he--trait1_trait2' ], phenotype_file, 1, 2] }
+                """
+            }
+        }
+
+        then {
+            def command = path(process.out.log.get(0).get(1)).parent.resolve(".command.sh").text.replaceAll(/\s+/, " ")
+            assertAll(
+                { assert process.success },
+                { assert process.out.hereg_results.get(0).get(0).id == 'gcta_bivariate_he--trait1_trait2' },
+                { assert file(process.out.hereg_results.get(0).get(1)).name == 'gcta_bivariate_he--trait1_trait2.HEreg' },
+                { assert file(process.out.log.get(0).get(1)).name == 'gcta_bivariate_he--trait1_trait2.log' },
+                { assert command.contains('--grm "plink_simulated_dense"') },
+                { assert command.contains('--out "gcta_bivariate_he--trait1_trait2"') },
+            )
+        }
+    }
+
     test("homo_sapiens popgen - bivariate quantitative phenotype with dense GRM - stub") {
         options "-stub"
 

@@ -86,8 +86,10 @@ nextflow_pipeline {
                 // settings only, never from the method token, so two estimators cost one construction.
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
                 { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
-                // Both estimators address that one matrix by the same staged basename.
-                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML') == TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') },
+                // Both estimators retain their own request identity while deriving the shared staged GRM
+                // basename independently of that identity.
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML') == ['gcta_bivariate_reml--qt_qt2_gcta_bivariate_reml--qt_qt2'] },
+                { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['gcta_bivariate_he--qt_qt2_gcta_bivariate_he--qt_qt2'] },
                 // The shared two-trait table is built once for the relationship, then fanned out per method.
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },

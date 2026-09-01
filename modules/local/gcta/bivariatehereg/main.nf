@@ -21,13 +21,13 @@ process GCTA_BIVARIATEHEREG {
 
     script:
     def args = task.ext.args ?: ''
-    def dense_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
+    def dense_grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.name.replaceFirst(/\.grm\.bin$/, '')
     def prefix = task.ext.prefix ?: "${meta.id}"
     def hereg_bivar_param = phenotype_col1 && phenotype_col2 ? "--HEreg-bivar ${phenotype_col1} ${phenotype_col2}" : '--HEreg-bivar'
     """
     gcta \\
         ${hereg_bivar_param} \\
-        --grm "${dense_prefix}" \\
+        --grm "${dense_grm_prefix}" \\
         --pheno "${phenotypes_file}" \\
         --out "${prefix}" \\
         --thread-num "${task.cpus}" \\
