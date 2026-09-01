@@ -323,6 +323,7 @@ The same three LDMS setting names are accepted under a `gcta_bivariate_reml_ldms
 | `relatedness_filter` | Boolean; `false`                | Kinship routes; optionally derives an unrelated subset.                                                                       |
 | `kvik_step1_subset`  | String; `all`                   | `ldak_kvik` only; `all`, `thin_common`, or `provided`.                                                                        |
 | `predictor_extract`  | Resource path or absent; absent | `ldak_kvik` only; required exactly with `kvik_step1_subset: provided`.                                                        |
+| `kvik_step2_keep`    | Resource path or absent; absent | `ldak_kvik` Step 2 only; optional FID/IID sample keep file passed to native `--keep`.                                         |
 
 | REGENIE option      | Type and default         | Consumer and constraints                                                                             |
 | ------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
@@ -346,7 +347,7 @@ For example, this changes the fitted-model block size and Step 2 policy for one 
 }
 ```
 
-Resource paths are staged and their contents participate in matrix or prediction reuse identity. `gcta_grm_parts` is operational partitioning and remains configuration/profile-only, never a method option.
+Resource paths are resolved and staged at ingress. Step 1 resources contribute to the matrix, predictor, or fit identity that consumes them; `ldak.kvik_step2_keep` is a Step 2-only input and cannot fragment preparation or Step 1 reuse. `gcta_grm_parts` is operational partitioning and remains configuration/profile-only, never a method option.
 
 The authoritative structural contracts are [`schema_cohort_manifest.json`](../assets/schema_cohort_manifest.json), [`schema_analysis_manifest.json`](../assets/schema_analysis_manifest.json), [`schema_summary_statistics_manifest.json`](../assets/schema_summary_statistics_manifest.json), [`schema_relationship_manifest.json`](../assets/schema_relationship_manifest.json), and [`schema_reference_catalog.json`](../assets/schema_reference_catalog.json); origin-, relationship-, request-, method-, trait- and resource-aware diagnostics come from the central preflight validator.
 
@@ -369,12 +370,13 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 | GWASLab reference parameters      | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource.                                                                  |
 | Save controls                     | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                                                                                   |
 
-The four opt-in save controls are:
+The three opt-in save controls are:
 
 - `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
 - `--save_normalised_phenotypes`: publish headered prepared phenotype and covariate files under `phenotypes/<analysis_id>/`. The parameter name is retained for compatibility.
 - `--save_relatedness_matrices`: publish each reusable GCTA or LDAK base or derived matrix artifact once under `quality_control/relatedness_matrices/<key>/`.
-- `--save_association_predictions`: publish reusable REGENIE and LDAK-KVIK Step 1 bundles under `intermediates/association_predictions/<method>/<analysis_id>/`.
+
+REGENIE and LDAK-KVIK Step 1 bundles remain internal work outputs consumed directly by Step 2. Selective `-resume` requires preserving the Nextflow cache and work directory; the pipeline does not publish or import Step 1 bundles.
 
 See the [output documentation](output.md) for the exact files and publication exceptions.
 
@@ -531,7 +533,7 @@ Selected resource failures are retried with larger requests, subject to `--max_c
 
 - Confirm that the analysis, summary-statistics or relationship row selected the method whose result you expected.
 - Check the route-specific paths in the [output documentation](output.md).
-- Prepared genotypes, prepared phenotypes and covariates, relatedness matrices and REGENIE predictions are unpublished by default; enable the corresponding save control before expecting those directories.
+- Prepared genotypes, prepared phenotypes and covariates, and relatedness matrices are unpublished by default; enable the corresponding save control before expecting those directories. REGENIE and LDAK-KVIK Step 1 predictions are internal work outputs and have no publication control.
 - GWASLab reference parameters are optional. Standardised association output is still produced without them, but reference-dependent allele checks, flips, rsID assignment and strand inference are not. `genome_build`, not `ancestry`, selects the build-specific resources.
 - Published intermediates are retention outputs, not importable cross-run caches. Supported reuse requires retained Nextflow work and `-resume`.
 

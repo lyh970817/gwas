@@ -88,15 +88,12 @@ For binary traits, Firth fallback is enabled by default so complete or quasi-com
 
 - `association/regenie/<analysis_id>/`
   - `<analysis_id>.regenie.gz`: Native, space-delimited REGENIE Step 2 association result.
-- `intermediates/association_predictions/regenie/<analysis_id>/` (with `--save_association_predictions`)
-  - `<analysis_id>.regenie_step1_pred.list`: Prediction-list manifest from standard Step 1 or chunked Run L1.
-  - `<analysis_id>.regenie_step1_<chromosome>.loco.gz`: Leave-one-chromosome-out prediction table.
 
 </details>
 
 For binary traits, the per-analysis `regenie.firth`, `regenie.firth_approx` and `regenie.firth_p_threshold` method options default to approximate Firth correction below `0.01`. `regenie.min_mac` defaults to `null`, retaining REGENIE's own versioned minimum-MAC policy unless an analysis explicitly overrides it.
 
-The published Step 2 file is native output with the fixed `_PHENO` token removed from its name. Step 1 predictions are reusable intermediates and remain unpublished unless `--save_association_predictions` is enabled; chunk-planning files, temporary low-memory predictions and logs remain in the work directory.
+The published Step 2 file is native output with the fixed `_PHENO` token removed from its name. Step 1 predictions, chunk-planning files, temporary low-memory predictions and logs remain in the work directory. Resumed Step 1 reuse therefore requires preserving the Nextflow cache and work outputs.
 
 ### GCTA fastGWA-MLM
 
@@ -115,14 +112,10 @@ The published Step 2 file is native output with the fixed `_PHENO` token removed
 <details markdown="1">
 <summary>Output files</summary>
 
-[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. `ldak.kvik_step1_subset` defaults to `all`; `thin_common` requests deterministic thinning and `provided` requires the stageable `ldak.predictor_extract` resource. One `thin_common` predictor artifact is built per compatible prepared genotype view and effective thinning contract, then shared by every phenotype-specific Step 1 fit on that view. The resolved predictor artifact contributes to prediction reuse identity; phenotype and covariate differences do not fragment thinning reuse. The native `.assoc` file is published unchanged. The reusable three-file Step 1 bundle is optional output; predictor lists, effects, thinning progress and logs remain in the work directory.
+[LDAK-KVIK](https://dougspeed.com/ldak-kvik/) fits a Step 1 prediction model from the PLINK 1 compatibility bundle prepared once per cohort and tests the full bundle in Step 2. `ldak.kvik_step1_subset` defaults to `all`; `thin_common` requests deterministic thinning and `provided` requires the stageable `ldak.predictor_extract` resource. One `thin_common` predictor artifact is built per compatible prepared genotype view and effective thinning contract, then shared by every phenotype-specific Step 1 fit on that view. The resolved predictor artifact contributes to prediction reuse identity; phenotype and covariate differences do not fragment thinning reuse. The native `.assoc` file is published unchanged. The internal three-file Step 1 bundle is consumed directly by Step 2; predictor lists, effects, thinning progress and logs remain in the work directory. Resumed Step 1 reuse therefore requires preserving the Nextflow cache and work outputs.
 
 - `association/ldak_kvik/<analysis_id>/`
   - `<analysis_id>.ldak_kvik.step2.assoc`: Native LDAK-KVIK Step 2 association table.
-- `intermediates/association_predictions/ldak_kvik/<analysis_id>/` (with `--save_association_predictions`)
-  - `<analysis_id>.ldak_kvik.step1.root`: LDAK Step 1 model root file, attributed to the requesting analysis.
-  - `<analysis_id>.ldak_kvik.step1.loco.details`: Leave-one-chromosome-out model details used by LDAK-KVIK Step 2.
-  - `<analysis_id>.ldak_kvik.step1.loco.prs`: Leave-one-chromosome-out polygenic scores used by LDAK-KVIK Step 2.
 
 </details>
 

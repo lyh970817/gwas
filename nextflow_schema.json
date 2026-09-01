@@ -121,12 +121,6 @@
                     "description": "Save reusable GCTA and LDAK base and derived relatedness-matrix artifacts built for heritability and mixed-model routes.",
                     "help_text": "Each artifact is published once to `<outdir>/quality_control/relatedness_matrices/<key>/`, where `<key>` digests immutable input or parent identity and the effective scientific settings of that artifact. Sparse cutoff, LDAK subsetting and covariate adjustment belong to child identities and never fragment their compatible base. Focal analysis, method and publication state are excluded. Per-partition construction files and logs are not published.",
                     "fa_icon": "fas fa-download"
-                },
-                "save_association_predictions": {
-                    "type": "boolean",
-                    "description": "Save reusable REGENIE and LDAK-KVIK Step 1 prediction bundles.",
-                    "help_text": "Prediction bundles are absent from published output by default. Enable this control to publish analysis-attributed bundles under `<outdir>/intermediates/association_predictions/<method>/<analysis_id>/`.",
-                    "fa_icon": "fas fa-download"
                 }
             }
         },
