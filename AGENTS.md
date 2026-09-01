@@ -30,15 +30,12 @@ any commit or synchronization task that may mix those changes with the portable 
 Local `personal` is the primary branch, and the repository-root checkout normally remains on it. Use linked
 worktrees for other branches.
 
-Remove a temporary worktree after verifying that it is clean, unused by live processes, and fully integrated
-into every intended destination. Worktree removal does not authorize branch deletion; verified integration
-does. Delete an integrated branch as the normal end of its life, not as an optional tidy-up.
+After a temporary branch has been merged into local `personal` and its content has been verified there, remove
+its worktree and delete the local branch. Use the commit on `personal` for later propagation; do not retain the
+temporary branch or worktree for that purpose.
 
-Verify that integration by content, never by `git branch --merged` ancestry alone. `dual-track-commit` lands
-the same work under different SHAs on each track, and a history rewrite detaches the SHAs a branch was merged
-as, so ancestry reports integrated branches as unmerged. Branches held deliberately as evidence or as an open
-PR's head are exceptions and are never swept: `fix-biofuse-storage` is evidence for an open issue, and
-`feat/gwas-development-routes` is the head of draft PR #99.
+Push `personal` to `origin/personal` only after all work intended for that push has been merged into `personal`
+and all merged temporary branches and worktrees have been cleaned up.
 
 Never merge a branch that still carries files which must never be tracked, anything under `.scratch/` above
 all; the merge reintroduces those blobs. Rewrite the branch first.
