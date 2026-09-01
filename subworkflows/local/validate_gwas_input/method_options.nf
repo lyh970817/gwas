@@ -20,6 +20,7 @@ def getMethodOptionDefaults() {
             relatedness_filter: false,
             kvik_step1_subset: 'all',
             predictor_extract: [],
+            kvik_step2_keep: [],
         ],
         regenie: [
             step1_bsize: 1000,
@@ -180,6 +181,7 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     def weights_policy = options.containsKey('weights_policy') ? options.weights_policy : defaults.weights_policy
     def relatedness_filter = options.containsKey('relatedness_filter') ? options.relatedness_filter : defaults.relatedness_filter
     def kvik_step1_subset = options.containsKey('kvik_step1_subset') ? options.kvik_step1_subset : defaults.kvik_step1_subset
+    def kvik_step2_keep = resolveMethodResource(analysis_id, 'ldak', 'kvik_step2_keep', options, fail)
     if (!(model in ['human_default', 'custom'])) {
         fail.call(analysis_id, 'ldak.model', "expected 'human_default' or 'custom'")
     }
@@ -228,7 +230,7 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
             fail.call(analysis_id, "ldak.${option}", 'option is consumed by LDAK kinship methods only, which this analysis does not select')
         }
     }
-    ['kvik_step1_subset', 'predictor_extract'].each { option ->
+    ['kvik_step1_subset', 'predictor_extract', 'kvik_step2_keep'].each { option ->
         if (options.containsKey(option) && !selects_ldak_kvik) {
             fail.call(analysis_id, "ldak.${option}", "option is consumed by 'ldak_kvik' only, which this analysis does not select")
         }
@@ -241,6 +243,7 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
         relatedness_filter: relatedness_filter,
         kvik_step1_subset: kvik_step1_subset,
         predictor_extract: predictor_extract,
+        kvik_step2_keep: kvik_step2_keep,
     ]
 }
 

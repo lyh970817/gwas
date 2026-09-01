@@ -70,4 +70,10 @@ class RESUME {
     static List<String> statuses(List<Map> trace, String process) {
         return tasks(trace, process).collect { row -> row.status }.sort()
     }
+
+    // Exact task hashes let cache-boundary tests prove identity directly rather than treating a
+    // CACHED/COMPLETED status alone as a proxy for which task Nextflow matched.
+    static List<String> hashes(List<Map> trace, String process) {
+        return tasks(trace, process).collect { row -> row.hash }.sort()
+    }
 }

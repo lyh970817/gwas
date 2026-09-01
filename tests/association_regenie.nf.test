@@ -27,11 +27,6 @@ nextflow_pipeline {
         ]
     }
 
-    def prediction_files = { outdir, analysis_id ->
-        def directory = new File("${outdir}/intermediates/association_predictions/regenie/${analysis_id}")
-        return directory.exists() ? directory.list().toList().sort() : []
-    }
-
     def execution_modes = [
         [suffix: '', stub: false],
         [suffix: ' - stub', stub: true],
@@ -165,7 +160,6 @@ nextflow_pipeline {
                     })
                     cohort_manifest = linked.cohort
                     analysis_manifest = linked.analysis
-                    save_association_predictions = false
                 }
             }
 
@@ -179,7 +173,6 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
                         { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
                         { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 2 },
-                        { assert TRACE.count(workflow, 'ATTRIBUTE_REGENIE_PREDICTIONS') == 0 },
                         { assert analysisIds.every { id -> new File(nativeDir, "${id}/${id}.regenie.gz").isFile() } },
                         { assert analysisIds.every { id -> new File(harmonisedDir, "${id}--regenie/${id}--regenie.gwaslab.tsv.gz").isFile() } },
                     )
@@ -205,7 +198,6 @@ nextflow_pipeline {
                         { assert step2.find { command -> command.contains('--bt') }.contains('--pThresh 0.01') },
                         { assert generated.every { command -> command.contains('--phenoColList PHENO') } },
                         { assert generated.every { command -> !command.contains('--minMAC') } },
-                        { assert !new File("${params.outdir}/intermediates/association_predictions/regenie").exists() },
                         { assert snapshot(stable_name_native, stable_path_native).match('traits-native') },
                         { assert snapshot(stable_name_harmonised, stable_path_harmonised).match('traits-harmonised') },
                         { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
@@ -216,7 +208,7 @@ nextflow_pipeline {
     }
 
     execution_modes.each { mode ->
-        test("identical Step 1 inputs reuse one prediction bundle attributed to every analysis${mode.suffix}") {
+        test("identical Step 1 inputs reuse one prediction bundle fanned to every analysis${mode.suffix}") {
 
             config "../conf/test_regenie_standard.config"
             tag "regenie_prediction_reuse"
@@ -234,7 +226,9 @@ nextflow_pipeline {
                     })
                     cohort_manifest = linked.cohort
                     analysis_manifest = linked.analysis
-                    save_association_predictions = true
+                    method_options = RELATIONAL.methodOptions(outputDir, 'regenie_reuse', [
+                        example_pgen_qt_reuse: [regenie: [min_mac: 5]],
+                    ])
                 }
             }
 
@@ -245,16 +239,6 @@ nextflow_pipeline {
                     { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
                     { assert TRACE.tags(workflow, 'REGENIE_STEP2').sort() == analysisIds },
-                    { assert TRACE.count(workflow, 'ATTRIBUTE_REGENIE_PREDICTIONS') == 2 },
-                    { assert TRACE.tags(workflow, 'ATTRIBUTE_REGENIE_PREDICTIONS').sort() == analysisIds },
-                    { assert prediction_files(params.outdir, 'example_pgen_qt') == [
-                        'example_pgen_qt.regenie_step1_1.loco.gz',
-                        'example_pgen_qt.regenie_step1_pred.list',
-                    ] },
-                    { assert prediction_files(params.outdir, 'example_pgen_qt_reuse') == [
-                        'example_pgen_qt_reuse.regenie_step1_1.loco.gz',
-                        'example_pgen_qt_reuse.regenie_step1_pred.list',
-                    ] },
                     { assert analysisIds.every { id -> new File("${params.outdir}/association/regenie/${id}/${id}.regenie.gz").isFile() } },
                     { assert analysisIds.every { id -> new File("${params.outdir}/summary_statistics/${id}--regenie/${id}--regenie.gwaslab.tsv.gz").isFile() } },
                 ]
@@ -294,7 +278,6 @@ nextflow_pipeline {
                     })
                     cohort_manifest = linked.cohort
                     analysis_manifest = linked.analysis
-                    save_association_predictions = true
                 }
             }
 
@@ -304,8 +287,6 @@ nextflow_pipeline {
                     { assert workflow.success },
                     { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
-                    { assert TRACE.count(workflow, 'ATTRIBUTE_REGENIE_PREDICTIONS') == 2 },
-                    { assert analysisIds.every { id -> prediction_files(params.outdir, id).size() == 2 } },
                 ]
                 if (!mode.stub) {
                     def stable_name_native = getAllFilesFromDir("${params.outdir}/association/regenie", relative: true, includeDir: true).findAll { path -> path.toString() }
@@ -319,6 +300,67 @@ nextflow_pipeline {
                 }
                 assertAll(*assertions)
             }
+        }
+    }
+
+    test("Step 2 policy resumes phenotype preparation and Step 1 while phenotype content invalidates both") {
+        config "../conf/test_regenie_standard.config"
+        tag "regenie_resume"
+        tag "resume"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                def linked = manifests(outputDir, projectDir, 'regenie_step1_resume', { rows ->
+                    rows[0].analysis_id = 'regenie_resume'
+                })
+                cohort_manifest = linked.cohort
+                analysis_manifest = linked.analysis
+            }
+        }
+
+        then {
+            def unchangedTrace = RESUME.rerun(outputDir, [:])
+
+            def step2Options = RELATIONAL.methodOptions(outputDir, 'regenie_step2_resume', [
+                regenie_resume: [regenie: [min_mac: 5]],
+            ])
+            def step2Trace = RESUME.rerun(outputDir, [method_options: step2Options])
+
+            def changedPhenotype = RELATIONAL.resource(
+                outputDir,
+                'regenie-step1-resume-changed.pheno',
+                new File("${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/example.pheno").text.replaceFirst('-1.128174', '-1.028174'),
+            )
+            def phenotypeManifest = RELATIONAL.analyses(projectDir, outputDir, 'regenie_step1_resume_changed', { rows ->
+                rows[0].analysis_id = 'regenie_resume'
+                rows[0].phenotype = changedPhenotype
+                rows[0].association_methods = 'regenie'
+            })
+            def phenotypeTrace = RESUME.rerun(outputDir, [analysis_manifest: phenotypeManifest])
+
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert RESUME.statuses(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'REGENIE_STEP1') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'REGENIE_STEP2') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'REGENIE_STEP1') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'REGENIE_STEP2') == ['COMPLETED'] },
+                { assert RESUME.hashes(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(step2Trace, 'REGENIE_STEP1') == RESUME.hashes(unchangedTrace, 'REGENIE_STEP1') },
+                { assert RESUME.hashes(step2Trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP2') },
+                { assert RESUME.statuses(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'REGENIE_STEP1') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'REGENIE_STEP2') == ['COMPLETED'] },
+                { assert RESUME.hashes(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') != RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(phenotypeTrace, 'REGENIE_STEP1') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP1') },
+                { assert RESUME.hashes(phenotypeTrace, 'REGENIE_STEP2') != RESUME.hashes(unchangedTrace, 'REGENIE_STEP2') },
+                { assert new File("${params.outdir}/association/regenie/regenie_resume/regenie_resume.regenie.gz").isFile() },
+            )
         }
     }
 
@@ -349,11 +391,6 @@ nextflow_pipeline {
                     { assert TRACE.count(workflow, 'REGENIE_RUNL1') == 1 },
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                     { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 1 },
-                    { assert TRACE.count(workflow, 'ATTRIBUTE_REGENIE_PREDICTIONS') == 1 },
-                    { assert prediction_files(params.outdir, 'example_pgen_qt') == [
-                        'example_pgen_qt.regenie_step1_1.loco.gz',
-                        'example_pgen_qt.regenie_step1_pred.list',
-                    ] },
                     { assert new File("${params.outdir}/association/regenie/example_pgen_qt/example_pgen_qt.regenie.gz").isFile() },
                     { assert new File("${params.outdir}/summary_statistics/example_pgen_qt--regenie/example_pgen_qt--regenie.gwaslab.tsv.gz").isFile() },
                 ]

@@ -1,19 +1,17 @@
 // Route nf-core/gwas analysis records through REGENIE while reusing scientifically identical Step 1 fits.
-// This is pipeline-specific relational-input and publication policy, not an nf-core/modules submission candidate.
+// This is pipeline-specific relational-input policy, not an nf-core/modules submission candidate.
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
 // SUBWORKFLOW: Upstream-ready REGENIE composition used inside a pipeline-local route
-include { PLINK_FIT_REGENIE             } from '../plink_fit_regenie/main'
-
-// MODULE: Local to the pipeline
-include { ATTRIBUTE_REGENIE_PREDICTIONS } from '../../../modules/local/attribute_regenie_predictions/main'
+include { PLINK_FIT_REGENIE           } from '../plink_fit_regenie/main'
 
 // MODULE: Installed directly from nf-core/modules
-include { REGENIE_STEP2                 } from '../../../modules/nf-core/regenie/step2/main'
+include { REGENIE_STEP2               } from '../../../modules/nf-core/regenie/step2/main'
 
 // FUNCTION: Local to the pipeline
-include { digestFileBytes               } from '../utils_nfcore_gwas_pipeline'
-include { buildCanonicalPredictionKey   } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes             } from '../utils_nfcore_gwas_pipeline'
+include { buildCanonicalPredictionKey } from '../utils_nfcore_gwas_pipeline'
+include { buildScientificArtifactKey  } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_REGENIE_ASSOCIATIONS {
     take:
@@ -28,8 +26,9 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
     // drives each fit; the original analysis metadata stays beside every consumer and is restored below.
     def ch_requests = ch_analyses.map { meta, pgen, psam, pvar, phenotype, covariates ->
         def step1_bsize = meta.method_options.regenie.step1_bsize
-        def prediction_key = buildRegeniePredictionKey(meta, phenotype, covariates ?: [], step1_bsize)
-        def fit_meta = meta + [id: "${meta.cohort}.regenie.${prediction_key}"]
+        def view_key = buildCurrentPreparedGenotypeViewKey(meta)
+        def prediction_key = buildRegeniePredictionKey(view_key, meta.is_binary, phenotype, covariates ?: [], step1_bsize)
+        def fit_meta = [id: "regenie.${prediction_key}", is_binary: meta.is_binary]
         [prediction_key, meta, fit_meta, pgen, pvar, psam, phenotype, covariates ?: [], step1_bsize]
     }
 
@@ -62,14 +61,6 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
         .join(ch_fit_keys, failOnDuplicate: true, failOnMismatch: true)
         .map { _fit_id, predictions, loco, prediction_key -> [prediction_key, predictions, loco] }
 
-    def ch_attributed_predictions = ch_requests
-        .map { prediction_key, meta, _fit_meta, _pgen, _pvar, _psam, _phenotype, _covariates, _step1_bsize -> [prediction_key, meta.id, meta] }
-        .unique { _prediction_key, analysis_id, _meta -> analysis_id }
-        .combine(ch_prediction_bundles, by: 0)
-        .map { _prediction_key, _analysis_id, meta, predictions, loco -> [meta, predictions, loco] }
-
-    ATTRIBUTE_REGENIE_PREDICTIONS(ch_attributed_predictions)
-
     def ch_step2 = ch_requests
         .combine(ch_prediction_bundles, by: 0)
         .multiMap { _prediction_key, meta, _fit_meta, pgen, pvar, psam, phenotype, covariates, _step1_bsize, predictions, loco ->
@@ -83,9 +74,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
     REGENIE_STEP2(ch_step2.genotypes, ch_step2.predictions, ch_step2.pheno, ch_step2.covar, ch_step2.bsize)
 
     emit:
-    results     = REGENIE_STEP2.out.results // channel: [ val(meta), path(regenie_results) ]
-    predictions = ch_attributed_predictions.map { meta, predictions, _loco -> [meta, predictions] } // channel: [ val(meta), path(predictions) ]
-    loco        = ch_attributed_predictions.map { meta, _predictions, loco -> [meta, loco] } // channel: [ val(meta), path(loco) ]
+    results = REGENIE_STEP2.out.results // channel: [ val(meta), path(regenie_results) ]
 }
 
 /*
@@ -94,16 +83,26 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// REGENIE Step 1 reuse requires every cohort-defining and scientific input to agree. Execution-only
-// controls are absent; Step 1 block size remains because it changes the fitted model.
-def buildRegeniePredictionKey(meta, phenotype, covariates, step1_bsize) {
+def buildCurrentPreparedGenotypeViewKey(meta) {
+    return buildScientificArtifactKey(
+        [layer: 'compatibility', type: 'prepared_plink2_view'],
+        [
+            contract: 'pending_issue_8',
+            cohort: meta.cohort,
+        ],
+    )
+}
+
+// REGENIE Step 1 reuse requires every scientific input to agree. The prepared-view seam is the one place
+// issue #8 will replace the temporary cohort compatibility identity; focal and downstream metadata stay out.
+def buildRegeniePredictionKey(view_key, is_binary, phenotype, covariates, step1_bsize) {
     def identity = [
-        cohort: meta.cohort,
-        trait: meta.trait,
-        is_binary: meta.is_binary,
+        genotype_view: view_key,
+        is_binary: is_binary,
         phenotype: getPredictionInputIdentity(phenotype),
         covariates: getPredictionInputIdentity(covariates),
         step1_bsize: step1_bsize,
+        adapter_contract: 'regenie_4.1.2_step1_v1',
     ]
     return buildCanonicalPredictionKey(identity)
 }

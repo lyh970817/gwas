@@ -11,7 +11,6 @@ components:
   - ldak/thincommon
   - ldak/kvikstep1
   - ldak/kvikstep2
-  - attribute/ldak/kvik/predictions
   - digestfilebytes
   - buildcanonicalpredictionkey
   - buildscientificartifactkey
@@ -41,17 +40,6 @@ output:
       description: LDAK-KVIK association tables prepared for harmonisation
       structure: "[map meta, path harmonisation_input]"
       pattern: "*.step2*.harmonisation.tsv"
-      ontologies: []
-  - predictions:
-      description: LDAK-KVIK Step 1 prediction bundles, once per scientifically distinct shared fit
-      structure: "[map meta, path root, path loco_details, path loco_prs]"
-      pattern: "*.step1.{root,loco.details,loco.prs}"
-      ontologies: []
-  - effects:
-      description: Optional LDAK-KVIK Step 1 effect estimates, once per shared fit
-      structure: "[map meta, path effects]"
-      pattern: "*.step1.effects"
-      optional: true
       ontologies: []
   - progress:
       description: ThinCommon progress files, once per genotype-view and effective-thinning-options predictor artifact

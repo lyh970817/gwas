@@ -141,19 +141,57 @@ workflow GWAS {
     //
     // MODULE: Prepare each analysis unit's phenotype and covariates in the shared tool-compatible layout
     //
+    // The preparation task receives only the fields its template and configured prefix consume. The complete
+    // focal analysis map is restored after the task, so downstream method, request and display metadata cannot
+    // alter the preparation cache boundary while every consumer still receives its original analysis identity.
+    def ch_analysis_meta_by_id = ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
+        [meta.id, meta]
+    }
     PREPARE_PHENOTYPE_INPUTS(
         ch_analyses.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract, _ldak_weights ->
-            [meta, phenotype, quant_covariates, cat_covariates]
+            def preparation_meta = [
+                id: meta.id,
+                phenotype_column: meta.phenotype_column,
+                is_binary: meta.is_binary,
+                case_value: meta.case_value,
+                control_value: meta.control_value,
+            ]
+            [preparation_meta, phenotype, quant_covariates, cat_covariates]
         }
     )
+
+    def ch_prepared_phenotype = PREPARE_PHENOTYPE_INPUTS.out.phenotype
+        .map { preparation_meta, phenotype -> [preparation_meta.id, phenotype] }
+        .join(ch_analysis_meta_by_id, failOnMismatch: true, failOnDuplicate: true)
+        .map { _analysis_id, phenotype, meta -> [meta, phenotype] }
+    def ch_prepared_phenotype_headerless = PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless
+        .map { preparation_meta, phenotype -> [preparation_meta.id, phenotype] }
+        .join(ch_analysis_meta_by_id, failOnMismatch: true, failOnDuplicate: true)
+        .map { _analysis_id, phenotype, meta -> [meta, phenotype] }
+    def ch_prepared_quant_covariates_headerless = PREPARE_PHENOTYPE_INPUTS.out.quant_covariates_headerless
+        .map { preparation_meta, covariates -> [preparation_meta.id, covariates] }
+        .join(ch_analysis_meta_by_id, failOnDuplicate: true)
+        .map { _analysis_id, covariates, meta -> [meta, covariates] }
+    def ch_prepared_cat_covariates_headerless = PREPARE_PHENOTYPE_INPUTS.out.cat_covariates_headerless
+        .map { preparation_meta, covariates -> [preparation_meta.id, covariates] }
+        .join(ch_analysis_meta_by_id, failOnDuplicate: true)
+        .map { _analysis_id, covariates, meta -> [meta, covariates] }
+    def ch_prepared_covariates = PREPARE_PHENOTYPE_INPUTS.out.covariates
+        .map { preparation_meta, covariates -> [preparation_meta.id, covariates] }
+        .join(ch_analysis_meta_by_id, failOnDuplicate: true)
+        .map { _analysis_id, covariates, meta -> [meta, covariates] }
+    def ch_prepared_adjustment_covariates = PREPARE_PHENOTYPE_INPUTS.out.adjustment_covariates
+        .map { preparation_meta, covariates -> [preparation_meta.id, covariates] }
+        .join(ch_analysis_meta_by_id, failOnDuplicate: true)
+        .map { _analysis_id, covariates, meta -> [meta, covariates] }
 
     // GCTA and LDAK reject a header row. LDAK-KVIK, fastGWA and every individual-level GRM heritability
     // estimator therefore consume the headerless phenotype and covariate serialisations. This one prepared
     // stream is built here because it has consumers in more than one route, and is passed to the association
     // and heritability controllers explicitly. Optional covariates are represented by [], which stages nothing.
-    def ch_gcta_phenotypes = PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless
-        .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates_headerless, remainder: true)
-        .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates_headerless, remainder: true)
+    def ch_gcta_phenotypes = ch_prepared_phenotype_headerless
+        .join(ch_prepared_quant_covariates_headerless, remainder: true)
+        .join(ch_prepared_cat_covariates_headerless, remainder: true)
         .map { meta, phenotype, quant_covariates, cat_covariates ->
             [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
         }
@@ -173,8 +211,8 @@ workflow GWAS {
     ROUTE_ASSOCIATION_ANALYSES(
         PREPARE_COHORT_GENOTYPES.out.genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
-        PREPARE_PHENOTYPE_INPUTS.out.phenotype,
-        PREPARE_PHENOTYPE_INPUTS.out.covariates,
+        ch_prepared_phenotype,
+        ch_prepared_covariates,
         ch_gcta_phenotypes,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_sparse,
         ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, kvik_extract, _ldak_weights ->
@@ -204,7 +242,7 @@ workflow GWAS {
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _grm_files, _grm_prefixes -> !meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
         ch_gcta_phenotypes,
-        PREPARE_PHENOTYPE_INPUTS.out.adjustment_covariates,
+        ch_prepared_adjustment_covariates,
     )
 
     //

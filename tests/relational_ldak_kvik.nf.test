@@ -7,6 +7,16 @@ nextflow_pipeline {
     tag "association"
     tag "ldak"
 
+    def commands = { output_dir ->
+        def scripts = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name == '.command.sh') {
+                scripts << entry.text
+            }
+        }
+        return scripts
+    }
+
 
     test("linked quantitative and binary analyses use KVIK defaults and retain output attribution") {
         when {
@@ -60,7 +70,7 @@ nextflow_pipeline {
     }
 
     test("thin-common reuse is genotype-view scoped and independent of phenotype and covariates") {
-        tag "association_predictions"
+        tag "ldak_kvik_reuse"
         when {
             params {
                 outdir = "$outputDir"
@@ -141,7 +151,7 @@ nextflow_pipeline {
     }
 
     test("thin-common cache identity ignores phenotype-only changes and follows genotype-view changes") {
-        tag "association_predictions"
+        tag "ldak_kvik_reuse"
         tag "resume"
         when {
             params {
@@ -219,8 +229,103 @@ nextflow_pipeline {
         }
     }
 
+    test("KVIK Step 2 sample policy resumes every unchanged prerequisite while phenotype content invalidates Step 1") {
+        tag "resume"
+        tag "kvik_step1_resume"
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'ldak_kvik_step1_resume', { rows ->
+                    def bundle = RELATIONAL.twoChromosomePlink1(projectDir, outputDir, 'ldak_kvik_step1_resume')
+                    rows[0] = RELATIONAL.cohort('example_bfile')
+                    rows[0].cohort_id = 'kvik_resume_view'
+                    rows[0].bed = bundle.bed
+                    rows[0].bim = bundle.bim
+                    rows[0].fam = bundle.fam
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'ldak_kvik_step1_resume', { rows ->
+                    rows[0] = RELATIONAL.analysis(projectDir, 'example_bfile_qt')
+                    rows[0].analysis_id = 'kvik_resume'
+                    rows[0].cohort_id = 'kvik_resume_view'
+                    rows[0].association_methods = 'ldak_kvik'
+                    rows[0].heritability_methods = ''
+                })
+                method_options = RELATIONAL.methodOptions(outputDir, 'ldak_kvik_step1_resume', [
+                    kvik_resume: [ldak: [kvik_step1_subset: 'thin_common']],
+                ])
+            }
+        }
+
+        then {
+            def unchangedTrace = RESUME.rerun(outputDir, [:])
+
+            def fam = new File("${FIXTURES.base(projectDir)}results/fixtures/genotypes/example_all.fam")
+            def keep = RELATIONAL.resource(
+                outputDir,
+                'ldak-kvik-step2-resume.keep',
+                fam.readLines().collect { line -> line.tokenize().take(2).join(' ') }.join('\n') + '\n',
+            )
+            def step2Options = RELATIONAL.methodOptions(outputDir, 'ldak_kvik_step2_resume', [
+                kvik_resume: [ldak: [kvik_step1_subset: 'thin_common', kvik_step2_keep: keep]],
+            ])
+            def step2Trace = RESUME.rerun(outputDir, [method_options: step2Options])
+
+            def changedPhenotype = RELATIONAL.resource(
+                outputDir,
+                'ldak-kvik-step1-resume-changed.pheno',
+                new File("${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/example.pheno").text.replaceFirst('-1.128174', '-1.028174'),
+            )
+            def phenotypeManifest = RELATIONAL.analyses(projectDir, outputDir, 'ldak_kvik_step1_resume_changed', { rows ->
+                rows[0] = RELATIONAL.analysis(projectDir, 'example_bfile_qt')
+                rows[0].analysis_id = 'kvik_resume'
+                rows[0].cohort_id = 'kvik_resume_view'
+                rows[0].phenotype = changedPhenotype
+                rows[0].association_methods = 'ldak_kvik'
+                rows[0].heritability_methods = ''
+            })
+            def phenotypeTrace = RESUME.rerun(outputDir, [analysis_manifest: phenotypeManifest])
+
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert RESUME.statuses(unchangedTrace, 'PLINK2_MAKEPGEN') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'PLINK2_MAKEBED') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'LDAK_THINCOMMON') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'LDAK_KVIKSTEP1') == ['CACHED'] },
+                { assert RESUME.statuses(unchangedTrace, 'LDAK_KVIKSTEP2') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'PLINK2_MAKEPGEN') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'PLINK2_MAKEBED') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'LDAK_THINCOMMON') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'LDAK_KVIKSTEP1') == ['CACHED'] },
+                { assert RESUME.statuses(step2Trace, 'LDAK_KVIKSTEP2') == ['COMPLETED'] },
+                { assert RESUME.hashes(step2Trace, 'PREPARE_PHENOTYPE_INPUTS') == RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(step2Trace, 'LDAK_THINCOMMON') == RESUME.hashes(unchangedTrace, 'LDAK_THINCOMMON') },
+                { assert RESUME.hashes(step2Trace, 'LDAK_KVIKSTEP1') == RESUME.hashes(unchangedTrace, 'LDAK_KVIKSTEP1') },
+                { assert RESUME.hashes(step2Trace, 'LDAK_KVIKSTEP2') != RESUME.hashes(unchangedTrace, 'LDAK_KVIKSTEP2') },
+                { assert RESUME.statuses(phenotypeTrace, 'PLINK2_MAKEPGEN') == ['CACHED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'PLINK2_MAKEBED') == ['CACHED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'LDAK_THINCOMMON') == ['CACHED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'LDAK_KVIKSTEP1') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeTrace, 'LDAK_KVIKSTEP2') == ['COMPLETED'] },
+                { assert RESUME.hashes(phenotypeTrace, 'PREPARE_PHENOTYPE_INPUTS') != RESUME.hashes(unchangedTrace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(phenotypeTrace, 'LDAK_THINCOMMON') == RESUME.hashes(unchangedTrace, 'LDAK_THINCOMMON') },
+                { assert RESUME.hashes(phenotypeTrace, 'LDAK_KVIKSTEP1') != RESUME.hashes(unchangedTrace, 'LDAK_KVIKSTEP1') },
+                { assert RESUME.hashes(phenotypeTrace, 'LDAK_KVIKSTEP2') != RESUME.hashes(unchangedTrace, 'LDAK_KVIKSTEP2') },
+                { assert new File("${params.outdir}/association/ldak_kvik/kvik_resume/kvik_resume.ldak_kvik.step2.assoc").isFile() },
+            )
+        }
+    }
+
     test("KVIK predictor policies and resource content define prediction reuse without changing focal identity") {
-        tag "association_predictions"
+        tag "ldak_kvik_reuse"
         when {
             params {
                 outdir = "$outputDir"
@@ -245,29 +350,35 @@ nextflow_pipeline {
                     }
                 })
                 def sharedPredictors = RELATIONAL.predictors(projectDir, outputDir, 'provided-a.in', 8)
+                def fam = new File("${FIXTURES.base(projectDir)}results/fixtures/genotypes/example_all.fam")
+                def step2Keep = RELATIONAL.resource(
+                    outputDir,
+                    'ldak-kvik-shared-fit.keep',
+                    fam.readLines().collect { line -> line.tokenize().take(2).join(' ') }.join('\n') + '\n',
+                )
                 method_options = RELATIONAL.methodOptions(outputDir, 'ldak_kvik_prediction_identity', [
+                    all_reuse: [ldak: [kvik_step2_keep: step2Keep]],
                     thin_common: [ldak: [kvik_step1_subset: 'thin_common']],
                     provided_a: [ldak: [kvik_step1_subset: 'provided', predictor_extract: sharedPredictors]],
                     provided_same_path: [ldak: [kvik_step1_subset: 'provided', predictor_extract: sharedPredictors]],
                     provided_b: [ldak: [kvik_step1_subset: 'provided', predictor_extract: RELATIONAL.predictors(projectDir, outputDir, 'provided-b.in', 8)]],
                     provided_changed: [ldak: [kvik_step1_subset: 'provided', predictor_extract: RELATIONAL.predictors(projectDir, outputDir, 'provided-changed.in', 9)]],
                 ])
-                save_association_predictions = true
             }
         }
 
         then {
             def nativeRoot = new File("${params.outdir}/association/ldak_kvik")
-            def predictionRoot = new File("${params.outdir}/intermediates/association_predictions/ldak_kvik")
+            def step2Commands = commands(outputDir).findAll { command -> command.contains('--kvik-step2') }
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 4 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 7 },
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 7 },
+                { assert step2Commands.size() == 7 },
+                { assert step2Commands.count { command -> command.contains('--keep') } == 1 },
                 { assert nativeRoot.list().toList().sort() == ['all_reuse', 'example_bfile_qt', 'provided_a', 'provided_b', 'provided_changed', 'provided_same_path', 'thin_common'] },
-                { assert predictionRoot.list().toList().sort() == ['all_reuse', 'example_bfile_qt', 'provided_a', 'provided_b', 'provided_changed', 'provided_same_path', 'thin_common'] },
-                { assert predictionRoot.listFiles().every { directory -> directory.list().size() == 3 } },
             )
         }
     }

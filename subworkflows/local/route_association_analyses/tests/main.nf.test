@@ -34,7 +34,10 @@ nextflow_workflow {
             heritability_methods: [],
             method_options: [
                 regenie: [step1_bsize: 100, firth: false, firth_approx: false, firth_p_threshold: 0.05, min_mac: null],
-                ldak: [kvik_step1_subset: '${options.kvik_step1_subset ?: 'all'}'],
+                ldak: [
+                    kvik_step1_subset: '${options.kvik_step1_subset ?: 'all'}',
+                    kvik_step2_keep: [],
+                ],
             ],
         ]"""
     }

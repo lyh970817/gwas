@@ -28,6 +28,7 @@ nextflow_function {
                     relatedness_filter: false,
                     kvik_step1_subset: 'all',
                     predictor_extract: [],
+                    kvik_step2_keep: [],
                 ] },
                 { assert function.result.regenie == [
                     step1_bsize: 1000,

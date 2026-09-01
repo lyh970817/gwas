@@ -87,7 +87,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == 'abcb5ad62d11' },
+                { assert function.result == '3fb37ddf4a25' },
             )
         }
     }
@@ -113,7 +113,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == 'abcb5ad62d11' },
+                { assert function.result == '3fb37ddf4a25' },
             )
         }
     }

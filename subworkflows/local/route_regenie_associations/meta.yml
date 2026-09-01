@@ -9,10 +9,10 @@ keywords:
   - prediction reuse
 components:
   - plink_fit_regenie
-  - attribute/regenie/predictions
   - regenie/step2
   - digestfilebytes
   - buildcanonicalpredictionkey
+  - buildscientificartifactkey
 input:
   - ch_analyses:
       description: Canonical nf-core/gwas analysis records; public outputs retain each consuming analysis map
@@ -36,16 +36,6 @@ output:
       description: REGENIE Step 2 association results
       structure: [map meta, path results]
       pattern: "*.regenie.gz"
-      ontologies: []
-  - predictions:
-      description: REGENIE Step 1 prediction list attributed to each consuming analysis
-      structure: [map meta, path predictions]
-      pattern: "*_pred.list"
-      ontologies: []
-  - loco:
-      description: REGENIE Step 1 leave-one-chromosome-out predictions attributed to each consuming analysis
-      structure: [map meta, path loco]
-      pattern: "*.loco.gz"
       ontologies: []
 authors:
   - "@andongni"

@@ -1,17 +1,16 @@
 // Route nf-core/gwas analysis records through LDAK-KVIK while reusing scientifically identical Step 1 fits.
-// This is pipeline-specific relational-input and publication policy, not an nf-core/modules submission candidate.
+// This is pipeline-specific relational-input policy, not an nf-core/modules submission candidate.
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULES: Upstream-ready components used inside a pipeline-local route
-include { LDAK_THINCOMMON                 } from '../../../modules/local/ldak/thincommon/main'
-include { LDAK_KVIKSTEP1                  } from '../../../modules/local/ldak/kvikstep1/main'
-include { LDAK_KVIKSTEP2                  } from '../../../modules/local/ldak/kvikstep2/main'
-include { ATTRIBUTE_LDAK_KVIK_PREDICTIONS } from '../../../modules/local/attribute_ldak_kvik_predictions/main'
+include { LDAK_THINCOMMON             } from '../../../modules/local/ldak/thincommon/main'
+include { LDAK_KVIKSTEP1              } from '../../../modules/local/ldak/kvikstep1/main'
+include { LDAK_KVIKSTEP2              } from '../../../modules/local/ldak/kvikstep2/main'
 
 // FUNCTION: Local to the pipeline
-include { digestFileBytes                 } from '../utils_nfcore_gwas_pipeline'
-include { buildCanonicalPredictionKey     } from '../utils_nfcore_gwas_pipeline'
-include { buildScientificArtifactKey      } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes             } from '../utils_nfcore_gwas_pipeline'
+include { buildCanonicalPredictionKey } from '../utils_nfcore_gwas_pipeline'
+include { buildScientificArtifactKey  } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     take:
@@ -88,7 +87,7 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
         .join(ch_phenotypes.map { meta, phenotype, quant_covariates, cat_covariates -> [meta.id, phenotype, quant_covariates, cat_covariates] }, failOnDuplicate: true, failOnMismatch: true)
         .map { _analysis_id, meta, view_key, bed, bim, fam, predictor_artifact, resolved_extract, phenotype, quant_covariates, cat_covariates ->
             def prediction_key = buildKvikPredictionKey(meta, view_key, phenotype, quant_covariates, cat_covariates, predictor_artifact.key)
-            def fit_meta = meta + [id: "${meta.cohort}.ldak_kvik.${prediction_key}"]
+            def fit_meta = [id: "ldak_kvik.${prediction_key}", is_binary: meta.is_binary]
             [prediction_key, meta, fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, resolved_extract]
         }
 
@@ -112,14 +111,6 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
         .join(ch_fit_keys, failOnDuplicate: true, failOnMismatch: true)
         .map { _fit_id, fit_meta, root, loco_details, loco_prs, prediction_key -> [prediction_key, [fit_meta, root, loco_details, loco_prs]] }
 
-    def ch_attributed_predictions = ch_resolved_requests
-        .map { prediction_key, meta, _fit_meta, _bed, _bim, _fam, _phenotype, _quant_covariates, _cat_covariates, _extract -> [prediction_key, meta.id, meta] }
-        .unique { _prediction_key, analysis_id, _meta -> analysis_id }
-        .combine(ch_prediction_bundles, by: 0)
-        .map { _prediction_key, _analysis_id, meta, predictions -> [meta, predictions[1], predictions[2], predictions[3]] }
-
-    ATTRIBUTE_LDAK_KVIK_PREDICTIONS(ch_attributed_predictions)
-
     def ch_step2 = ch_resolved_requests
         .combine(ch_prediction_bundles, by: 0)
         .multiMap { _prediction_key, meta, _fit_meta, bed, bim, fam, phenotype, quant_covariates, cat_covariates, _extract, predictions ->
@@ -128,7 +119,7 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
             predictions: predictions
             qcovar: [meta, quant_covariates]
             covar: [meta, cat_covariates]
-            keep: [meta, []]
+            keep: [meta, meta.method_options.ldak.kvik_step2_keep]
         }
 
     LDAK_KVIKSTEP2(ch_step2.genotypes, ch_step2.pheno, ch_step2.predictions, ch_step2.qcovar, ch_step2.covar, ch_step2.keep)
@@ -136,8 +127,6 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     emit:
     results             = LDAK_KVIKSTEP2.out.results // channel: [ val(meta), path(assoc) ]
     harmonisation_input = LDAK_KVIKSTEP2.out.harmonisation_input // channel: [ val(meta), path(tsv) ]
-    predictions         = LDAK_KVIKSTEP1.out.predictions // channel: [ val(meta), path(root), path(loco_details), path(loco_prs) ], once per shared fit
-    effects             = LDAK_KVIKSTEP1.out.effects // channel: [ val(meta), path(effects) ], optional per shared fit
     progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], once per thin-common predictor artifact
 }
 
@@ -182,7 +171,6 @@ def buildKvikPredictorArtifact(view_key, subset_policy, predictor_extract, provi
 def buildKvikPredictionKey(meta, view_key, phenotype, quant_covariates, cat_covariates, predictor_artifact_key) {
     def identity = [
         genotype_view: view_key,
-        trait: meta.trait,
         is_binary: meta.is_binary,
         phenotype: getPredictionInputIdentity(phenotype),
         quant_covariates: getPredictionInputIdentity(quant_covariates),
