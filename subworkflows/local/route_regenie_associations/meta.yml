@@ -19,9 +19,6 @@ input:
       structure: "[map meta, path pgen, path psam, path pvar, path phenotype, path covariates|[]]"
       pattern: "*.{pgen,psam,pvar,pvar.zst,phe,pheno,covar,cov,txt,tsv}"
       ontologies: []
-  - step1_bsize:
-      description: REGENIE Step 1 block size
-      structure: integer
   - step2_bsize:
       description: REGENIE Step 2 block size
       structure: integer
