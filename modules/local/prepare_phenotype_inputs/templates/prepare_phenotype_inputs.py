@@ -382,11 +382,14 @@ elif TRAIT_TYPE == "quantitative" and numeric_raw_matches == 0:
         )
     )
 
-# LDAK reads a missing `--covar` cell as the number it parses to and turns a missing `--factors` cell into an
-# additional factor level; in neither case does it drop the sample or say anything in its log. An analysis whose
-# selected methods read covariates that way therefore cannot be given an incomplete covariate file at all: the
-# run would succeed and report a covariate model nobody asked for. This is input validation, not compensation --
-# the pipeline neither imputes the cell nor drops the sample, it names the cells and stops.
+# LDAK never parses a missing `--covar` cell. It leaves whatever value was last in its read buffer in place, so
+# the fitted covariate silently becomes the neighbouring column's value for that sample, the previous row's last
+# value, or -- for the very first cell of the file -- uninitialised memory; measured on the pinned image, a
+# wholly missing first row is fitted as 1.1762e-316. A missing `--factors` cell instead becomes an additional
+# factor level. In neither case does LDAK drop the sample or say anything in its log, so an analysis whose
+# selected methods read covariates that way cannot be given an incomplete file at all: the run would succeed and
+# report a covariate model nobody asked for. This is input validation, not compensation -- the pipeline neither
+# imputes the cell nor drops the sample, it names the cells and stops.
 if COVARIATE_COMPLETENESS == "required":
     phenotyped = set((row[0], row[1]) for row in trait_rows if row[2] != MISSING)
     incomplete = missing_covariate_cells(quant_covariates, phenotyped) + missing_covariate_cells(

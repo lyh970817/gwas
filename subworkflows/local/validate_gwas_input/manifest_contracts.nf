@@ -88,10 +88,14 @@ def validateMethodSelectors(association_methods, heritability_methods, reject, a
     }
 }
 
-// A heritability estimator's declared trait support is a native contract, not a preference: LDAK's fast HE
-// stops at "Phenotype 1 is not binary" and its PCGC modes refuse a quantitative trait outright. Rejecting the
-// combination here names the trait type and the capable alternatives, instead of letting the row reach the
-// estimator and fail with a native message that does not mention the manifest.
+// A heritability estimator's declared trait support is sometimes a native contract and sometimes a route
+// policy, and this rule enforces both the same way. The PCGC modes genuinely refuse a quantitative trait
+// ("Phenotype 1 is not binary"). LDAK's fast Haseman-Elston, by contrast, runs a binary trait to completion
+// and reports an observed-scale estimate; `ldak_fast_he` is declared quantitative-only because this route
+// never passes `--prevalence`, so a binary row would silently receive an observed-scale number with no
+// liability conversion -- which is what `ldak_pcgc` and `ldak_fast_pcgc` exist to provide. Rejecting at
+// ingress names the trait type and the capable alternatives, instead of either failing later with a native
+// message that never mentions the manifest, or succeeding with the wrong scale.
 def validateHeritabilityTraitSupport(is_binary, heritability_methods, reject) {
     def declared = is_binary ? 'binary' : 'quantitative'
     def capabilities = getMethodCapabilities()

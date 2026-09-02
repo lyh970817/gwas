@@ -22,8 +22,9 @@ input:
             - case_value (string): Source value denoting a case, on a binary trait.
             - control_value (string): Source value denoting a control, on a binary trait.
             - requires_complete_covariates (boolean): Whether a selected method reads covariates through an
-              interface that treats a missing cell as a value rather than excluding the sample. When true, a
-              missing covariate cell on a phenotyped sample is rejected instead of written through as `NA`.
+              interface that neither parses nor reports a missing cell, so an incomplete file silently fits an
+              arbitrary value instead of excluding the sample. When true, a missing covariate cell on a
+              phenotyped sample is rejected instead of written through as `NA`.
     - phenotype:
         type: file
         description: Phenotype file with an FID column, an IID column and one column per trait

@@ -61,8 +61,9 @@ input:
         type: file
         optional: true
         description: |
-          Optional quantitative covariates file passed to `--covar`; pass [] when absent. LDAK reads a
-          missing cell as a numeric value rather than excluding the sample, so the caller owns completeness.
+          Optional quantitative covariates file passed to `--covar`; pass [] when absent. LDAK does not parse
+          a missing cell: it fits whatever value was last in its read buffer and excludes neither the sample
+          nor the column, so the caller owns completeness.
         ontologies: []
   - - meta5:
         type: map
