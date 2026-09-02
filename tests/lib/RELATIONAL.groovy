@@ -487,7 +487,7 @@ class RELATIONAL {
             phenotype: fixture('pheno_cov/example.pheno'),
             quant_covariates: fixture('pheno_cov/example.qcovar'),
             cat_covariates: fixture('pheno_cov/example.catcovar'),
-            association_methods: 'plink2',
+            association_methods: 'regenie',
             heritability_methods: '',
             population_prevalence: '',
             sample_prevalence: '',

@@ -154,7 +154,7 @@ nextflow_pipeline {
                     analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "gcta_options_${scenario.name.replace(' ', '_')}", { rows ->
                         rows[0].association_methods = scenario.containsKey('associationMethod')
                             ? scenario.associationMethod
-                            : scenario.unselected ? 'plink2' : ''
+                            : scenario.unselected ? 'regenie' : ''
                         rows[0].heritability_methods = scenario.containsKey('heritabilityMethod')
                             ? scenario.heritabilityMethod
                             : scenario.unselected ? '' : 'gcta_greml'

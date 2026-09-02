@@ -6,21 +6,24 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
+                "REGENIE_STEP1": {
+                    "regenie": "4.1.2"
+                },
+                "REGENIE_STEP2": {
+                    "regenie": "4.1.2"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-08-31T00:16:11.193787391",
+        "timestamp": "2026-09-02T11:31:53.906159266",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -51,9 +54,6 @@
                 "LDAK_KVIKSTEP2": {
                     "ldak6": 6
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
@@ -74,7 +74,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T02:46:18.356456934",
+        "timestamp": "2026-09-02T11:32:11.646043671",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

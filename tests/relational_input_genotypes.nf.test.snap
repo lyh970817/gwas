@@ -2,18 +2,18 @@
     "vcf-association": {
         "content": [
             [
-                "plink2",
-                "plink2/example_vcf_relational_qt",
-                "plink2/example_vcf_relational_qt/example_vcf_relational_qt.plink2.glm.linear"
+                "regenie",
+                "regenie/example_vcf_relational_qt",
+                "regenie/example_vcf_relational_qt/example_vcf_relational_qt.regenie.gz"
             ],
             [
-                "example_vcf_relational_qt.plink2.glm.linear:md5,e7a2df794ed53292921b94b05582d6e8"
+                "regenie/example_vcf_relational_qt/example_vcf_relational_qt.regenie.gz:md5,05fb502ea44e27f996066a1cfbf051c0"
             ]
         ],
-        "timestamp": "2026-08-12T22:13:09.582495081",
+        "timestamp": "2026-09-02T11:39:56.780469666",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
         }
     },
     "vcf-versions": {
@@ -23,21 +23,24 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
+                "REGENIE_STEP1": {
+                    "regenie": "4.1.2"
+                },
+                "REGENIE_STEP2": {
+                    "regenie": "4.1.2"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-08-31T00:00:00.438287165",
+        "timestamp": "2026-09-02T11:39:56.787763532",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -50,18 +53,21 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
+                },
+                "REGENIE_STEP1": {
+                    "regenie": "4.1.2"
+                },
+                "REGENIE_STEP2": {
+                    "regenie": "4.1.2"
                 },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-08-30T23:58:46.16255871",
+        "timestamp": "2026-09-02T11:39:06.317177334",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -70,35 +76,35 @@
     "plink2-association": {
         "content": [
             [
-                "plink2",
-                "plink2/example_pgen_relational_qt",
-                "plink2/example_pgen_relational_qt/example_pgen_relational_qt.plink2.glm.linear"
+                "regenie",
+                "regenie/example_pgen_relational_qt",
+                "regenie/example_pgen_relational_qt/example_pgen_relational_qt.regenie.gz"
             ],
             [
-                "example_pgen_relational_qt.plink2.glm.linear:md5,e7a2df794ed53292921b94b05582d6e8"
+                "regenie/example_pgen_relational_qt/example_pgen_relational_qt.regenie.gz:md5,05fb502ea44e27f996066a1cfbf051c0"
             ]
         ],
-        "timestamp": "2026-08-12T22:12:03.744297059",
+        "timestamp": "2026-09-02T11:39:06.287258303",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
         }
     },
     "plink1-association": {
         "content": [
             [
-                "plink2",
-                "plink2/example_bfile_relational_qt",
-                "plink2/example_bfile_relational_qt/example_bfile_relational_qt.plink2.glm.linear"
+                "regenie",
+                "regenie/example_bfile_relational_qt",
+                "regenie/example_bfile_relational_qt/example_bfile_relational_qt.regenie.gz"
             ],
             [
-                "example_bfile_relational_qt.plink2.glm.linear:md5,c115c5a7b608871c13a4bfb00c5d4992"
+                "regenie/example_bfile_relational_qt/example_bfile_relational_qt.regenie.gz:md5,05fb502ea44e27f996066a1cfbf051c0"
             ]
         ],
-        "timestamp": "2026-08-12T22:12:36.002468769",
+        "timestamp": "2026-09-02T11:39:31.429762244",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
         }
     },
     "plink1-versions": {
@@ -108,21 +114,24 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PLINK2_MAKEPGEN": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
+                "REGENIE_STEP1": {
+                    "regenie": "4.1.2"
+                },
+                "REGENIE_STEP2": {
+                    "regenie": "4.1.2"
+                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-08-30T23:59:24.828335802",
+        "timestamp": "2026-09-02T11:39:31.437144552",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

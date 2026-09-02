@@ -14,7 +14,7 @@ nextflow_pipeline {
     ]
 
     encodings.each { encoding, fixture ->
-        test("a ${encoding} cohort completes a PLINK 2 association through linked manifests") {
+        test("a ${encoding} cohort completes a REGENIE association through linked manifests") {
 
             when {
                 params {
@@ -37,14 +37,11 @@ nextflow_pipeline {
                     relative: true,
                     includeDir: true,
                 ).findAll { path -> path.toString() }
-                def stable_path_association = getAllFilesFromDir(
-                    "${params.outdir}/association",
-                    ignoreFile: 'tests/.nftignore',
-                )
+                def stable_path_association = RELATIONAL.gzipTextHashes("${params.outdir}/association")
                 assertAll(
                     { assert workflow.success },
                     { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS') == [analysisId] },
-                    { assert TRACE.count(workflow, 'PLINK2_GLM') == 1 },
+                    { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == (fixture.conversion == 'PLINK2_MAKEPGEN' ? 1 : 0) },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == (fixture.conversion == 'PLINK2_VCF' ? 1 : 0) },
                     { assert snapshot(stable_name_association, stable_path_association).match("${encoding}-association") },
@@ -83,8 +80,11 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 0 },
                 { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == expected },
-                { assert TRACE.count(workflow, 'PLINK2_GLM') == expected.size() },
-                { assert new File("${params.outdir}/association/plink2").list().toList().sort() == expected },
+                // The four rows share phenotype bytes, covariates and `is_binary`, so the REGENIE Step 1
+                // reuse key collapses them onto one fit that all four Step 2 runs consume.
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == expected.size() },
+                { assert new File("${params.outdir}/association/regenie").list().toList().sort() == expected },
             )
         }
     }

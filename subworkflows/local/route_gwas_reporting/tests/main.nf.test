@@ -18,7 +18,7 @@ nextflow_workflow {
             trait_type: 'quantitative',
             build: 'GRCh38',
             ancestry: 'EUR',
-            association_methods: ['plink2'],
+            association_methods: ['regenie'],
             heritability_methods: ['gcta_greml'],
         ]
         input[0] = channel.value(file('${tests}/nf_core_gwas_software_mqc_versions.yml', checkIfExists: true))
@@ -93,7 +93,7 @@ nextflow_workflow {
                 { assert sections(params.outdir) == RENDERED_SECTIONS },
                 { assert analysis_plan.readLines()[0] == 'Sample\tcohort\ttrait\ttrait_type\tgenome_build\tancestry\tassociation_methods\theritability_methods' },
                 { assert analysis_plan.readLines().findAll { line -> line.startsWith('example_pgen_qt\t') }.size() == 1 },
-                { assert software_versions.readLines().findAll { line -> line.startsWith('PLINK2_GLM\t') }.size() == 1 },
+                { assert software_versions.readLines().findAll { line -> line.startsWith('REGENIE_STEP2\t') }.size() == 1 },
                 // The pipeline defaults were selected for all three overridable assets.
                 { assert report_data.config_report_comment.contains('analysis pipeline') },
                 { assert report_data.report_multiqc_command.contains('custom_logo: "nf-core-gwas_logo_light.png"') },

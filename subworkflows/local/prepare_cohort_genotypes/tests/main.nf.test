@@ -106,7 +106,7 @@ nextflow_workflow {
                     [[id: 'ldak_kvik', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['ldak_kvik'], heritability_methods: []], genotypes],
                     [[id: 'ldak_reml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
                     [[id: 'gcta_greml_ldms', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['gcta_greml_ldms']], genotypes],
-                    [[id: 'plink2_glm', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['plink2'], heritability_methods: []], genotypes],
+                    [[id: 'regenie', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], genotypes],
                     [[id: 'gcta_greml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['gcta_greml']], genotypes],
                 ])
                 """

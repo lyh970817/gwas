@@ -5,15 +5,15 @@ nextflow_pipeline {
     tag "pipeline"
     tag "input"
     tag "relational"
-    tag "plink2"
+    tag "analyses"
 
-    test("linked analyses preserve identity through PLINK 2 native and harmonised outputs") {
+    test("linked analyses preserve identity through REGENIE native and harmonised outputs") {
 
         when {
             params {
                 outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "plink2_trait_semantics")
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "plink2_trait_semantics", { rows ->
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "regenie_trait_semantics")
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "regenie_trait_semantics", { rows ->
                     def binary = RELATIONAL.analysis(projectDir, 'example_pgen_bt')
                     def quantitativeWithoutCovariates = new LinkedHashMap(rows[0])
                     quantitativeWithoutCovariates.analysis_id = 'example_pgen_qt_no_covariates'
@@ -35,7 +35,7 @@ nextflow_pipeline {
                 'example_pgen_qt',
                 'example_pgen_qt_no_covariates',
             ]
-            def plink2 = new File("${params.outdir}/association/plink2")
+            def regenie = new File("${params.outdir}/association/regenie")
             def harmonised = new File("${params.outdir}/summary_statistics")
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             def stable_name_association = getAllFilesFromDir(
@@ -43,19 +43,19 @@ nextflow_pipeline {
                 relative: true,
                 includeDir: true,
             ).findAll { path -> path.toString() }
-            def stable_path_association = getAllFilesFromDir(
-                "${params.outdir}/association",
-                ignoreFile: 'tests/.nftignore',
-            )
+            def stable_path_association = RELATIONAL.gzipTextHashes("${params.outdir}/association")
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == analysisIds },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == analysisIds.size() },
-                { assert TRACE.count(workflow, 'PLINK2_GLM') == analysisIds.size() },
-                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds.collect { id -> "${id}--plink2" }.sort() },
-                { assert plink2.list().toList().sort() == analysisIds },
-                { assert harmonised.list().toList().sort() == analysisIds.collect { id -> "${id}--plink2" }.sort() },
-                { assert analysisIds.every { id -> new File(harmonised, "${id}--plink2/${id}--plink2.gwaslab.tsv.gz").exists() } },
+                // Four distinct phenotype/covariate byte sets, so the REGENIE Step 1 reuse key produces one
+                // fit per analysis rather than collapsing any of them.
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == analysisIds.size() },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == analysisIds.size() },
+                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds.collect { id -> "${id}--regenie" }.sort() },
+                { assert regenie.list().toList().sort() == analysisIds },
+                { assert harmonised.list().toList().sort() == analysisIds.collect { id -> "${id}--regenie" }.sort() },
+                { assert analysisIds.every { id -> new File(harmonised, "${id}--regenie/${id}--regenie.gwaslab.tsv.gz").exists() } },
                 { assert snapshot(stable_name_association, stable_path_association).match('association') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
@@ -124,7 +124,7 @@ nextflow_pipeline {
             mutate: { row -> row.association_methods = 'plink3' },
             field: "field 'association_methods'",
             message: "unknown method 'plink3'",
-            accepted: "accepted values are 'plink2', 'regenie', 'gcta_fastgwa', 'ldak_kvik'",
+            accepted: "accepted values are 'regenie', 'gcta_fastgwa', 'ldak_kvik'",
         ],
         [
             name: "analysis selecting an unknown heritability method",
@@ -140,9 +140,9 @@ nextflow_pipeline {
         [
             name: "analysis repeating an association method",
             fixture: "duplicate_association_method",
-            mutate: { row -> row.association_methods = 'plink2,plink2' },
+            mutate: { row -> row.association_methods = 'regenie,regenie' },
             field: "field 'association_methods'",
-            message: "method 'plink2' listed more than once",
+            message: "method 'regenie' listed more than once",
         ],
         [
             name: "analysis repeating a heritability method",
@@ -163,12 +163,20 @@ nextflow_pipeline {
             message: "'ldak_pcgc' always estimates on the liability scale and requires a population prevalence",
         ],
         [
-            name: "binary PLINK 2 analysis with unconsumed population prevalence",
-            fixture: "plink2_with_prevalence",
+            name: "binary REGENIE analysis with unconsumed population prevalence",
+            fixture: "regenie_with_prevalence",
             source: "example_pgen_bt",
             mutate: { row -> row.population_prevalence = '0.3' },
             field: "field 'population_prevalence'",
             message: "none of the selected estimators consumes it",
+        ],
+        [
+            name: "analysis selecting the retired plink2 association method",
+            fixture: "retired_plink2_selector",
+            mutate: { row -> row.association_methods = 'plink2' },
+            field: "field 'association_methods'",
+            message: "unknown method 'plink2'",
+            accepted: "accepted values are 'regenie', 'gcta_fastgwa', 'ldak_kvik'",
         ],
     ]
 

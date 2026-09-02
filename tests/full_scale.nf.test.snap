@@ -63,9 +63,6 @@
                 "LDAK_SUBGRM": {
                     "ldak6": 6
                 },
-                "PLINK2_GLM": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
@@ -89,7 +86,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T02:32:05.535393645",
+        "timestamp": "2026-09-02T11:42:27.579434941",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -108,11 +105,6 @@
                 "ldak_kvik/heterogeneous_bt/heterogeneous_bt.ldak_kvik.step2.assoc",
                 "ldak_kvik/heterogeneous_qt",
                 "ldak_kvik/heterogeneous_qt/heterogeneous_qt.ldak_kvik.step2.assoc",
-                "plink2",
-                "plink2/heterogeneous_bt",
-                "plink2/heterogeneous_bt/heterogeneous_bt.plink2.glm.logistic.hybrid",
-                "plink2/heterogeneous_qt",
-                "plink2/heterogeneous_qt/heterogeneous_qt.plink2.glm.linear",
                 "regenie",
                 "regenie/heterogeneous_qt",
                 "regenie/heterogeneous_qt/heterogeneous_qt.regenie.gz"
@@ -122,15 +114,13 @@
                 "heterogeneous_qt.gcta_fastgwa.fastGWA:md5,d756c893ac9fc977735a6dc3b7ba4dd7",
                 "heterogeneous_bt.ldak_kvik.step2.assoc:md5,8435a2b63c69a428bd49adb1d28f03c0",
                 "heterogeneous_qt.ldak_kvik.step2.assoc:md5,d900ec29ee8c14586bf8d9045f315d1b",
-                "heterogeneous_bt.plink2.glm.logistic.hybrid:md5,07b1fa1fdd9005f879fb11ec2b9cc28c",
-                "heterogeneous_qt.plink2.glm.linear:md5,e7a2df794ed53292921b94b05582d6e8",
                 "heterogeneous_qt.regenie.gz:md5,87c65e520bab6bc45ba60955fc8214cd"
             ]
         ],
-        "timestamp": "2026-08-13T14:38:39.735101822",
+        "timestamp": "2026-09-02T11:42:27.605038875",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
         }
     },
     "summary_statistics": {
@@ -142,18 +132,12 @@
                 "heterogeneous_bt--ldak_kvik",
                 "heterogeneous_bt--ldak_kvik/heterogeneous_bt--ldak_kvik.gwaslab.log",
                 "heterogeneous_bt--ldak_kvik/heterogeneous_bt--ldak_kvik.gwaslab.tsv.gz",
-                "heterogeneous_bt--plink2",
-                "heterogeneous_bt--plink2/heterogeneous_bt--plink2.gwaslab.log",
-                "heterogeneous_bt--plink2/heterogeneous_bt--plink2.gwaslab.tsv.gz",
                 "heterogeneous_qt--gcta_fastgwa",
                 "heterogeneous_qt--gcta_fastgwa/heterogeneous_qt--gcta_fastgwa.gwaslab.log",
                 "heterogeneous_qt--gcta_fastgwa/heterogeneous_qt--gcta_fastgwa.gwaslab.tsv.gz",
                 "heterogeneous_qt--ldak_kvik",
                 "heterogeneous_qt--ldak_kvik/heterogeneous_qt--ldak_kvik.gwaslab.log",
                 "heterogeneous_qt--ldak_kvik/heterogeneous_qt--ldak_kvik.gwaslab.tsv.gz",
-                "heterogeneous_qt--plink2",
-                "heterogeneous_qt--plink2/heterogeneous_qt--plink2.gwaslab.log",
-                "heterogeneous_qt--plink2/heterogeneous_qt--plink2.gwaslab.tsv.gz",
                 "heterogeneous_qt--regenie",
                 "heterogeneous_qt--regenie/heterogeneous_qt--regenie.gwaslab.log",
                 "heterogeneous_qt--regenie/heterogeneous_qt--regenie.gwaslab.tsv.gz"
@@ -161,14 +145,12 @@
             [
                 "heterogeneous_bt--gcta_fastgwa/heterogeneous_bt--gcta_fastgwa.gwaslab.tsv.gz:md5,62a9e3f4686436e25bf553c316749960",
                 "heterogeneous_bt--ldak_kvik/heterogeneous_bt--ldak_kvik.gwaslab.tsv.gz:md5,5ac23344d8288444e4d289d6a280a572",
-                "heterogeneous_bt--plink2/heterogeneous_bt--plink2.gwaslab.tsv.gz:md5,bbc39031b55260a8f43b2db552f212b6",
                 "heterogeneous_qt--gcta_fastgwa/heterogeneous_qt--gcta_fastgwa.gwaslab.tsv.gz:md5,45d8a16e24ebba350e6e70c16d3abc32",
                 "heterogeneous_qt--ldak_kvik/heterogeneous_qt--ldak_kvik.gwaslab.tsv.gz:md5,06495c6743f296a1503271f24216d27c",
-                "heterogeneous_qt--plink2/heterogeneous_qt--plink2.gwaslab.tsv.gz:md5,9271b822551d2d0b47015dd539c28e48",
                 "heterogeneous_qt--regenie/heterogeneous_qt--regenie.gwaslab.tsv.gz:md5,e9c6b3a429d4d9f90b6b5a3e7b317afa"
             ]
         ],
-        "timestamp": "2026-08-30T23:46:30.705275586",
+        "timestamp": "2026-09-02T11:42:27.63044195",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

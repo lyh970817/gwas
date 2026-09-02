@@ -89,11 +89,10 @@ nextflow_workflow {
             workflow {
                 """
                 input[0] = channel.of(
-                    ${associationResult(projectDir, 'qt1', 'plink2', 'plink2_results.tsv')},
                     ${associationResult(projectDir, 'qt1', 'regenie', 'regenie_results.tsv')},
-                    ${associationResult(projectDir, 'qt2', 'gcta_fastgwa', 'plink2_results.tsv')},
-                    ${associationResult(projectDir, 'qt3', 'ldak_kvik', 'plink2_results.tsv')},
-                    ${associationResult(projectDir, 'bt1', 'plink2', 'plink2_results.tsv', "trait_type: 'binary', is_binary: true, population_prevalence: 0.1, sample_prevalence: 0.4,")},
+                    ${associationResult(projectDir, 'qt2', 'gcta_fastgwa', 'fastgwa_results.tsv')},
+                    ${associationResult(projectDir, 'qt3', 'ldak_kvik', 'fastgwa_results.tsv')},
+                    ${associationResult(projectDir, 'bt1', 'gcta_fastgwa', 'fastgwa_results.tsv', "trait_type: 'binary', is_binary: true, population_prevalence: 0.1, sample_prevalence: 0.4,")},
                 )
                 input[1] = channel.of(
                     ${externalSummary(projectDir, 'external_ssf', 'ssf', 'external_raw.tsv')},
@@ -107,18 +106,18 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 7 },
-                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == ['bt1--plink2', 'external_gwaslab', 'external_ssf', 'qt1--plink2', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
-                { assert workflow.out.summary_statistics.size() == 7 },
-                { assert workflow.out.harmonization_log.size() == 7 },
+                { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 6 },
+                { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == ['bt1--gcta_fastgwa', 'external_gwaslab', 'external_ssf', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
+                { assert workflow.out.summary_statistics.size() == 6 },
+                { assert workflow.out.harmonization_log.size() == 6 },
                 { assert workflow.out.summary_statistics.every { record -> record.size() == 2 } },
-                { assert workflow.out.summary_statistics.collect { meta, _sumstats -> meta.summary_statistics_id }.sort() == ['bt1--plink2', 'external_gwaslab', 'external_ssf', 'qt1--plink2', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
+                { assert workflow.out.summary_statistics.collect { meta, _sumstats -> meta.summary_statistics_id }.sort() == ['bt1--gcta_fastgwa', 'external_gwaslab', 'external_ssf', 'qt1--regenie', 'qt2--gcta_fastgwa', 'qt3--ldak_kvik'] },
                 { assert workflow.out.summary_statistics.every { meta, _sumstats -> meta.id == meta.summary_statistics_id } },
                 { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'qt1--regenie' }[0].source_kind == 'pipeline_generated' },
                 { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'qt1--regenie' }[0].producer_association_method == 'regenie' },
                 { assert workflow.out.summary_statistics.find { meta, _sumstats -> meta.summary_statistics_id == 'external_gwaslab' }[0].source_format == 'gwaslab' },
-                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.gwaslab.tsv.gz").isFile() },
-                { assert new File("${params.outdir}/summary_statistics/qt1--plink2/qt1--plink2.gwaslab.log").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/qt1--regenie/qt1--regenie.gwaslab.tsv.gz").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/qt1--regenie/qt1--regenie.gwaslab.log").isFile() },
                 { assert new File("${params.outdir}/summary_statistics/external_ssf/external_ssf.gwaslab.tsv.gz").isFile() },
                 { assert new File("${params.outdir}/summary_statistics/external_gwaslab/external_gwaslab.gwaslab.tsv.gz").isFile() },
                 { assert new File("${params.outdir}/summary_statistics/external_ssf").list().sort() == ['external_ssf.gwaslab.log', 'external_ssf.gwaslab.tsv.gz'] },
@@ -137,8 +136,8 @@ nextflow_workflow {
             workflow {
                 """
                 input[0] = channel.of(
-                    ${associationResult(projectDir, 'grch37', 'plink2', 'plink2_results.tsv')},
-                    ${associationResult(projectDir, 'grch38', 'plink2', 'plink2_results.tsv', "build: 'GRCh38',")},
+                    ${associationResult(projectDir, 'grch37', 'regenie', 'regenie_results.tsv')},
+                    ${associationResult(projectDir, 'grch38', 'regenie', 'regenie_results.tsv', "build: 'GRCh38',")},
                 )
                 input[1] = channel.empty()
                 input[2] = ${gwaslabReferences(projectDir)}
@@ -151,7 +150,7 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GWASLAB_HARMONIZE') == 2 },
                 { assert workflow.out.summary_statistics.collect { meta, _sumstats -> meta.build }.sort() == ['GRCh37', 'GRCh38'] },
-                { assert new File("${params.outdir}/summary_statistics/grch38--plink2/grch38--plink2.gwaslab.tsv.gz").isFile() },
+                { assert new File("${params.outdir}/summary_statistics/grch38--regenie/grch38--regenie.gwaslab.tsv.gz").isFile() },
             )
         }
     }

@@ -105,9 +105,9 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result.keySet().toList() == ['plink2', 'regenie', 'gcta_fastgwa', 'ldak_kvik'] },
+                { assert function.result.keySet().toList() == ['regenie', 'gcta_fastgwa', 'ldak_kvik'] },
                 { assert function.result.values().every { mapping -> mapping.keySet().every { section -> section in ['common', 'quantitative', 'binary'] } } },
-                { assert function.result.plink2.keySet().toList() == ['common'] },
+                { assert function.result.regenie.keySet().toList() == ['common'] },
                 { assert function.result.ldak_kvik.keySet().toList() == ['common', 'quantitative', 'binary'] },
             )
         }
@@ -121,7 +121,6 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result.keySet().toList() == [
-                    'plink2',
                     'regenie',
                     'gcta_fastgwa',
                     'ldak_kvik',
@@ -229,7 +228,6 @@ nextflow_function {
                 'citation_keys',
             ]
             def estimatorFamilies = [
-                'generalised_linear_model',
                 'whole_genome_regression',
                 'mixed_linear_model',
                 'reml',
@@ -251,12 +249,55 @@ nextflow_function {
                 { assert function.success },
                 { assert function.result.every { _token, details -> requiredFields.every { field -> details.containsKey(field) } } },
                 { assert function.result.every { _token, details -> details.estimator_family in estimatorFamilies } },
+                // The reverse direction too: a vocabulary value whose only member has been removed is dead, so
+                // the next selector removal cannot leave one behind silently — as `generalised_linear_model`
+                // would have been left by the removal of the `plink2` entry.
+                { assert estimatorFamilies.every { family -> function.result.any { _token, details -> details.estimator_family == family } } },
                 { assert function.result.every { _token, details -> details.input_backend in inputBackends } },
+                { assert inputBackends.every { backend -> function.result.any { _token, details -> details.input_backend == backend } } },
                 { assert function.result.every { _token, details -> details.prevalence.keySet().toList() == ['population', 'sample'] } },
                 { assert function.result.every { _token, details -> details.prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
                 { assert function.result.every { _token, details -> details.trait_support.keySet().toList() == ['quantitative', 'binary'] } },
                 { assert function.result.every { _token, details -> details.trait_support.quantitative || details.trait_support.binary } },
                 { assert function.result.every { _token, details -> details.citation_keys instanceof List && details.citation_keys } },
+            )
+        }
+    }
+
+    test("the retired plink2 association selector leaves no registry entry") {
+        function "getMethodCapabilities"
+        tag "method_capabilities"
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert !function.result.containsKey('plink2') },
+            )
+        }
+    }
+
+    test("the association selector vocabulary is exactly the three wired routes") {
+        function "getAssociationMethodTokens"
+        tag "method_capabilities"
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == ['regenie', 'gcta_fastgwa', 'ldak_kvik'] },
+            )
+        }
+    }
+
+    test("the capability contract declares no estimator family without a member") {
+        function "getMethodCapabilityContract"
+        tag "method_capabilities"
+
+        then {
+            // The general form of the rule the retired `generalised_linear_model` family broke: a vocabulary
+            // value whose only member has been removed is dead, so the next removal cannot leave one silently.
+            assertAll(
+                { assert function.success },
+                { assert !function.result.estimator_families.contains('generalised_linear_model') },
             )
         }
     }

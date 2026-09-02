@@ -13,8 +13,8 @@ nextflow_function {
             function {
                 """
                 input[0] = [
-                    [domain: 'analysis', meta: [association_methods: ['plink2', 'regenie'], heritability_methods: ['gcta_greml']]],
-                    [domain: 'analysis', meta: [association_methods: ['plink2'], heritability_methods: ['ldak_reml', 'gcta_greml']]],
+                    [domain: 'analysis', meta: [association_methods: ['regenie'], heritability_methods: ['gcta_greml']]],
+                    [domain: 'analysis', meta: [association_methods: ['regenie'], heritability_methods: ['ldak_reml', 'gcta_greml']]],
                     [domain: 'summary_unary', meta: [method: 'ldsc_h2']],
                     [domain: 'summary_unary', meta: [method: 'ldak_sumher']],
                     [domain: 'pairwise', meta: [relationship_methods: ['ldsc_rg']]],
@@ -29,7 +29,7 @@ nextflow_function {
                 { assert function.success },
                 // Summary-scale unary requests are cited alongside individual-level heritability.
                 { assert function.result == [
-                    association: ['plink2', 'regenie'],
+                    association: ['regenie'],
                     heritability: ['gcta_greml', 'ldak_reml', 'ldak_sumher', 'ldsc_h2'],
                     pairwise: ['gcta_bivariate_reml', 'ldsc_rg'],
                 ] },
