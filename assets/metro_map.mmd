@@ -150,10 +150,14 @@ graph LR
         ldak_adjust[Covariate-adjusted child]
         ldak_he[LDAK Haseman-Elston]
         ldak_pcgc[LDAK PCGC]
+        ldak_fast_he[LDAK fast Haseman-Elston]
+        ldak_fast_pcgc[LDAK fast PCGC]
         ldak_native[Method-specific native results]
         _ldak_ready[hidden]
 
         makebed -->|ldak| ldak_kinship
+        makebed -->|ldak| ldak_fast_he
+        makebed -->|ldak| ldak_fast_pcgc
         ldak_kinship -->|ldak_filtered| ldak_filter
         ldak_kinship -->|ldak| _ldak_ready
         ldak_filter -->|ldak_filtered| _ldak_ready
@@ -164,6 +168,8 @@ graph LR
         ldak_reml -->|ldak,ldak_filtered| ldak_native
         ldak_he -->|ldak,ldak_filtered| ldak_native
         ldak_pcgc -->|ldak,ldak_filtered| ldak_native
+        ldak_fast_he -->|ldak| ldak_native
+        ldak_fast_pcgc -->|ldak| ldak_native
     end
 
     subgraph products [Products and reporting]

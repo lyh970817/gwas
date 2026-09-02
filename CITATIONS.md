@@ -56,6 +56,10 @@
 
   > Mbatchou J, Barnard L, Backman J, et al. Computationally efficient whole-genome regression for quantitative and binary traits. Nat Genet. 2021;53(7):1097-1103. doi: 10.1038/s41588-021-00870-7. PubMed PMID: 34017140.
 
+- [RHE-mc](https://doi.org/10.1038/s41467-020-17576-9)
+
+  > Pazokitoroudi A, Wu Y, Burch KS, Hou K, Zhou A, Pasaniuc B, Sankararaman S. Efficient variance components analysis across millions of genomes. Nat Commun. 2020;11:4020. doi: 10.1038/s41467-020-17576-9. PubMed PMID: 32782262; PubMed Central PMCID: PMC7419517.
+
 ## Software packaging/containerisation tools
 
 - [Anaconda](https://anaconda.com)

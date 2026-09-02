@@ -31,7 +31,7 @@ Pairwise outputs instead use the deterministic request ID `<method>--<relationsh
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `regenie`                                                                                                                                         | REGENIE        |
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
-| `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`                                                                                                  | LDAK 6         |
+| `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`, `ldak_fast_he`, `ldak_fast_pcgc`                                                                | LDAK 6         |
 | `ldak_sumher`, `ldak_sumcors`                                                                                                                     | LDAK 6.3       |
 | `ldsc_h2`, `ldsc_rg`                                                                                                                              | LDSC           |
 
@@ -51,6 +51,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
 - [Heritability](#heritability)
   - [GCTA GREML and GREML-LDMS](#gcta-greml-and-greml-ldms)
   - [LDAK estimators](#ldak-estimators)
+  - [LDAK direct-genotype estimators](#ldak-direct-genotype-estimators)
   - [Summary-level LDSC H2 and RG](#summary-level-ldsc-h2-and-rg)
 - [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
 - [LDAK summary-statistics heritability and correlation](#ldak-summary-statistics-heritability-and-correlation)
@@ -161,6 +162,27 @@ GREML uses one dense matrix. GREML-LDMS partitions variants by LD score and MAF.
 
 The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `model: custom` before supplying another power. `weights_policy: equal` is the default and explicitly ignores weights; `default` retains LDAK's native policy; `provided` requires the staged `weights` resource. `relatedness_filter` defaults to `false`. When HE or PCGC has covariates, the pipeline first adjusts the kinship matrix on the same analysis subset and covariates, then passes those covariates to the estimator so phenotype residualisation and matrix projection remain aligned.
 
+### LDAK direct-genotype estimators
+
+<details markdown="1">
+<summary>Output files</summary>
+
+[LDAK](https://dougspeed.com/ldak/) fast Haseman-Elston and fast PCGC estimate the same quantities as `ldak_he` and `ldak_pcgc` but read the cohort's PLINK 1 genotypes directly, approximating the kinship trace terms with random vectors (the randomised approach introduced by [RHE-mc](https://doi.org/10.1038/s41467-020-17576-9), which GENIE also uses). No relatedness matrix is built, requested or published for these routes, so they add nothing under `quality_control/`. Covariates are projected out natively from the complete covariate files preparation writes.
+
+- `heritability/individual/ldak_fast_he/<analysis_id>/`
+  - `<analysis_id>.ldak_fast_he.fasthe`: Native randomised Haseman-Elston estimates: a key-value header (`Num_Kinships`, `Num_Top_Predictors`, `Num_Covariates`, `Coeffsfile`, `Covar_Heritability`, `Total_Samples`, `With_Phenotypes`, `Null_Likelihood`, `Alt_Likelihood`, `LRT_Stat`, `LRT_P`) followed by a `Component Heritability SE Size Mega_Intensity SE` table with `Her_K1`, `Her_Top` and `Her_All` rows.
+  - `<analysis_id>.ldak_fast_he.cats`, `.share`, `.enrich`, `.cross`: Native per-category heritability, share, enrichment and cross-product results.
+  - `<analysis_id>.ldak_fast_he.coeff`: Native covariate effects (`Component Effect SE P`), one `Covariate_n` row per fitted column plus the intercept.
+  - `<analysis_id>.ldak_fast_he.log`: Native log recording the complete argument list, the effective random-vector count, the jackknife block count, the seed when one was supplied, the sample and predictor counts, and any weights-coverage warning.
+- `heritability/individual/ldak_fast_pcgc/<analysis_id>/`
+  - `<analysis_id>.ldak_fast_pcgc.fastpcgc`: Native randomised PCGC estimates in the same layout, on the liability scale.
+  - `<analysis_id>.ldak_fast_pcgc.fastpcgc.marginal`: Native marginal PCGC estimate, unconditional on the covariates and therefore different from the primary result whenever covariates were fitted.
+  - `<analysis_id>.ldak_fast_pcgc.cats`, `.share`, `.enrich`, `.cross`, `.coeff`, `.log`: As above, with `.coeff` reporting `Component Log_Odds SE P`.
+
+</details>
+
+The per-predictor (`.ind.hers`), per-block (`.jackests`), per-random-vector (`.repetitions`), label, progress and combined-covariate files stay in the work directory: they are large or purely diagnostic. Three things about these results are worth stating plainly. `ldak.fast_num_blocks` sets the number of **predictor** jackknife blocks — LDAK partitions predictors, not samples — so it moves the standard error and not the point estimate, and a block-jackknife standard error is not comparable across block settings nor to the exact `ldak_he`/`ldak_pcgc` standard error. An unseeded run cannot be reproduced: LDAK records no seed in its log unless one was supplied, so set `ldak.fast_seed` for anything you intend to publish. And with `weights_policy: provided`, inspect the `.log` for `contains weights for only`, which means LDAK gave weight zero to every predictor the weights file omitted.
+
 ### Summary-level LDSC H2 and RG
 
 <details markdown="1">
@@ -242,7 +264,7 @@ Matrices are unpublished by default because they are large intermediates. `<key>
 
 </details>
 
-Relatedness matrices are the only current `quality_control/` publication family; validation failures are reported before execution and do not create a published validation report.
+Relatedness matrices are the only current `quality_control/` publication family; validation failures are reported before execution and do not create a published validation report. LDAK fast Haseman-Elston and fast PCGC build no matrix and therefore publish nothing here.
 
 ### Prepared genotypes
 
