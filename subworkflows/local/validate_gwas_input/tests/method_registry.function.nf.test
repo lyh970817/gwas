@@ -373,9 +373,11 @@ nextflow_function {
         tag "method_capabilities"
 
         then {
-            // `component_model` is consumed by the LDMS plan-setting acceptance rules, `stochastic` by the
-            // seed-class option acceptance and the unseeded-run warning, and `requires_complete_covariates`
-            // by the phenotype-preparation completeness rule through the spine's preparation meta.
+            // Each field named here has a live reader. `component_model` is read by the LDMS plan-setting
+            // acceptance in `resolveGctaMethodOptions`, `resolvePairRequests` and `resolveRelationships`;
+            // `stochastic` by the seed-class option acceptance and the unseeded-run warning in
+            // `resolveLdakMethodOptions`; and `requires_complete_covariates` by the phenotype-preparation
+            // completeness rule, reached through the spine's preparation meta.
             def activeFields = [
                 'domain',
                 'option_family',

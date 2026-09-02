@@ -178,7 +178,7 @@ def resolveRelationships(relationship_rows, relationship_columns, relationship_m
                 if (capability.endpoint_domain == 'analysis' && left_analysis && right_analysis) {
                     def left_analysis_meta = left_analysis[0]
                     def right_analysis_meta = right_analysis[0]
-                    def matrix_settings = capability.matrix_kind == 'gcta_ldms'
+                    def matrix_settings = capability.component_model == 'ld_maf_stratified'
                         ? resolvePairLdmsMatrixSettings(
                             [:],
                             getMethodOptionDefaults().gcta.subMap(['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges']),

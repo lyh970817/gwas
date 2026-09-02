@@ -1,3 +1,4 @@
+include { getMethodCapability                 } from './method_registry'
 include { getMethodTokensWithCapabilities     } from './method_registry'
 include { validateNativeArgumentTokens ; validateSummaryNativeArgumentTokens } from './native_option_policy'
 
@@ -56,7 +57,11 @@ def resolveRequestNamespace(method_options, document, namespace, primary_request
         def accepted = request.reference_family
             ? ['reference_bundle_id', 'native_args', 'primary_request_id', 'request_name']
             : ['native_args', 'primary_request_id', 'request_name']
-        if (request.meta.matrix_kind == 'gcta_ldms') {
+        // The LD- and MAF-stratified plan settings are accepted by the component model the estimator fits,
+        // not by the matrix kind that happens to carry it today. That is what lets a second tool's stratified
+        // estimator share the plan without this list learning its matrix kind.
+        def fits_ld_maf_strata = getMethodCapability(request.method, 'component_model') == 'ld_maf_stratified'
+        if (fits_ld_maf_strata) {
             accepted += ['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges']
         }
         def unknown = options.keySet().findAll { option -> !(option in accepted) }
@@ -67,7 +72,7 @@ def resolveRequestNamespace(method_options, document, namespace, primary_request
             ? validateSummaryNativeArgumentTokens(method_options, namespace, request.request_id, request.method, options.native_args ?: [])
             : validateNativeArgumentTokens(method_options, request.request_id, options.native_args ?: [])
         def matrix_settings = request.meta.matrix_settings ?: [:]
-        if (request.meta.matrix_kind == 'gcta_ldms') {
+        if (fits_ld_maf_strata) {
             def fail = { option, reason ->
                 error("[nf-core/gwas] ERROR: Method-options document '${method_options}', namespace '${namespace}', request_id '${request.request_id}', option '${option}': ${reason}")
             }

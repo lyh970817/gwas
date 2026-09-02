@@ -10,10 +10,18 @@
 // `direct_plink1_genotypes` names an executable that reads BED/BIM/FAM only, `direct_plink_genotypes` one that
 // selects the native flag from the staged primary extension.
 //
-// `component_model` names the variance-component structure the estimator fits, which is what gates the LDMS
-// plan settings. `stochastic` marks a randomised approximation, which is what gates a seed-class option and
-// the unseeded-run warning. `requires_complete_covariates` marks a consumer that reads a missing covariate
-// cell as a value rather than excluding the sample, which is what gates the preparation completeness rule.
+// `component_model` names the variance-component structure the estimator fits. It is what decides whether a
+// row or a pair request may configure the LD- and MAF-stratified plan settings, in `resolveGctaMethodOptions`,
+// `resolvePairRequests` and `resolveRelationships` — keyed on the fitted model rather than on the matrix kind
+// that carries it, so a second tool's stratified estimator can share one plan.
+//
+// `stochastic` marks an estimator that randomises rather than enumerating. It gates the seed-class options and
+// the unseeded-run warning. It is a statement about how this pipeline invokes the estimator: LDAK's kinship
+// Haseman-Elston and PCGC are declared stochastic because their jackknife standard error is resampled and
+// varies run to run, even though their point estimate does not.
+//
+// `requires_complete_covariates` marks an estimator whose covariate interface neither reads nor reports a
+// missing cell, so an incomplete file silently fits an arbitrary value. It gates the preparation rule.
 def getMethodCapabilityContract() {
     return [
         required_fields: [
