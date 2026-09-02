@@ -575,15 +575,41 @@ class RELATIONAL {
         return resource(outputDir, name, predictors.join('\n') + '\n')
     }
 
-    static String weights(Object projectDir, Object outputDir, String name, int value) {
+    // `stride` names every `stride`-th predictor, so `2` produces a weights file covering half the cohort's
+    // predictors. LDAK gives weight zero to every predictor a weights file omits and only warns about it, so
+    // a partial file is a legitimate — and testable — input rather than an error.
+    static String weights(Object projectDir, Object outputDir, String name, int value, int stride = 1) {
         def source = cohort('example_pgen').pvar
         def fixture = source.toString().replace(FIXTURES.UPSTREAM, FIXTURES.base(projectDir))
         def lines = fixture.startsWith('http') ? new URL(fixture).readLines() : new File(fixture).readLines()
         def content = lines
             .findAll { line -> line && !line.startsWith('#') }
-            .collect { line -> "${line.tokenize()[2]} ${value}" }
+            .withIndex()
+            .findAll { _line, index -> index % stride == 0 }
+            .collect { line, _index -> "${line.tokenize()[2]} ${value}" }
             .join('\n') + '\n'
         return resource(outputDir, name, content)
+    }
+
+    // A copy of a shipped covariate fixture with one cell of `column` blanked out on the first sample, for the
+    // ingress rule that refuses an incomplete covariate file to a method which would read the gap as a value.
+    // Returns the resource path and the identity of the sample whose cell was removed.
+    static Map covariatesWithMissingCell(Object projectDir, Object outputDir, String name, String fixtureName, String column) {
+        def fixture = "${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/${fixtureName}"
+        def lines = fixture.startsWith('http') ? new URL(fixture).readLines() : new File(fixture).readLines()
+        def header = lines.first().split('\t', -1).toList()
+        def index = header.indexOf(column)
+        if (index < 2) {
+            throw new IllegalArgumentException("Covariate fixture '${fixtureName}' declares no covariate column '${column}'")
+        }
+        def body = lines.tail().findAll { line -> line.trim() }.collect { line -> line.split('\t', -1).toList() }
+        body[0][index] = ''
+        return [
+            path: resource(outputDir, name, ([header.join('\t')] + body.collect { row -> row.join('\t') }).join('\n') + '\n'),
+            fid: body[0][0],
+            iid: body[0][1],
+            column: column,
+        ]
     }
 
     static String resource(Object outputDir, String name, String content) {
