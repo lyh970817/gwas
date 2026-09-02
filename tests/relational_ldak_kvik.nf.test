@@ -419,12 +419,12 @@ nextflow_pipeline {
         [
             name: 'KVIK irrelevant equal weights policy',
             options: [ldak: [weights_policy: 'equal']],
-            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship methods only'],
+            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
         ],
         [
             name: 'KVIK irrelevant default weights policy',
             options: [ldak: [weights_policy: 'default']],
-            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship methods only'],
+            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
         ],
         [
             name: 'provided weights without resource',
@@ -439,7 +439,7 @@ nextflow_pipeline {
         [
             name: 'KVIK irrelevant provided weights',
             options: [ldak: [weights_policy: 'provided', weights: { projectDir, outputDir -> RELATIONAL.resource(outputDir, 'weights.txt', 'rs1 1\n') }]],
-            expected: ["option 'ldak.weights'", "consumed by LDAK kinship methods only"],
+            expected: ["option 'ldak.weights'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
         ],
         [
             name: 'provided predictor subset without resource',

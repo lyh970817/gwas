@@ -1,6 +1,13 @@
 include { getMethodCapabilities ; getMethodTokensWithCapabilities } from './method_registry'
 include { tokenizeMethodSelector          } from './manifest_contracts'
 
+// The accepted method families, their accepted option names and every resolved default are this one map.
+// Family acceptance, per-family key validation and the resolved shape are all derived from it, so adding a
+// family is adding an entry here rather than editing three parallel lists. Families are keyed alphabetically.
+//
+// A `null` default always means "pass nothing and let the native default stand", never "zero" or "off": the
+// three `fast_*` LDAK controls omit `--repetitions`, `--num-blocks` and `--random-seed` respectively, which is
+// what makes an unset option reproduce the tool's own documented behaviour rather than a pipeline opinion.
 def getMethodOptionDefaults() {
     return [
         gcta: [
@@ -12,6 +19,13 @@ def getMethodOptionDefaults() {
             ld_bins: 4,
             ldms_maf_edges: [0, 0.01, 0.05, 0.2, 0.5],
         ],
+        genie: [
+            random_vectors: null,
+            jackknife_blocks: null,
+            seed: null,
+            memory_efficient: false,
+            annotation: [],
+        ],
         ldak: [
             model: 'human_default',
             power: -0.25,
@@ -21,6 +35,16 @@ def getMethodOptionDefaults() {
             kvik_step1_subset: 'all',
             predictor_extract: [],
             kvik_step2_keep: [],
+            fast_repetitions: null,
+            fast_num_blocks: null,
+            fast_seed: null,
+        ],
+        mph: [
+            iterations: null,
+            tolerance: null,
+            random_vectors: null,
+            seed: null,
+            save_memory: false,
         ],
         regenie: [
             step1_bsize: 1000,
@@ -29,6 +53,18 @@ def getMethodOptionDefaults() {
             firth_p_threshold: 0.01,
             min_mac: null,
         ],
+    ]
+}
+
+// Operational tuning that a researcher might reasonably try to place in the scientific option document. Naming
+// it per family lets the diagnostic say "run/profile configuration" instead of "unknown option".
+def getMethodOptionOperationalKeys() {
+    return [
+        gcta: ['gcta_grm_parts'],
+        genie: ['threads', 'nthreads'],
+        ldak: ['threads', 'jobs', 'partitions'],
+        mph: ['threads', 'num_threads'],
+        regenie: ['step2_bsize', 'step1_mode', 'step1_jobs', 'lowmem'],
     ]
 }
 
@@ -215,25 +251,58 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     }
     def predictor_extract = resolveMethodResource(analysis_id, 'ldak', 'predictor_extract', options, fail)
 
+    def fast_repetitions = options.containsKey('fast_repetitions') ? options.fast_repetitions : defaults.fast_repetitions
+    def fast_num_blocks = options.containsKey('fast_num_blocks') ? options.fast_num_blocks : defaults.fast_num_blocks
+    def fast_seed = options.containsKey('fast_seed') ? options.fast_seed : defaults.fast_seed
+    if (fast_repetitions != null && (!(fast_repetitions instanceof Number) || fast_repetitions < 1 || fast_repetitions != fast_repetitions.toInteger())) {
+        fail.call(analysis_id, 'ldak.fast_repetitions', 'expected a positive integer or null')
+    }
+    // LDAK itself rejects a block count of two or fewer: "--num-blocks should be an integer greater than 2".
+    if (fast_num_blocks != null && (!(fast_num_blocks instanceof Number) || fast_num_blocks < 3 || fast_num_blocks != fast_num_blocks.toInteger())) {
+        fail.call(analysis_id, 'ldak.fast_num_blocks', 'expected an integer of at least 3 or null; LDAK requires more than two jackknife blocks')
+    }
+    if (fast_seed != null && (!(fast_seed instanceof Number) || fast_seed != fast_seed.toInteger())) {
+        fail.call(analysis_id, 'ldak.fast_seed', 'expected an integer or null')
+    }
+
     def ldak_kinship_heritability = getMethodTokensWithCapabilities([domain: 'heritability', input_backend: 'ldak_kinship'])
+    def ldak_direct_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'])
+    def ldak_direct_stochastic = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true])
     def ldak_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'ldak'])
     def selects_ldak_kinship = methods.heritability_methods.any { method -> method in ldak_kinship_heritability }
+    def selected_ldak_direct = methods.heritability_methods.findAll { method -> method in ldak_direct_heritability }
+    def selected_ldak_stochastic_direct = methods.heritability_methods.findAll { method -> method in ldak_direct_stochastic }
     def selects_ldak_kvik = methods.association_methods.any { method -> method in ldak_association }
-    if (options && !selects_ldak_kinship && !selects_ldak_kvik) {
+    if (options && !selects_ldak_kinship && !selected_ldak_direct && !selects_ldak_kvik) {
         fail.call(analysis_id, "ldak.${options.keySet().first()}", 'analysis does not select an LDAK method')
     }
-    if (options.containsKey('weights') && !selects_ldak_kinship) {
-        fail.call(analysis_id, 'ldak.weights', 'resource is consumed by LDAK kinship methods only, which this analysis does not select')
+    // The model options describe how LDAK scales predictors, which both the kinship builder and the
+    // direct-genotype estimators read; the unrelated-sample filter describes a kinship artifact only.
+    if (options.containsKey('weights') && !selects_ldak_kinship && !selected_ldak_direct) {
+        fail.call(analysis_id, 'ldak.weights', 'resource is consumed by LDAK kinship and direct-genotype heritability methods only, which this analysis does not select')
     }
-    ['model', 'power', 'weights_policy', 'relatedness_filter'].each { option ->
-        if (options.containsKey(option) && !selects_ldak_kinship) {
-            fail.call(analysis_id, "ldak.${option}", 'option is consumed by LDAK kinship methods only, which this analysis does not select')
+    ['model', 'power', 'weights_policy'].each { option ->
+        if (options.containsKey(option) && !selects_ldak_kinship && !selected_ldak_direct) {
+            fail.call(analysis_id, "ldak.${option}", 'option is consumed by LDAK kinship and direct-genotype heritability methods only, which this analysis does not select')
+        }
+    }
+    if (options.containsKey('relatedness_filter') && !selects_ldak_kinship) {
+        fail.call(analysis_id, 'ldak.relatedness_filter', 'option is consumed by LDAK kinship methods only, which this analysis does not select')
+    }
+    ['fast_repetitions', 'fast_num_blocks', 'fast_seed'].each { option ->
+        if (options.containsKey(option) && !selected_ldak_stochastic_direct) {
+            fail.call(analysis_id, "ldak.${option}", "option is consumed by the stochastic direct-genotype LDAK estimators ${ldak_direct_stochastic.join(' and ')} only, which this analysis does not select")
         }
     }
     ['kvik_step1_subset', 'predictor_extract', 'kvik_step2_keep'].each { option ->
         if (options.containsKey(option) && !selects_ldak_kvik) {
             fail.call(analysis_id, "ldak.${option}", "option is consumed by 'ldak_kvik' only, which this analysis does not select")
         }
+    }
+    // A mixed row is allowed to keep the filter, because the kinship estimators genuinely consume it, but the
+    // two families then estimate on different sample sets and nothing in either native output says so.
+    if (relatedness_filter && selected_ldak_direct) {
+        log.warn("[nf-core/gwas]: analysis '${analysis_id}' sets 'ldak.relatedness_filter' beside direct-genotype estimator(s) ${selected_ldak_direct.join(', ')}, which build no kinship and cannot consume an unrelated-sample keep list; the filter applies to the LDAK kinship estimators only, so the two estimates are computed on different sample sets")
     }
     return [
         model: model,
@@ -244,7 +313,30 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
         kvik_step1_subset: kvik_step1_subset,
         predictor_extract: predictor_extract,
         kvik_step2_keep: kvik_step2_keep,
+        fast_repetitions: fast_repetitions == null ? null : fast_repetitions.toInteger(),
+        fast_num_blocks: fast_num_blocks == null ? null : fast_num_blocks.toInteger(),
+        fast_seed: fast_seed == null ? null : fast_seed.toInteger(),
     ]
+}
+
+// GENIE has no wired selector until its route lands, so any supplied option is an option for a method this
+// analysis cannot select. The selection query is registry-derived and starts matching the moment the token
+// exists, at which point this body is replaced by the family's real validation.
+def resolveGenieMethodOptions(analysis_id, options, methods, defaults, fail) {
+    def genie_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'genie'])
+    if (options && !methods.heritability_methods.any { method -> method in genie_heritability }) {
+        fail.call(analysis_id, "genie.${options.keySet().first()}", 'analysis does not select a GENIE method')
+    }
+    return defaults
+}
+
+// MPH has no wired selector until its routes land; see `resolveGenieMethodOptions`.
+def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
+    def mph_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'mph'])
+    if (options && !methods.heritability_methods.any { method -> method in mph_heritability }) {
+        fail.call(analysis_id, "mph.${options.keySet().first()}", 'analysis does not select an MPH method')
+    }
+    return defaults
 }
 
 def readMethodOptionsDocument(method_options) {
@@ -291,11 +383,29 @@ def getAnalysisOptionsDocument(method_options, document) {
     return document.analyses ?: [:]
 }
 
+// A randomised estimator whose seed is left native writes no seed anywhere: LDAK's log records the seed only
+// when one was supplied, so an unseeded estimate cannot be reproduced afterwards even from the published run.
+// The warning therefore fires on every path that resolves options, including the two that never look at a
+// document: a row absent from the document and a run with no `--method_options` at all both default the seed
+// to null and would otherwise pass silently.
+def warnUnseededStochasticSelections(analysis_rows, resolved) {
+    def ldak_direct_stochastic = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true])
+    analysis_rows.each { row ->
+        def analysis_id = row[0].id
+        def selected = tokenizeMethodSelector(row[0].heritability_methods).findAll { method -> method in ldak_direct_stochastic }
+        if (selected && resolved[analysis_id].ldak.fast_seed == null) {
+            log.warn("[nf-core/gwas]: analysis '${analysis_id}' selects stochastic method(s) ${selected.join(', ')} without 'ldak.fast_seed'; repeated runs will not reproduce the estimate and the native log records no seed")
+        }
+    }
+}
+
 // Parse and validate the analysis-owned part of the advanced method-options document.
 def validateMethodOptions(method_options, analysis_rows, document = null) {
     def defaults = getMethodOptionDefaults()
     if (!method_options) {
-        return analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
+        def undocumented = analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
+        warnUnseededStochasticSelections(analysis_rows, undocumented)
+        return undocumented
     }
 
     document = document == null ? readMethodOptionsDocument(method_options) : document
@@ -322,33 +432,47 @@ def validateMethodOptions(method_options, analysis_rows, document = null) {
         if (!(families instanceof Map)) {
             fail.call(analysis_id, '<analysis>', 'expected a method-family object')
         }
+        // Family acceptance, the option object check and per-family key validation all read the defaults map,
+        // so a family's accepted names and its resolved shape come from one place. The resolver calls below
+        // stay explicit: they are invoked in a fixed order because the first failure is the one a researcher
+        // sees, and that attribution order is pinned by test.
         def unknown_families = families.keySet().findAll { family -> !defaults.containsKey(family) }
         if (unknown_families) {
-            fail.call(analysis_id, unknown_families.first().toString(), 'unknown method family; accepted families are gcta, ldak and regenie')
+            fail.call(analysis_id, unknown_families.first().toString(), "unknown method family; accepted families are ${defaults.keySet().join(', ')}")
         }
 
-        def gcta = families.containsKey('gcta') ? families.gcta : [:]
-        def ldak = families.containsKey('ldak') ? families.ldak : [:]
-        def regenie = families.containsKey('regenie') ? families.regenie : [:]
-        [[name: 'gcta', options: gcta], [name: 'ldak', options: ldak], [name: 'regenie', options: regenie]].each { family ->
-            if (!(family.options instanceof Map)) {
-                fail.call(analysis_id, family.name, 'expected an option object')
+        // Object errors are attributed in declaration order and key errors in reverse, which is what makes the
+        // first diagnostic a researcher sees stable across families rather than dependent on map iteration.
+        def supplied = defaults.keySet().collectEntries { family -> [(family): families.containsKey(family) ? families[family] : [:]] }
+        supplied.each { family, options ->
+            if (!(options instanceof Map)) {
+                fail.call(analysis_id, family, 'expected an option object')
             }
         }
 
-        validateMethodOptionKeys(analysis_id, 'regenie', regenie, defaults.regenie.keySet().toList(), ['step2_bsize', 'step1_mode', 'step1_jobs', 'lowmem'], fail)
-        validateMethodOptionKeys(analysis_id, 'ldak', ldak, defaults.ldak.keySet().toList(), ['threads', 'jobs', 'partitions'], fail)
-        validateMethodOptionKeys(analysis_id, 'gcta', gcta, defaults.gcta.keySet().toList(), ['gcta_grm_parts'], fail)
+        def operational = getMethodOptionOperationalKeys()
+        defaults
+            .keySet()
+            .toList()
+            .reverse()
+            .each { family ->
+                validateMethodOptionKeys(analysis_id, family, supplied[family], defaults[family].keySet().toList(), operational[family], fail)
+            }
 
         def methods = analyses[analysis_id]
-        def resolved_regenie = resolveRegenieMethodOptions(analysis_id, regenie, methods, defaults.regenie, fail)
-        def resolved_gcta = resolveGctaMethodOptions(analysis_id, gcta, methods, defaults.gcta, fail)
-        def resolved_ldak = resolveLdakMethodOptions(analysis_id, ldak, methods, defaults.ldak, fail)
+        def resolved_regenie = resolveRegenieMethodOptions(analysis_id, supplied.regenie, methods, defaults.regenie, fail)
+        def resolved_gcta = resolveGctaMethodOptions(analysis_id, supplied.gcta, methods, defaults.gcta, fail)
+        def resolved_ldak = resolveLdakMethodOptions(analysis_id, supplied.ldak, methods, defaults.ldak, fail)
+        def resolved_genie = resolveGenieMethodOptions(analysis_id, supplied.genie, methods, defaults.genie, fail)
+        def resolved_mph = resolveMphMethodOptions(analysis_id, supplied.mph, methods, defaults.mph, fail)
         resolved[analysis_id] = [
             gcta: resolved_gcta,
+            genie: resolved_genie,
             ldak: resolved_ldak,
+            mph: resolved_mph,
             regenie: resolved_regenie,
         ]
     }
+    warnUnseededStochasticSelections(analysis_rows, resolved)
     return resolved
 }

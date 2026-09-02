@@ -135,7 +135,7 @@ nextflow_pipeline {
             },
             field: "field 'heritability_methods'",
             message: "unknown method 'greml3'",
-            accepted: "accepted values are 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc'",
+            accepted: "accepted values are 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc', 'ldak_fast_he', 'ldak_fast_pcgc'",
         ],
         [
             name: "analysis repeating an association method",
@@ -160,7 +160,7 @@ nextflow_pipeline {
             source: "example_pgen_bt",
             mutate: { row -> row.heritability_methods = 'ldak_pcgc' },
             field: "field 'population_prevalence'",
-            message: "'ldak_pcgc' always estimates on the liability scale and requires a population prevalence",
+            message: "method(s) ldak_pcgc always estimate on the liability scale and require a population prevalence",
         ],
         [
             name: "binary REGENIE analysis with unconsumed population prevalence",

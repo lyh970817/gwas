@@ -4,6 +4,7 @@ include {
     getMethodRoutes ;
     normaliseCellValue ;
     tokenizeMethodSelector ;
+    validateHeritabilityTraitSupport ;
     validateMethodConditionedColumns ;
     validateMethodSelectors ;
     validateTraitColumns
@@ -74,6 +75,7 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
         def routes = getMethodRoutes(association_methods, heritability_methods)
         def settings = getAnalysisSettings(analysis_meta)
         def is_binary = analysis_meta.trait_type == 'binary'
+        validateHeritabilityTraitSupport(is_binary, heritability_methods, reject)
         validateTraitColumns(is_binary, settings, reject)
         validateMethodConditionedColumns(
             settings,

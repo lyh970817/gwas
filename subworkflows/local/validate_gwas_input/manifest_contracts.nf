@@ -53,7 +53,7 @@ def getMethodRoutes(association_methods, heritability_methods) {
         consumes_population_prevalence: selected.any { details -> details.prevalence.population != 'not_consumed' },
         runs_ldak_kvik: association_methods.any { method -> method in ldak_association },
         runs_ldak_heritability: heritability_methods.any { method -> capabilities[method] && capabilities[method].option_family == 'ldak' },
-        runs_ldak_pcgc: heritability_methods.any { method -> capabilities[method] && capabilities[method].prevalence.population == 'required' },
+        requires_population_prevalence: heritability_methods.findAll { method -> capabilities[method] && capabilities[method].prevalence.population == 'required' },
         runs_gcta: selected.any { details -> details.option_family == 'gcta' },
         runs_gcta_fastgwa: association_methods.any { method -> method in sparse_grm_association },
         runs_greml_ldms: heritability_methods.any { method -> method in ldms_heritability },
@@ -86,6 +86,28 @@ def validateMethodSelectors(association_methods, heritability_methods, reject, a
     if (!allow_empty && !association_methods && !heritability_methods) {
         reject.call(['association_methods', 'heritability_methods'], 'row selects no method, populate one of them or remove the row')
     }
+}
+
+// A heritability estimator's declared trait support is a native contract, not a preference: LDAK's fast HE
+// stops at "Phenotype 1 is not binary" and its PCGC modes refuse a quantitative trait outright. Rejecting the
+// combination here names the trait type and the capable alternatives, instead of letting the row reach the
+// estimator and fail with a native message that does not mention the manifest.
+def validateHeritabilityTraitSupport(is_binary, heritability_methods, reject) {
+    def declared = is_binary ? 'binary' : 'quantitative'
+    def capabilities = getMethodCapabilities()
+    def unsupported = heritability_methods
+        .findAll { method ->
+            capabilities[method] && !capabilities[method].trait_support[declared]
+        }
+        .unique()
+    if (!unsupported) {
+        return null
+    }
+    def capable = getHeritabilityMethodTokens().findAll { method -> capabilities[method].trait_support[declared] }
+    reject.call(
+        'heritability_methods',
+        "method(s) ${unsupported.join(', ')} support ${is_binary ? 'quantitative' : 'binary'} traits only, but this row declares trait_type '${declared}'; ${declared}-capable heritability methods are ${capable.join(', ')}",
+    )
 }
 
 def validateGenotypeGroup(cells, reject) {
@@ -147,7 +169,7 @@ def validateMethodConditionedColumns(settings, routes, reject, downstream_consum
     if (settings.population_prevalence != null && !routes.consumes_population_prevalence && !downstream_consumes_population_prevalence) {
         reject.call('population_prevalence', 'none of the selected estimators consumes it; select a liability-aware individual, summary or pair method, or remove the prevalence')
     }
-    if (settings.population_prevalence == null && routes.runs_ldak_pcgc) {
-        reject.call('population_prevalence', "'ldak_pcgc' always estimates on the liability scale and requires a population prevalence")
+    if (settings.population_prevalence == null && routes.requires_population_prevalence) {
+        reject.call('population_prevalence', "method(s) ${routes.requires_population_prevalence.join(', ')} always estimate on the liability scale and require a population prevalence")
     }
 }

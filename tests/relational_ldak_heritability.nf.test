@@ -165,7 +165,7 @@ nextflow_pipeline {
             source: 'example_pgen_bt',
             methods: 'ldak_pcgc',
             prevalence: '',
-            expected: ['population_prevalence', "'ldak_pcgc' always estimates on the liability scale and requires a population prevalence"],
+            expected: ['population_prevalence', 'method(s) ldak_pcgc always estimate on the liability scale and require a population prevalence'],
         ],
         [
             name: 'HE-only prevalence',
