@@ -11,12 +11,16 @@ include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepa
 include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepare_relatedness_matrices'
 include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
+include { ROUTE_LDAK_DIRECT_HERITABILITY     } from '../subworkflows/local/route_ldak_direct_heritability'
 include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
 include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
 include { ROUTE_LDSC_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldsc_summary_analyses'
 include { ROUTE_GWAS_REPORTING               } from '../subworkflows/local/route_gwas_reporting'
 include { getGwaslabReferences               } from '../subworkflows/local/utils_nfcore_gwas_pipeline'
+
+// FUNCTION: Local to the pipeline
+include { getMethodTokensWithCapabilities    } from '../subworkflows/local/validate_gwas_input/method_registry'
 
 // SUBWORKFLOW: Consisting entirely of nf-core/modules
 include { softwareVersionsToYAML             } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -59,11 +63,13 @@ workflow GWAS {
     //          |
     //          v
     //   PREPARE_COHORT_GENOTYPES ---> PREPARE_RELATEDNESS_MATRICES     PREPARE_PHENOTYPE_INPUTS
-    //          |                                |                              |
-    //          +--------------------------------+------------------------------+   shared resources,
-    //          |                                |                              |   each built once
-    //          v                                v                              v
+    //          |          |                     |                              |
+    //          +----------+---------------------+------------------------------+   shared resources,
+    //          |          |                     |                              |   each built once
+    //          v          v                     v                              v
     //   ROUTE_ASSOCIATION_ANALYSES     ROUTE_GRM_HERITABILITY     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS
+    //          |          |
+    //          |   ROUTE_LDAK_DIRECT_HERITABILITY   (direct genotypes; requests no relatedness matrix)
     //          |
     //          | association_results                        ch_external_summary_statistics
     //          v                                                         |
@@ -100,15 +106,17 @@ workflow GWAS {
     //
     // Union of the genotype consumers across every request domain
     //
-    // One element per analysis unit carrying the genotype files it declared. A pairwise LDMS request is
-    // also a consumer of the cohort's lazy PLINK 1 derivative, so it enters this request stream without
-    // inheriting either endpoint's unary method settings. Cohort preparation collapses every request to
-    // the distinct cohort before conversion.
+    // One element per analysis unit carrying the genotype files it declared. Every pairwise request is also a
+    // potential consumer of the cohort's lazy PLINK 1 derivative, so it enters this request stream without
+    // inheriting either endpoint's unary method settings. The spine no longer names a matrix kind to decide
+    // that: `PREPARE_COHORT_GENOTYPES` asks the registry which selectors need the derivative, and derives it
+    // only for a cohort that has one. Cohort preparation collapses every request to the distinct cohort
+    // before conversion.
     def ch_genotype_requests = ch_analyses.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
         [meta, genotype_files]
     }
     ch_genotype_requests = ch_genotype_requests.mix(
-        ch_relationships.filter { meta, _genotype_files, _pair_quant_covariates, _pair_cat_covariates -> meta.matrix_kind == 'gcta_ldms' }.map { meta, genotype_files, _pair_quant_covariates, _pair_cat_covariates -> [meta, genotype_files] }
+        ch_relationships.map { meta, genotype_files, _pair_quant_covariates, _pair_cat_covariates -> [meta, genotype_files] }
     )
 
     //
@@ -147,6 +155,12 @@ workflow GWAS {
     def ch_analysis_meta_by_id = ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
         [meta.id, meta]
     }
+
+    // Which selectors read a covariate file through an interface that treats a missing cell as a value is a
+    // registry capability, so the answer is resolved once here rather than re-derived per row. It belongs in
+    // the preparation meta, and therefore inside the preparation cache boundary, precisely because it decides
+    // whether preparation succeeds at all.
+    def complete_covariate_methods = getMethodTokensWithCapabilities([requires_complete_covariates: true])
     PREPARE_PHENOTYPE_INPUTS(
         ch_analyses.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract, _ldak_weights ->
             def preparation_meta = [
@@ -155,6 +169,7 @@ workflow GWAS {
                 is_binary: meta.is_binary,
                 case_value: meta.case_value,
                 control_value: meta.control_value,
+                requires_complete_covariates: (meta.association_methods + meta.heritability_methods).any { method -> method in complete_covariate_methods },
             ]
             [preparation_meta, phenotype, quant_covariates, cat_covariates]
         }
@@ -243,6 +258,24 @@ workflow GWAS {
         PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
         ch_gcta_phenotypes,
         ch_prepared_adjustment_covariates,
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for LDAK direct-genotype heritability, fast HE and fast PCGC
+    //
+    // These estimators consume the cohort's PLINK 1 derivative and build no relatedness matrix at all, so they
+    // bypass PREPARE_RELATEDNESS_MATRICES entirely: the registry declares no matrix kind for them, and the
+    // spine passes the genotype, phenotype and weights streams unmodified. The PLINK 1 stream is narrowed to
+    // the unary analysis rows here, mirroring the matrix-stream narrowing above, so the controller never sees
+    // a relationship-scoped bundle. The optional LDAK weights Path is narrowed out of the validated row here
+    // for the same reason the predictor list is for the association route: reading that row is spine
+    // knowledge, and what the weights mean to the estimator is the controller's.
+    ROUTE_LDAK_DIRECT_HERITABILITY(
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> !meta.relationship_id },
+        ch_gcta_phenotypes,
+        ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, ldak_weights ->
+            [meta, ldak_weights ?: []]
+        },
     )
 
     //
