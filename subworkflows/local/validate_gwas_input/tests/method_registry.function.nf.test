@@ -200,6 +200,15 @@ nextflow_function {
                     'prevalence',
                     'citation_keys',
                 ] },
+                { assert function.result.estimator_families == [
+                    'whole_genome_regression',
+                    'mixed_linear_model',
+                    'reml',
+                    'moment_he',
+                    'pcgc',
+                    'ld_score_regression',
+                    'summary_tagging_regression',
+                ] },
                 { assert function.result.input_backends == [
                     'dense_grm',
                     'ldms_grm_family',
@@ -248,13 +257,13 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result.every { _token, details -> requiredFields.every { field -> details.containsKey(field) } } },
-                { assert function.result.every { _token, details -> details.estimator_family in estimatorFamilies } },
-                // The reverse direction too: a vocabulary value whose only member has been removed is dead, so
-                // the next selector removal cannot leave one behind silently — as `generalised_linear_model`
-                // would have been left by the removal of the `plink2` entry.
-                { assert estimatorFamilies.every { family -> function.result.any { _token, details -> details.estimator_family == family } } },
-                { assert function.result.every { _token, details -> details.input_backend in inputBackends } },
-                { assert inputBackends.every { backend -> function.result.any { _token, details -> details.input_backend == backend } } },
+                // Exact set equality in both directions, not membership: no registered method may declare a
+                // value outside the vocabulary, AND no vocabulary value may be left without a member. The
+                // removal of the `plink2` entry would otherwise have left `generalised_linear_model` declared
+                // and dead. Both literals are pinned to the contract itself by the closed-vocabulary test
+                // above, so neither this list nor the contract can drift alone.
+                { assert function.result.collect { _token, details -> details.estimator_family }.unique().sort() == estimatorFamilies.toSorted() },
+                { assert function.result.collect { _token, details -> details.input_backend }.unique().sort() == inputBackends.toSorted() },
                 { assert function.result.every { _token, details -> details.prevalence.keySet().toList() == ['population', 'sample'] } },
                 { assert function.result.every { _token, details -> details.prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
                 { assert function.result.every { _token, details -> details.trait_support.keySet().toList() == ['quantitative', 'binary'] } },
@@ -288,13 +297,16 @@ nextflow_function {
         }
     }
 
-    test("the capability contract declares no estimator family without a member") {
+    test("the retired generalised_linear_model estimator family is gone from the contract vocabulary") {
         function "getMethodCapabilityContract"
         tag "method_capabilities"
 
         then {
-            // The general form of the rule the retired `generalised_linear_model` family broke: a vocabulary
-            // value whose only member has been removed is dead, so the next removal cannot leave one silently.
+            // A targeted regression guard for this removal specifically: the `plink2` entry was the family's
+            // only member. The general rule that no declared family may be memberless is enforced by the exact
+            // set equality in "every registered method declares every capability field in the contract
+            // vocabulary", against the vocabulary pinned in "the capability contract fixes one closed
+            // vocabulary per declared field".
             assertAll(
                 { assert function.success },
                 { assert !function.result.estimator_families.contains('generalised_linear_model') },
