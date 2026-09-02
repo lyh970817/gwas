@@ -46,6 +46,7 @@ process PREPARE_PHENOTYPE_INPUTS {
     trait_type_literal = groovy.json.JsonOutput.toJson(meta.is_binary ? 'binary' : 'quantitative')
     case_value_literal = groovy.json.JsonOutput.toJson((meta.case_value ?: '').toString())
     control_value_literal = groovy.json.JsonOutput.toJson((meta.control_value ?: '').toString())
+    covariate_completeness_literal = groovy.json.JsonOutput.toJson(meta.requires_complete_covariates ? 'required' : 'optional')
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())

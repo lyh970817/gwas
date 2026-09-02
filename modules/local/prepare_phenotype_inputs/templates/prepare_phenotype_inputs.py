@@ -34,6 +34,7 @@ PHENOTYPE_COLUMN = ${phenotype_column_literal}
 TRAIT_TYPE = ${trait_type_literal}
 CASE_VALUE = ${case_value_literal}
 CONTROL_VALUE = ${control_value_literal}
+COVARIATE_COMPLETENESS = ${covariate_completeness_literal}
 PREFIX = ${prefix_literal}
 ANALYSIS_ID = ${analysis_id_literal}
 PROCESS_NAME = ${task_process_literal}
@@ -273,6 +274,24 @@ def binary_match_counts(raw_values):
     return case_matches, control_matches
 
 
+def missing_covariate_cells(covariates, phenotyped):
+    """List every (FID, IID, column) whose covariate cell is missing for a sample that has a trait value.
+
+    Samples the estimator would drop for a missing phenotype are not policed: their covariates are never read.
+    """
+    if covariates is None:
+        return []
+    header, body = covariates
+    found = []
+    for row in body:
+        if (row[0], row[1]) not in phenotyped:
+            continue
+        for index, name in enumerate(header[2:], start=2):
+            if is_missing(row[index]):
+                found.append((row[0], row[1], name))
+    return found
+
+
 def numeric_match_count(raw_values):
     """Count source cells that pass the same numeric parsing normalise_trait applies."""
     matches = 0
@@ -362,6 +381,31 @@ elif TRAIT_TYPE == "quantitative" and numeric_raw_matches == 0:
             PHENOTYPE_FILE, PHENOTYPE_COLUMN, format_raw_value_examples(raw_counts, "raw")
         )
     )
+
+# LDAK reads a missing `--covar` cell as the number it parses to and turns a missing `--factors` cell into an
+# additional factor level; in neither case does it drop the sample or say anything in its log. An analysis whose
+# selected methods read covariates that way therefore cannot be given an incomplete covariate file at all: the
+# run would succeed and report a covariate model nobody asked for. This is input validation, not compensation --
+# the pipeline neither imputes the cell nor drops the sample, it names the cells and stops.
+if COVARIATE_COMPLETENESS == "required":
+    phenotyped = set((row[0], row[1]) for row in trait_rows if row[2] != MISSING)
+    incomplete = missing_covariate_cells(quant_covariates, phenotyped) + missing_covariate_cells(
+        cat_covariates, phenotyped
+    )
+    if incomplete:
+        affected = set((fid, iid) for fid, iid, _name in incomplete)
+        displayed = sorted(incomplete)[:MAX_UNMATCHED_VALUES]
+        elided = len(incomplete) - len(displayed)
+        fail(
+            "selects method(s) that read covariates through LDAK --covar/--factors, which treat a missing "
+            "cell as a value rather than excluding the sample; {} sample(s) have missing covariate cells "
+            "(first {}: {}{}). Remove those samples from the phenotype file or complete the covariates".format(
+                len(affected),
+                len(displayed),
+                ", ".join("{} {} {}".format(fid, iid, name) for fid, iid, name in displayed),
+                "; {} further missing cells omitted".format(elided) if elided else "",
+            )
+        )
 
 write_table("pheno", ["FID", "IID", "PHENO"], trait_rows)
 if quant_covariates is not None:
