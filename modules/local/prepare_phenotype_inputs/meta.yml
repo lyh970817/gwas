@@ -48,7 +48,7 @@ output:
           description: Metadata map propagated from input
       - "${prefix}.pheno":
           type: file
-          description: Headered phenotype file with the trait in column three under the constant name `PHENO`, for PLINK 2 and REGENIE
+          description: Headered phenotype file with the trait in column three under the constant name `PHENO`, for REGENIE
           pattern: "*.pheno"
           ontologies:
             - edam: "http://edamontology.org/format_3475" # TSV
@@ -113,7 +113,7 @@ output:
       - "${prefix}.covar":
           type: file
           optional: true
-          description: Quantitative and categorical covariates in one headered file, inner-joined on FID and IID, for PLINK 2 `--covar` and REGENIE `--covarFile`
+          description: Quantitative and categorical covariates in one headered file, inner-joined on FID and IID, for REGENIE `--covarFile`
           pattern: "*.covar"
           ontologies:
             - edam: "http://edamontology.org/format_3475" # TSV

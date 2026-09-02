@@ -31,7 +31,6 @@ def getMethodCapabilityContract() {
             'citation_keys',
         ],
         estimator_families: [
-            'generalised_linear_model',
             'whole_genome_regression',
             'mixed_linear_model',
             'reml',
@@ -64,26 +63,6 @@ def getMethodCapabilityContract() {
 // requires population prevalence.
 def getMethodRegistry() {
     return [
-        plink2: [
-            domain: 'association',
-            estimator_family: 'generalised_linear_model',
-            input_backend: 'direct_plink_genotypes',
-            trait_support: [quantitative: true, binary: true],
-            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            citation_keys: ['plink2'],
-            mapping: [common: [
-                snpid: 'ID',
-                chrom: '#CHROM',
-                pos: 'POS',
-                ea: 'A1',
-                nea: 'REF',
-                eaf: 'A1_FREQ',
-                n: 'OBS_CT',
-                beta: 'BETA',
-                se: 'SE',
-                p: 'P',
-            ]],
-        ],
         regenie: [
             domain: 'association',
             option_family: 'regenie',

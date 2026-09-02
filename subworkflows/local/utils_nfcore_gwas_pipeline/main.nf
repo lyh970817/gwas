@@ -282,7 +282,7 @@ def selectedCitationKeys(selected_methods) {
         error("Cannot generate methods citations for unknown method selectors: ${unknown.toList().sort().join(', ')}")
     }
 
-    def citation_order = ['plink2', 'regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'ldak_sumstats', 'ldsc']
+    def citation_order = ['regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'ldak_sumstats', 'ldsc']
     def keys = (association + heritability + pairwise)
         .collectMany { token -> capabilities[token].citation_keys }
         .findAll { key -> key }
@@ -300,7 +300,6 @@ def toolCitationText(selected_methods) {
     def heritability = (selected_methods.heritability ?: []) as Set
     def pairwise = (selected_methods.pairwise ?: []) as Set
     def association_labels = [
-        plink2: 'PLINK 2 (Chang <em>et al.</em>, 2015)',
         regenie: 'REGENIE (Mbatchou <em>et al.</em>, 2021)',
         gcta_fastgwa: 'GCTA fastGWA (Jiang <em>et al.</em>, 2019)',
         ldak_kvik: 'LDAK-KVIK (Hof and Speed, 2025)',
@@ -342,7 +341,6 @@ def toolCitationText(selected_methods) {
 
 def toolBibliographyText(selected_methods) {
     def bibliography = [
-        plink2: '<li>Chang CC, Chow CC, Tellier LCAM, Vattikuti S, Purcell SM, Lee JJ. Second-generation PLINK: rising to the challenge of larger and richer datasets. <em>GigaScience</em>. 2015;4:7. doi: <a href="https://doi.org/10.1186/s13742-015-0047-8">10.1186/s13742-015-0047-8</a>.</li>',
         regenie: '<li>Mbatchou J, Barnard L, Backman J, et al. Computationally efficient whole-genome regression for quantitative and binary traits. <em>Nature Genetics</em>. 2021;53:1097-1103. doi: <a href="https://doi.org/10.1038/s41588-021-00870-7">10.1038/s41588-021-00870-7</a>.</li>',
         gcta_fastgwa: '<li>Jiang L, Zheng Z, Qi T, et al. A resource-efficient tool for mixed model association analysis of large-scale data. <em>Nature Genetics</em>. 2019;51:1749-1755. doi: <a href="https://doi.org/10.1038/s41588-019-0530-8">10.1038/s41588-019-0530-8</a>.</li>',
         gcta_greml: '<li>Yang J, Lee SH, Goddard ME, Visscher PM. GCTA: a tool for genome-wide complex trait analysis. <em>American Journal of Human Genetics</em>. 2011;88:76-82. doi: <a href="https://doi.org/10.1016/j.ajhg.2010.11.011">10.1016/j.ajhg.2010.11.011</a>.</li>',

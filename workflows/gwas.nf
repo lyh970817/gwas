@@ -197,12 +197,12 @@ workflow GWAS {
         }
 
     //
-    // SUBWORKFLOW: Pipeline route for PLINK 2, REGENIE, LDAK-KVIK and GCTA fastGWA associations
+    // SUBWORKFLOW: Pipeline route for REGENIE, LDAK-KVIK and GCTA fastGWA associations
     //
     // Cohort genotype preparation, relatedness-matrix construction and phenotype preparation stay above on
     // the spine so each shared resource is built once and fanned out to every consumer across every domain.
     // The controller owns association-method selection, the adaptation of those prepared streams into each
-    // family's native call shape, the two prediction-reusing routes, and the fan-in of four native result
+    // family's native call shape, the two prediction-reusing routes, and the fan-in of three native result
     // contracts onto one raw-association stream naming the producing method.
     //
     // The declared optional LDAK predictor list is narrowed out of the validated relational row here, because

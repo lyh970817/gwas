@@ -60,7 +60,7 @@ Populate exactly one complete genotype representation on each row. PLINK 1 and V
 | `case_value`            | Binary   | Source value recoded to `1`; required for binary traits and forbidden for quantitative traits.                              |
 | `quant_covariates`      | No       | Existing headered quantitative-covariate file.                                                                              |
 | `cat_covariates`        | No       | Existing headered categorical-covariate file.                                                                               |
-| `association_methods`   | By row   | Optional comma-delimited selector: `plink2`, `regenie`, `gcta_fastgwa`, or `ldak_kvik`.                                     |
+| `association_methods`   | By row   | Optional comma-delimited selector: `regenie`, `gcta_fastgwa`, or `ldak_kvik`.                                               |
 | `heritability_methods`  | By row   | Optional comma-delimited selector: `gcta_greml`, `gcta_greml_ldms`, `ldak_reml`, `ldak_he`, or `ldak_pcgc`.                 |
 | `population_prevalence` | By route | Number strictly between `0` and `1`; valid only for binary heritability analyses and required by `ldak_pcgc`.               |
 | `sample_prevalence`     | No       | Optional sample case fraction strictly between `0` and `1` for binary traits; forbidden for quantitative traits.            |
@@ -151,7 +151,6 @@ Every selector carries only capabilities that validation, routing, reporting or 
 
 | Method group                    | Estimator family           | Input backend          | Trait support                         | Prevalence contract                   |
 | ------------------------------- | -------------------------- | ---------------------- | ------------------------------------- | ------------------------------------- |
-| `plink2`                        | Generalised linear model   | Direct PLINK genotypes | Quantitative and binary               | Not consumed                          |
 | `regenie`                       | Whole-genome regression    | Direct PLINK genotypes | Quantitative and binary               | Not consumed                          |
 | `gcta_fastgwa`                  | Mixed linear model         | Sparse GRM             | Quantitative and binary               | Not consumed                          |
 | `ldak_kvik`                     | Mixed linear model         | Direct PLINK genotypes | Quantitative and binary               | Not consumed                          |
@@ -204,7 +203,7 @@ nextflow run nf-core/gwas \
     --outdir results
 ```
 
-The [mixed summary-statistics manifest](../assets/examples/relational/summary_statistics_manifest.csv) illustrates both origins: one internal PLINK 2 result from `heterogeneous_qt` and external results loaded through the explicit `gwaslab` format. The companion [summary relationship](../assets/examples/relational/relationship_manifest_summary.csv), [request options](../assets/examples/relational/method_options_summary.json), and [reference-catalog shape](../assets/examples/relational/reference_catalog.json) show the complete declaration surface. Replace every `/refs/...` value in the catalog with a locally available scientific reference before launching; the pipeline deliberately rejects unavailable paths and does not infer a bundle from ancestry.
+The [mixed summary-statistics manifest](../assets/examples/relational/summary_statistics_manifest.csv) illustrates both origins: one internal REGENIE result from `heterogeneous_qt` and external results loaded through the explicit `gwaslab` format. The companion [summary relationship](../assets/examples/relational/relationship_manifest_summary.csv), [request options](../assets/examples/relational/method_options_summary.json), and [reference-catalog shape](../assets/examples/relational/reference_catalog.json) show the complete declaration surface. Replace every `/refs/...` value in the catalog with a locally available scientific reference before launching; the pipeline deliberately rejects unavailable paths and does not infer a bundle from ancestry.
 
 ### Advanced method options
 
@@ -240,7 +239,7 @@ LDSC H2 always retains an observed-scale native log. A binary summary additional
 ```json
 {
   "unary_requests": {
-    "ldsc_h2--height--plink2": {
+    "ldsc_h2--height--regenie": {
       "reference_bundle_id": "ldsc_eur"
     }
   },
@@ -260,11 +259,11 @@ Each selected entity–method binding creates one deterministic primary request.
 ```json
 {
   "unary_requests": {
-    "ldsc_h2--height--plink2": {
+    "ldsc_h2--height--regenie": {
       "reference_bundle_id": "ldsc_eur"
     },
-    "ldsc_h2--height--plink2--alternate": {
-      "primary_request_id": "ldsc_h2--height--plink2",
+    "ldsc_h2--height--regenie--alternate": {
+      "primary_request_id": "ldsc_h2--height--regenie",
       "request_name": "alternate",
       "reference_bundle_id": "ldsc_eur_alternate"
     }
@@ -363,7 +362,6 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 
 | Parameter or behaviour            | Default and rationale                                                                                                                                                                                                                                                             |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PLINK 2 binary association        | Firth fallback is enabled so separated or sparse binary-trait tests can still produce estimates. Binary phenotypes are passed with `--1` because the prepared coding is `0`/`1`/`NA`; covariates are variance-standardised to prevent numerical failure when their scales differ. |
 | `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                                                                                  |
 | `--regenie_lowmem`                | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                                                                                             |
 | REGENIE scientific method options | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                                                                                           |

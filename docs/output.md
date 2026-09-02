@@ -29,7 +29,6 @@ Pairwise outputs instead use the deterministic request ID `<method>--<relationsh
 
 | Method token                                                                                                                                      | Producing tool |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `plink2`                                                                                                                                          | PLINK 2        |
 | `regenie`                                                                                                                                         | REGENIE        |
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`                                                                                                  | LDAK 6         |
@@ -45,7 +44,6 @@ Analysis attribution applies under `association/` and `heritability/individual/`
 The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
 
 - [Association](#association)
-  - [PLINK 2](#plink-2)
   - [REGENIE](#regenie)
   - [GCTA fastGWA-MLM](#gcta-fastgwa-mlm)
   - [LDAK-KVIK](#ldak-kvik)
@@ -63,21 +61,6 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
 ## Association
 
 Native association output is published by method and then analysis. The native tables are not rewritten; deterministic filename tokens added by tools are removed where necessary so every published name follows the shared prefix grammar.
-
-### PLINK 2
-
-<details markdown="1">
-<summary>Output files</summary>
-
-[PLINK 2](https://www.cog-genomics.org/plink/2.0/assoc) receives the prepared phenotype, preserves its native result columns and is configured to include `A1_FREQ`, `OBS_CT`, `BETA`, `SE` and `P` for harmonisation. The pipeline removes PLINK 2's fixed `.PHENO` token from the published filename; file content is unchanged.
-
-- `association/plink2/<analysis_id>/`
-  - `<analysis_id>.plink2.glm.linear`: Native PLINK 2 `--glm` result for a quantitative trait.
-  - `<analysis_id>.plink2.glm.logistic.hybrid`: Native PLINK 2 `--glm` result for a binary trait with Firth fallback available.
-
-</details>
-
-For binary traits, Firth fallback is enabled by default so complete or quasi-complete separation, often encountered for rare variants, can still produce an estimate; this is why the result uses the `.logistic.hybrid` extension. The prepared binary coding is `0`/`1`/`NA`, so the pipeline passes `--1`. It also uses `--covar-variance-standardize` when covariates are present to avoid PLINK 2's numerical-stability failure for differently scaled covariates; this invertible covariate reparameterisation does not change the reported genotype effect.
 
 ### REGENIE
 

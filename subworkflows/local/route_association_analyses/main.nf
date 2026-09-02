@@ -1,5 +1,5 @@
 // Route every nf-core/gwas unary analysis unit through the association methods it selected, and converge the
-// four native result contracts on one raw-association stream. This is pipeline routing, method selection,
+// three native result contracts on one raw-association stream. This is pipeline routing, method selection,
 // per-method call-shape adaptation and method attribution, not an nf-core/modules submission candidate.
 //
 // Genotype, relatedness-matrix and phenotype preparation are deliberately NOT here.
@@ -10,14 +10,13 @@
 //
 // The two prediction-reusing routes are called as subworkflows rather than inlined: `ROUTE_REGENIE_ASSOCIATIONS`
 // and `ROUTE_LDAK_KVIK_ASSOCIATIONS` own their own Step 1 reuse identity, and those keys stay private to them.
-// PLINK 2 `--glm` and GCTA fastGWA-MLM are invoked directly, because a composition wrapping a single module is
-// not a subworkflow and would only add a scope level. Every constituent process reports directly to the
-// run-wide versions topic, so this subworkflow emits no versions, and it reads no params, no workflow and no
-// projectDir — the three REGENIE execution controls arrive as explicit values.
+// GCTA fastGWA-MLM is invoked directly, because a composition wrapping a single module is not a subworkflow
+// and would only add a scope level. Every constituent process reports directly to the run-wide versions
+// topic, so this subworkflow emits no versions, and it reads no params, no workflow and no projectDir — the
+// three REGENIE execution controls arrive as explicit values.
 
 // MODULE: Local to the pipeline
 include { GCTA_FASTGWA                 } from '../../../modules/local/gcta/fastgwa/main'
-include { PLINK2_GLM                   } from '../../../modules/local/plink2/glm/main'
 
 // SUBWORKFLOWS: Pipeline-local association routes that own their own Step 1 fit reuse
 include { ROUTE_LDAK_KVIK_ASSOCIATIONS } from '../route_ldak_kvik_associations'
@@ -39,35 +38,15 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     main:
 
     // The genotype bundle, the prepared phenotype and the merged covariate file, one element per analysis
-    // unit. This is the call shape PLINK 2 and REGENIE share, and the only two routes that consume it are in
-    // this controller. `join` is correct here where `combine` was correct at the cohort seam: all three
-    // channels are keyed one-to-one on the analysis meta, so a missing or duplicated key is a defect and the
-    // strict form is what says so. The covariate file is optional, so it joins with `remainder: true` and
-    // arrives as `null` for a row that supplied none.
+    // unit. This is the REGENIE call shape, and the only route that consumes it is in this controller.
+    // `join` is correct here where `combine` was correct at the cohort seam: all three channels are keyed
+    // one-to-one on the analysis meta, so a missing or duplicated key is a defect and the strict form is what
+    // says so. The covariate file is optional, so it joins with `remainder: true` and arrives as `null` for a
+    // row that supplied none.
     def ch_analysis_inputs = ch_cohort_genotypes
         .filter { meta, _pgen, _psam, _pvar -> !meta.relationship_id }
         .join(ch_phenotypes, failOnMismatch: true, failOnDuplicate: true)
         .join(ch_covariates, remainder: true)
-
-    //
-    // MODULE: PLINK 2 --glm association
-    //
-    // `multiMap` rather than three `map`s of the same channel, so the three inputs cannot drift out
-    // of lockstep. A row that supplied no covariates passes `[]`, which stages nothing: the module's
-    // covariate argument is a ternary on a `path` inside a tuple, and no placeholder file is written.
-    def ch_glm_input = ch_analysis_inputs
-        .filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'plink2' in meta.association_methods }
-        .multiMap { meta, pgen, psam, pvar, phenotype, covariates ->
-            genotypes: [meta, pgen, psam, pvar]
-            phenotype: [meta, phenotype]
-            covariates: [meta, covariates ?: []]
-        }
-
-    PLINK2_GLM(
-        ch_glm_input.genotypes,
-        ch_glm_input.phenotype,
-        ch_glm_input.covariates,
-    )
 
     //
     // SUBWORKFLOW: Pipeline route for REGENIE association with shared Step 1 predictions
@@ -165,25 +144,13 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     //
     // Association result fan-in ahead of GWASLab standardisation
     //
-    // One record per analysis per association method actually exercised. Each route contributes an
-    // adapter that names its method on the meta map and routes whatever emissions the programme
-    // splits its results across; everything downstream is method-agnostic. `meta.id` stays the analysis
-    // identifier — the method is a separate key, because the analysis is what the published summary
+    // One record per analysis per association method actually exercised. The three routes (REGENIE,
+    // LDAK-KVIK, GCTA fastGWA) each name their method on the meta map and route whatever emissions the
+    // programme splits its results across; everything downstream is method-agnostic. `meta.id` stays the
+    // analysis identifier — the method is a separate key, because the analysis is what the published summary
     // statistics directory is keyed by and the method is what distinguishes the files inside it.
-    //
-    // The pipeline's PLINK 2 policy emits linear results for quantitative traits and logistic-hybrid results
-    // for binary traits. Select those two supported forms explicitly so a generic module stub that materialises
-    // every optional output preserves the same one-result-per-analysis contract as a real configured run.
     def ch_association_results = channel.empty()
 
-    def ch_plink2_results = PLINK2_GLM.out.linear.filter { meta, _sumstats -> !meta.is_binary }
-    ch_plink2_results = ch_plink2_results.mix(
-        PLINK2_GLM.out.logistic_hybrid.filter { meta, _sumstats -> meta.is_binary }
-    )
-
-    ch_association_results = ch_association_results.mix(
-        ch_plink2_results.map { meta, sumstats -> [meta + [method: 'plink2'], sumstats] }
-    )
     ch_association_results = ch_association_results.mix(
         ROUTE_REGENIE_ASSOCIATIONS.out.results.map { meta, sumstats -> [meta + [method: 'regenie'], sumstats] }
     )

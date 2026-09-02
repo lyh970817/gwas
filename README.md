@@ -33,7 +33,6 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input.
 3. Prepare the selected phenotype and optional quantitative and categorical covariates for the native tools.
 4. Run selected association routes:
-   - PLINK 2 `--glm`
    - REGENIE
    - GCTA fastGWA-MLM
    - LDAK-KVIK
@@ -66,7 +65,7 @@ my_cohort,GRCh37,EUR,/data/my_cohort.pgen,/data/my_cohort.psam,/data/my_cohort.p
 
 ```csv title="analyses.csv"
 analysis_id,cohort_id,trait_id,trait_type,phenotype,phenotype_column,control_value,case_value,quant_covariates,cat_covariates,association_methods,heritability_methods,population_prevalence,sample_prevalence
-height,my_cohort,height,quantitative,/data/phenotypes.tsv,height,,,,,plink2,,,
+height,my_cohort,height,quantitative,/data/phenotypes.tsv,height,,,,,regenie,,,
 ```
 
 Runnable minimal and heterogeneous examples are available under [`assets/examples/relational/`](assets/examples/relational/).

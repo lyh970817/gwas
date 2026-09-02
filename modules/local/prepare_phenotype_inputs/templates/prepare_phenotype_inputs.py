@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Prepare one analysis unit's phenotype and covariate files for downstream programmes.
 
-The four association and heritability programmes this pipeline drives disagree irreconcilably about
+The three association and heritability programmes this pipeline drives disagree irreconcilably about
 two things. REGENIE requires a header row and GCTA forbids one, so the phenotype and the covariates
 are written twice, once with a header and once without. And each takes a different trait selector --
 a column name, or a one-based trait index -- so the trait is always written to the third column of a
 three-column file under the constant name PHENO, which turns GCTA's and LDAK's `--mpheno` into the
-constant 1 and makes PLINK 2's phenotype-named output filename deterministic.
+constant 1 and makes REGENIE's phenotype-named output filename deterministic.
 
 At most eight files are written, all tab-delimited with LF line endings:
 
@@ -43,10 +43,11 @@ MISSING = "NA"
 # Keep raw-value errors useful without allowing an unbounded message for bad input.
 MAX_UNMATCHED_VALUES = 10
 
-# `NA` is the one missing code all four programmes accept. `-9` is read as missing on the way in
+# `NA` is the one missing code all three programmes accept. `-9` is read as missing on the way in
 # because PLINK and GCTA both write it, but it is never written out: LDAK and REGENIE reject it, and
-# PLINK 2 errors out when a `-9` shares a file with a value in (-9, 10]. The empty string is a
-# genuine member: it is how a tab-delimited file spells a missing cell, and `split_row` preserves it.
+# PLINK 2 (which the pipeline no longer feeds directly) errors out when a `-9` shares a file with a
+# value in (-9, 10]. The empty string is a genuine member: it is how a tab-delimited file spells a
+# missing cell, and `split_row` preserves it.
 MISSING_TOKENS = frozenset(["", "na", "nan", "-9"])
 
 # The canonical column names. A covariate carrying one of them would be ambiguous in the merged file
@@ -117,8 +118,8 @@ def is_missing(value):
 def normalise_trait(value):
     """Recode one source trait value to the coding every downstream programme accepts.
 
-    Binary traits become 0/1/NA -- the only coding PLINK 2, REGENIE, GCTA and LDAK all read the same
-    way -- by comparing the source cell against the declared case and control values as strings. The
+    Binary traits become 0/1/NA -- the only coding REGENIE, GCTA and LDAK all read the same way --
+    by comparing the source cell against the declared case and control values as strings. The
     samplesheet carries both as text precisely so that PLINK's 1/2, a 0/1 file and labels such as
     'Case' all work without the pipeline guessing which convention is in force. A cell matching
     neither is missing. The ingress checks below require both declared binary values to occur.
@@ -160,7 +161,7 @@ def load_covariates(path, role):
 
 
 def merge_covariates(quant, cat):
-    """Build the single file PLINK 2 and REGENIE take, quantitative columns first.
+    """Build the single file REGENIE takes, quantitative columns first.
 
     The join is an inner one on FID and IID: a sample described by only one of the two files has an
     incomplete covariate vector and would be dropped by every consumer anyway.
@@ -228,7 +229,7 @@ def write_lines(path, lines):
 
 
 def write_table(suffix, header, body):
-    """Write the headered serialisation PLINK 2 and REGENIE take and the headerless one GCTA and LDAK take."""
+    """Write the headered serialisation REGENIE takes and the headerless one GCTA and LDAK take."""
     rows = ["\\t".join(row) for row in body]
     write_lines("{}.{}".format(PREFIX, suffix), ["\\t".join(header)] + rows)
     write_lines("{}.noheader.{}".format(PREFIX, suffix), rows)
