@@ -137,6 +137,8 @@ nextflow_function {
                     'ldak_reml',
                     'ldak_he',
                     'ldak_pcgc',
+                    'ldak_fast_he',
+                    'ldak_fast_pcgc',
                 ] },
                 { assert function.result.gcta_fastgwa.matrix_kind == 'gcta_sparse' },
                 { assert function.result.gcta_greml.matrix_kind == 'gcta_dense' },
@@ -168,6 +170,27 @@ nextflow_function {
                 { assert function.result.ldak_reml.matrix_kind == 'ldak_kinship' },
                 { assert function.result.ldak_pcgc.prevalence.population == 'required' },
                 { assert function.result.ldak_he.citation_keys == function.result.ldak_pcgc.citation_keys },
+                // The two direct-genotype LDAK estimators declare no matrix kind at all: they read the
+                // cohort's PLINK 1 derivative and build nothing reusable, which is what keeps
+                // `getRelatednessMatrixKinds` empty for a row that selects only them.
+                { assert !function.result.ldak_fast_he.containsKey('matrix_kind') },
+                { assert !function.result.ldak_fast_pcgc.containsKey('matrix_kind') },
+                { assert function.result.ldak_fast_he.input_backend == 'direct_plink1_genotypes' },
+                { assert function.result.ldak_fast_pcgc.input_backend == 'direct_plink1_genotypes' },
+                { assert function.result.ldak_fast_he.estimator_family == 'moment_he' },
+                { assert function.result.ldak_fast_pcgc.estimator_family == 'pcgc' },
+                { assert function.result.ldak_fast_he.trait_support == [quantitative: true, binary: false] },
+                { assert function.result.ldak_fast_pcgc.trait_support == [quantitative: false, binary: true] },
+                { assert function.result.ldak_fast_he.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
+                { assert function.result.ldak_fast_pcgc.prevalence.population == 'required' },
+                { assert function.result.ldak_fast_he.stochastic },
+                { assert function.result.ldak_fast_pcgc.stochastic },
+                { assert function.result.ldak_fast_he.citation_keys == ['ldak', 'rhe_mc'] },
+                { assert function.result.ldak_fast_pcgc.citation_keys == ['ldak', 'rhe_mc'] },
+                // LDAK-KVIK reads BED/BIM/FAM natively, so it declares the PLINK 1 direct backend while
+                // REGENIE keeps the format-polymorphic one.
+                { assert function.result.ldak_kvik.input_backend == 'direct_plink1_genotypes' },
+                { assert function.result.regenie.input_backend == 'direct_plink_genotypes' },
             )
         }
     }
@@ -183,8 +206,11 @@ nextflow_function {
                     'domain',
                     'estimator_family',
                     'input_backend',
+                    'component_model',
                     'trait_support',
                     'prevalence',
+                    'stochastic',
+                    'requires_complete_covariates',
                     'citation_keys',
                 ] },
                 { assert function.result.queryable_fields == [
@@ -195,9 +221,12 @@ nextflow_function {
                     'reference_family',
                     'estimator_family',
                     'input_backend',
+                    'component_model',
                     'trait_support',
                     'supports_covariates',
                     'prevalence',
+                    'stochastic',
+                    'requires_complete_covariates',
                     'citation_keys',
                 ] },
                 { assert function.result.estimator_families == [
@@ -215,8 +244,20 @@ nextflow_function {
                     'ldak_kinship',
                     'sparse_grm',
                     'direct_plink_genotypes',
+                    'direct_plink1_genotypes',
                     'summary_statistics',
                 ] },
+                { assert function.result.component_models == [
+                    'none',
+                    'single',
+                    'ld_maf_stratified',
+                    'tagging_bundle',
+                ] },
+                { assert function.result.genotype_bundles == ['plink', 'plink1'] },
+                // Cross-pinned against the direct-genotype contract test below: every backend named here with
+                // the `direct_` prefix must be a key there, or `getMethodGenotypeBundle` has no bundle to
+                // return for it. Adding a direct backend must break exactly these two assertions together.
+                { assert function.result.input_backends.findAll { backend -> backend.startsWith('direct_') } == ['direct_plink_genotypes', 'direct_plink1_genotypes'] },
                 { assert function.result.prevalence_requirements == ['not_consumed', 'consumed', 'required'] },
                 { assert function.result.trait_support_fields == ['quantitative', 'binary'] },
             )
@@ -232,8 +273,11 @@ nextflow_function {
                 'domain',
                 'estimator_family',
                 'input_backend',
+                'component_model',
                 'trait_support',
                 'prevalence',
+                'stochastic',
+                'requires_complete_covariates',
                 'citation_keys',
             ]
             def estimatorFamilies = [
@@ -251,7 +295,14 @@ nextflow_function {
                 'ldak_kinship',
                 'sparse_grm',
                 'direct_plink_genotypes',
+                'direct_plink1_genotypes',
                 'summary_statistics',
+            ]
+            def componentModels = [
+                'none',
+                'single',
+                'ld_maf_stratified',
+                'tagging_bundle',
             ]
             def prevalenceRequirements = ['not_consumed', 'consumed', 'required']
             assertAll(
@@ -264,6 +315,9 @@ nextflow_function {
                 // above, so neither this list nor the contract can drift alone.
                 { assert function.result.collect { _token, details -> details.estimator_family }.unique().sort() == estimatorFamilies.toSorted() },
                 { assert function.result.collect { _token, details -> details.input_backend }.unique().sort() == inputBackends.toSorted() },
+                { assert function.result.collect { _token, details -> details.component_model }.unique().sort() == componentModels.toSorted() },
+                { assert function.result.every { _token, details -> details.stochastic instanceof Boolean } },
+                { assert function.result.every { _token, details -> details.requires_complete_covariates instanceof Boolean } },
                 { assert function.result.every { _token, details -> details.prevalence.keySet().toList() == ['population', 'sample'] } },
                 { assert function.result.every { _token, details -> details.prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
                 { assert function.result.every { _token, details -> details.trait_support.keySet().toList() == ['quantitative', 'binary'] } },
@@ -319,6 +373,9 @@ nextflow_function {
         tag "method_capabilities"
 
         then {
+            // `component_model` is consumed by the LDMS plan-setting acceptance rules, `stochastic` by the
+            // seed-class option acceptance and the unseeded-run warning, and `requires_complete_covariates`
+            // by the phenotype-preparation completeness rule through the spine's preparation meta.
             def activeFields = [
                 'domain',
                 'option_family',
@@ -327,9 +384,12 @@ nextflow_function {
                 'reference_family',
                 'estimator_family',
                 'input_backend',
+                'component_model',
                 'trait_support',
                 'supports_covariates',
                 'prevalence',
+                'stochastic',
+                'requires_complete_covariates',
                 'citation_keys',
             ] as Set
             assertAll(
@@ -350,11 +410,150 @@ nextflow_function {
                     'gcta_bivariate_he_ldms',
                     'gcta_bivariate_reml_ldms',
                     'gcta_greml_ldms',
+                    'ldak_fast_he',
+                    'ldak_fast_pcgc',
                     'ldak_he',
                     'ldak_kvik',
                     'ldak_pcgc',
                     'ldak_reml',
                 ] },
+            )
+        }
+    }
+
+    test("every declared matrix kind agrees with the backend its consumers declare") {
+        function "getMethodCapabilities"
+        tag "method_capabilities"
+
+        then {
+            // A `matrix_kind` names a reusable intermediate, so it must exist in the closed contract and
+            // must not disagree with the backend the estimator declares. And a direct-genotype estimator
+            // must never carry one: a fabricated matrix kind would make `getRelatednessMatrixKinds` request
+            // a matrix nothing reads.
+            // A function test can call one function, so the contract is restated here rather than read. The
+            // adjacent "matrix-kind contract keeps the established request order" test pins the real map
+            // exactly, so the two cannot drift apart without one of them failing.
+            def contract = [
+                gcta_dense: 'dense_grm',
+                gcta_ldms: 'ldms_grm_family',
+                gcta_sparse: 'sparse_grm',
+                ldak_kinship: 'ldak_kinship',
+            ]
+            assertAll(
+                { assert function.success },
+                { assert function.result.findAll { _token, details -> details.matrix_kind }.every { _token, details -> details.matrix_kind in contract.keySet() } },
+                { assert function.result.findAll { _token, details -> details.matrix_kind }.every { _token, details -> contract[details.matrix_kind] == details.input_backend } },
+                { assert function.result.findAll { _token, details -> details.input_backend.startsWith('direct_') }.every { _token, details -> !details.containsKey('matrix_kind') } },
+                { assert function.result.every { _token, details -> (details.component_model == 'ld_maf_stratified') == (details.matrix_kind == 'gcta_ldms') } },
+            )
+        }
+    }
+
+    test("the matrix-kind contract keeps the established request order") {
+        function "getMatrixKindContract"
+        tag "method_capabilities"
+
+        then {
+            // Iteration order is the order in which an analysis's matrix kinds are requested, so it is part
+            // of the contract rather than incidental map layout.
+            assertAll(
+                { assert function.success },
+                { assert function.result == [
+                    gcta_dense: [input_backend: 'dense_grm', genotype_bundle: 'plink'],
+                    gcta_ldms: [input_backend: 'ldms_grm_family', genotype_bundle: 'plink1'],
+                    gcta_sparse: [input_backend: 'sparse_grm', genotype_bundle: 'plink'],
+                    ldak_kinship: [input_backend: 'ldak_kinship', genotype_bundle: 'plink1'],
+                ] },
+                { assert function.result.keySet().toList() == ['gcta_dense', 'gcta_ldms', 'gcta_sparse', 'ldak_kinship'] },
+            )
+        }
+    }
+
+    test("the direct-genotype backend contract covers every declared direct backend") {
+        function "getDirectGenotypeBackendContract"
+        tag "method_capabilities"
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [
+                    direct_plink_genotypes: [genotype_bundle: 'plink'],
+                    direct_plink1_genotypes: [genotype_bundle: 'plink1'],
+                ] },
+            )
+        }
+    }
+
+    def genotypeBundles = [
+        [name: 'no genotype representation for a summary estimator', method: 'ldsc_h2', expected: null],
+        [name: 'the format-polymorphic bundle for REGENIE', method: 'regenie', expected: 'plink'],
+        [name: 'the format-polymorphic bundle for a dense-GRM estimator', method: 'gcta_greml', expected: 'plink'],
+        [name: 'the PLINK 1 bundle for LDAK-KVIK', method: 'ldak_kvik', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for LDAK REML', method: 'ldak_reml', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for LDAK fast Haseman-Elston', method: 'ldak_fast_he', expected: 'plink1'],
+    ]
+
+    genotypeBundles.each { scenario ->
+        test("genotype-bundle resolution yields ${scenario.name}") {
+            function "getMethodGenotypeBundle"
+            tag "method_capabilities"
+
+            when {
+                function {
+                    """
+                    input[0] = '${scenario.method}'
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.success },
+                    { assert function.result == scenario.expected },
+                )
+            }
+        }
+    }
+
+    test("only LDAK analysis-row estimators require complete covariate cells") {
+        function "getMethodCapabilities"
+        tag "method_capabilities"
+
+        then {
+            // LDAK reads a missing `--covar` cell as a numeric value and turns a missing `--factors` cell
+            // into an extra level, so every LDAK estimator that reads an analysis row's covariates carries
+            // the flag. `ldak_sumher`/`ldak_sumcors` read summary statistics and no covariate file at all,
+            // which is what the domain clause excludes.
+            assertAll(
+                { assert function.success },
+                { assert function.result.every { _token, details ->
+                    details.requires_complete_covariates == (details.option_family == 'ldak' && details.domain in ['association', 'heritability'])
+                } },
+                { assert function.result.findAll { _token, details -> details.requires_complete_covariates }.keySet().toList().sort() == [
+                    'ldak_fast_he',
+                    'ldak_fast_pcgc',
+                    'ldak_he',
+                    'ldak_kvik',
+                    'ldak_pcgc',
+                    'ldak_reml',
+                ] },
+            )
+        }
+    }
+
+    test("every stochastic direct-genotype heritability estimator but fast PCGC is quantitative-only") {
+        function "getMethodCapabilities"
+        tag "method_capabilities"
+
+        then {
+            // The documented trait contract of the randomised direct-genotype family. It is scoped to the
+            // heritability domain deliberately: `ldak_kvik` is also stochastic and also reads PLINK 1
+            // directly, but it is an association estimator and is binary-capable.
+            assertAll(
+                { assert function.success },
+                { assert function.result
+                    .findAll { _token, details -> details.domain == 'heritability' && details.stochastic && details.input_backend == 'direct_plink1_genotypes' }
+                    .every { token, details -> details.trait_support.binary == (token == 'ldak_fast_pcgc') } },
             )
         }
     }
@@ -366,6 +565,9 @@ nextflow_function {
         [name: 'the dense-GRM GCTA heritability estimator', required: [domain: 'heritability', option_family: 'gcta', input_backend: 'dense_grm'], expected: ['gcta_greml']],
         [name: 'the LDMS GCTA heritability estimator', required: [domain: 'heritability', input_backend: 'ldms_grm_family'], expected: ['gcta_greml_ldms']],
         [name: 'the LDAK kinship heritability estimators', required: [domain: 'heritability', input_backend: 'ldak_kinship'], expected: ['ldak_reml', 'ldak_he', 'ldak_pcgc']],
+        [name: 'the direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
+        [name: 'the stochastic direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
+        [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms']],
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],
         [name: 'the LDAK summary pair estimator', required: [domain: 'pairwise', reference_family: 'ldak'], expected: ['ldak_sumcors']],

@@ -14,6 +14,7 @@ include { buildScientificArtifactKey       } from '../utils_nfcore_gwas_pipeline
 include { canonicaliseScientificIdentifier } from '../utils_nfcore_gwas_pipeline'
 include { canonicaliseScientificValue      } from '../utils_nfcore_gwas_pipeline'
 include { digestFileBytes                  } from '../utils_nfcore_gwas_pipeline'
+include { getMatrixKindContract            } from '../validate_gwas_input/method_registry'
 include { getMethodCapabilities            } from '../validate_gwas_input/method_registry'
 
 workflow PREPARE_RELATEDNESS_MATRICES {
@@ -281,9 +282,12 @@ def getRelatednessMatrixKinds(meta) {
     def selected = meta.relationship_id
         ? [meta.method] as Set
         : ((meta.association_methods ?: []) + (meta.heritability_methods ?: [])) as Set
-    return ['gcta_dense', 'gcta_ldms', 'gcta_sparse', 'ldak_kinship'].findAll { kind ->
-        selected.any { method -> capabilities[method] && capabilities[method].matrix_kind == kind }
-    }
+    return getMatrixKindContract()
+        .keySet()
+        .toList()
+        .findAll { kind ->
+            selected.any { method -> capabilities[method] && capabilities[method].matrix_kind == kind }
+        }
 }
 
 def getLdakWeightsIdentity(weights_file, weights_policy = 'equal') {

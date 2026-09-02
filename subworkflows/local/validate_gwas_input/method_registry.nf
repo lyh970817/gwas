@@ -5,16 +5,26 @@
 //
 // `input_backend` names the representation the estimator genuinely consumes. A direct-genotype estimator is a
 // distinct backend and must never be given a fabricated matrix kind to make it look like a GRM route.
-// `sparse_grm` is a real sixth backend rather than a variant of `dense_grm`: fastGWA streams genotypes against
-// a sparse relatedness matrix.
+// `sparse_grm` is a real backend rather than a variant of `dense_grm`: fastGWA streams genotypes against a
+// sparse relatedness matrix. The direct backends are split by genotype representation, not by tool:
+// `direct_plink1_genotypes` names an executable that reads BED/BIM/FAM only, `direct_plink_genotypes` one that
+// selects the native flag from the staged primary extension.
+//
+// `component_model` names the variance-component structure the estimator fits, which is what gates the LDMS
+// plan settings. `stochastic` marks a randomised approximation, which is what gates a seed-class option and
+// the unseeded-run warning. `requires_complete_covariates` marks a consumer that reads a missing covariate
+// cell as a value rather than excluding the sample, which is what gates the preparation completeness rule.
 def getMethodCapabilityContract() {
     return [
         required_fields: [
             'domain',
             'estimator_family',
             'input_backend',
+            'component_model',
             'trait_support',
             'prevalence',
+            'stochastic',
+            'requires_complete_covariates',
             'citation_keys',
         ],
         queryable_fields: [
@@ -25,9 +35,12 @@ def getMethodCapabilityContract() {
             'reference_family',
             'estimator_family',
             'input_backend',
+            'component_model',
             'trait_support',
             'supports_covariates',
             'prevalence',
+            'stochastic',
+            'requires_complete_covariates',
             'citation_keys',
         ],
         estimator_families: [
@@ -45,7 +58,18 @@ def getMethodCapabilityContract() {
             'ldak_kinship',
             'sparse_grm',
             'direct_plink_genotypes',
+            'direct_plink1_genotypes',
             'summary_statistics',
+        ],
+        component_models: [
+            'none',
+            'single',
+            'ld_maf_stratified',
+            'tagging_bundle',
+        ],
+        genotype_bundles: [
+            'plink',
+            'plink1',
         ],
         prevalence_requirements: ['not_consumed', 'consumed', 'required'],
         trait_support_fields: ['quantitative', 'binary'],
@@ -68,8 +92,11 @@ def getMethodRegistry() {
             option_family: 'regenie',
             estimator_family: 'whole_genome_regression',
             input_backend: 'direct_plink_genotypes',
+            component_model: 'none',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['regenie'],
             mapping: [common: [
                 snpid: 'ID',
@@ -91,8 +118,11 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_sparse',
             estimator_family: 'mixed_linear_model',
             input_backend: 'sparse_grm',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_fastgwa'],
             mapping: [common: [
                 snpid: 'SNP',
@@ -111,9 +141,12 @@ def getMethodRegistry() {
             domain: 'association',
             option_family: 'ldak',
             estimator_family: 'mixed_linear_model',
-            input_backend: 'direct_plink_genotypes',
+            input_backend: 'direct_plink1_genotypes',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: true,
             citation_keys: ['ldak_kvik'],
             mapping: [
                 common: [
@@ -136,8 +169,11 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_dense',
             estimator_family: 'reml',
             input_backend: 'dense_grm',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_greml'],
         ],
         gcta_greml_ldms: [
@@ -146,8 +182,11 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_ldms',
             estimator_family: 'reml',
             input_backend: 'ldms_grm_family',
+            component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_greml_ldms'],
         ],
         gcta_bivariate_reml: [
@@ -157,8 +196,11 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_dense',
             estimator_family: 'reml',
             input_backend: 'dense_grm',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_bivariate_reml'],
         ],
         gcta_bivariate_reml_ldms: [
@@ -168,8 +210,11 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_ldms',
             estimator_family: 'reml',
             input_backend: 'ldms_grm_family',
+            component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
         gcta_bivariate_he: [
@@ -179,9 +224,12 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_dense',
             estimator_family: 'moment_he',
             input_backend: 'dense_grm',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: false],
             supports_covariates: false,
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_hereg'],
         ],
         gcta_bivariate_he_ldms: [
@@ -191,9 +239,12 @@ def getMethodRegistry() {
             matrix_kind: 'gcta_ldms',
             estimator_family: 'moment_he',
             input_backend: 'ldms_grm_family',
+            component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: false],
             supports_covariates: false,
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['gcta_hereg', 'gcta_greml_ldms'],
         ],
         ldak_sumher: [
@@ -203,8 +254,11 @@ def getMethodRegistry() {
             reference_family: 'ldak',
             estimator_family: 'summary_tagging_regression',
             input_backend: 'summary_statistics',
+            component_model: 'tagging_bundle',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['ldak_sumstats'],
         ],
         ldak_sumcors: [
@@ -214,8 +268,11 @@ def getMethodRegistry() {
             reference_family: 'ldak',
             estimator_family: 'summary_tagging_regression',
             input_backend: 'summary_statistics',
+            component_model: 'tagging_bundle',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['ldak_sumstats'],
         ],
         ldsc_h2: [
@@ -225,8 +282,11 @@ def getMethodRegistry() {
             reference_family: 'ldsc',
             estimator_family: 'ld_score_regression',
             input_backend: 'summary_statistics',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['ldsc'],
         ],
         ldsc_rg: [
@@ -236,8 +296,11 @@ def getMethodRegistry() {
             reference_family: 'ldsc',
             estimator_family: 'ld_score_regression',
             input_backend: 'summary_statistics',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
+            stochastic: false,
+            requires_complete_covariates: false,
             citation_keys: ['ldsc'],
         ],
         ldak_reml: [
@@ -246,8 +309,11 @@ def getMethodRegistry() {
             matrix_kind: 'ldak_kinship',
             estimator_family: 'reml',
             input_backend: 'ldak_kinship',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
+            stochastic: false,
+            requires_complete_covariates: true,
             citation_keys: ['ldak'],
         ],
         ldak_he: [
@@ -256,8 +322,11 @@ def getMethodRegistry() {
             matrix_kind: 'ldak_kinship',
             estimator_family: 'moment_he',
             input_backend: 'ldak_kinship',
+            component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: true,
             citation_keys: ['ldak'],
         ],
         ldak_pcgc: [
@@ -266,9 +335,36 @@ def getMethodRegistry() {
             matrix_kind: 'ldak_kinship',
             estimator_family: 'pcgc',
             input_backend: 'ldak_kinship',
+            component_model: 'single',
             trait_support: [quantitative: false, binary: true],
             prevalence: [population: 'required', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: true,
             citation_keys: ['ldak'],
+        ],
+        ldak_fast_he: [
+            domain: 'heritability',
+            option_family: 'ldak',
+            estimator_family: 'moment_he',
+            input_backend: 'direct_plink1_genotypes',
+            component_model: 'single',
+            trait_support: [quantitative: true, binary: false],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: true,
+            citation_keys: ['ldak', 'rhe_mc'],
+        ],
+        ldak_fast_pcgc: [
+            domain: 'heritability',
+            option_family: 'ldak',
+            estimator_family: 'pcgc',
+            input_backend: 'direct_plink1_genotypes',
+            component_model: 'single',
+            trait_support: [quantitative: false, binary: true],
+            prevalence: [population: 'required', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: true,
+            citation_keys: ['ldak', 'rhe_mc'],
         ],
     ]
 }
@@ -320,15 +416,57 @@ def getMethodCapability(method, field) {
     return details[field]
 }
 
-// The PLINK 1 compatibility bundle is a genotype-representation requirement, not a scientific one: every LDAK
-// executable reads BED/BIM/FAM, and the GCTA LDMS component plan is built by an LD-score pass that reads the
-// same encoding. Summary estimators consume no genotypes at all.
+// A direct-genotype backend names the genotype representation the estimator's own executable reads.
+// `direct_plink_genotypes` is format-polymorphic: REGENIE picks `--bfile` or `--pfile` from the primary
+// staged extension. `direct_plink1_genotypes` is BED/BIM/FAM only, which is what every LDAK executable reads.
+def getDirectGenotypeBackendContract() {
+    return [
+        direct_plink_genotypes: [genotype_bundle: 'plink'],
+        direct_plink1_genotypes: [genotype_bundle: 'plink1'],
+    ]
+}
+
+// The closed set of reusable relatedness intermediates, each declaring the backend its consumers read and the
+// genotype representation its builder needs. Iteration order is the order matrix kinds are requested in, so it
+// is part of the contract rather than an incidental map layout.
+def getMatrixKindContract() {
+    return [
+        gcta_dense: [input_backend: 'dense_grm', genotype_bundle: 'plink'],
+        gcta_ldms: [input_backend: 'ldms_grm_family', genotype_bundle: 'plink1'],
+        gcta_sparse: [input_backend: 'sparse_grm', genotype_bundle: 'plink'],
+        ldak_kinship: [input_backend: 'ldak_kinship', genotype_bundle: 'plink1'],
+    ]
+}
+
+// `null` for a summary estimator, which consumes no genotypes at all; otherwise the representation the
+// estimator itself or its matrix builder reads.
+def getMethodGenotypeBundle(method) {
+    def details = getMethodCapabilities()[method]
+    if (!details) {
+        error("[nf-core/gwas] ERROR: no capability is registered for method '${method}'")
+    }
+    if (details.input_backend == 'summary_statistics') {
+        return null
+    }
+    // Every caller of this function iterates the whole registry, so an undescribed backend must fail by name
+    // here rather than as a null dereference that reports nothing about which entry is at fault.
+    def contract = details.matrix_kind
+        ? getMatrixKindContract()[details.matrix_kind]
+        : getDirectGenotypeBackendContract()[details.input_backend]
+    if (!contract) {
+        error("[nf-core/gwas] ERROR: method '${method}' declares ${details.matrix_kind ? "matrix kind '${details.matrix_kind}'" : "input backend '${details.input_backend}'"}, which no genotype-bundle contract describes")
+    }
+    return contract.genotype_bundle
+}
+
+// The PLINK 1 compatibility bundle is a genotype-representation requirement, not a scientific one: a method
+// needs the derivative when its direct backend or its matrix kind declares the `plink1` bundle. Deriving it
+// from the declared bundle rather than from `option_family == 'ldak'` is what lets a non-LDAK direct-genotype
+// estimator join the answer without editing this predicate.
 def getPlink1GenotypeMethodTokens() {
     return getMethodCapabilities()
-        .findAll { _token, details ->
-            details.input_backend != 'summary_statistics' && (details.option_family == 'ldak' || details.input_backend == 'ldms_grm_family')
-        }
         .keySet()
+        .findAll { method -> getMethodGenotypeBundle(method) == 'plink1' }
         .toList()
 }
 

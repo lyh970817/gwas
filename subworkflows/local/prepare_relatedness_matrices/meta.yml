@@ -20,6 +20,7 @@ components:
   - canonicalisescientificidentifier
   - canonicalisescientificvalue
   - digestfilebytes
+  - getmatrixkindcontract
   - getmethodcapabilities
 input:
   - ch_analyses:
