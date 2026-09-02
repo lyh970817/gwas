@@ -277,6 +277,57 @@ nextflow_function {
         }
     }
 
+    test("a seeded fast row is not warned") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'seeded_not_warned', [
+                    example: [ldak: [fast_seed: 7]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_fast_he', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // The negative half of the warning. Without it an unconditional `log.warn` would satisfy every
+            // positive assertion and the seed would appear to matter when it did not.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert !report.contains("without 'ldak.fast_seed'") },
+            )
+        }
+    }
+
+    test("a kinship-only row is not warned about the unrelated-sample filter") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'kinship_only_filter', [
+                    example: [ldak: [relatedness_filter: true]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_he', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // The negative half of the mixed-row warning: with no direct-genotype estimator on the row there
+            // are no two sample sets to compare, so nothing should be said.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert function.result.example.ldak.relatedness_filter },
+                { assert !report.contains("sets 'ldak.relatedness_filter' beside direct-genotype estimator") },
+            )
+        }
+    }
+
     test("an undocumented fast row is warned on the no-document path as well") {
         function "validateMethodOptions"
 

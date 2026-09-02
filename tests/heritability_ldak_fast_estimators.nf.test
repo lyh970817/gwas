@@ -408,26 +408,32 @@ nextflow_pipeline {
         }
     }
 
+    // The rule is declared by a registry capability that six selectors carry, and the spine asks the question
+    // of the association selectors and the heritability selectors alike. Both halves of that expression, and
+    // both covariate roles, therefore need a case: with only the fast-route cases, deleting the association
+    // term would leave the whole suite green while silently reverting the refusal for `ldak_kvik`.
     def incompleteCovariates = [
-        [name: 'a quantitative covariate', fixture: 'example.qcovar', column: 'AGE', role: 'quant'],
-        [name: 'a categorical covariate', fixture: 'example.catcovar', column: 'SEX', role: 'cat'],
+        [name: 'a quantitative covariate on a fast heritability row', selector: 'heritability', methods: 'ldak_fast_he', fixture: 'example.qcovar', column: 'AGE', role: 'quant'],
+        [name: 'a categorical covariate on a fast heritability row', selector: 'heritability', methods: 'ldak_fast_he', fixture: 'example.catcovar', column: 'SEX', role: 'cat'],
+        [name: 'a quantitative covariate on a kinship heritability row', selector: 'heritability', methods: 'ldak_he', fixture: 'example.qcovar', column: 'AGE', role: 'quant'],
+        [name: 'a quantitative covariate on an LDAK association row', selector: 'association', methods: 'ldak_kvik', fixture: 'example.qcovar', column: 'AGE', role: 'quant'],
     ]
 
     incompleteCovariates.each { scenario ->
-        test("preparation refuses ${scenario.name} cell for a method that would read the gap as a value") {
+        test("preparation refuses ${scenario.name} that would silently fit an arbitrary value") {
 
             tag "ldak_fast_covariates"
 
             when {
                 params {
-                    def fixture = "ldak_fast_missing_${scenario.role}"
+                    def fixture = "ldak_missing_${scenario.methods}_${scenario.role}"
                     def incomplete = RELATIONAL.covariatesWithMissingCell(projectDir, outputDir, "${fixture}.covar", scenario.fixture, scenario.column)
                     outdir = "$outputDir"
                     cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, fixture)
                     analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, fixture, { rows ->
                         rows[0].analysis_id = 'incomplete_covariates'
-                        rows[0].association_methods = ''
-                        rows[0].heritability_methods = 'ldak_fast_he'
+                        rows[0].association_methods = scenario.selector == 'association' ? scenario.methods : ''
+                        rows[0].heritability_methods = scenario.selector == 'heritability' ? scenario.methods : ''
                         if (scenario.role == 'quant') {
                             rows[0].quant_covariates = incomplete.path
                         }
@@ -439,17 +445,21 @@ nextflow_pipeline {
             }
 
             then {
-                // LDAK reads a missing `--covar` cell as a number and a missing `--factors` cell as an extra
-                // level, in both cases silently. The pipeline therefore refuses the input rather than letting
-                // the run report a covariate model nobody declared.
+                // LDAK leaves an unparsed `--covar` cell as whatever was last in its read buffer, and turns a
+                // missing `--factors` cell into an extra level, in both cases silently. The pipeline therefore
+                // refuses the input rather than letting the run report a covariate model nobody declared.
                 def report = VALIDATION.report(outputDir, workflow.stdout)
                 assertAll(
                     { assert !workflow.success },
                     // The rule lives in the preparation task, so preparation must have run and failed. A
                     // count of zero successful tasks would also hold if the run had never reached the process.
-                    { assert workflow.trace.failed().collect { task -> task.name.split(/ \(/).first().tokenize(':').last() } == ['PREPARE_PHENOTYPE_INPUTS'] },
+                    // Membership rather than equality: a sibling task already in flight when the run aborts is
+                    // recorded as failed too, and which ones those are depends on scheduling.
+                    { assert 'PREPARE_PHENOTYPE_INPUTS' in workflow.trace.failed().collect { task -> task.name.split(/ \(/).first().tokenize(':').last() } },
                     { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
                     { assert TRACE.count(workflow, 'LDAK_FASTHE') == 0 },
+                    { assert TRACE.count(workflow, 'LDAK_HE') == 0 },
+                    { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 0 },
                     { assert report.contains('missing covariate cells') },
                     { assert report.contains('LDAK --covar/--factors') },
                     { assert report.contains("S001 S001 ${scenario.column}") },
