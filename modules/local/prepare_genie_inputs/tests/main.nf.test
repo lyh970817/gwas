@@ -59,6 +59,9 @@ nextflow_process {
 
     def declared = { meta_options -> genotypes.replace('METHOD_OPTIONS', meta_options) }
 
+    // The standard output of a task that succeeded, which nf-test does not surface through `process.stdout`.
+    def taskOutput = { produced -> path(produced).parent.resolve('.command.out').text }
+
     test("the prepared files are written in FAM order with the header GENIE requires") {
 
         when {
@@ -122,9 +125,11 @@ nextflow_process {
                 { assert provenance.warnings.containsAll(['random_vectors_native_default', 'retained_below_recommended_scale']) },
                 // The provenance key set is checked as a whole, so a writer that quietly grew or lost a
                 // top-level block fails here rather than downstream.
+                { assert provenance.derivation == null },
                 { assert provenance.keySet().toList().sort() == [
                     'classification',
                     'component_plan',
+                    'derivation',
                     'estimator',
                     'inputs',
                     'native_arguments',
@@ -501,7 +506,11 @@ nextflow_process {
                 { assert !process.success },
                 { assert process.stdout.join('\n').contains('which GENIE_mem reads past the end of its own buffer') },
                 { assert process.stdout.join('\n').contains('trailing jackknife block of 17 variant(s) against a nominal block of 7') },
-                { assert process.stdout.join('\n').contains('Set genie.jackknife_blocks to 27 or lower') },
+                // The safe counts are not an interval: on 220 variants, 27, 24 and 22 run while 29, 28, 26,
+                // 25 and 23 all abort. Advising "27 or lower" would walk a researcher straight into 26.
+                { assert process.stdout.join('\n').contains('lowering the value is not itself a fix') },
+                { assert process.stdout.join('\n').contains('use one of 27, 24, 22') },
+                { assert process.stdout.join('\n').contains('use any divisor of the 220 variant(s) in the cohort') },
                 { assert process.stdout.join('\n').contains('set genie.memory_efficient to false') },
             )
         }
@@ -531,6 +540,116 @@ nextflow_process {
             assertAll(
                 { assert !process.success },
                 { assert process.stdout.join('\n').contains('requires_complete_covariates') }
+            )
+        }
+    }
+
+    test("a covariate cell missing for an unphenotyped sample is accepted, as ingress accepts it") {
+
+        when {
+            def fixtures = sources(outputDir, 'exempt_covariate')
+            // Sample 6 has no phenotype, so the estimator never reads its covariates. The shared ingress rule
+            // polices only the cells of phenotyped samples and lets this file through; validating every row
+            // here instead would kill a run that ingress deliberately admitted, while claiming an internal
+            // invariant had been violated.
+            def exempt = fixtures.write(
+                'exempt.noheader.pheno',
+                (0..<200).collect { index ->
+                    index == 6 ? "per6\tper6\tNA" : "per${index}\tper${index}\t${String.format('%.6f', Math.sin(index * 0.7d) * 2.0d + index * 0.01d)}"
+                }.join('\n') + '\n'
+            )
+            def incomplete = fixtures.write(
+                'exempt.adjustcovar',
+                (0..<200).collect { index -> index == 6 ? "per6\tper6\tNA\tNA" : "per${index}\tper${index}\t${index}\t${index % 2}" }.join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${exempt}', checkIfExists: true), file('${incomplete}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // The row is still written, so the file stays aligned with the FAM, and it is written with a value
+            // GENIE can parse. Measured on the pinned image, that slot is inert: a sample excluded by a missing
+            // phenotype gives a byte-identical fit whether its covariate cells are complete, `NA` or arbitrary.
+            def covariates = path(process.out.covariates.get(0).get(1))
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert covariates.readLines().size() == 201 },
+                { assert covariates.readLines()[7] == 'per6 per6 0 0' },
+                { assert !covariates.text.contains('NA') },
+                { assert provenance.inputs.samples.retained == 199 },
+                { assert provenance.inputs.samples.dropped_by_cause.missing_phenotype == 1 },
+                { assert provenance.inputs.samples.dropped_by_cause.missing_covariate == 0 },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines().first() == 'individuals\t199' },
+            )
+        }
+    }
+
+    test("a phenotype GENIE reads as its own missing sentinel is dropped and named") {
+
+        when {
+            def fixtures = sources(outputDir, 'native_sentinel')
+            // GENIE's missing rule is numeric, not textual: it drops every sample whose trait parses to
+            // exactly -9 however it is spelled. A declared count that ignored that would disagree with the
+            // count GENIE echoes, and surface as an estimator-side assertion naming neither cause nor sample.
+            def sentinel = fixtures.write(
+                'sentinel.noheader.pheno',
+                (0..<200).collect { index ->
+                    index < 5 ? "per${index}\tper${index}\t-9.0" : "per${index}\tper${index}\t${String.format('%.6f', Math.sin(index * 0.7d) * 2.0d + index * 0.01d)}"
+                }.join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${sentinel}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            def phenotype = path(process.out.phenotype.get(0).get(1))
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert phenotype.readLines()[1] == 'per0 per0 NA' },
+                { assert provenance.inputs.samples.retained == 195 },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines().first() == 'individuals\t195' },
+                { assert provenance.warnings.contains('phenotype_native_missing_sentinel') },
+                // A note from a task that succeeded reaches its own `.command.out`, not the workflow console.
+                { assert taskOutput(process.out.provenance.get(0).get(1)).contains('GENIE reads as its own missing sentinel') },
+                { assert taskOutput(process.out.provenance.get(0).get(1)).contains('per0 per0 = -9.0') },
+            )
+        }
+    }
+
+    test("preparation refuses an annotation component that contains no variant") {
+
+        when {
+            def fixtures = sources(outputDir, 'empty_component')
+            def empty = fixtures.write('empty.annot', (['1 0'] * 220).join('\n') + '\n')
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], file('${empty}', checkIfExists: true)]
+                """
+            }
+        }
+
+        then {
+            // Every row is a valid disjoint assignment, so the partition rule alone accepts this. GENIE then
+            // reports `Number of features in bin 1 : 0` and returns `-nan` for *every* component in the model,
+            // not only the empty one.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('declares component column(s) 1 that contain no variant') },
+                { assert process.stdout.join('\n').contains('every component in the model') },
             )
         }
     }

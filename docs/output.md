@@ -195,7 +195,7 @@ The per-predictor (`.ind.hers`), per-block (`.jackests`), per-random-vector (`.r
 - `heritability/individual/genie_g/<analysis_id>/`
   - `<analysis_id>.genie_g.out`: Native GENIE result: the echoed option block, the retained sample count, the covariate count including GENIE's own intercept, the per-component variant counts, the variance components and the heritabilities.
   - `<analysis_id>.genie_g.log`: Native standard output, carrying the tab-separated parameter block, the per-jackknife-block progress and the retained-sample line the result file does not repeat.
-  - `<analysis_id>.genie_g.provenance.json`: Invocation record for this result: the effective stochastic settings and which of them are GENIE's own defaults, the sample and variant identities the fit was given as SHA-256 digests, the fitted components, and the build identity of the pinned runtime.
+  - `<analysis_id>.genie_g.provenance.json`: Invocation record for this result: the effective stochastic settings and which of them are GENIE's own defaults, the sample and variant identities the fit was given as SHA-256 digests, the fitted components, and the build identity of the pinned runtime. The sample-order digest **records** the order the estimator was given; it does not verify it afterwards, because the counts GENIE echoes cannot detect a permuted or short input. Order is guaranteed instead by the adapter writing every file in genotype-file order.
 
 </details>
 

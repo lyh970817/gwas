@@ -54,17 +54,22 @@ process GENIE_G {
     # GENIE exits 0 and writes nothing when `-o` names an unwritable path, so the file itself is the contract.
     test -s "${prefix}.out"
 
-    # A phenotype that is constant across the retained samples, a monomorphic variant, and an annotation GENIE
-    # read as empty all yield `-nan` variance components in a well-formed 1.1 kB file at exit 0.
-    if grep -qE '(^|[^A-Za-z])-?(nan|inf)([^A-Za-z]|\$)' "${prefix}.out"; then
-        echo "[nf-core/gwas] ERROR: ${meta.id}: GENIE returned a non-finite estimate (-nan/inf) at exit 0; see ${prefix}.out" >&2
-        exit 1
-    fi
-
-    # GENIE matches the phenotype and covariate rows positionally against the FAM and never checks an identity,
-    # counts an annotation/BIM row-count mismatch as a warning while silently adopting the annotation's count,
-    # and reads a header row in either file as data. Each of those shows up as a count GENIE echoes that the
-    # prepared inputs do not declare, and nowhere else.
+    # Two post-run assertions in one pass over the result.
+    #
+    # The first catches a non-finite estimate: a phenotype that is constant across the retained samples, a
+    # monomorphic variant, an annotation GENIE read as empty and an annotation component containing no variant
+    # all yield `-nan` in a well-formed 1.1 kB file at exit 0. It is applied only to the region below
+    # `OUTPUT:`, because everything above it echoes the staged file names, which are built from the analysis
+    # identifier -- an analysis called `crp.inf.v2` or `inf2024` would otherwise fail a numerically perfect run.
+    #
+    # The second compares the counts GENIE echoes against the counts the prepared inputs declare. What that
+    # genuinely proves is narrower than it looks: it catches a stray header row changing the covariate width, a
+    # disagreement between the annotation and the variant file, and a retained-sample count GENIE did not
+    # arrive at -- for instance a phenotype value GENIE reads as its own missing sentinel. It does **not**
+    # detect a positional shift. Measured on the pinned image, a covariate file missing one data row, and a
+    # covariate file whose rows are permuted, both run at exit 0 with every declared count matching and the
+    # estimate moved. Row order is guaranteed upstream, by the adapter writing every file in genotype-file
+    # order, and is recorded rather than verified by the sample-order digest in the provenance sidecar.
     #
     # The two executables write the same numbers in two header dialects, which is why the patterns below match
     # neither the separator nor the noun: `GENIE` writes "Number of individuals after filtering: 200" and
@@ -72,11 +77,17 @@ process GENIE_G {
     # in bin 0 = 220" under a different banner version. The field positions coincide in both.
     awk -v out="${prefix}.out" -v tag="${meta.id}" '
         NR == FNR { want[\$1] = \$2; next }
+        /^OUTPUT:/ { results = 1 }
+        results && /(^|[^A-Za-z])-?(nan|inf)([^A-Za-z]|\$)/ { nonfinite = 1 }
         /^Number of individuals after filtering/ { got["individuals"] = \$NF }
         /^Number of covariates/                  { got["covariates"]  = \$NF }
         /^Number of (features|SNPs) in bin /     { got["bin_" \$6]    = \$NF }
         END {
             rc = 0
+            if (nonfinite) {
+                printf "[nf-core/gwas] ERROR: %s: GENIE returned a non-finite estimate (-nan/inf) at exit 0; see %s\\n", tag, out > "/dev/stderr"
+                rc = 1
+            }
             for (key in want) {
                 if (!(key in got)) {
                     printf "[nf-core/gwas] ERROR: %s: GENIE did not echo %s in %s\\n", tag, key, out > "/dev/stderr"

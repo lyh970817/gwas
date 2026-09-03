@@ -341,16 +341,59 @@ nextflow_process {
             }
 
             then {
-                // Every silent misalignment this module defends against -- a positional shift, a stray header
-                // row, an annotation that disagrees with the BIM -- reaches the surface as a count GENIE
-                // echoes that the caller did not declare. Feeding a deliberately wrong declaration is the only
-                // way to prove the comparison is live rather than vacuous.
+                // What this comparison genuinely catches is a stray header row changing the covariate width,
+                // an annotation that disagrees with the variant file, and a retained-sample count the caller
+                // did not predict. It does not catch a positional shift -- a covariate file missing one data
+                // row runs at exit 0 with every count still matching. Feeding a deliberately wrong declaration
+                // is the only way to prove the comparison is live rather than vacuous.
                 assertAll(
                     { assert !process.success },
                     { assert process.exitStatus != 0 },
                     { assert process.errorReport.contains(scenario.message) }
                 )
             }
+        }
+    }
+
+    test("homo_sapiens popgen - an analysis identifier containing 'inf' does not fail a finite run") {
+
+        when {
+            params {
+                module_args = "-jn 20 -s 1"
+            }
+            process {
+                """
+                input[0] = [
+                    [ id: 'crp.inf.v2' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
+                ]
+                input[1] = [
+                    [ id: 'crp.inf.v2' ],
+                    ${phenotype},
+                    ${covariates},
+                    file('${inputs(outputDir, 'identifier').single}', checkIfExists: true),
+                    file('${inputs(outputDir, 'identifier').covariates}', checkIfExists: true),
+                    false
+                ]
+                """
+            }
+        }
+
+        then {
+            // GENIE echoes the staged file names above its result, and those names are built from the analysis
+            // identifier. A non-finite check over the whole file therefore fires on an identifier containing
+            // `inf` or `nan` between non-letters -- `crp.inf.v2`, `inf2024` -- which the manifest schema
+            // permits and which abbreviations for inflammation or infection make reachable. The check is
+            // scoped to the region below `OUTPUT:` for exactly this reason.
+            def results = process.out.results.get(0).get(1)
+            assertAll(
+                { assert process.success },
+                { assert path(results).text.contains('crp.inf.v2.out') },
+                { assert path(results).text.contains('Total h2') },
+                { assert !path(results).text.contains('nan') }
+            )
         }
     }
 

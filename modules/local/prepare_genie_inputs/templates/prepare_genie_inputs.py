@@ -10,8 +10,14 @@ is expressed against counts GENIE itself echoes.
 Four more of GENIE's contracts are silent when broken, which is why they are validated here rather than left to
 the tool:
 
-    a header row is mandatory in the phenotype and covariate files (GENIE skips line one; a headerless
-        covariate file was measured reporting eight covariates instead of six and returning -nan)
+    a header row is mandatory in the phenotype and covariate files, and its first two fields must be the
+        literal, case-sensitive `FID` and `IID`. GENIE does not simply skip line one: it reads the header to
+        decide which columns are identifiers and how many trait or covariate columns follow. Measured on the
+        pinned image with one unchanged body, `FID IID QT`, `FID IID PHENO` and `FID IID X` all give
+        h2 = 0.0570925, while `A B C` gives 0.0420259 and lowercase `fid iid pheno` gives 0.0420263 -- the
+        identifier columns are read as data. A header with fewer fields than the data rows segfaults, one
+        with more reads a phantom trait, and a headerless covariate file reports eight covariates instead of
+        six and returns -nan
     the annotation must be space-delimited with one row per BIM variant (a tab-delimited file yields
         "0 SNPs in bin 0" and -nan, and a row-count mismatch is only a warning before GENIE adopts the
         annotation's own count)
@@ -52,6 +58,14 @@ PROCESS_NAME = ${task_process_literal}
 
 MISSING = "NA"
 MISSING_TOKENS = frozenset(["", "na", "nan", "-9"])
+
+# GENIE's own missing rule for the phenotype is numeric, not textual: it drops every sample whose trait
+# parses to exactly this value, however it is spelled. Measured on the pinned image, `-9`, `-9.0`,
+# `-9.000000` and `-9e0` all take 200 retained samples to 180 with identical estimates, while `-8.999999`
+# and `-10` are kept. A textual comparison would let `-9.0` through as a value, GENIE would drop the sample
+# anyway, and the count this adapter declares would then disagree with the count GENIE echoes -- surfacing
+# as an estimator-side assertion that names neither the cause nor the samples.
+NATIVE_MISSING_PHENOTYPE = -9.0
 
 # Keep diagnostics useful without allowing an unbounded message for bad input.
 MAX_REPORTED = 10
@@ -118,6 +132,16 @@ def split_row(line):
 
 def is_missing(value):
     return value.strip().lower() in MISSING_TOKENS
+
+
+def is_native_missing_phenotype(value):
+    """Whether GENIE will drop this sample, under GENIE's own numeric rule."""
+    if is_missing(value):
+        return True
+    try:
+        return float(value) == NATIVE_MISSING_PHENOTYPE
+    except ValueError:
+        return True
 
 
 def read_keyed_table(path, role, minimum_columns):
@@ -358,18 +382,25 @@ def resolve_settings(n_variants):
             "floating-point exception when a jackknife block is empty".format(requested_blocks, n_variants)
         )
     elif memory_efficient and not streams_jackknife_safely(n_variants, requested_blocks):
-        largest = requested_blocks
-        while largest > 2 and not streams_jackknife_safely(n_variants, largest):
-            largest -= 1
+        # The predicate is *not* monotone in the block count -- 300 aborts on 2200 variants while both 274 and
+        # 440 run -- so "this value or lower" would be false advice that walks a researcher into the same
+        # refusal, or into the crash itself outside the pipeline. Name only counts measured to be safe.
+        nearest = [
+            candidate
+            for candidate in range(requested_blocks - 1, 1, -1)
+            if streams_jackknife_safely(n_variants, candidate)
+        ][:3]
+        assert all(streams_jackknife_safely(n_variants, candidate) for candidate in nearest)
         fail(
             "genie.jackknife_blocks {0} leaves a trailing jackknife block of {1} variant(s) against a nominal "
             "block of {2}, which GENIE_mem reads past the end of its own buffer and aborts on (exit 134 or "
-            "139, no diagnostic). Set genie.jackknife_blocks to {3} or lower, to a divisor of the {4} "
-            "variant(s) in the cohort, or set genie.memory_efficient to false".format(
+            "139, no diagnostic). The safe counts are not an interval, so lowering the value is not itself a "
+            "fix: use one of {3}, use any divisor of the {4} variant(s) in the cohort, or set "
+            "genie.memory_efficient to false".format(
                 requested_blocks,
                 n_variants // requested_blocks + n_variants % requested_blocks,
                 n_variants // requested_blocks,
-                largest,
+                ", ".join(str(candidate) for candidate in nearest) if nearest else "a divisor of the cohort",
                 n_variants,
             )
         )
@@ -443,19 +474,37 @@ def main():
 
     values = []
     missing_phenotype = 0
-    for row in aligned_phenotype:
-        if row is None or is_missing(row[2]):
+    native_sentinel = []
+    for index, row in enumerate(aligned_phenotype):
+        if row is None:
             values.append(MISSING)
-            if row is not None:
-                missing_phenotype += 1
             continue
-        try:
-            float(row[2])
-        except ValueError:
+        if not is_missing(row[2]) and is_native_missing_phenotype(row[2]):
+            # A value the researcher wrote that GENIE will silently drop: numerically the missing sentinel,
+            # but not spelled the way this pipeline spells missing. Normalised so the declared count matches
+            # what GENIE will retain, and named so the drop is never silent.
+            native_sentinel.append((fam_order[index], row[2]))
+        if is_native_missing_phenotype(row[2]):
             values.append(MISSING)
             missing_phenotype += 1
             continue
         values.append(row[2])
+    if native_sentinel:
+        WARNINGS.append("phenotype_native_missing_sentinel")
+        displayed = native_sentinel[:MAX_REPORTED]
+        note(
+            "{} sample(s) carry a phenotype that GENIE reads as its own missing sentinel ({}) although it is "
+            "not written as '{}' (first {}: {}{}); they are dropped, as GENIE would drop them".format(
+                len(native_sentinel),
+                NATIVE_MISSING_PHENOTYPE,
+                MISSING,
+                len(displayed),
+                ", ".join("{} {} = {}".format(fid, iid, raw) for (fid, iid), raw in displayed),
+                "; {} further omitted".format(len(native_sentinel) - len(displayed))
+                if len(native_sentinel) > len(displayed)
+                else "",
+            )
+        )
     retained = [float(value) for value in values if value != MISSING]
     n_retained = len(retained)
 
@@ -520,22 +569,29 @@ def main():
                     else "",
                 )
             )
+        # A cell is only ever read by GENIE for a sample whose phenotype survived, so completeness is required
+        # for exactly those samples -- which is also the set the shared ingress rule polices, and the set the
+        # padding branch below excludes. Validating every row instead would refuse a file ingress deliberately
+        # accepts, and would do it while asserting that an internal invariant had been violated.
         covariate_lines = []
         for index, row in enumerate(covariate_rows):
             fid, iid = fam_order[index]
-            if row is None:
-                # The sample has no phenotype -- the check above proved that -- so GENIE drops it whatever
-                # stands in its covariate row. Measured on the pinned image: a sample excluded by a missing
-                # phenotype gives a byte-identical fit whether its covariate cells are complete, `NA` or an
-                # arbitrary number. The slot exists only to keep the file's rows aligned with the FAM.
+            phenotyped = values[index] != MISSING
+            if row is None or not phenotyped:
+                # Either the sample has no covariate row at all -- and the check above proved it has no
+                # phenotype either -- or it has one that GENIE will never read. Measured on the pinned image, a
+                # sample excluded by a missing phenotype gives a byte-identical fit whether its covariate cells
+                # are complete, `NA` or an arbitrary number, so the slot exists only to keep the file's rows
+                # aligned with the FAM and is filled with a value GENIE can parse.
                 covariate_lines.append(" ".join([fid, iid] + ["0"] * covariate_columns))
                 continue
             cells = row[2:]
             for column, cell in enumerate(cells, start=1):
                 if is_missing(cell):
                     fail(
-                        "covariate column {} is missing for sample '{} {}'; preparation should have rejected "
-                        "this analysis (requires_complete_covariates)".format(column, fid, iid)
+                        "covariate column {} is missing for sample '{} {}', which has a phenotype value; "
+                        "preparation should have rejected this analysis "
+                        "(requires_complete_covariates)".format(column, fid, iid)
                     )
                 try:
                     float(cell)
@@ -567,6 +623,15 @@ def main():
     annotation_column_sums = [
         sum(1 for row in annotation_rows if row[column] == "1") for column in range(annotation_columns)
     ]
+    empty_columns = [column for column, total in enumerate(annotation_column_sums) if total == 0]
+    if empty_columns:
+        # Measured: a two-column annotation whose second column claims no variant gives
+        # `Number of features in bin 1 : 0` and takes *every* component to -nan, not just the empty one.
+        fail(
+            "the GENIE annotation '{}' declares component column(s) {} that contain no variant; GENIE fits an "
+            "empty component and returns '-nan' for every component in the model, not only the empty "
+            "one".format(ANNOTATION_FILE, ", ".join(str(column) for column in empty_columns))
+        )
 
     settings = resolve_settings(n_variants)
 
@@ -684,6 +749,9 @@ def main():
             },
         },
         "residual_covariance": None,
+        # Required nullable core member of the shared sidecar schema: this route derives nothing, publishing
+        # GENIE's native estimate unchanged. Present so the on-disk shape is the same for every writer.
+        "derivation": None,
         "software": {
             "tool": "genie",
             "process": "GENIE_G",

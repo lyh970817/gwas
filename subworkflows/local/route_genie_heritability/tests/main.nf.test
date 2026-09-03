@@ -217,6 +217,61 @@ nextflow_workflow {
         }
     }
 
+    def strictJoins = [
+        [
+            name: 'a genie analysis with no genotype bundle',
+            genotypes: [],
+            phenotypes: ['orphan'],
+            annotations: ['orphan'],
+        ],
+        [
+            name: 'a genie analysis with no prepared phenotype',
+            genotypes: ['orphan'],
+            phenotypes: [],
+            annotations: ['orphan'],
+        ],
+        [
+            name: 'a genie analysis with no annotation record',
+            genotypes: ['orphan'],
+            phenotypes: ['orphan'],
+            annotations: [],
+        ],
+    ]
+
+    strictJoins.each { scenario ->
+        test("the route fails rather than silently dropping ${scenario.name}") {
+
+            options "-stub"
+
+            when {
+                params {
+                    outdir = "$outputDir"
+                }
+                workflow {
+                    """
+                    def orphan = ${analysisMeta('orphan', ['genie_g'])}
+
+                    input[0] = channel.of(${scenario.genotypes.collect { id -> genotypes(projectDir, id) }.join(', ')})
+                    input[1] = channel.of(${scenario.phenotypes.collect { id -> phenotype(projectDir, id, 'alpha.noheader.pheno') }.join(', ')})
+                    input[2] = channel.empty()
+                    input[3] = channel.of(${scenario.annotations.collect { id -> annotation(projectDir, id) }.join(', ')})
+                    """
+                }
+            }
+
+            then {
+                // The guarded joins are strict in both directions on purpose. A record missing from any one of
+                // the three required streams means the spine and this route disagree about which analyses exist,
+                // and the only safe outcome is to stop: dropping the record instead would silently omit a
+                // requested estimate from the run with nothing in the output to say so.
+                assertAll(
+                    { assert !workflow.success },
+                    { assert TRACE.count(workflow, 'GENIE_G') == 0 },
+                )
+            }
+        }
+    }
+
     test("empty request streams run nothing") {
 
         options "-stub"

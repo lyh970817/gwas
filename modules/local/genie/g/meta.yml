@@ -2,10 +2,21 @@
 name: genie_g
 description: |
   Estimate additive genome-wide heritability with GENIE's randomized Haseman-Elston regression, reading PLINK 1
-  genotypes directly instead of a genomic relatedness matrix. The additive model `-m G` and the projection and
-  intercept policy `-np 0 -i 1` are fixed by this module: omitting `-m` makes GENIE fit gene-by-environment and
-  noise-by-environment components instead, and both projection defaults are undocumented in the tool's own usage
-  text, so the emitted command states them rather than trusting them.
+  genotypes directly instead of a genomic relatedness matrix.
+
+  The additive model `-m G` and the projection and intercept policy `-np 0 -i 1` are fixed by this module,
+  because the tool's own documentation disagrees with the binary about what those defaults are. GENIE's usage
+  text says of `--norm-proj-pheno`: "By default, the phenotype vector is standardized after regressing
+  covariates." The measured default is the opposite -- an unset `-np` reproduces `-np 0` byte for byte, while
+  `-np 1` changes the reported `Sigma^2_g[0]` from 0.0560618 to 0.0580856 on the compact fixture. The emitted
+  command therefore states the value actually used rather than inheriting a default the documentation
+  contradicts. `-i 1` matches both the documented and the measured default and is spelled for the same reason;
+  `-i 0` drops the intercept and moves the estimate.
+
+  Omitting `-m` does not add components: with no environment file GENIE still reports zero gene-by-environment
+  and zero noise-by-environment components. What it does is echo the model as `G+GxE+NxE`, silently behave as
+  `-m G -np 1`, and emit a `Total h2_gxe` line for a model that has no such component. The literal is load
+  bearing because of that, not because of extra components.
 
   Supported platform: `linux/amd64` only. The pinned image publishes a single OCI manifest and the module ships
   no `environment.yml`, so there is no Conda fallback on another architecture.
@@ -62,17 +73,25 @@ input:
     - phenotype:
         type: file
         description: |
-          Single-trait phenotype file passed to `-p`, in FAM order, with a header row. GENIE skips line one, so
-          a headerless file is rejected as a sample-count mismatch. `NA` and `-9` are both read as missing.
+          Single-trait phenotype file passed to `-p`, in FAM order, with a header row whose first two fields are
+          the literal, case-sensitive `FID` and `IID`. GENIE parses the header rather than skipping it: it uses
+          those two names to decide which columns are identifiers, and the header's field count to decide how
+          many traits follow. A lowercase or differently named header is accepted and silently changes the
+          estimate (0.0570925 -> 0.0420263 on one unchanged body); a header with fewer fields than the data rows
+          segfaults; a headerless file is rejected as a sample-count mismatch. Missing is numeric, not textual:
+          GENIE drops every sample whose trait parses to exactly -9, however it is spelled, and `NA` besides.
         ontologies: []
     - covariates:
         type: file
         optional: true
         description: |
-          Optional covariate file passed to `-c`, in FAM order, with a header row; pass [] when absent. GENIE
-          adds its own intercept, so it reports one covariate more than the file declares. It reads a missing
-          or non-numeric cell as a value and excludes neither the sample nor the column, so the caller owns
-          completeness; a headerless file silently shifts the reported covariate count.
+          Optional covariate file passed to `-c`, in FAM order, with a header row whose first two fields are the
+          literal, case-sensitive `FID` and `IID`; pass [] when absent. The same header rule as the phenotype
+          applies: `A B C D E F G` or a lowercase `fid iid ...` makes GENIE read the identifier columns as
+          covariates, reporting eight instead of six and returning -nan. GENIE adds its own intercept, so it
+          reports one covariate more than the file declares. It reads a missing or non-numeric cell as a value
+          and excludes neither the sample nor the column, so the caller owns completeness for every sample whose
+          phenotype survives; cells belonging to a sample GENIE drops for a missing phenotype are inert.
         ontologies: []
     - annotation:
         type: file
@@ -84,10 +103,16 @@ input:
     - expected_counts:
         type: file
         description: |
-          Two-column `key<TAB>value` table of the counts GENIE must echo back: `individuals`, `covariates`
-          (covariate columns plus GENIE's own intercept) and one `bin_<k>` per annotation column. The module
-          asserts GENIE's own echo against it, because a positional mismatch, a stray header row and an
-          annotation/BIM disagreement all otherwise produce a plausible wrong answer at exit 0.
+          Two-column `key<TAB>value` table of the counts GENIE must echo back: `individuals` (the samples GENIE
+          will retain, under GENIE's own numeric missing rule), `covariates` (covariate columns plus GENIE's own
+          intercept) and one `bin_<k>` per annotation column. The module asserts GENIE's echo against it,
+          because a stray header row changing the covariate width, a disagreement between the annotation and
+          the variant file, and a retained-sample count the caller did not predict all otherwise produce a
+          plausible wrong answer at exit 0.
+
+          This does **not** detect a positional shift. Measured on the pinned image, a covariate file missing
+          one data row, and one whose rows are permuted, both run at exit 0 with every declared count matching
+          and the estimate moved. Row order is the caller's responsibility.
         pattern: "*.tsv"
         ontologies: []
     - memory_efficient:

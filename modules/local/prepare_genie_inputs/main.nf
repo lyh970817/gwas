@@ -62,7 +62,7 @@ process PREPARE_GENIE_INPUTS {
     ${covariates_stub}
     printf 'individuals\\t1\\nbin_0\\t1\\n' > "${prefix}.genie_expected.tsv"
     printf '%s\\n' '{"random_vectors": 10, "jackknife_blocks": 1, "seed": null, "memory_efficient": false, "native_args": ["-jn", "1"], "native_defaults_apply": ["random_vectors"], "n_variants": 1, "n_samples_fam": 1, "n_samples_retained": 1, "annotation_columns": 1, "annotation_column_sums": [1], "covariate_columns": 0}' > "${prefix}.genie_effective.json"
-    printf '%s\\n' '{"schema_version": "1.1", "result": {"kind": "heritability", "analysis_id": "${meta.id}", "method": "${meta.genie_method}"}, "classification": null, "warnings": []}' > "${prefix}.provenance.json"
+    printf '%s\\n' '{"schema_version": "1.1", "result": {"kind": "heritability", "analysis_id": "${meta.id}", "method": "${meta.genie_method}"}, "residual_covariance": null, "derivation": null, "classification": null, "warnings": []}' > "${prefix}.provenance.json"
     printf '"%s":\\n    python: %s\\n' \\
         '${task.process}' \\
         "\$(python3 --version | sed 's/^Python //')" \\

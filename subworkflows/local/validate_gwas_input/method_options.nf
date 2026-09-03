@@ -321,8 +321,10 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
 
 // Every bound below narrows the native surface deliberately, and each narrowing answers a measured
 // silent-wrong-answer mode of the pinned GENIE image rather than a preference. `-jn 1` returns a jackknife
-// standard error of exactly zero; a negative `-s` is silently treated as unseeded and echoes no seed line at
-// all, so the effective seed becomes unrecoverable; a non-integer `-s` is parsed as 0. The upper bound on
+// standard error of exactly zero; a negative integer `-s` is silently treated as unseeded and echoes no seed
+// line at all, so the effective seed becomes unrecoverable; a fractional `-s` is truncated toward zero and
+// reproduces the truncated run byte for byte, so `1.5` and `1` are the same run under two different spellings
+// in the options document; a non-numeric `-s` is parsed as 0. The upper bound on
 // `jackknife_blocks` is the cohort's variant count, which ingress cannot see -- GENIE raises a floating-point
 // exception when a block ends up empty -- so `PREPARE_GENIE_INPUTS` rejects that case against the real BIM
 // instead of this resolver clamping a curated value into something the researcher did not ask for.
@@ -343,7 +345,7 @@ def resolveGenieMethodOptions(analysis_id, options, methods, defaults, fail) {
         fail.call(analysis_id, 'genie.jackknife_blocks', 'expected an integer of at least 2 or null; one block yields a zero jackknife standard error')
     }
     if (seed != null && (!(seed instanceof Number) || seed < 0 || seed != seed.toInteger())) {
-        fail.call(analysis_id, 'genie.seed', 'expected a non-negative integer or null; GENIE treats a negative seed as unseeded and a non-integer seed as 0')
+        fail.call(analysis_id, 'genie.seed', 'expected a non-negative integer or null; GENIE truncates a fractional seed toward zero, parses a non-numeric seed as 0, and treats a negative integer seed as unseeded while echoing no seed line at all')
     }
     if (!(memory_efficient instanceof Boolean)) {
         fail.call(analysis_id, 'genie.memory_efficient', 'expected a boolean')

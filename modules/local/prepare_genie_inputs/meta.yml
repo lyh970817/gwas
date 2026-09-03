@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: prepare_genie_inputs
+description: |
+  Write exactly the files GENIE consumes for one analysis unit, in exactly the order it consumes them, and
+  refuse the inputs GENIE would accept and answer wrongly.
+
+  GENIE matches its phenotype and covariate rows positionally against the FAM, reading the identifier columns
+  and discarding them, so this module emits one row per FAM row in FAM order. It also writes the count contract
+  the estimator asserts GENIE's own echo against, the resolved stochastic settings the caller renders into the
+  native argument list, and the per-result provenance sidecar.
+
+  Refusals, each answering a measured native behaviour that otherwise exits 0 with a number: an ambiguous
+  identity, a constant phenotype, a monomorphic variant, fewer retained samples than a randomised fit can
+  support, a design saturated by its own covariates, an annotation that disagrees with the variant file or is
+  not a disjoint partition, an annotation component containing no variant, a jackknife count the cohort or the
+  selected executable cannot support, and a covariate cell missing for a sample whose phenotype survives.
+keywords:
+  - gwas
+  - genome-wide association study
+  - heritability
+  - phenotype
+  - covariates
+  - annotation
+  - alignment
+tools:
+  - "python":
+      description: Python programming language
+      homepage: "https://www.python.org"
+      documentation: "https://docs.python.org"
+      licence: ["PSF-2.0"]
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing the analysis unit's information.
+          Expected keys:
+            - id (string): Analysis identifier, and the default output prefix.
+            - genie_method (string): The selected GENIE method token, recorded in the provenance sidecar.
+            - genie_capability (map): The estimator capabilities recorded in the sidecar's `estimator` block.
+            - method_options (map): Carries `genie` with the curated `random_vectors`, `jackknife_blocks`,
+              `seed` and `memory_efficient` settings this module resolves against the cohort.
+    - bed:
+        type: file
+        description: PLINK BED genotype file, scanned for monomorphic variants over the whole FAM
+        pattern: "*.bed"
+        ontologies: []
+    - bim:
+        type: file
+        description: PLINK BIM variant file; its line count is the annotation's required row count
+        pattern: "*.bim"
+        ontologies: []
+    - fam:
+        type: file
+        description: PLINK FAM sample file; the authoritative sample order every written file follows
+        pattern: "*.fam"
+        ontologies: []
+  - - meta2:
+        type: map
+        description: Metadata map paired with the prepared phenotype and covariate design.
+    - phenotype:
+        type: file
+        description: |
+          Headerless prepared phenotype, `FID IID PHENO`, as `PREPARE_PHENOTYPE_INPUTS` emits it
+        pattern: "*.noheader.pheno"
+        ontologies: []
+    - adjustment_covariates:
+        type: file
+        optional: true
+        description: |
+          Optional headerless numerical covariate design, quantitative columns followed by treatment-coded
+          factors; pass [] when the analysis declared none. It must be complete for every sample whose
+          phenotype survives alignment, which ingress enforces through `requires_complete_covariates`
+        pattern: "*.adjustcovar"
+        ontologies: []
+  - - meta3:
+        type: map
+        description: Metadata map paired with the optional component annotation.
+    - annotation:
+        type: file
+        optional: true
+        description: |
+          Optional SNP-by-component 0/1 matrix in variant-file order; pass [] to fit the single all-variant
+          component GENIE fits by default. Validated against the BIM and required to be a disjoint partition
+        pattern: "*.{txt,annot}"
+        ontologies: []
+output:
+  phenotype:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.genie.pheno":
+          type: file
+          description: |
+            Single-trait phenotype in FAM order with the `FID IID PHENO` header GENIE requires, missing values
+            written as `NA`
+          pattern: "*.genie.pheno"
+          ontologies: []
+  annotation:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.genie.annot":
+          type: file
+          description: |
+            Space-delimited SNP-by-component matrix, one row per variant, either the caller's validated
+            partition or the generated all-variant column
+          pattern: "*.genie.annot"
+          ontologies: []
+  covariates:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.genie.covar":
+          type: file
+          description: |
+            Covariate design in FAM order with the `FID IID cov_1 ...` header GENIE requires; emitted only when
+            the analysis declared covariates
+          pattern: "*.genie.covar"
+          ontologies: []
+  expected_counts:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.genie_expected.tsv":
+          type: file
+          description: |
+            Two-column `key<TAB>value` contract the estimator asserts GENIE's own echo against: `individuals`,
+            `covariates` including GENIE's intercept, and one `bin_<k>` per annotation column
+          pattern: "*.genie_expected.tsv"
+          ontologies: []
+  effective_settings:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.genie_effective.json":
+          type: file
+          description: |
+            Resolved stochastic settings and the native argument list they render into, read by the caller to
+            configure the estimator invocation
+          pattern: "*.genie_effective.json"
+          ontologies: []
+  provenance:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "*.provenance.json":
+          type: file
+          description: |
+            Per-result invocation record: effective and requested stochastic settings, the fitted components,
+            sample and variant identities as SHA-256 digests, and the pinned runtime's build identity
+          pattern: "*.provenance.json"
+          ontologies: []
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

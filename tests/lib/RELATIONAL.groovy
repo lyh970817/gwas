@@ -612,6 +612,26 @@ class RELATIONAL {
         ]
     }
 
+    // A copy of a shipped phenotype fixture with one named sample's trait blanked out, for the rule that
+    // exempts an unphenotyped sample from covariate completeness: its covariates are never read by any
+    // estimator, so a gap in them is not a defect. Returns the resource path.
+    static String phenotypeWithoutSample(Object projectDir, Object outputDir, String name, String fixtureName, String column, String fid, String iid) {
+        def fixture = "${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/${fixtureName}"
+        def lines = fixture.startsWith('http') ? new URL(fixture).readLines() : new File(fixture).readLines()
+        def header = lines.first().split('\t', -1).toList()
+        def index = header.indexOf(column)
+        if (index < 2) {
+            throw new IllegalArgumentException("Phenotype fixture '${fixtureName}' declares no trait column '${column}'")
+        }
+        def body = lines.tail().findAll { line -> line.trim() }.collect { line -> line.split('\t', -1).toList() }
+        def target = body.find { row -> row[0] == fid && row[1] == iid }
+        if (!target) {
+            throw new IllegalArgumentException("Phenotype fixture '${fixtureName}' declares no sample '${fid} ${iid}'")
+        }
+        target[index] = 'NA'
+        return resource(outputDir, name, ([header.join('\t')] + body.collect { row -> row.join('\t') }).join('\n') + '\n')
+    }
+
     static String resource(Object outputDir, String name, String content) {
         def directory = new File(new File(outputDir.toString()).parentFile, 'resources')
         directory.mkdirs()

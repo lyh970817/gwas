@@ -245,7 +245,7 @@ nextflow_function {
         [
             name: 'a negative seed',
             options: [genie: [seed: -1]],
-            expected: "option 'genie.seed': expected a non-negative integer or null; GENIE treats a negative seed as unseeded",
+            expected: "option 'genie.seed': expected a non-negative integer or null; GENIE truncates a fractional seed toward zero, parses a non-numeric seed as 0, and treats a negative integer seed as unseeded while echoing no seed line at all",
         ],
         [
             name: 'a fractional seed',

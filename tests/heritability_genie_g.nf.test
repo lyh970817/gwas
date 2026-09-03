@@ -11,6 +11,20 @@ nextflow_pipeline {
         [suffix: ' - stub', stub: true],
     ]
 
+    // Whether every recorded token appears in the emitted command in the recorded order, not necessarily
+    // contiguously. Equality is impossible: the command additionally carries the file and runtime bindings.
+    def isSubsequence = { recorded, emitted ->
+        def cursor = 0
+        for (token in recorded) {
+            cursor = emitted.findIndexOf(cursor) { candidate -> candidate == token }
+            if (cursor < 0) {
+                return false
+            }
+            cursor += 1
+        }
+        return true
+    }
+
     def commands = { outputDir ->
         def scripts = []
         new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
@@ -125,10 +139,18 @@ nextflow_pipeline {
                         { assert plain.text.contains('Number of individuals after filtering: 200') },
                         { assert plain.text.contains('Total h2') },
                         { assert !plain.text.contains('nan') },
+                        { assert provenance('genie_plain').native_arguments == ['-m', 'G', '-np', '0', '-i', '1', '-jn', '1000', '-k', '20', '-s', '7'] },
                         // Every argument the sidecar records appears in the command it describes, in order.
                         // Equality is impossible: the command additionally carries the file and runtime
-                        // bindings, which are not settings.
-                        { assert provenance('genie_plain').native_arguments == ['-m', 'G', '-np', '0', '-i', '1', '-jn', '1000', '-k', '20', '-s', '7'] },
+                        // bindings, which are not settings, so this is a subsequence relation and is checked
+                        // as one. Without it the sidecar could drift from the invocation it claims to record.
+                        { assert ['genie_plain', 'genie_covariates', 'genie_with_ldak'].every { analysis_id ->
+                            def emitted = genieCommands.find { command -> command.contains("-o \"${analysis_id}.genie_g.out\"") }.tokenize(' ')
+                            isSubsequence(provenance(analysis_id).native_arguments, emitted)
+                        } },
+                        // The check has to be able to fail: a token the command never carries must break it.
+                        { assert !isSubsequence(['-m', 'G', '-eXannot'], ['-m', 'G', '-np', '0']) },
+                        { assert !isSubsequence(['-s', '-m'], ['-m', 'G', '-s', '7']) },
                         { assert provenance('genie_covariates').stochastic_settings.family_options.jackknife_blocks == 100 },
                         { assert provenance('genie_covariates').stochastic_settings.family_options.jackknife_blocks_source == 'requested' },
                         { assert provenance('genie_plain').stochastic_settings.family_options.jackknife_blocks_source == 'clamped_native_default' },
@@ -476,6 +498,59 @@ nextflow_pipeline {
                 { assert !workflow.success },
                 { assert report.contains('genie.jackknife_blocks 3000 exceeds the 2200 variant(s) in the cohort') },
                 { assert TRACE.count(workflow, 'GENIE_G') == 0 },
+            )
+        }
+    }
+
+    test("a covariate cell missing only for an unphenotyped sample is accepted by both direct routes") {
+
+        tag "genie_exempt_covariates"
+
+        when {
+            params {
+                // The blanked cell belongs to the first sample, whose phenotype is then removed. Ingress
+                // polices only the cells of phenotyped samples, so this file is admitted; the GENIE adapter
+                // must admit it too rather than killing the run on an invariant ingress never asserted.
+                def incomplete = RELATIONAL.covariatesWithMissingCell(projectDir, outputDir, 'exempt.qcovar', 'example.qcovar', 'AGE')
+                def phenotype = RELATIONAL.phenotypeWithoutSample(projectDir, outputDir, 'exempt.pheno', 'example.pheno', 'QT', incomplete.fid, incomplete.iid)
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'genie_exempt')
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'genie_exempt', { rows ->
+                    rows[0].analysis_id = 'exempt_genie'
+                    rows[0].association_methods = ''
+                    rows[0].heritability_methods = 'genie_g'
+                    rows[0].quant_covariates = incomplete.path
+                    rows[0].phenotype = phenotype
+
+                    def fast = RELATIONAL.analysis(projectDir, 'example_pgen_qt')
+                    fast.analysis_id = 'exempt_ldak_fast'
+                    fast.association_methods = ''
+                    fast.heritability_methods = 'ldak_fast_he'
+                    fast.quant_covariates = incomplete.path
+                    fast.phenotype = phenotype
+                    rows << fast
+                })
+                method_options = RELATIONAL.methodOptions(outputDir, 'genie_exempt', [analyses: [
+                    exempt_genie: [genie: [seed: 7, random_vectors: 20, jackknife_blocks: 100]],
+                    exempt_ldak_fast: [ldak: [model: 'human_default', power: -0.25, weights_policy: 'equal', fast_seed: 7]],
+                ]])
+            }
+        }
+
+        then {
+            // The end-to-end proof that the two direct-genotype families accept exactly the same covariate
+            // file. A refusal on either side here would mean one route imposes a rule ingress does not.
+            def genie = new File("${params.outdir}/heritability/individual/genie_g/exempt_genie")
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_GENIE_INPUTS') == 1 },
+                { assert TRACE.count(workflow, 'GENIE_G') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_FASTHE') == 1 },
+                { assert new File(genie, 'exempt_genie.genie_g.out').isFile() },
+                { assert new File(genie, 'exempt_genie.genie_g.out').text.contains('Number of individuals after filtering: 199') },
+                { assert new File(genie, 'exempt_genie.genie_g.out').text.contains('Total h2') },
+                { assert !new File(genie, 'exempt_genie.genie_g.out').text.contains('nan') },
+                { assert new File("${params.outdir}/heritability/individual/ldak_fast_he/exempt_ldak_fast/exempt_ldak_fast.ldak_fast_he.fasthe").isFile() },
             )
         }
     }
