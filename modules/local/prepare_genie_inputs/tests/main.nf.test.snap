@@ -1,0 +1,476 @@
+{
+    "shuffling the source phenotype rows does not change a single written byte": {
+        "content": [
+            {
+                "annotation": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.annot:md5,152a01cd68b66716da7855bfe13d03ff"
+                    ]
+                ],
+                "covariates": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.covar:md5,e768a5bb7511a6624e6930c04b696be2"
+                    ]
+                ],
+                "effective_settings": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_effective.json:md5,efb486a6471931591c2672c20fe0ddad"
+                    ]
+                ],
+                "expected_counts": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_expected.tsv:md5,00f0ac0d32d0e8d762dbcb566f21aa20"
+                    ]
+                ],
+                "phenotype": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.pheno:md5,3c4bd85d660ff4078e2d5c057dc52359"
+                    ]
+                ],
+                "provenance": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.provenance.json:md5,1fb9c127f957fa6abe6ccc3c4a4159e8"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,c1558e4f7647cb33c0c9ebca2ba11f30"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-02T23:31:45.693221843",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "the prepared files are written in FAM order with the header GENIE requires": {
+        "content": [
+            {
+                "annotation": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.annot:md5,152a01cd68b66716da7855bfe13d03ff"
+                    ]
+                ],
+                "covariates": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.covar:md5,e768a5bb7511a6624e6930c04b696be2"
+                    ]
+                ],
+                "effective_settings": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_effective.json:md5,efb486a6471931591c2672c20fe0ddad"
+                    ]
+                ],
+                "expected_counts": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_expected.tsv:md5,00f0ac0d32d0e8d762dbcb566f21aa20"
+                    ]
+                ],
+                "phenotype": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.pheno:md5,3c4bd85d660ff4078e2d5c057dc52359"
+                    ]
+                ],
+                "provenance": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.provenance.json:md5,1fb9c127f957fa6abe6ccc3c4a4159e8"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,c1558e4f7647cb33c0c9ebca2ba11f30"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-02T23:31:33.853403659",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "stub": {
+        "content": [
+            {
+                "annotation": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.annot:md5,b026324c6904b2a9cb4b88d6d61c81d1"
+                    ]
+                ],
+                "covariates": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.covar:md5,670c9e908ab38b407df4120edbc2bbaa"
+                    ]
+                ],
+                "effective_settings": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_effective.json:md5,3e404c0ace6884efc06dd570c3516767"
+                    ]
+                ],
+                "expected_counts": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie_expected.tsv:md5,e98e1385adc5217a50ccd22df03cff45"
+                    ]
+                ],
+                "phenotype": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.genie.pheno:md5,2458c3ec2513d6f611153252cab8b52f"
+                    ]
+                ],
+                "provenance": [
+                    [
+                        {
+                            "genie_capability": {
+                                "component_model": "single",
+                                "estimator_family": "moment_he",
+                                "input_backend": "direct_plink1_genotypes",
+                                "option_family": "genie",
+                                "stochastic": true
+                            },
+                            "genie_method": "genie_g",
+                            "id": "analysis",
+                            "method_options": {
+                                "genie": {
+                                    "jackknife_blocks": null,
+                                    "memory_efficient": false,
+                                    "random_vectors": null,
+                                    "seed": 7
+                                }
+                            }
+                        },
+                        "analysis.provenance.json:md5,89360b43cd19f24e157b6782be7d9674"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,c1558e4f7647cb33c0c9ebca2ba11f30"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-02T23:35:31.457692067",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

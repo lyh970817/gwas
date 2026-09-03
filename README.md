@@ -45,7 +45,7 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
    - LDAK Haseman-Elston regression
    - LDAK PCGC
 
-   Not every heritability route needs one: LDAK fast Haseman-Elston regression and LDAK fast PCGC estimate directly from the cohort's genotypes and build no relatedness matrix at all.
+   Not every heritability route needs one: LDAK fast Haseman-Elston regression, LDAK fast PCGC and GENIE-G additive randomised Haseman-Elston estimate directly from the cohort's genotypes and build no relatedness matrix at all.
 
 8. Resolve declared unary and pair summary-statistics requests against explicit LDAK or LDSC reference bundles, including LDAK SumHer heritability and SumCors genetic correlation.
 9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg and publish each native result and log directly.

@@ -1,0 +1,91 @@
+{
+    "layout": {
+        "content": [
+            [
+                "",
+                "genie_covariates",
+                "genie_covariates/genie_covariates.genie_g.log",
+                "genie_covariates/genie_covariates.genie_g.out",
+                "genie_covariates/genie_covariates.genie_g.provenance.json",
+                "genie_plain",
+                "genie_plain/genie_plain.genie_g.log",
+                "genie_plain/genie_plain.genie_g.out",
+                "genie_plain/genie_plain.genie_g.provenance.json",
+                "genie_with_ldak",
+                "genie_with_ldak/genie_with_ldak.genie_g.log",
+                "genie_with_ldak/genie_with_ldak.genie_g.out",
+                "genie_with_ldak/genie_with_ldak.genie_g.provenance.json"
+            ]
+        ],
+        "timestamp": "2026-09-03T00:32:00.812077072",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "streamed": {
+        "content": [
+            "genie_with_ldak.genie_g.out:md5,64211cab889353f893383463618f2266",
+            "genie_with_ldak.genie_g.provenance.json:md5,1793b0bb6fb8d9022f4ebd075ddd316c"
+        ],
+        "timestamp": "2026-09-03T00:32:00.829653523",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "versions": {
+        "content": [
+            {
+                "GENIE_G": {
+                    "genie": "1.1.1"
+                },
+                "LDAK_ADJUSTGRM": {
+                    "ldak6": 6
+                },
+                "LDAK_CALCKINS": {
+                    "ldak6": 6
+                },
+                "LDAK_HE": {
+                    "ldak6": 6
+                },
+                "PLINK2_MAKEBED": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
+                "PREPARE_GENIE_INPUTS": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PHENOTYPE_INPUTS": {
+                    "python": "3.14.5"
+                },
+                "Workflow": {
+                    "nf-core/gwas": "v1.0.0dev"
+                }
+            }
+        ],
+        "timestamp": "2026-09-03T00:32:00.799218121",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "heritability": {
+        "content": [
+            [
+                "genie_plain.genie_g.log:md5,21d620162240bbc26c2f8c8711e19d2f",
+                "genie_plain.genie_g.out:md5,eb7b252e3ae1a60644d9b9717f5fc880",
+                "genie_plain.genie_g.provenance.json:md5,c5c86afbf6d25722e7f647971f1cf0f7"
+            ],
+            [
+                "genie_covariates.genie_g.log:md5,45d9a257928068c6fa679fa4c6e61a89",
+                "genie_covariates.genie_g.out:md5,d5d4f3a5e96a5e1ffb93cfd227742959",
+                "genie_covariates.genie_g.provenance.json:md5,f42cfc16bf959311e60cd952b361a30e"
+            ]
+        ],
+        "timestamp": "2026-09-03T00:32:00.819042002",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

@@ -135,7 +135,7 @@ nextflow_pipeline {
             },
             field: "field 'heritability_methods'",
             message: "unknown method 'greml3'",
-            accepted: "accepted values are 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc', 'ldak_fast_he', 'ldak_fast_pcgc'",
+            accepted: "accepted values are 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc', 'ldak_fast_he', 'ldak_fast_pcgc', 'genie_g'",
         ],
         [
             name: "analysis repeating an association method",

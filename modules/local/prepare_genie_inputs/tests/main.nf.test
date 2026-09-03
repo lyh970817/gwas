@@ -1,0 +1,649 @@
+nextflow_process {
+
+    name "Test Process PREPARE_GENIE_INPUTS"
+    config "./nextflow.config"
+    script "../main.nf"
+    process "PREPARE_GENIE_INPUTS"
+
+    tag "modules"
+    tag "modules_local"
+    tag "prepare_genie_inputs"
+
+    // The shipped popgen trio is 200 samples by 220 variants, FAM-ordered `per0..per199`, with no monomorphic
+    // variant. Everything keyed to those samples is written here rather than shipped, because each file is
+    // derived from the trio's own dimensions and a shipped copy would go stale beside it silently.
+    def genotypes = """
+                [
+                    [
+                        id: 'analysis',
+                        genie_method: 'genie_g',
+                        genie_capability: [
+                            option_family: 'genie',
+                            estimator_family: 'moment_he',
+                            input_backend: 'direct_plink1_genotypes',
+                            component_model: 'single',
+                            stochastic: true,
+                        ],
+                        method_options: [genie: METHOD_OPTIONS],
+                    ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
+                ]
+    """
+
+    def defaultOptions = "[random_vectors: null, jackknife_blocks: null, seed: 7, memory_efficient: false]"
+
+    // A deterministic, clearly non-degenerate trait and two covariate columns, in the headerless tab-delimited
+    // serialisation `PREPARE_PHENOTYPE_INPUTS` emits.
+    def sources = { outputDir, name ->
+        def root = new File(outputDir.toString(), "genie_${name}")
+        root.mkdirs()
+        def trait = { index -> String.format('%.6f', Math.sin(index * 0.7d) * 2.0d + index * 0.01d) }
+        def write = { fileName, text ->
+            def target = new File(root, fileName)
+            target.text = text
+            target
+        }
+        def phenotypeRows = (0..<200).collect { index -> "per${index}\tper${index}\t${trait(index)}" }
+        def covariateRows = (0..<200).collect { index -> "per${index}\tper${index}\t${index}\t${index % 2}" }
+        [
+            root: root,
+            write: write,
+            phenotype: write('analysis.noheader.pheno', phenotypeRows.join('\n') + '\n'),
+            covariates: write('analysis.adjustcovar', covariateRows.join('\n') + '\n'),
+            shuffled: write('shuffled.noheader.pheno', phenotypeRows.reverse().join('\n') + '\n'),
+            annotationPaired: write('annotation_paired.txt', (0..<220).collect { index -> index % 2 == 0 ? '1\t0' : '0\t1' }.join('\n') + '\n'),
+        ]
+    }
+
+    def declared = { meta_options -> genotypes.replace('METHOD_OPTIONS', meta_options) }
+
+    test("the prepared files are written in FAM order with the header GENIE requires") {
+
+        when {
+            def fixtures = sources(outputDir, 'aligned')
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), file('${fixtures.covariates}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            def phenotype = path(process.out.phenotype.get(0).get(1))
+            def covariates = path(process.out.covariates.get(0).get(1))
+            def annotation = path(process.out.annotation.get(0).get(1))
+            def expected = path(process.out.expected_counts.get(0).get(1))
+            def effective = new groovy.json.JsonSlurper().parseText(path(process.out.effective_settings.get(0).get(1)).text)
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                // GENIE skips line one of both files and matches every remaining row positionally, so the
+                // header is mandatory and the row order is the FAM's, not the source table's.
+                { assert phenotype.readLines().first() == 'FID IID PHENO' },
+                { assert phenotype.readLines().size() == 201 },
+                { assert phenotype.readLines()[1].startsWith('per0 per0 ') },
+                { assert phenotype.readLines()[200].startsWith('per199 per199 ') },
+                { assert covariates.readLines().first() == 'FID IID cov_1 cov_2' },
+                { assert covariates.readLines().size() == 201 },
+                { assert annotation.readLines().size() == 220 },
+                { assert annotation.readLines().every { line -> line == '1' } },
+                // The count contract the estimator asserts GENIE's own echo against. The covariate line
+                // carries one more than the file declares, because GENIE always adds its own intercept.
+                { assert expected.readLines() == ['individuals\t200', 'covariates\t3', 'bin_0\t220'] },
+                // A curated value is never rewritten, but the jackknife default is: GENIE's own default of
+                // 1000 blocks exceeds this cohort's 220 variants and would abort with a floating-point
+                // exception, so the clamp is spelled and recorded.
+                { assert effective.jackknife_blocks == 220 },
+                { assert effective.native_args == ['-jn', '220', '-s', '7'] },
+                { assert effective.native_defaults_apply == ['random_vectors'] },
+                { assert effective.random_vectors == 10 },
+                { assert effective.n_samples_retained == 200 },
+                { assert effective.covariate_columns == 2 },
+                { assert provenance.schema_version == '1.1' },
+                { assert provenance.result.method == 'genie_g' },
+                { assert provenance.estimator.input_backend == 'direct_plink1_genotypes' },
+                { assert provenance.inputs.samples.order_source == 'fam' },
+                { assert provenance.inputs.samples.retained == 200 },
+                { assert provenance.inputs.samples.dropped_by_cause.missing_covariate == 0 },
+                { assert provenance.inputs.variants.annotation_source == 'generated_all_ones' },
+                { assert provenance.inputs.variants.annotation_partition == 'disjoint' },
+                { assert provenance.component_plan.components == [[ordinal: 1, name: 'all_variants', predictor_count: 220]] },
+                { assert provenance.native_arguments == ['-m', 'G', '-np', '0', '-i', '1', '-jn', '220', '-s', '7'] },
+                { assert provenance.native_checks.writer == 'GENIE_G' },
+                { assert provenance.software.executable == 'GENIE' },
+                { assert provenance.software.build.version == '1.1.1' },
+                // The sidecar is written before the native call and structurally cannot classify the fit, so
+                // it declares the post-run assertions instead of guessing one.
+                { assert provenance.classification == null },
+                { assert provenance.warnings.containsAll(['random_vectors_native_default', 'retained_below_recommended_scale']) },
+                // The provenance key set is checked as a whole, so a writer that quietly grew or lost a
+                // top-level block fails here rather than downstream.
+                { assert provenance.keySet().toList().sort() == [
+                    'classification',
+                    'component_plan',
+                    'estimator',
+                    'inputs',
+                    'native_arguments',
+                    'native_checks',
+                    'residual_covariance',
+                    'result',
+                    'schema_version',
+                    'software',
+                    'stochastic_settings',
+                    'warnings',
+                ] },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+
+    test("shuffling the source phenotype rows does not change a single written byte") {
+
+        when {
+            def fixtures = sources(outputDir, 'shuffled')
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.shuffled}', checkIfExists: true), file('${fixtures.covariates}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // This is the whole reason the adapter exists. GENIE reads the identifier columns and discards
+            // them, so a correctly identified but reordered table silently fits the wrong trait to the wrong
+            // sample. Reordering the source here must be invisible in the output.
+            def phenotype = path(process.out.phenotype.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert phenotype.readLines()[1].startsWith('per0 per0 ') },
+                { assert phenotype.readLines()[200].startsWith('per199 per199 ') },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+
+    test("a curated jackknife count and random-vector count are spelled as requested") {
+
+        when {
+            def fixtures = sources(outputDir, 'curated')
+            process {
+                """
+                input[0] = ${declared("[random_vectors: 4, jackknife_blocks: 44, seed: 1, memory_efficient: true]")}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            def effective = new groovy.json.JsonSlurper().parseText(path(process.out.effective_settings.get(0).get(1)).text)
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert effective.native_args == ['-jn', '44', '-k', '4', '-s', '1'] },
+                { assert effective.native_defaults_apply == [] },
+                { assert effective.memory_efficient },
+                { assert effective.covariate_columns == 0 },
+                // No covariate file was supplied, so none is emitted and the count contract still declares
+                // GENIE's intercept.
+                { assert process.out.covariates.size() == 0 },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines() == ['individuals\t200', 'covariates\t1', 'bin_0\t220'] },
+                { assert provenance.software.executable == 'GENIE_mem' },
+                { assert !provenance.warnings.contains('random_vectors_native_default') },
+                { assert !provenance.warnings.contains('jackknife_blocks_clamped_default') },
+                { assert provenance.stochastic_settings.family_options.jackknife_blocks_source == 'requested' },
+                { assert provenance.stochastic_settings.deterministic },
+            )
+        }
+    }
+
+    test("a caller annotation is validated against the BIM and rewritten space-delimited") {
+
+        when {
+            def fixtures = sources(outputDir, 'paired')
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), file('${fixtures.covariates}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], file('${fixtures.annotationPaired}', checkIfExists: true)]
+                """
+            }
+        }
+
+        then {
+            // A tab-delimited annotation is read by GENIE as zero variants in every bin and returns `-nan` at
+            // exit 0, so the delimiter is rewritten rather than passed through. The per-column sums become the
+            // per-bin counts the estimator asserts against.
+            def annotation = path(process.out.annotation.get(0).get(1))
+            def effective = new groovy.json.JsonSlurper().parseText(path(process.out.effective_settings.get(0).get(1)).text)
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert annotation.readLines().first() == '1 0' },
+                { assert annotation.readLines()[1] == '0 1' },
+                { assert !annotation.text.contains('\t') },
+                { assert effective.annotation_columns == 2 },
+                { assert effective.annotation_column_sums == [110, 110] },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines() == ['individuals\t200', 'covariates\t3', 'bin_0\t110', 'bin_1\t110'] },
+                { assert provenance.inputs.variants.annotation_source == 'caller' },
+                { assert provenance.component_plan.components.size() == 2 },
+                { assert provenance.inputs.sha256.annotation_source != null },
+            )
+        }
+    }
+
+    test("samples missing from the phenotype table are carried through as missing and counted") {
+
+        when {
+            def fixtures = sources(outputDir, 'partial')
+            def partial = fixtures.write(
+                'partial.noheader.pheno',
+                ((0..<190).collect { index -> "per${index}\tper${index}\t${String.format('%.6f', Math.sin(index * 0.7d) * 2.0d)}" }
+                    + ['ghost\tghost\t1.25']).join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${partial}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // Intersecting sample sets is what every estimator in this pipeline does natively, so an absent
+            // sample is a counted missing row rather than a refusal. A phenotype row for a sample the cohort
+            // does not contain is dropped with a note, because GENIE would have no position to put it in.
+            def phenotype = path(process.out.phenotype.get(0).get(1))
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert phenotype.readLines().size() == 201 },
+                { assert phenotype.readLines()[200] == 'per199 per199 NA' },
+                { assert provenance.inputs.samples.retained == 190 },
+                { assert provenance.inputs.samples.dropped == 10 },
+                { assert provenance.inputs.samples.dropped_by_cause.absent_from_phenotype_table == 10 },
+                { assert provenance.inputs.samples.not_in_fam == 1 },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines().first() == 'individuals\t190' },
+            )
+        }
+    }
+
+    test("the count contract follows the retained sample set rather than the FAM") {
+
+        when {
+            def fixtures = sources(outputDir, 'retained')
+            def partial = fixtures.write(
+                'retained.noheader.pheno',
+                (0..<200).collect { index ->
+                    index < 40 ? "per${index}\tper${index}\t${String.format('%.6f', Math.sin(index * 0.7d) * 2.0d)}" : "per${index}\tper${index}\tNA"
+                }.join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${partial}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // GENIE excludes a sample with a missing phenotype and echoes the count it kept, so the
+            // declaration the estimator compares against has to be the retained count, not the FAM's.
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert path(process.out.expected_counts.get(0).get(1)).readLines().first() == 'individuals\t40' },
+                { assert provenance.inputs.samples.dropped_by_cause.missing_phenotype == 160 },
+                { assert provenance.inputs.samples.dropped_by_cause.absent_from_phenotype_table == 0 },
+            )
+        }
+    }
+
+    def rejections = [
+        [
+            name: 'a phenotype table that names one sample twice',
+            phenotype: { index -> index == 5 ? "per4\tper4\t0.5" : "per${index}\tper${index}\t0.5" },
+            message: "declares sample 'per4 per4' more than once",
+        ],
+        [
+            name: 'an individual identifier that appears under a different family',
+            phenotype: { index -> index == 5 ? "other\tper5\t0.5" : "per${index}\tper${index}\t${index * 0.01d}" },
+            message: 'the pipeline will not guess which family identifier is meant',
+        ],
+        [
+            name: 'a phenotype that is missing for every sample',
+            phenotype: { _index -> "per${_index}\tper${_index}\tNA" },
+            message: 'every phenotype value is missing after alignment to the cohort FAM',
+        ],
+        [
+            name: 'a phenotype that is constant across the retained samples',
+            phenotype: { index -> "per${index}\tper${index}\t1.5" },
+            message: 'GENIE returns \'-nan\' variance components at exit 0 for a degenerate phenotype',
+        ],
+        [
+            name: 'fewer retained samples than a randomised fit can support',
+            phenotype: { index -> index < 3 ? "per${index}\tper${index}\t${index + 0.5d}" : "per${index}\tper${index}\tNA" },
+            message: "below the pipeline's floor of 30",
+        ],
+    ]
+
+    rejections.each { scenario ->
+        test("preparation refuses ${scenario.name}") {
+
+            when {
+                def fixtures = sources(outputDir, "reject_${scenario.name.replaceAll(/\s+/, '_')}")
+                def phenotype = fixtures.write('rejected.noheader.pheno', (0..<200).collect(scenario.phenotype).join('\n') + '\n')
+                process {
+                    """
+                    input[0] = ${declared(defaultOptions)}
+                    input[1] = [[ id: 'analysis' ], file('${phenotype}', checkIfExists: true), []]
+                    input[2] = [[ id: 'analysis' ], []]
+                    """
+                }
+            }
+
+            then {
+                // Every message below names a measured GENIE behaviour rather than a taste: each of these
+                // inputs runs to exit 0 and produces a number, and the number is either `-nan` or finite and
+                // meaningless.
+                assertAll(
+                    { assert !process.success },
+                    { assert process.exitStatus != 0 },
+                    { assert process.stdout.join('\n').contains("analysis 'analysis'") },
+                    { assert process.stdout.join('\n').contains(scenario.message) }
+                )
+            }
+        }
+    }
+
+    def annotationRejections = [
+        [
+            name: 'an annotation with fewer rows than the BIM declares',
+            rows: { (0..<219).collect { _index -> '1' } },
+            message: "declares 219 row(s) but the cohort's BIM declares 220 variant(s)",
+        ],
+        [
+            name: 'an annotation carrying a value other than 0 or 1',
+            rows: { (0..<220).collect { index -> index == 3 ? '2' : '1' } },
+            message: "carries the value '2' on row 4",
+        ],
+        [
+            name: 'a variant assigned to no component at all',
+            rows: { (0..<220).collect { index -> index == 7 ? '0 0' : '1 0' } },
+            message: 'is in no component column; GENIE silently drops such variants',
+        ],
+        [
+            name: 'a variant assigned to more than one component',
+            rows: { (0..<220).collect { index -> index == 7 ? '1 1' : '1 0' } },
+            message: 'is in 2 component columns; overlapping component',
+        ],
+        [
+            name: 'an annotation with a header row',
+            rows: { ['annot'] + (0..<219).collect { _index -> '1' } },
+            message: 'A header row is the usual cause and is not accepted',
+        ],
+        [
+            name: 'an annotation with a ragged row',
+            rows: { (0..<220).collect { index -> index == 9 ? '1' : '1 0' } },
+            message: 'declares 2 column(s) but row 10 carries 1',
+        ],
+    ]
+
+    annotationRejections.each { scenario ->
+        test("preparation refuses ${scenario.name}") {
+
+            when {
+                def fixtures = sources(outputDir, "annot_${scenario.name.replaceAll(/\s+/, '_')}")
+                def annotation = fixtures.write('rejected.annot', scenario.rows().join('\n') + '\n')
+                process {
+                    """
+                    input[0] = ${declared(defaultOptions)}
+                    input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                    input[2] = [[ id: 'analysis' ], file('${annotation}', checkIfExists: true)]
+                    """
+                }
+            }
+
+            then {
+                // GENIE treats every one of these as a warning at most: a short annotation is adopted as the
+                // variant count, a non-binary cell empties the bin, an unassigned variant is dropped, and an
+                // overlapping one makes the result file carry two different values under one label.
+                assertAll(
+                    { assert !process.success },
+                    { assert process.exitStatus != 0 },
+                    { assert process.stdout.join('\n').contains(scenario.message) }
+                )
+            }
+        }
+    }
+
+    test("preparation refuses a jackknife count the cohort cannot support") {
+
+        when {
+            def fixtures = sources(outputDir, 'blocks')
+            process {
+                """
+                input[0] = ${declared("[random_vectors: null, jackknife_blocks: 500, seed: 7, memory_efficient: false]")}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // Silently running 220 blocks instead of the 500 that were asked for would change the reported
+            // standard error with nothing but a provenance line to say so, and the pipeline never substitutes
+            // one scientific setting for another.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('genie.jackknife_blocks 500 exceeds the 220 variant(s) in the cohort') }
+            )
+        }
+    }
+
+    test("the jackknife default is reduced to one the streaming executable survives") {
+
+        when {
+            def fixtures = sources(outputDir, 'streaming_default')
+            process {
+                """
+                input[0] = ${declared("[random_vectors: null, jackknife_blocks: null, seed: 7, memory_efficient: true]")}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // `GENIE_mem` gives its trailing jackknife block every leftover variant while sizing the buffer
+            // for the nominal one, and reads past the end when the leftover is larger -- exit 134 or 139 with
+            // no diagnostic. On 220 variants the clamped native default of 220 is already safe, so this case
+            // pins that the reduction is a no-op when nothing is wrong, and the pipeline route test covers the
+            // 2200-variant cohort where it bites.
+            def effective = new groovy.json.JsonSlurper().parseText(path(process.out.effective_settings.get(0).get(1)).text)
+            def provenance = new groovy.json.JsonSlurper().parseText(path(process.out.provenance.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert effective.jackknife_blocks == 220 },
+                { assert 220 % effective.jackknife_blocks <= 220 / effective.jackknife_blocks },
+                { assert !provenance.warnings.contains('jackknife_blocks_memory_efficient_default') },
+                { assert provenance.stochastic_settings.family_options.jackknife_blocks_source == 'clamped_native_default' },
+            )
+        }
+    }
+
+    test("preparation refuses a curated jackknife count the streaming executable cannot survive") {
+
+        when {
+            def fixtures = sources(outputDir, 'streaming_refused')
+            process {
+                """
+                input[0] = ${declared("[random_vectors: null, jackknife_blocks: 30, seed: 7, memory_efficient: true]")}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // 220 variants in 30 blocks is a nominal block of 7 and a trailing block of 17. A curated value is
+            // never substituted, so the analysis is refused with the alternatives spelled out rather than
+            // quietly re-planned or left to abort inside the estimator.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('which GENIE_mem reads past the end of its own buffer') },
+                { assert process.stdout.join('\n').contains('trailing jackknife block of 17 variant(s) against a nominal block of 7') },
+                { assert process.stdout.join('\n').contains('Set genie.jackknife_blocks to 27 or lower') },
+                { assert process.stdout.join('\n').contains('set genie.memory_efficient to false') },
+            )
+        }
+    }
+
+    test("preparation refuses a covariate cell GENIE would read as a value") {
+
+        when {
+            def fixtures = sources(outputDir, 'incomplete')
+            def incomplete = fixtures.write(
+                'incomplete.adjustcovar',
+                (0..<200).collect { index -> index == 6 ? "per6\tper6\tNA\t0" : "per${index}\tper${index}\t${index}\t${index % 2}" }.join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), file('${incomplete}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // Unreachable in the wired pipeline, where the shared preparation rule refuses the analysis first
+            // because `genie_g` declares `requires_complete_covariates`. Kept because the module is directly
+            // callable and because the invariant is what makes `dropped_by_cause.missing_covariate` always 0.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('requires_complete_covariates') }
+            )
+        }
+    }
+
+    test("preparation refuses a phenotyped sample with no covariate row at all") {
+
+        when {
+            def fixtures = sources(outputDir, 'absent_covariate')
+            def absent = fixtures.write(
+                'absent.adjustcovar',
+                (0..<199).collect { index -> "per${index}\tper${index}\t${index}\t${index % 2}" }.join('\n') + '\n'
+            )
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), file('${absent}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // The shared preparation rule iterates the cells that exist, so a sample with no row at all is
+            // invisible to it. GENIE would read the covariate file positionally and shift every subsequent
+            // sample's covariates by one.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('have no row at all in the covariate design') },
+                { assert process.stdout.join('\n').contains('per199 per199') }
+            )
+        }
+    }
+
+    test("preparation refuses a cohort carrying a monomorphic variant") {
+
+        when {
+            // A synthetic 40-by-4 trio rather than the shipped one, because the defect under test is a
+            // property of the genotype bytes: variant 2 is homozygous for the same allele in every sample.
+            def root = new File(outputDir.toString(), 'genie_monomorphic')
+            root.mkdirs()
+            def samples = 40
+            def bytesPerVariant = ((samples + 3) / 4) as int
+            def bed = new File(root, 'mono.bed')
+            def blocks = (0..<4).collect { variant ->
+                (0..<bytesPerVariant).collect { index ->
+                    // 0xFF is four homozygous-A2 calls; the other two mix genotypes within each byte.
+                    variant == 2 ? 0xFF : (index % 2 == 0 ? 0x0C : 0xC0)
+                }
+            }.flatten()
+            bed.bytes = ([0x6c, 0x1b, 0x01] + blocks) as byte[]
+            def bim = new File(root, 'mono.bim')
+            bim.text = (0..<4).collect { index -> "1\tvariant_${index}\t0\t${index + 1}\tA\tG" }.join('\n') + '\n'
+            def fam = new File(root, 'mono.fam')
+            fam.text = (0..<samples).collect { index -> "s${index} s${index} 0 0 0 -9" }.join('\n') + '\n'
+            def phenotype = new File(root, 'mono.noheader.pheno')
+            phenotype.text = (0..<samples).collect { index -> "s${index}\ts${index}\t${String.format('%.4f', Math.sin(index * 0.7d))}" }.join('\n') + '\n'
+            process {
+                """
+                input[0] = [
+                    [
+                        id: 'analysis',
+                        genie_method: 'genie_g',
+                        genie_capability: [option_family: 'genie', estimator_family: 'moment_he', input_backend: 'direct_plink1_genotypes', component_model: 'single', stochastic: true],
+                        method_options: [genie: [random_vectors: null, jackknife_blocks: 2, seed: 7, memory_efficient: false]],
+                    ],
+                    file('${bed}', checkIfExists: true),
+                    file('${bim}', checkIfExists: true),
+                    file('${fam}', checkIfExists: true)
+                ]
+                input[1] = [[ id: 'analysis' ], file('${phenotype}', checkIfExists: true), []]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // GENIE standardises every variant over the whole FAM, so one variant with no minor-allele carrier
+            // divides by a zero standard deviation and takes the entire fit to zero variance components and
+            // `h2 = -nan` at exit 0.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains('are monomorphic across the FAM') },
+                { assert process.stdout.join('\n').contains('variant_2') }
+            )
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            def fixtures = sources(outputDir, 'stub')
+            process {
+                """
+                input[0] = ${declared(defaultOptions)}
+                input[1] = [[ id: 'analysis' ], file('${fixtures.phenotype}', checkIfExists: true), file('${fixtures.covariates}', checkIfExists: true)]
+                input[2] = [[ id: 'analysis' ], []]
+                """
+            }
+        }
+
+        then {
+            // The effective settings are parsed on the head node by the calling route, so the stub has to
+            // write a document that parses rather than an empty placeholder.
+            def effective = new groovy.json.JsonSlurper().parseText(path(process.out.effective_settings.get(0).get(1)).text)
+            assertAll(
+                { assert process.success },
+                { assert effective.native_args == ['-jn', '1'] },
+                { assert effective.memory_efficient == false },
+                { assert process.out.covariates.size() == 1 },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+}

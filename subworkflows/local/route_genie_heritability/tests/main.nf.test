@@ -1,0 +1,247 @@
+nextflow_workflow {
+
+    name "Test GENIE direct-genotype heritability route"
+    script "../main.nf"
+    workflow "ROUTE_GENIE_HERITABILITY"
+    tag "subworkflow"
+    tag "heritability"
+    tag "genie"
+
+    // Every case is stubbed, so the staged genotypes, phenotypes, covariates and annotation only have to
+    // exist. What is under test is the routing: that the estimator runs exactly for the analyses that selected
+    // it, that an analysis selecting a different family reaches nothing, that an absent optional file stays
+    // `[]` rather than becoming a placeholder, that the effective settings the adapter resolves reach the
+    // configured argument closure, and that the route's own metadata never leaves it. The native content is
+    // covered end to end by `tests/heritability_genie_g.nf.test`.
+    def TESTS = { project_dir -> "${project_dir}/subworkflows/local/route_genie_heritability/tests" }
+    def RESOURCE = { project_dir, name -> "file('${TESTS(project_dir)}/${name}', checkIfExists: true)" }
+
+    // A validated unary analysis unit as `VALIDATE_GWAS_INPUT` hands it over. No `relationship_id`: the spine
+    // narrows the PLINK 1 stream to the unary rows before this controller sees them.
+    def analysisMeta = { analysis_id, heritability_methods, genie_options = "[random_vectors: null, jackknife_blocks: null, seed: 7, memory_efficient: false, annotation: []]" ->
+        """[
+            id: '${analysis_id}',
+            cohort: 'cohort_a',
+            trait: 'TRAIT_${analysis_id}',
+            is_binary: false,
+            population_prevalence: null,
+            sample_prevalence: null,
+            association_methods: [],
+            heritability_methods: [${heritability_methods.collect { method -> "'${method}'" }.join(', ')}],
+            method_options: [genie: ${genie_options}],
+        ]"""
+    }
+
+    def genotypes = { project_dir, meta ->
+        """[
+            ${meta},
+            ${RESOURCE(project_dir, 'cohort.bed')},
+            ${RESOURCE(project_dir, 'cohort.bim')},
+            ${RESOURCE(project_dir, 'cohort.fam')},
+        ]"""
+    }
+
+    def phenotype = { project_dir, meta, source -> "[${meta}, ${RESOURCE(project_dir, source)}]" }
+    def covariates = { project_dir, meta, source -> "[${meta}, ${RESOURCE(project_dir, source)}]" }
+    def annotation = { project_dir, meta, source = null -> "[${meta}, ${source ? RESOURCE(project_dir, source) : '[]'}]" }
+
+    test("the estimator runs exactly for the analyses that selected it") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                def alpha = ${analysisMeta('alpha', ['genie_g'])}
+                def beta  = ${analysisMeta('beta', ['genie_g'])}
+                def gamma = ${analysisMeta('gamma', ['ldak_he'])}
+
+                input[0] = channel.of(
+                    ${genotypes(projectDir, "alpha")},
+                    ${genotypes(projectDir, "beta")},
+                    ${genotypes(projectDir, "gamma")},
+                )
+                input[1] = channel.of(
+                    ${phenotype(projectDir, "alpha", 'alpha.noheader.pheno')},
+                    ${phenotype(projectDir, "beta", 'beta.noheader.pheno')},
+                    ${phenotype(projectDir, "gamma", 'alpha.noheader.pheno')},
+                )
+                // Only `alpha` declared covariates, so it is the only record in the adjustment stream. `beta`
+                // and `gamma` are absent from it entirely rather than carrying an empty placeholder.
+                input[2] = channel.of(${covariates(projectDir, "alpha", 'alpha.adjustcovar')})
+                input[3] = channel.of(
+                    ${annotation(projectDir, "alpha", 'annotation_two.txt')},
+                    ${annotation(projectDir, "beta")},
+                    ${annotation(projectDir, "gamma")},
+                )
+                """
+            }
+        }
+
+        then {
+            def published = { analysis_id, name -> new File("${params.outdir}/heritability/individual/genie_g/${analysis_id}/${name}") }
+            assertAll(
+                { assert workflow.success },
+                // `gamma` legitimately appears in the PLINK 1 stream because its own selector needs the
+                // derivative, and selection here is by registry capability, so it reaches nothing.
+                { assert TRACE.count(workflow, 'PREPARE_GENIE_INPUTS') == 2 },
+                { assert TRACE.count(workflow, 'GENIE_G') == 2 },
+                { assert TRACE.tags(workflow, 'GENIE_G') == ['alpha', 'beta'] },
+                { assert TRACE.tags(workflow, 'PREPARE_GENIE_INPUTS') == ['alpha', 'beta'] },
+                // The bare `withName` selectors apply at this scope, so the rendered prefix and the
+                // publication path are exercised here rather than only at pipeline scope. The prefix carries
+                // the selected token, which is what keeps a second GENIE estimator from colliding with this
+                // one inside a single analysis.
+                { assert published('alpha', 'alpha.genie_g.out').isFile() },
+                { assert published('alpha', 'alpha.genie_g.log').isFile() },
+                { assert published('alpha', 'alpha.genie_g.provenance.json').isFile() },
+                { assert published('beta', 'beta.genie_g.out').isFile() },
+                // The prepared inputs, the count contract and the effective settings are working state and
+                // stay in the work directory.
+                { assert new File("${params.outdir}/heritability/individual/genie_g/alpha").list().sort() == [
+                    'alpha.genie_g.log',
+                    'alpha.genie_g.out',
+                    'alpha.genie_g.provenance.json',
+                ] },
+                { assert new File("${params.outdir}/heritability/individual").list().toList() == ['genie_g'] },
+                // The emitted record is the untouched focal analysis: none of the three route-local keys
+                // survives, so a consumer joins on the same identity it supplied.
+                { assert workflow.out.genie_results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'beta'] },
+                { assert workflow.out.genie_log.collect { meta, _log -> meta.id }.sort() == ['alpha', 'beta'] },
+                { assert workflow.out.genie_provenance.collect { meta, _provenance -> meta.id }.sort() == ['alpha', 'beta'] },
+                { assert workflow.out.genie_results.every { meta, _results ->
+                    meta.cohort == 'cohort_a' && meta.trait == "TRAIT_${meta.id}" && meta.keySet().toList().sort() == [
+                        'association_methods',
+                        'cohort',
+                        'heritability_methods',
+                        'id',
+                        'is_binary',
+                        'method_options',
+                        'population_prevalence',
+                        'sample_prevalence',
+                        'trait',
+                    ]
+                } },
+            )
+        }
+    }
+
+    test("an absent covariate design and an absent annotation stage nothing") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                def plain = ${analysisMeta('plain', ['genie_g'])}
+
+                input[0] = channel.of(${genotypes(projectDir, "plain")})
+                input[1] = channel.of(${phenotype(projectDir, "plain", 'beta.noheader.pheno')})
+                input[2] = channel.empty()
+                input[3] = channel.of(${annotation(projectDir, "plain")})
+                """
+            }
+        }
+
+        then {
+            // A stubbed task still stages its real inputs, so the absence of the two optional roles is
+            // observable in the task directories. Without this the case would pass identically with the
+            // covariate role wired to a placeholder file, which is the thing it rules out.
+            def stagedInputs = []
+            new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+                if (entry.isFile() && entry.name == '.command.run') {
+                    stagedInputs.addAll(entry.parentFile.list().toList())
+                }
+            }
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_GENIE_INPUTS') == 1 },
+                { assert TRACE.count(workflow, 'GENIE_G') == 1 },
+                { assert workflow.out.genie_results.collect { meta, _results -> meta.id } == ['plain'] },
+                { assert new File("${params.outdir}/heritability/individual/genie_g/plain/plain.genie_g.out").isFile() },
+                { assert !stagedInputs.any { name -> name.endsWith('.adjustcovar') } },
+                { assert !stagedInputs.contains('annotation_two.txt') },
+                // The adapter still writes an annotation, because GENIE exits 1 without one: an absent caller
+                // annotation becomes the single all-variant component rather than no `-a` flag.
+                { assert stagedInputs.any { name -> name.endsWith('.genie.annot') } },
+                { assert !stagedInputs.any { name -> name.endsWith('.genie.covar') } },
+            )
+        }
+    }
+
+    test("an analysis selecting no GENIE estimator reaches neither process") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                def kinship = ${analysisMeta('kinship_only', ['ldak_he'])}
+                def fast    = ${analysisMeta('fast_only', ['ldak_fast_he'])}
+
+                input[0] = channel.of(
+                    ${genotypes(projectDir, "kinship")},
+                    ${genotypes(projectDir, "fast")},
+                )
+                input[1] = channel.of(
+                    ${phenotype(projectDir, "kinship", 'alpha.noheader.pheno')},
+                    ${phenotype(projectDir, "fast", 'beta.noheader.pheno')},
+                )
+                input[2] = channel.empty()
+                input[3] = channel.of(
+                    ${annotation(projectDir, "kinship")},
+                    ${annotation(projectDir, "fast")},
+                )
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_GENIE_INPUTS') == 0 },
+                { assert TRACE.count(workflow, 'GENIE_G') == 0 },
+                { assert workflow.out.genie_results.size() == 0 },
+                { assert workflow.out.genie_provenance.size() == 0 },
+                { assert !new File("${params.outdir}/heritability").exists() },
+            )
+        }
+    }
+
+    test("empty request streams run nothing") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                input[0] = channel.empty()
+                input[1] = channel.empty()
+                input[2] = channel.empty()
+                input[3] = channel.empty()
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_GENIE_INPUTS') == 0 },
+                { assert TRACE.count(workflow, 'GENIE_G') == 0 },
+                { assert workflow.out.genie_results.size() == 0 },
+            )
+        }
+    }
+}

@@ -14,6 +14,7 @@
 %%metro line: gcta | GCTA | #756bb1
 %%metro line: ldak | LDAK | #e6550d
 %%metro line: ldak_filtered | LDAK + relatedness filter | #f28e2b
+%%metro line: genie | GENIE | #b3549b
 %%metro line: ldsc | LDSC | #17a2b8
 %%metro line: summary | GWASLab summaries | #009e73
 %%metro line: reporting | Shared products | #555555
@@ -29,7 +30,7 @@
 
 graph LR
     subgraph preparation [Inputs and preparation]
-        %%metro exit: right | regenie, gcta, ldak, summary
+        %%metro exit: right | regenie, gcta, ldak, genie, summary
         plink1_in[ ]
         vcf_in[ ]
         phenotype_in[ ]
@@ -44,18 +45,18 @@ graph LR
         _genotypes_ready[hidden]
         _analysis_ready[hidden]
 
-        plink1_in -->|regenie,gcta,ldak| plink1_import
-        plink1_import -->|regenie,gcta,ldak| _genotypes_ready
-        vcf_in -->|regenie,gcta,ldak| vcf_import
-        vcf_import -->|regenie,gcta,ldak| _genotypes_ready
-        plink2_in -->|regenie,gcta,ldak| _genotypes_ready
-        _genotypes_ready -->|gcta,ldak| makebed
+        plink1_in -->|regenie,gcta,ldak,genie| plink1_import
+        plink1_import -->|regenie,gcta,ldak,genie| _genotypes_ready
+        vcf_in -->|regenie,gcta,ldak,genie| vcf_import
+        vcf_import -->|regenie,gcta,ldak,genie| _genotypes_ready
+        plink2_in -->|regenie,gcta,ldak,genie| _genotypes_ready
+        _genotypes_ready -->|gcta,ldak,genie| makebed
 
-        phenotype_in -->|regenie,gcta,ldak| prepare_phenotypes
-        covariates_in -->|regenie,gcta,ldak| prepare_phenotypes
-        manifests_in -->|regenie,gcta,ldak| _analysis_ready
-        _genotypes_ready -->|regenie,gcta,ldak| _analysis_ready
-        prepare_phenotypes -->|regenie,gcta,ldak| _analysis_ready
+        phenotype_in -->|regenie,gcta,ldak,genie| prepare_phenotypes
+        covariates_in -->|regenie,gcta,ldak,genie| prepare_phenotypes
+        manifests_in -->|regenie,gcta,ldak,genie| _analysis_ready
+        _genotypes_ready -->|regenie,gcta,ldak,genie| _analysis_ready
+        prepare_phenotypes -->|regenie,gcta,ldak,genie| _analysis_ready
     end
 
     subgraph association [Association methods and summary ingress]
@@ -141,9 +142,9 @@ graph LR
         ldsc_rg -->|ldsc| ldsc_native
     end
 
-    subgraph ldak_heritability [LDAK heritability]
-        %%metro entry: left | ldak
-        %%metro exit: right | ldak
+    subgraph ldak_heritability [Direct-genotype and LDAK heritability]
+        %%metro entry: left | ldak, genie
+        %%metro exit: right | ldak, genie
         ldak_kinship[LDAK kinship base]
         ldak_filter[Unrelated-sample child (optional)]
         ldak_reml[LDAK REML]
@@ -152,12 +153,15 @@ graph LR
         ldak_pcgc[LDAK PCGC]
         ldak_fast_he[LDAK fast Haseman-Elston]
         ldak_fast_pcgc[LDAK fast PCGC]
+        genie_g[GENIE-G]
+        genie_native[GENIE native result and provenance]
         ldak_native[Method-specific native results]
         _ldak_ready[hidden]
 
         makebed -->|ldak| ldak_kinship
         makebed -->|ldak| ldak_fast_he
         makebed -->|ldak| ldak_fast_pcgc
+        makebed -->|genie| genie_g
         ldak_kinship -->|ldak_filtered| ldak_filter
         ldak_kinship -->|ldak| _ldak_ready
         ldak_filter -->|ldak_filtered| _ldak_ready
@@ -170,6 +174,7 @@ graph LR
         ldak_pcgc -->|ldak,ldak_filtered| ldak_native
         ldak_fast_he -->|ldak| ldak_native
         ldak_fast_pcgc -->|ldak| ldak_native
+        genie_g -->|genie| genie_native
     end
 
     subgraph products [Products and reporting]

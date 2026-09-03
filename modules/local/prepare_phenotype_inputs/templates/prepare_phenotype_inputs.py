@@ -386,10 +386,12 @@ elif TRAIT_TYPE == "quantitative" and numeric_raw_matches == 0:
 # the fitted covariate silently becomes the neighbouring column's value for that sample, the previous row's last
 # value, or -- for the very first cell of the file -- uninitialised memory; measured on the pinned image, a
 # wholly missing first row is fitted as 1.1762e-316. A missing `--factors` cell instead becomes an additional
-# factor level. In neither case does LDAK drop the sample or say anything in its log, so an analysis whose
-# selected methods read covariates that way cannot be given an incomplete file at all: the run would succeed and
-# report a covariate model nobody asked for. This is input validation, not compensation -- the pipeline neither
-# imputes the cell nor drops the sample, it names the cells and stops.
+# factor level. GENIE's `-c` reader is the same defect in a second tool: measured on the pinned image, one `NA`
+# cell in an otherwise complete covariate file moved h2 from 0.0924715 to 0.0872644 at exit 0 with all 200
+# samples still reported as retained. In none of these cases does the tool drop the sample or say anything in
+# its log, so an analysis whose selected methods read covariates that way cannot be given an incomplete file at
+# all: the run would succeed and report a covariate model nobody asked for. This is input validation, not
+# compensation -- the pipeline neither imputes the cell nor drops the sample, it names the cells and stops.
 if COVARIATE_COMPLETENESS == "required":
     phenotyped = set((row[0], row[1]) for row in trait_rows if row[2] != MISSING)
     incomplete = missing_covariate_cells(quant_covariates, phenotyped) + missing_covariate_cells(
@@ -400,8 +402,9 @@ if COVARIATE_COMPLETENESS == "required":
         displayed = sorted(incomplete)[:MAX_UNMATCHED_VALUES]
         elided = len(incomplete) - len(displayed)
         fail(
-            "selects method(s) that read covariates through LDAK --covar/--factors, which treat a missing "
-            "cell as a value rather than excluding the sample; {} sample(s) have missing covariate cells "
+            "selects method(s) that read covariates through an interface which treats a missing cell as a "
+            "value rather than excluding the sample (LDAK --covar/--factors, GENIE -c); {} sample(s) have "
+            "missing covariate cells "
             "(first {}: {}{}). Remove those samples from the phenotype file or complete the covariates".format(
                 len(affected),
                 len(displayed),

@@ -319,18 +319,47 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     ]
 }
 
-// GENIE has no wired selector until its route lands, so any supplied option is an option for a method this
-// analysis cannot select. The selection query is registry-derived and starts matching the moment the token
-// exists, at which point this body is replaced by the family's real validation.
+// Every bound below narrows the native surface deliberately, and each narrowing answers a measured
+// silent-wrong-answer mode of the pinned GENIE image rather than a preference. `-jn 1` returns a jackknife
+// standard error of exactly zero; a negative `-s` is silently treated as unseeded and echoes no seed line at
+// all, so the effective seed becomes unrecoverable; a non-integer `-s` is parsed as 0. The upper bound on
+// `jackknife_blocks` is the cohort's variant count, which ingress cannot see -- GENIE raises a floating-point
+// exception when a block ends up empty -- so `PREPARE_GENIE_INPUTS` rejects that case against the real BIM
+// instead of this resolver clamping a curated value into something the researcher did not ask for.
 def resolveGenieMethodOptions(analysis_id, options, methods, defaults, fail) {
     def genie_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'genie'])
     if (options && !methods.heritability_methods.any { method -> method in genie_heritability }) {
         fail.call(analysis_id, "genie.${options.keySet().first()}", 'analysis does not select a GENIE method')
     }
-    return defaults
+
+    def random_vectors = options.containsKey('random_vectors') ? options.random_vectors : defaults.random_vectors
+    def jackknife_blocks = options.containsKey('jackknife_blocks') ? options.jackknife_blocks : defaults.jackknife_blocks
+    def seed = options.containsKey('seed') ? options.seed : defaults.seed
+    def memory_efficient = options.containsKey('memory_efficient') ? options.memory_efficient : defaults.memory_efficient
+    if (random_vectors != null && (!(random_vectors instanceof Number) || random_vectors < 1 || random_vectors != random_vectors.toInteger())) {
+        fail.call(analysis_id, 'genie.random_vectors', 'expected a positive integer or null')
+    }
+    if (jackknife_blocks != null && (!(jackknife_blocks instanceof Number) || jackknife_blocks < 2 || jackknife_blocks != jackknife_blocks.toInteger())) {
+        fail.call(analysis_id, 'genie.jackknife_blocks', 'expected an integer of at least 2 or null; one block yields a zero jackknife standard error')
+    }
+    if (seed != null && (!(seed instanceof Number) || seed < 0 || seed != seed.toInteger())) {
+        fail.call(analysis_id, 'genie.seed', 'expected a non-negative integer or null; GENIE treats a negative seed as unseeded and a non-integer seed as 0')
+    }
+    if (!(memory_efficient instanceof Boolean)) {
+        fail.call(analysis_id, 'genie.memory_efficient', 'expected a boolean')
+    }
+    return [
+        random_vectors: random_vectors == null ? null : random_vectors.toInteger(),
+        jackknife_blocks: jackknife_blocks == null ? null : jackknife_blocks.toInteger(),
+        seed: seed == null ? null : seed.toInteger(),
+        memory_efficient: memory_efficient,
+        annotation: resolveMethodResource(analysis_id, 'genie', 'annotation', options, fail),
+    ]
 }
 
-// MPH has no wired selector until its routes land; see `resolveGenieMethodOptions`.
+// MPH has no wired selector until its routes land, so any supplied option is an option for a method this
+// analysis cannot select. The selection query is registry-derived and starts matching the moment the token
+// exists, at which point this body is replaced by the family's real validation, as GENIE's above now is.
 def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
     def mph_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'mph'])
     if (options && !methods.heritability_methods.any { method -> method in mph_heritability }) {
@@ -384,17 +413,61 @@ def getAnalysisOptionsDocument(method_options, document) {
 }
 
 // A randomised estimator whose seed is left native writes no seed anywhere: LDAK's log records the seed only
-// when one was supplied, so an unseeded estimate cannot be reproduced afterwards even from the published run.
-// The warning therefore fires on every path that resolves options, including the two that never look at a
-// document: a row absent from the document and a run with no `--method_options` at all both default the seed
-// to null and would otherwise pass silently.
+// when one was supplied, and an unseeded GENIE run echoes no `-s (seed)` line at all, so an unseeded estimate
+// cannot be reproduced afterwards even from the published run. The warning therefore fires on every path that
+// resolves options, including the two that never look at a document: a row absent from the document and a run
+// with no `--method_options` at all both default the seed to null and would otherwise pass silently.
+//
+// Which selectors randomise is a registry capability, but which option seeds them is not: the seed control is
+// named by the method-option family, so each family contributes one entry here rather than the query trying to
+// derive an option name from a capability that does not describe one. Only families whose seed reaches a
+// native flag appear -- the LDAK kinship estimators are declared stochastic too, but their randomness is the
+// resampled jackknife of `LDAK_HE`/`LDAK_PCGC` rather than a control this document exposes.
+def getStochasticSeedControls() {
+    return [
+        [
+            tokens: getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true]),
+            family: 'ldak',
+            option: 'fast_seed',
+            evidence: 'the native log records no seed',
+        ],
+        [
+            tokens: getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'genie', stochastic: true]),
+            family: 'genie',
+            option: 'seed',
+            evidence: 'the native output records no seed line',
+        ],
+    ]
+}
+
 def warnUnseededStochasticSelections(analysis_rows, resolved) {
-    def ldak_direct_stochastic = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true])
+    def controls = getStochasticSeedControls()
     analysis_rows.each { row ->
         def analysis_id = row[0].id
-        def selected = tokenizeMethodSelector(row[0].heritability_methods).findAll { method -> method in ldak_direct_stochastic }
-        if (selected && resolved[analysis_id].ldak.fast_seed == null) {
-            log.warn("[nf-core/gwas]: analysis '${analysis_id}' selects stochastic method(s) ${selected.join(', ')} without 'ldak.fast_seed'; repeated runs will not reproduce the estimate and the native log records no seed")
+        def heritability_methods = tokenizeMethodSelector(row[0].heritability_methods)
+        controls.each { control ->
+            def selected = heritability_methods.findAll { method -> method in control.tokens }
+            if (selected && resolved[analysis_id][control.family][control.option] == null) {
+                log.warn("[nf-core/gwas]: analysis '${analysis_id}' selects stochastic method(s) ${selected.join(', ')} without '${control.family}.${control.option}'; repeated runs will not reproduce the estimate and ${control.evidence}")
+            }
+        }
+    }
+}
+
+// A seed makes a randomised Haseman-Elston fit repeatable; it does not make it stable. Measured on the pinned
+// GENIE image against the compact 200-sample fixture, the h2 point estimate moved across 0.0719 to 0.1016 over
+// seeds 1 to 8 at the native default of 10 random vectors -- about 35% of its own size -- while the reported
+// jackknife standard error ranged 0.154 to 0.284 and contains none of that Monte-Carlo component. At 100
+// vectors the same spread narrowed to 0.0096. The pipeline still leaves an unset option native rather than
+// substituting an opinion, so the leading significant figure of a published estimate is a function of the
+// seed unless the researcher says otherwise, and that has to be said out loud rather than buried in the docs.
+def warnNativeRandomVectorDefaults(analysis_rows, resolved) {
+    def genie_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'genie'])
+    analysis_rows.each { row ->
+        def analysis_id = row[0].id
+        def selected = tokenizeMethodSelector(row[0].heritability_methods).findAll { method -> method in genie_heritability }
+        if (selected && resolved[analysis_id].genie.random_vectors == null) {
+            log.warn("[nf-core/gwas]: analysis '${analysis_id}' runs ${selected.join(', ')} with GENIE's native default of 10 random vectors; on a 200-sample fixture the point estimate moved by about 35% of its own size across seeds at that setting and the reported jackknife standard error does not contain that Monte-Carlo component, so a publication-grade run should set 'genie.random_vectors' explicitly")
         }
     }
 }
@@ -405,6 +478,7 @@ def validateMethodOptions(method_options, analysis_rows, document = null) {
     if (!method_options) {
         def undocumented = analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
         warnUnseededStochasticSelections(analysis_rows, undocumented)
+        warnNativeRandomVectorDefaults(analysis_rows, undocumented)
         return undocumented
     }
 
@@ -474,5 +548,6 @@ def validateMethodOptions(method_options, analysis_rows, document = null) {
         ]
     }
     warnUnseededStochasticSelections(analysis_rows, resolved)
+    warnNativeRandomVectorDefaults(analysis_rows, resolved)
     return resolved
 }

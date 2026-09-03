@@ -12,6 +12,7 @@ include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepa
 include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
 include { ROUTE_LDAK_DIRECT_HERITABILITY     } from '../subworkflows/local/route_ldak_direct_heritability'
+include { ROUTE_GENIE_HERITABILITY           } from '../subworkflows/local/route_genie_heritability'
 include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
 include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
@@ -70,6 +71,7 @@ workflow GWAS {
     //   ROUTE_ASSOCIATION_ANALYSES     ROUTE_GRM_HERITABILITY     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS
     //          |          |
     //          |   ROUTE_LDAK_DIRECT_HERITABILITY   (direct genotypes; requests no relatedness matrix)
+    //          |   ROUTE_GENIE_HERITABILITY         (direct genotypes; requests no relatedness matrix)
     //          |
     //          | association_results                        ch_external_summary_statistics
     //          v                                                         |
@@ -275,6 +277,25 @@ workflow GWAS {
         ch_gcta_phenotypes,
         ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, ldak_weights ->
             [meta, ldak_weights ?: []]
+        },
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for GENIE additive direct-genotype heritability
+    //
+    // A second direct-genotype family, bypassing PREPARE_RELATEDNESS_MATRICES for the same reason the LDAK
+    // fast estimators do: the registry declares no matrix kind for it. It reads a different phenotype seam
+    // from its LDAK sibling, though. GENIE takes a single numerical covariate design through one flag rather
+    // than the separate quantitative and categorical files LDAK reads, so this route receives the headerless
+    // phenotype and the adjustment design as two streams instead of the four-member GCTA seam. The optional
+    // component annotation is narrowed out of the validated row here for the same reason the LDAK weights are:
+    // reading that row is spine knowledge, and validating its content against the cohort's BIM is the route's.
+    ROUTE_GENIE_HERITABILITY(
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> !meta.relationship_id },
+        ch_prepared_phenotype_headerless,
+        ch_prepared_adjustment_covariates,
+        ch_analyses.map { meta, _genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
+            [meta, meta.method_options.genie.annotation ?: []]
         },
     )
 

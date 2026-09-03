@@ -139,6 +139,7 @@ nextflow_function {
                     'ldak_pcgc',
                     'ldak_fast_he',
                     'ldak_fast_pcgc',
+                    'genie_g',
                 ] },
                 { assert function.result.gcta_fastgwa.matrix_kind == 'gcta_sparse' },
                 { assert function.result.gcta_greml.matrix_kind == 'gcta_dense' },
@@ -187,6 +188,22 @@ nextflow_function {
                 { assert function.result.ldak_fast_pcgc.stochastic },
                 { assert function.result.ldak_fast_he.citation_keys == ['ldak', 'rhe_mc'] },
                 { assert function.result.ldak_fast_pcgc.citation_keys == ['ldak', 'rhe_mc'] },
+                // GENIE joins the same direct-genotype backend from a second tool, which is the point of
+                // deriving the PLINK 1 route from the declared bundle rather than from the option family. Its
+                // `component_model` stays `single` because that field names the model the pipeline plans: a
+                // caller-supplied annotation with K columns still makes GENIE fit K components, which the
+                // route records in its own sidecar rather than here.
+                { assert !function.result.genie_g.containsKey('matrix_kind') },
+                { assert function.result.genie_g.domain == 'heritability' },
+                { assert function.result.genie_g.option_family == 'genie' },
+                { assert function.result.genie_g.input_backend == 'direct_plink1_genotypes' },
+                { assert function.result.genie_g.estimator_family == 'moment_he' },
+                { assert function.result.genie_g.component_model == 'single' },
+                { assert function.result.genie_g.trait_support == [quantitative: true, binary: false] },
+                { assert function.result.genie_g.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
+                { assert function.result.genie_g.stochastic },
+                { assert function.result.genie_g.requires_complete_covariates },
+                { assert function.result.genie_g.citation_keys == ['genie', 'rhe_mc'] },
                 // LDAK-KVIK reads BED/BIM/FAM natively, so it declares the PLINK 1 direct backend while
                 // REGENIE keeps the format-polymorphic one.
                 { assert function.result.ldak_kvik.input_backend == 'direct_plink1_genotypes' },
@@ -412,6 +429,7 @@ nextflow_function {
                     'gcta_bivariate_he_ldms',
                     'gcta_bivariate_reml_ldms',
                     'gcta_greml_ldms',
+                    'genie_g',
                     'ldak_fast_he',
                     'ldak_fast_pcgc',
                     'ldak_he',
@@ -493,6 +511,7 @@ nextflow_function {
         [name: 'the PLINK 1 bundle for LDAK-KVIK', method: 'ldak_kvik', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for LDAK REML', method: 'ldak_reml', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for LDAK fast Haseman-Elston', method: 'ldak_fast_he', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for GENIE', method: 'genie_g', expected: 'plink1'],
     ]
 
     genotypeBundles.each { scenario ->
@@ -517,21 +536,26 @@ nextflow_function {
         }
     }
 
-    test("only LDAK analysis-row estimators require complete covariate cells") {
+    test("only analysis-row estimators whose covariate reader ignores a missing cell require complete cells") {
         function "getMethodCapabilities"
         tag "method_capabilities"
 
         then {
-            // LDAK reads a missing `--covar` cell as a numeric value and turns a missing `--factors` cell
-            // into an extra level, so every LDAK estimator that reads an analysis row's covariates carries
-            // the flag. `ldak_sumher`/`ldak_sumcors` read summary statistics and no covariate file at all,
-            // which is what the domain clause excludes.
+            // The flag is a statement about a measured tool behaviour, not about a family. LDAK reads a
+            // missing `--covar` cell as a numeric value and turns a missing `--factors` cell into an extra
+            // level; GENIE reads an unparsable `-c` cell as a value and excludes neither the sample nor the
+            // column. Both are verified per tool, so the expected set below is the pin and each new token
+            // that declares the flag adds exactly one line to it. What generalises is only the shape: a token
+            // can require complete cells only if it reads an analysis row's covariates at all, which is why
+            // the summary-scale estimators -- `ldak_sumher` and `ldak_sumcors` read summary statistics and no
+            // covariate file -- can never carry it.
             assertAll(
                 { assert function.success },
                 { assert function.result.every { _token, details ->
-                    details.requires_complete_covariates == (details.option_family == 'ldak' && details.domain in ['association', 'heritability'])
+                    !details.requires_complete_covariates || details.domain in ['association', 'heritability']
                 } },
                 { assert function.result.findAll { _token, details -> details.requires_complete_covariates }.keySet().toList().sort() == [
+                    'genie_g',
                     'ldak_fast_he',
                     'ldak_fast_pcgc',
                     'ldak_he',
@@ -548,11 +572,18 @@ nextflow_function {
         tag "method_capabilities"
 
         then {
-            // The documented trait contract of the randomised direct-genotype family. It is scoped to the
-            // heritability domain deliberately: `ldak_kvik` is also stochastic and also reads PLINK 1
-            // directly, but it is an association estimator and is binary-capable.
+            // The documented trait contract of the randomised direct-genotype family, which now spans two
+            // tools. It is scoped to the heritability domain deliberately: `ldak_kvik` is also stochastic and
+            // also reads PLINK 1 directly, but it is an association estimator and is binary-capable. The
+            // membership pin comes first, because the rule below is vacuously true over an empty set and
+            // would stay green if a token silently dropped out of it.
             assertAll(
                 { assert function.success },
+                { assert function.result
+                    .findAll { _token, details -> details.domain == 'heritability' && details.stochastic && details.input_backend == 'direct_plink1_genotypes' }
+                    .keySet()
+                    .toList()
+                    .sort() == ['genie_g', 'ldak_fast_he', 'ldak_fast_pcgc'] },
                 { assert function.result
                     .findAll { _token, details -> details.domain == 'heritability' && details.stochastic && details.input_backend == 'direct_plink1_genotypes' }
                     .every { token, details -> details.trait_support.binary == (token == 'ldak_fast_pcgc') } },
@@ -573,6 +604,8 @@ nextflow_function {
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],
         [name: 'the LDAK summary pair estimator', required: [domain: 'pairwise', reference_family: 'ldak'], expected: ['ldak_sumcors']],
+        [name: 'the GENIE heritability estimator', required: [domain: 'heritability', option_family: 'genie'], expected: ['genie_g']],
+        [name: 'every direct-genotype heritability estimator, across families', required: [domain: 'heritability', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc', 'genie_g']],
         [name: 'the REGENIE association estimator', required: [domain: 'association', option_family: 'regenie'], expected: ['regenie']],
     ]
 

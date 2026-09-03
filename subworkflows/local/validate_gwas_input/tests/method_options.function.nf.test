@@ -137,19 +137,22 @@ nextflow_function {
         }
     }
 
-    def unwiredFamilies = [
+    def unselectedFamilies = [
         [name: 'GENIE', family: 'genie', option: 'seed', value: 7, message: 'analysis does not select a GENIE method'],
         [name: 'MPH', family: 'mph', option: 'seed', value: 7, message: 'analysis does not select an MPH method'],
     ]
 
-    unwiredFamilies.each { scenario ->
-        test("${scenario.name} options are rejected while the family has no wired selector") {
+    unselectedFamilies.each { scenario ->
+        // The two cases are no longer the same claim. MPH has no wired selector at all, so its query can never
+        // match; GENIE's does, and this row selects `ldak_he` instead, so the rejection has to come from the
+        // analysis's own selection rather than from an empty registry answer.
+        test("${scenario.name} options are rejected on a row that selects no ${scenario.name} method") {
             function "validateMethodOptions"
 
             when {
                 function {
                     """
-                    input[0] = file('${RELATIONAL.methodOptions(outputDir, "unwired_${scenario.family}", [
+                    input[0] = file('${RELATIONAL.methodOptions(outputDir, "unselected_${scenario.family}", [
                         example: [(scenario.family): [(scenario.option): scenario.value]],
                     ])}', checkIfExists: true)
                     input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_he', trait_type: 'quantitative']]]
@@ -222,6 +225,107 @@ nextflow_function {
                     { assert report.contains(scenario.expected) },
                 )
             }
+        }
+    }
+
+    // Every bound below narrows GENIE's native surface at a point where the tool itself is silent: `-jn 1`
+    // returns a jackknife standard error of exactly zero, a negative seed is treated as unseeded and echoes no
+    // seed line at all, and a non-integer seed is parsed as zero. All three were measured on the pinned image.
+    def genieOptions = [
+        [
+            name: 'a zero random-vector count',
+            options: [genie: [random_vectors: 0]],
+            expected: "option 'genie.random_vectors': expected a positive integer or null",
+        ],
+        [
+            name: 'a single jackknife block',
+            options: [genie: [jackknife_blocks: 1]],
+            expected: "option 'genie.jackknife_blocks': expected an integer of at least 2 or null; one block yields a zero jackknife standard error",
+        ],
+        [
+            name: 'a negative seed',
+            options: [genie: [seed: -1]],
+            expected: "option 'genie.seed': expected a non-negative integer or null; GENIE treats a negative seed as unseeded",
+        ],
+        [
+            name: 'a fractional seed',
+            options: [genie: [seed: 1.5]],
+            expected: "option 'genie.seed': expected a non-negative integer or null",
+        ],
+        [
+            name: 'a non-boolean memory-efficiency flag',
+            options: [genie: [memory_efficient: 'yes']],
+            expected: "option 'genie.memory_efficient': expected a boolean",
+        ],
+        [
+            name: 'an empty annotation path',
+            options: [genie: [annotation: '']],
+            expected: "option 'genie.annotation': expected a non-empty resource path string",
+        ],
+        [
+            name: 'an annotation path that does not exist',
+            options: [genie: [annotation: '/definitely/missing/annotation.txt']],
+            expected: "option 'genie.annotation': resource path '/definitely/missing/annotation.txt' does not exist",
+        ],
+        [
+            name: 'an unknown option name',
+            options: [genie: [trace: 'x']],
+            expected: "option 'genie.trace': unknown option; accepted GENIE options are random_vectors, jackknife_blocks, seed, memory_efficient, annotation",
+        ],
+    ]
+
+    genieOptions.each { scenario ->
+        test("the GENIE family rejects ${scenario.name}") {
+            function "validateMethodOptions"
+
+            when {
+                function {
+                    """
+                    input[0] = file('${RELATIONAL.methodOptions(outputDir, "genie_${scenario.name.replace(' ', '_')}", [
+                        example: scenario.options,
+                    ])}', checkIfExists: true)
+                    input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                    """
+                }
+            }
+
+            then {
+                def report = function.stdout.join('\n')
+                assertAll(
+                    { assert function.failed },
+                    { assert report.contains(scenario.expected) },
+                )
+            }
+        }
+    }
+
+    test("a GENIE row resolves every supplied control into the shape the route reads") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'genie_resolved', [
+                    example: [genie: [random_vectors: 20, jackknife_blocks: 100, seed: 7, memory_efficient: true]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // `annotation` stays `[]` rather than becoming null, matching every other optional resource, so
+            // the spine can pass it straight through to the route without a second null guard.
+            assertAll(
+                { assert function.success },
+                { assert function.result.example.genie == [
+                    random_vectors: 20,
+                    jackknife_blocks: 100,
+                    seed: 7,
+                    memory_efficient: true,
+                    annotation: [],
+                ] },
+            )
         }
     }
 
@@ -349,6 +453,156 @@ nextflow_function {
         }
     }
 
+    test("a GENIE row without a seed is warned with its own family's seed option") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'unseeded_genie', [
+                    example: [genie: [random_vectors: 20]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // GENIE echoes no seed line at all for an unseeded run, so the effective seed is unrecoverable even
+            // from the published output. That is a different consequence from LDAK's, and the warning says so.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert report.contains("analysis 'example' selects stochastic method(s) genie_g without 'genie.seed'") },
+                { assert report.contains('the native output records no seed line') },
+            )
+        }
+    }
+
+    test("a seeded GENIE row is not warned about its seed") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'seeded_genie', [
+                    example: [genie: [seed: 7, random_vectors: 20]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert function.result.example.genie.seed == 7 },
+                { assert !report.contains("without 'genie.seed'") },
+            )
+        }
+    }
+
+    test("a row selecting both randomised families is warned once per family, each naming its own option") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = []
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_fast_he,genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // The case that catches a merged registry query. One widened token list would emit a single
+            // warning naming both selectors under whichever family's option name came first, and a researcher
+            // would then set an option that does not exist for the other estimator.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert report.contains("analysis 'example' selects stochastic method(s) ldak_fast_he without 'ldak.fast_seed'") },
+                { assert report.contains("analysis 'example' selects stochastic method(s) genie_g without 'genie.seed'") },
+            )
+        }
+    }
+
+    test("a GENIE row left on the native random-vector default is warned about the Monte-Carlo error") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'native_random_vectors', [
+                    example: [genie: [seed: 7]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // A seed makes the fit repeatable, not stable: across seeds 1 to 8 at GENIE's native ten random
+            // vectors the estimate moved by about 35% of its own size, and the reported jackknife standard
+            // error contains none of that. The warning therefore has to fire on a fully seeded row.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert report.contains("analysis 'example' runs genie_g with GENIE's native default of 10 random vectors") },
+                { assert report.contains("should set 'genie.random_vectors' explicitly") },
+            )
+        }
+    }
+
+    test("a GENIE row that sets the random-vector count is not warned about it") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'curated_random_vectors', [
+                    example: [genie: [seed: 7, random_vectors: 100]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'genie_g', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert function.result.example.genie.random_vectors == 100 },
+                { assert !report.contains('native default of 10 random vectors') },
+            )
+        }
+    }
+
+    test("a row selecting no GENIE method is never warned about GENIE's defaults") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = []
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_he', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // Both GENIE warnings read a resolved map that exists for every analysis, so what keeps them off
+            // an unrelated row is the selection query rather than the absence of the option.
+            def report = VALIDATION.report(outputDir, function.stdout)
+            assertAll(
+                { assert function.success },
+                { assert !report.contains("without 'genie.seed'") },
+                { assert !report.contains('native default of 10 random vectors') },
+            )
+        }
+    }
+
     test("invalid resolved values retain REGENIE-first attribution") {
         function "validateMethodOptions"
 
@@ -375,6 +629,7 @@ nextflow_function {
                 { assert function.failed },
                 { assert report.contains("option 'regenie.step1_bsize': expected one positive integer") },
                 { assert !report.contains("option 'gcta.sparse_cutoff'") },
+                { assert !report.contains("option 'genie.seed'") },
                 { assert !report.contains("option 'ldak.power'") },
             )
         }
