@@ -1,0 +1,486 @@
+{
+    "stub": {
+        "content": [
+            {
+                "covariates": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.covar.csv:md5,48c005b556a48a878a885f3c77943438"
+                    ]
+                ],
+                "phenotype": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.pheno.csv:md5,925b449b905d6cd9fe7454d805b55c56"
+                    ]
+                ],
+                "serialization": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.inputs.json:md5,00e771a97be3a64be976c915fbf8194f"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,5c433fdcf8f13afd6708a2f3c09f4d90"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:45:45.811290902",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "the CSVs are written in matrix order and every missing spelling becomes an empty field": {
+        "content": [
+            {
+                "covariates": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.covar.csv:md5,653f4ca5cb9c5d3069db2f3446e7a8e6"
+                    ]
+                ],
+                "phenotype": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.pheno.csv:md5,a047fd81da53d0aa8232a68e9a2d3bb3"
+                    ]
+                ],
+                "serialization": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "mph_grm_family",
+                                "option_family": "mph",
+                                "stochastic": true
+                            },
+                            "mph_effective": {
+                                "iterations": 20,
+                                "native_arguments": [
+                                    "--seed 7"
+                                ],
+                                "native_defaults_apply": [
+                                    "random_vectors",
+                                    "iterations",
+                                    "tolerance"
+                                ],
+                                "random_vectors": 100,
+                                "requested": {
+                                    "iterations": null,
+                                    "random_vectors": null,
+                                    "save_memory": false,
+                                    "seed": 7,
+                                    "tolerance": null
+                                },
+                                "save_memory": false,
+                                "seed": 7,
+                                "tolerance": 0.01
+                            },
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_grm_prefixes": [
+                                "grm_ldms_1",
+                                "grm_ldms_2"
+                            ],
+                            "mph_matrix": {
+                                "artifact_type": "mph_ldms",
+                                "components": [
+                                    {
+                                        "name": "ldms_1",
+                                        "ordinal": 1,
+                                        "plan_predictor_count": 1500
+                                    },
+                                    {
+                                        "name": "ldms_2",
+                                        "ordinal": 2,
+                                        "plan_predictor_count": 700
+                                    }
+                                ],
+                                "key": "mph_ldms.ab12cd34",
+                                "layer": "cohort",
+                                "plan_key": "mph_ldms.plan.ef56",
+                                "plan_settings": {
+                                    "ld_bins": 1,
+                                    "maf_bins": 2
+                                },
+                                "settings": {
+                                    "variant_universe": "autosomes"
+                                },
+                                "variant_counts": {
+                                    "assigned": 2200,
+                                    "bim_rows": 2400,
+                                    "unassigned": 200
+                                }
+                            },
+                            "mph_trait_names": [
+                                "PHENO"
+                            ],
+                            "trait": "QT"
+                        },
+                        "analysis.mph.inputs.json:md5,6c75206183cb3a2d915aadb7bac1f88d"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,5c433fdcf8f13afd6708a2f3c09f4d90"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:42:05.792218127",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

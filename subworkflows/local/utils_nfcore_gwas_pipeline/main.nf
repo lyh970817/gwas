@@ -282,7 +282,7 @@ def selectedCitationKeys(selected_methods) {
         error("Cannot generate methods citations for unknown method selectors: ${unknown.toList().sort().join(', ')}")
     }
 
-    def citation_order = ['regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'rhe_mc', 'genie', 'ldak_sumstats', 'ldsc']
+    def citation_order = ['regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'rhe_mc', 'genie', 'mph', 'ldak_sumstats', 'ldsc']
     def keys = (association + heritability + pairwise)
         .collectMany { token -> capabilities[token].citation_keys }
         .findAll { key -> key }
@@ -313,6 +313,8 @@ def toolCitationText(selected_methods) {
         ldak_fast_he: 'LDAK fast Haseman-Elston regression (Speed <em>et al.</em>, 2012; Pazokitoroudi <em>et al.</em>, 2020)',
         ldak_fast_pcgc: 'LDAK fast PCGC regression (Speed <em>et al.</em>, 2012; Pazokitoroudi <em>et al.</em>, 2020)',
         genie_g: 'GENIE additive randomised Haseman-Elston regression (Pazokitoroudi <em>et al.</em>, 2024; Pazokitoroudi <em>et al.</em>, 2020)',
+        mph_reml: 'MPH REML (Jiang, 2024)',
+        mph_reml_ldms: 'MPH REML over LD- and MAF-stratified components (Jiang, 2024; Yang <em>et al.</em>, 2015)',
         ldak_sumher: 'LDAK SumHer (Speed and Balding, 2019)',
         ldsc_h2: 'LDSC (Bulik-Sullivan <em>et al.</em>, 2015)',
     ]
@@ -354,6 +356,7 @@ def toolBibliographyText(selected_methods) {
         ldak: '<li>Speed D, Hemani G, Johnson MR, Balding DJ. Improved heritability estimation from genome-wide SNPs. <em>American Journal of Human Genetics</em>. 2012;91:1011-1021. doi: <a href="https://doi.org/10.1016/j.ajhg.2012.10.010">10.1016/j.ajhg.2012.10.010</a>.</li>',
         genie: '<li>Pazokitoroudi A, Liu Z, Dahl A, Zaitlen N, Rosset S, Sankararaman S. A scalable and robust variance components method reveals insights into the architecture of gene-environment interactions underlying complex traits. <em>American Journal of Human Genetics</em>. 2024;111:1462-1480. doi: <a href="https://doi.org/10.1016/j.ajhg.2024.05.015">10.1016/j.ajhg.2024.05.015</a>.</li>',
         rhe_mc: '<li>Pazokitoroudi A, Wu Y, Burch KS, Hou K, Zhou A, Pasaniuc B, Sankararaman S. Efficient variance components analysis across millions of genomes. <em>Nature Communications</em>. 2020;11:4020. doi: <a href="https://doi.org/10.1038/s41467-020-17576-9">10.1038/s41467-020-17576-9</a>.</li>',
+        mph: '<li>Jiang J. MPH: fast REML for large-scale genome partitioning of quantitative genetic variation. <em>Bioinformatics</em>. 2024;40:btae298. doi: <a href="https://doi.org/10.1093/bioinformatics/btae298">10.1093/bioinformatics/btae298</a>.</li>',
         ldak_sumstats: '<li>Speed D, Balding DJ. SumHer better estimates the SNP heritability of complex traits from summary statistics. <em>Nature Genetics</em>. 2019;51:277-284. doi: <a href="https://doi.org/10.1038/s41588-018-0279-5">10.1038/s41588-018-0279-5</a>.</li>',
         ldsc: '<li>Bulik-Sullivan BK, Loh PR, Finucane HK, et al. LD Score regression distinguishes confounding from polygenicity in genome-wide association studies. <em>Nature Genetics</em>. 2015;47:291-295. doi: <a href="https://doi.org/10.1038/ng.3211">10.1038/ng.3211</a>.</li>',
         gwaslab: '<li>GWASLab. <a href="https://cloufield.github.io/gwaslab/">https://cloufield.github.io/gwaslab/</a>.</li>',

@@ -1,0 +1,50 @@
+{
+    "stub": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_estimator": "mph_reml_ldms",
+                            "trait": "QT"
+                        },
+                        "analysis.provenance.json:md5,dba173c226d522a4c1c1b2ddd437cf98"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,aa016f0ebeedc21094166e3055be544c"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:36:16.519242823",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a converged fit is classified estimable and completed from the native result": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_estimator": "mph_reml_ldms",
+                            "trait": "QT"
+                        },
+                        "analysis.provenance.json:md5,a8cb26e1944c667ab9aff5437cde6881"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,aa016f0ebeedc21094166e3055be544c"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:34:56.85186072",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

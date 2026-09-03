@@ -1,0 +1,154 @@
+{
+    "homo_sapiens popgen - a variant in no group is written all-zero and counted as unassigned": {
+        "content": [
+            {
+                "snp_info": [
+                    [
+                        {
+                            "id": "plink_simulated"
+                        },
+                        "plink_simulated.snp_info.csv:md5,0a79b37af331d6017acc427b1cf2bbc5",
+                        "plink_simulated.snp_info.counts.tsv:md5,f1b765812965d5dbb17c97d747d544ef",
+                        [
+                            "sparse"
+                        ]
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CUSTOM_MPHSNPINFO",
+                        "python",
+                        "3.14.5"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:28:07.414547979",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "homo_sapiens popgen - stub": {
+        "content": [
+            {
+                "snp_info": [
+                    [
+                        {
+                            "id": "plink_simulated"
+                        },
+                        "plink_simulated.snp_info.csv:md5,69327507e4b22ec5df9ea81b22fd8fb8",
+                        "plink_simulated.snp_info.counts.tsv:md5,6be8f452a0dd27c4e2f2d42730d4ef0b",
+                        [
+                            "ld01_maf01",
+                            "ld02_maf01"
+                        ]
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CUSTOM_MPHSNPINFO",
+                        "python",
+                        "3.14.5"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:29:08.762033529",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a non-autosomal or unparseable chromosome code is written all-zero and counted as unassigned": {
+        "content": [
+            {
+                "snp_info": [
+                    [
+                        {
+                            "id": "synthetic"
+                        },
+                        "synthetic.snp_info.csv:md5,256472712311ea1ecdad49fc92ee3bdd",
+                        "synthetic.snp_info.counts.tsv:md5,fc95ce771f5cec7b39a7007b196a4b6c",
+                        [
+                            "all"
+                        ]
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CUSTOM_MPHSNPINFO",
+                        "python",
+                        "3.14.5"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:28:16.003713619",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "homo_sapiens popgen - the one-component plan writes one all-ones row per BIM variant": {
+        "content": [
+            {
+                "snp_info": [
+                    [
+                        {
+                            "id": "plink_simulated"
+                        },
+                        "plink_simulated.snp_info.csv:md5,2f34242f77288b21606341bedc5daf92",
+                        "plink_simulated.snp_info.counts.tsv:md5,4c6fdce17849fb371d068e13598f9383",
+                        [
+                            "all"
+                        ]
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CUSTOM_MPHSNPINFO",
+                        "python",
+                        "3.14.5"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:27:44.947554237",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "homo_sapiens popgen - a two-stratum plan writes disjoint membership columns in the caller's order": {
+        "content": [
+            {
+                "snp_info": [
+                    [
+                        {
+                            "id": "plink_simulated"
+                        },
+                        "plink_simulated.snp_info.csv:md5,39cd6c833399a0b8065e08c73c49ba56",
+                        "plink_simulated.snp_info.counts.tsv:md5,ccfb35ee0db9e1c934be71a2492a1c67",
+                        [
+                            "ld01_maf01",
+                            "ld02_maf01"
+                        ]
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CUSTOM_MPHSNPINFO",
+                        "python",
+                        "3.14.5"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-03T10:27:55.903037087",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}
