@@ -14,9 +14,7 @@
 // decides whether a row or a pair request may configure the LD- and MAF-stratified plan settings, in
 // `resolveGctaMethodOptions`, `resolvePairRequests` and `resolveRelationships` — keyed on the planned model
 // rather than on the matrix kind that carries it, so a second tool's stratified estimator can share one plan.
-// It is not a promise about how many components the native fit ends up with: a caller-supplied GENIE
-// annotation with K columns makes GENIE fit K genetic components while the pipeline still plans `single`,
-// which is why the route records the realised components in its own provenance sidecar instead of here.
+// It names the model the pipeline plans, not the number of components a native fit happens to report.
 //
 // `stochastic` marks an estimator that randomises rather than enumerating. It gates the seed-class options and
 // the unseeded-run warning. It is a statement about how this pipeline invokes the estimator: LDAK's kinship
@@ -376,18 +374,6 @@ def getMethodRegistry() {
             stochastic: true,
             requires_complete_covariates: true,
             citation_keys: ['ldak', 'rhe_mc'],
-        ],
-        genie_g: [
-            domain: 'heritability',
-            option_family: 'genie',
-            estimator_family: 'moment_he',
-            input_backend: 'direct_plink1_genotypes',
-            component_model: 'single',
-            trait_support: [quantitative: true, binary: false],
-            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
-            requires_complete_covariates: true,
-            citation_keys: ['genie', 'rhe_mc'],
         ],
     ]
 }

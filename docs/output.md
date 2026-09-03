@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source passes through GWASLab, whose table and log are published directly. Run-level provenance is collected in MultiQC and `pipeline_info/`; one route, `genie_g`, additionally publishes a per-result provenance sidecar beside its native output.
+This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source passes through GWASLab, whose table and log are published directly. Run-level provenance is collected in MultiQC and `pipeline_info/`.
 
 Intermediates are unpublished by default. The optional directories described below appear only when their corresponding save control is enabled.
 
@@ -25,14 +25,13 @@ Use the following provenance chain for any result:
 3. Map the method to its producing tool using the table below.
 4. Read tool versions from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline version and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
-Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table or a diagnostics table. It adds a per-result provenance sidecar only for `genie_g`, whose runtime reports no version of its own and whose invocation therefore has to be recorded beside its result.
+Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table, diagnostics table or per-result provenance sidecar.
 
 | Method token                                                                                                                                      | Producing tool |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `regenie`                                                                                                                                         | REGENIE        |
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`, `ldak_fast_he`, `ldak_fast_pcgc`                                                                | LDAK 6         |
-| `genie_g`                                                                                                                                         | GENIE          |
 | `ldak_sumher`, `ldak_sumcors`                                                                                                                     | LDAK 6.3       |
 | `ldsc_h2`, `ldsc_rg`                                                                                                                              | LDSC           |
 
@@ -53,7 +52,6 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
   - [GCTA GREML and GREML-LDMS](#gcta-greml-and-greml-ldms)
   - [LDAK estimators](#ldak-estimators)
   - [LDAK direct-genotype estimators](#ldak-direct-genotype-estimators)
-  - [GENIE](#genie)
   - [Summary-level LDSC H2 and RG](#summary-level-ldsc-h2-and-rg)
 - [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
 - [LDAK summary-statistics heritability and correlation](#ldak-summary-statistics-heritability-and-correlation)
@@ -169,7 +167,7 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 <details markdown="1">
 <summary>Output files</summary>
 
-[LDAK](https://dougspeed.com/ldak/) fast Haseman-Elston and fast PCGC estimate the same quantities as `ldak_he` and `ldak_pcgc` but read the cohort's PLINK 1 genotypes directly, approximating the kinship trace terms with random vectors (the randomised approach introduced by [RHE-mc](https://doi.org/10.1038/s41467-020-17576-9), which GENIE also uses). No relatedness matrix is built, requested or published for these routes, so they add nothing under `quality_control/`. Covariates are projected out natively from the complete covariate files preparation writes.
+[LDAK](https://dougspeed.com/ldak/) fast Haseman-Elston and fast PCGC estimate the same quantities as `ldak_he` and `ldak_pcgc` but read the cohort's PLINK 1 genotypes directly, approximating the kinship trace terms with random vectors (the randomised approach introduced by [RHE-mc](https://doi.org/10.1038/s41467-020-17576-9)). No relatedness matrix is built, requested or published for these routes, so they add nothing under `quality_control/`. Covariates are projected out natively from the complete covariate files preparation writes.
 
 - `heritability/individual/ldak_fast_he/<analysis_id>/`
   - `<analysis_id>.ldak_fast_he.fasthe`: Native randomised Haseman-Elston estimates: a key-value header (`Num_Kinships`, `Num_Top_Predictors`, `Num_Covariates`, `Coeffsfile`, `Covar_Heritability`, `Total_Samples`, `With_Phenotypes`, `Null_Likelihood`, `Alt_Likelihood`, `LRT_Stat`, `LRT_P`) followed by a `Component Heritability SE Size Mega_Intensity SE` table with `Her_K1`, `Her_Top` and `Her_All` rows.
@@ -184,26 +182,6 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 </details>
 
 The per-predictor (`.ind.hers`), per-block (`.jackests`), per-random-vector (`.repetitions`), label, progress and combined-covariate files stay in the work directory: they are large or purely diagnostic. Three things about these results are worth stating plainly. `ldak.fast_num_blocks` sets the number of **predictor** jackknife blocks — LDAK partitions predictors, not samples — so it moves the standard error and not the point estimate, and a block-jackknife standard error is not comparable across block settings nor to the exact `ldak_he`/`ldak_pcgc` standard error. An unseeded run cannot be reproduced: LDAK records no seed in its log unless one was supplied, so set `ldak.fast_seed` for anything you intend to publish. And with `weights_policy: provided`, inspect the `.log` for `contains weights for only`, which means LDAK gave weight zero to every predictor the weights file omitted.
-
-### GENIE
-
-<details markdown="1">
-<summary>Output files</summary>
-
-[GENIE](https://github.com/sriramlab/GENIE) estimates additive heritability by the same randomised method-of-moments approach as [RHE-mc](https://doi.org/10.1038/s41467-020-17576-9), reading the cohort's PLINK 1 genotypes directly. No relatedness matrix is built, requested or published, so this route adds nothing under `quality_control/`. The pipeline fixes the additive model and the projection policy (`-m G -np 0 -i 1`) and exposes none of GENIE's gene-by-environment, noise-by-environment or trace-export surface.
-
-- `heritability/individual/genie_g/<analysis_id>/`
-  - `<analysis_id>.genie_g.out`: Native GENIE result: the echoed option block, the retained sample count, the covariate count including GENIE's own intercept, the per-component variant counts, the variance components and the heritabilities.
-  - `<analysis_id>.genie_g.log`: Native standard output, carrying the tab-separated parameter block, the per-jackknife-block progress and the retained-sample line the result file does not repeat.
-  - `<analysis_id>.genie_g.provenance.json`: Invocation record for this result: the effective stochastic settings and which of them are GENIE's own defaults, the sample and variant identities the fit was given as SHA-256 digests, the fitted components, and the build identity of the pinned runtime. The sample-order digest **records** the order the estimator was given; it does not verify it afterwards, because the counts GENIE echoes cannot detect a permuted or short input. Order is guaranteed instead by the adapter writing every file in genotype-file order.
-
-</details>
-
-Read the heritability from the block under the `Heritabilities:` header, and the whole-genome figure from `Total h2`. Do not grep the bare `h2_g[k]` label: GENIE writes it twice in one file, once there and once under a second `Heritabilities and enrichments computed based on overlapping setting` block, and with overlapping component definitions the two carry different numbers — measured 6.6-fold apart. This route requires a disjoint annotation partition precisely so the two blocks agree by construction.
-
-Three things about these results are worth stating plainly. A seed makes the fit repeatable, not stable: at GENIE's native default of ten random vectors the estimate moved across 0.0719 to 0.1016 over seeds 1 to 8 on a 200-sample cohort, about 35% of its own size, while the reported jackknife standard error ranged 0.154 to 0.284 and contains none of that Monte-Carlo component — so set `genie.random_vectors` explicitly for anything you intend to publish, and read `stochastic_settings.monte_carlo_error` in the sidecar. The pinned runtime is a single-precision build (`Eigen::Matrix<float>`) for `linux/amd64` only, with no Conda fallback; the comparison against a double-precision build that issue #10 asks for has not been made, and is the one part of that phase still open. And `genie.memory_efficient` selects a second executable that agrees with the first on the point estimate but is not otherwise interchangeable with it: on the compact fixture the enrichment standard error differs at the sixth significant figure, and it writes a wall-clock line into its log, so two of its own runs are never byte-identical even at a fixed seed.
-
-GENIE reports no version at runtime: it has no `--version`, its `--help` exits 1, and its own banner self-reports `1.0.0` for the v1.1.1 source tag. The version in `pipeline_info/nf_core_gwas_software_mqc_versions.yml` is therefore stated by the pipeline from the pinned image label rather than extracted, and the sidecar's `software.build` block records the image digest so a published result carries an authoritative build identity.
 
 ### Summary-level LDSC H2 and RG
 
@@ -286,7 +264,7 @@ Matrices are unpublished by default because they are large intermediates. `<key>
 
 </details>
 
-Relatedness matrices are the only current `quality_control/` publication family; validation failures are reported before execution and do not create a published validation report. LDAK fast Haseman-Elston, LDAK fast PCGC and GENIE build no matrix and therefore publish nothing here.
+Relatedness matrices are the only current `quality_control/` publication family; validation failures are reported before execution and do not create a published validation report. LDAK fast Haseman-Elston and fast PCGC build no matrix and therefore publish nothing here.
 
 ### Prepared genotypes
 
