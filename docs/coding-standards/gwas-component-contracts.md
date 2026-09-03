@@ -44,8 +44,8 @@ phasing, imputation, GRM construction, association, summary statistics, referenc
 - A scalar is an explicit module input only when the native tool always requires it or when one mutually
   exclusive mode must always be selected. Put a per-analysis scalar after the tuple's file members; use a
   standalone value only when it is process-global.
-- Verify mandatory status from native behavior: if the tool errors when the flag is omitted, the value belongs
-  in the interface. Do not hide it in metadata or an `ext.args` default.
+- Take mandatory status from the tool's own documentation: if it documents the flag as required, the value
+  belongs in the interface. Do not hide it in metadata or an `ext.args` default.
 - Optional phenotype-column selectors and other optional non-file behavior use `task.ext.args`, including values
   that vary per record through a closure. Optionality, not scientific importance, decides this placement.
 - Optional files remain tuple path members and callers use `[]` for absence so Nextflow can stage present files.
