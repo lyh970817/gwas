@@ -105,8 +105,17 @@ nextflow_process {
                 { assert command(results).contains('-c "plink_simulated_covariates.txt"') },
                 { assert !command(results).contains(' -e ') },
                 { assert !command(results).contains('-eXannot') },
+                // `-js` and its long form `--jack-scheme` are undocumented and silently overwrite the
+                // jackknife count, winning over `-jn` whichever order they appear in. Reaching either would
+                // bypass the adapter's guard against a count the streaming executable cannot survive, so both
+                // spellings are pinned absent.
                 { assert !command(results).contains('-js') },
+                { assert !command(results).contains('--jack-scheme') },
                 { assert !command(results).contains('-tr') },
+                // `-np` is honoured only after `-m`. Asserting the order, not just the presence, is what stops
+                // a future reordering from silently dropping the projection setting.
+                { assert command(results).indexOf('-m G') < command(results).indexOf('-np 0') },
+                { assert command(results).indexOf('-m G') >= 0 },
                 // GENIE always adds its own intercept, so five covariate columns are reported for the four
                 // the file declares. Both counts are the ones the expected-count contract asserted against.
                 { assert path(results).text.contains('Number of individuals after filtering: 200') },
@@ -187,17 +196,20 @@ nextflow_process {
                 { assert command(results).contains('GENIE_mem -g "plink_simulated"') },
                 { assert process.out.xsum.size() == 1 },
                 { assert process.out.wgxsum.size() == 1 },
-                // The two executables write the same numbers in two header dialects: `GENIE_mem` separates
-                // with `=` rather than `:` and calls the per-bin count "SNPs" rather than "features", under a
-                // different self-reported banner version. The module's count assertion tolerates both, which
-                // is the only reason this case reaches its result at all.
+                // The two executables report the same counts in two different header dialects: `GENIE_mem`
+                // separates with `=` rather than `:` and calls the per-bin count "SNPs" rather than
+                // "features", under a different self-reported banner version. The module's count assertion
+                // tolerates both, which is the only reason this case reaches its result at all.
                 { assert path(results).text.contains('Number of individuals after filtering = 200') },
                 { assert path(results).text.contains('Number of SNPs in bin 0 = 220') },
-                // The estimate is the same to well within the tolerance -- at this seed and this random-vector
-                // count it is bit-identical. The tolerance is valid only at an identical seed and an identical
-                // `-k`: across seeds at GENIE's native ten vectors the same estimate moves by about a third
-                // of its own size.
-                { assert Math.abs(estimate(results, 'h2_g[0]') - -0.0858201) < 1e-5 },
+                // Agreement between the two executables is asserted where both arms actually run, in
+                // `tests/heritability_genie_g.nf.test`, by comparing them to each other rather than to a
+                // number recorded from an earlier run. A process-scope test sees one invocation, so it
+                // asserts only that this one produced a usable estimate. Nothing here pins a literal value:
+                // the `.out` md5 in the snapshot below is what catches a change in the numbers, and it fails
+                // loudly rather than silently agreeing with a stale constant.
+                { assert estimate(results, 'h2_g[0]').isNaN() == false },
+                { assert path(results).text.contains('Total h2') },
                 { assert snapshot(sanitizeOutput(process.out, unstableKeys: ["log"])).match() }
             )
         }

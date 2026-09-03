@@ -34,6 +34,13 @@ process GENIE_G {
     def binary = memory_efficient ? 'GENIE_mem' : 'GENIE'
     prefix = task.ext.prefix ?: "${meta.id}"
     def covariate_arg = covariates ? "-c \"${covariates}\"" : ''
+    // The order of `-m` and `-np` below is load-bearing and must not be rearranged. `-np` is honoured only
+    // when it appears *after* `-m`: measured on the pinned image, `-m G -np 1` moves Sigma^2_g[0] to 0.0580856
+    // while `-np 1 -m G` silently leaves it at the unprojected 0.0560618, and GENIE echoes no projection line
+    // in either case, so a caller cannot tell from the output which happened. `-i` is not order-sensitive.
+    // `${args}` is appended last and carries only `-jn`, `-k` and `-s`, which the adapter renders from
+    // validated integers; it must never become a caller-supplied string, because the undocumented `-js`
+    // (`--jack-scheme`) silently overwrites the jackknife count and would bypass the adapter's safety guard.
     """
     ${binary} \\
         -g "${bed.baseName}" \\
@@ -66,10 +73,11 @@ process GENIE_G {
     # genuinely proves is narrower than it looks: it catches a stray header row changing the covariate width, a
     # disagreement between the annotation and the variant file, and a retained-sample count GENIE did not
     # arrive at -- for instance a phenotype value GENIE reads as its own missing sentinel. It does **not**
-    # detect a positional shift. Measured on the pinned image, a covariate file missing one data row, and a
-    # covariate file whose rows are permuted, both run at exit 0 with every declared count matching and the
-    # estimate moved. Row order is guaranteed upstream, by the adapter writing every file in genotype-file
-    # order, and is recorded rather than verified by the sample-order digest in the provenance sidecar.
+    # detect a positional shift. Measured on the pinned image over eight repeats each, permuting the covariate
+    # rows moves h2_g[0] from 0.0570925 to 0.00994381 and permuting the phenotype rows moves it to -0.0469959,
+    # both stably, both at exit 0, and both with every declared count still matching. Row order is guaranteed
+    # upstream, by the adapter writing every file in genotype-file order, and is recorded rather than verified
+    # by the sample-order digest in the provenance sidecar.
     #
     # The two executables write the same numbers in two header dialects, which is why the patterns below match
     # neither the separator nor the noun: `GENIE` writes "Number of individuals after filtering: 200" and

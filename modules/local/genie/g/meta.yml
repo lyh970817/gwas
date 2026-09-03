@@ -76,9 +76,11 @@ input:
           Single-trait phenotype file passed to `-p`, in FAM order, with a header row whose first two fields are
           the literal, case-sensitive `FID` and `IID`. GENIE parses the header rather than skipping it: it uses
           those two names to decide which columns are identifiers, and the header's field count to decide how
-          many traits follow. A lowercase or differently named header is accepted and silently changes the
-          estimate (0.0570925 -> 0.0420263 on one unchanged body); a header with fewer fields than the data rows
-          segfaults; a headerless file is rejected as a sample-count mismatch. Missing is numeric, not textual:
+          many traits follow. A lowercase or differently named header is accepted and the fit then becomes
+          non-deterministic: eight repeats on one unchanged body at a fixed seed returned four different
+          values including `-nan`, where the well-formed control was stable across all eight. No single value
+          characterises that, so none is quoted. A header with fewer fields than the data rows segfaults; a
+          headerless file is rejected as a sample-count mismatch. Missing is numeric, not textual:
           GENIE drops every sample whose trait parses to exactly -9, however it is spelled, and `NA` besides.
         ontologies: []
     - covariates:
@@ -110,9 +112,10 @@ input:
           the variant file, and a retained-sample count the caller did not predict all otherwise produce a
           plausible wrong answer at exit 0.
 
-          This does **not** detect a positional shift. Measured on the pinned image, a covariate file missing
-          one data row, and one whose rows are permuted, both run at exit 0 with every declared count matching
-          and the estimate moved. Row order is the caller's responsibility.
+          This does **not** detect a positional shift. Measured on the pinned image over eight repeats each,
+          permuting the covariate rows moves h2_g[0] from 0.0570925 to 0.00994381, and permuting the phenotype
+          rows moves it to -0.0469959; both are stable, both exit 0, and both leave every declared count
+          matching. Row order is the caller's responsibility.
         pattern: "*.tsv"
         ontologies: []
     - memory_efficient:
@@ -120,8 +123,11 @@ input:
         description: |
           Selects the executable: `GENIE_mem` streams the genotype matrix and writes two binary intermediates,
           `GENIE` holds it in memory. Exactly one always runs, so the choice is a required input rather than an
-          extension argument. The two agree on the point estimate and may differ in the last digit of the
-          standard error, but they are not otherwise interchangeable. `GENIE_mem` writes a different header
+          extension argument. The two agree on the point estimate, but their output is not interchangeable and
+          is not byte-identical in general: on the compact 2200-variant fixture the enrichment standard error
+          differs at the sixth significant figure (0.000158839 against 0.000156019) while every other line
+          matches, and on the 220-variant popgen fixture the whole result block does match. Neither is
+          promised. `GENIE_mem` writes a different header
           dialect (`= 200` rather than `: 200`, `Number of SNPs in bin` rather than `Number of features in
           bin`, under a different self-reported banner), ends its output with a wall-clock line, and aborts
           with a heap corruption or segmentation fault whenever the trailing jackknife block would hold more

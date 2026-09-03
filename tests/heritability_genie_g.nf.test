@@ -125,7 +125,16 @@ nextflow_pipeline {
                         // that would change the estimand are unreachable because the pipeline exposes no
                         // native-argument surface for GENIE.
                         { assert genieCommands.every { command -> command.contains('-s 7') && command.contains('-k 20') } },
-                        { assert genieCommands.every { command -> !command.contains('-eXannot') && !command.contains('-js') && !command.contains('-tr ') } },
+                        // `-js` and its long form `--jack-scheme` are undocumented, absent from the usage
+                        // text, and silently overwrite the jackknife count -- they win over `-jn` whichever
+                        // order the two appear in. Either one reaching the command line would bypass the
+                        // adapter's guard against a count the streaming executable cannot survive, so both
+                        // spellings are pinned absent alongside the deferred surfaces.
+                        { assert genieCommands.every { command -> !command.contains('-eXannot') && !command.contains('-js') && !command.contains('--jack-scheme') && !command.contains('-tr ') } },
+                        // `-np` is honoured only when it appears after `-m`, and GENIE echoes no projection
+                        // line either way, so a reordering would silently drop the setting with nothing in
+                        // any output to show it. The order is asserted, not just the presence.
+                        { assert genieCommands.every { command -> command.indexOf('-m G') >= 0 && command.indexOf('-m G') < command.indexOf('-np 0') } },
                         // The jackknife count each row actually ran: the clamped native default where it was
                         // left unset, the curated value where it was set, and a reduced default for the
                         // streaming row, whose executable reads past its own buffer when the trailing block

@@ -12,12 +12,12 @@ the tool:
 
     a header row is mandatory in the phenotype and covariate files, and its first two fields must be the
         literal, case-sensitive `FID` and `IID`. GENIE does not simply skip line one: it reads the header to
-        decide which columns are identifiers and how many trait or covariate columns follow. Measured on the
-        pinned image with one unchanged body, `FID IID QT`, `FID IID PHENO` and `FID IID X` all give
-        h2 = 0.0570925, while `A B C` gives 0.0420259 and lowercase `fid iid pheno` gives 0.0420263 -- the
-        identifier columns are read as data. A header with fewer fields than the data rows segfaults, one
-        with more reads a phantom trait, and a headerless covariate file reports eight covariates instead of
-        six and returns -nan
+        decide which columns are identifiers and how many trait or covariate columns follow. A malformed
+        header is not merely wrong, it is *non-deterministic*: eight repeats on one unchanged body at a fixed
+        seed returned four different values including `-nan`, while the well-formed control returned the same
+        value all eight times. That is an uninitialised or out-of-bounds read, so no single number
+        characterises it and none is quoted here. A header with fewer fields than the data rows segfaults, and
+        a headerless covariate file reports two extra covariates and returns -nan
     the annotation must be space-delimited with one row per BIM variant (a tab-delimited file yields
         "0 SNPs in bin 0" and -nan, and a row-count mismatch is only a warning before GENIE adopts the
         annotation's own count)
