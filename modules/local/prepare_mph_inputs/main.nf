@@ -22,8 +22,6 @@ process PREPARE_MPH_INPUTS {
     tuple val(meta), path("${prefix}.mph.inputs.json"), emit: serialization
     path 'versions.yml', emit: versions, topic: versions
 
-    when:
-    task.ext.when == null || task.ext.when
 
     script:
     // `prefix` must remain visible to the output declarations. Every other assignment must remain visible to

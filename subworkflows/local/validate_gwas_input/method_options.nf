@@ -381,13 +381,13 @@ def resolveGenieMethodOptions(analysis_id, options, methods, defaults, fail) {
 
 // MPH's controls split into two kinds and the resolver keeps them apart deliberately, because only one kind
 // moves the answer. `seed`, `random_vectors` and `save_memory` govern the stochastic trace estimator: measured
-// on the pinned image, the point estimate — not merely its standard error — moved across seeds, so a seed here
-// changes the number that gets published. `iterations` and `tolerance` govern the deterministic solver.
+// on the pinned image, the point estimate — not merely its standard error — moved across seeds (issue #67), so
+// a seed here changes the number that gets published. `iterations` and `tolerance` govern the deterministic solver.
 //
 // Unlike the LDAK and GENIE seed controls, an unset `mph.seed` needs no unseeded-run warning: MPH's own default
 // is the fixed integer 0, so an unseeded run is reproducible and its seed is recoverable from the log's option
 // echo. `tolerance` is validated as any positive number rather than against MPH's own 1e-4 floor, because the
-// floor is applied natively and silently and this pipeline records what the researcher asked for beside what
+// floor is applied natively and this pipeline records what the researcher asked for beside what
 // the tool did rather than pre-empting it.
 def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
     def mph_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'mph'])

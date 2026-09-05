@@ -12,12 +12,14 @@ tools:
   - "prepare_mph_inputs":
       description: |
         A Python 3 representation adapter. It rewrites the pipeline's prepared phenotype and covariate tables
-        into MPH's comma-separated, IID-keyed, empty-field-is-missing form, dummy-encodes categorical
-        covariates by the same rule the pipeline's other numeric design uses, prepends the explicit intercept
-        column MPH does not synthesise once a covariate is named, and records the sample accounting and input
-        digests the post-fit sidecar writer publishes.
+        into MPH's comma-separated, IID-keyed, empty-field-is-missing form (issue #60), dummy-encodes
+        categorical covariates by the same rule the pipeline's other numeric design uses (issue #64), prepends
+        the explicit intercept column MPH does not synthesise once a covariate is named (issue #62), and
+        records the sample accounting and input digests the post-fit sidecar writer publishes.
       homepage: "https://github.com/nf-core/gwas"
       documentation: "https://nf-co.re/gwas"
+      # Pipeline-authored code carrying the pipeline's own licence. It invokes no third-party programme; MPH
+      # is GPL-3.0-only and is declared by the two `mph/*` modules that do.
       licence: ["MIT"]
       identifier: ""
 input:
@@ -59,7 +61,8 @@ input:
         type: file
         description: |
           The `.grm.iid` of the matrix family the fit will use. Every component of one family shares it. It
-          must be the genotype FAM's IID column in FAM order, which this module asserts.
+          must be the genotype FAM's IID column in FAM order, which this module asserts because MPH indexes
+          the matrix by that order and checks nothing (issue #58).
         pattern: "*.grm.iid"
         ontologies:
           - edam: "http://edamontology.org/format_2330"
@@ -67,7 +70,8 @@ input:
         type: file
         description: |
           The genotype FAM the matrix family was built from. It supplies the FID of each IID, which is what
-          makes an ambiguous `FID IID` pairing in the phenotype table detectable rather than silent.
+          makes an ambiguous `FID IID` pairing in the phenotype table detectable rather than silent: MPH keys
+          samples by IID alone (issue #59).
         pattern: "*.fam"
         ontologies:
           - edam: "http://edamontology.org/format_3475"
@@ -92,7 +96,8 @@ output:
           type: file
           description: |
             IID-keyed covariate CSV, emitted only when the analysis declared covariates. Its first column after
-            the identifier is the literal `intercept`, which MPH synthesises only when no covariate is named.
+            the identifier is the literal `intercept`, which MPH synthesises only when no covariate is named
+            (issue #62).
           pattern: "*.mph.covar.csv"
           ontologies:
             - edam: "http://edamontology.org/format_3752"

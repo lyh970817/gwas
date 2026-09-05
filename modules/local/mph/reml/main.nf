@@ -3,7 +3,7 @@ process MPH_REML {
     label 'process_high'
 
     // MPH is not packaged for Bioconda, so this module ships a digest-pinned image and no `environment.yml`,
-    // following `metasoft/re2` and `genie/g`. The image is `linux/amd64` only, statically linked against Intel
+    // following `metasoft/re2`. The image is `linux/amd64` only, statically linked against Intel
     // oneMKL, and there is no Conda fallback, so the module cannot run on another architecture.
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
         ? 'docker://ghcr.io/lyh970817/mph@sha256:561fc32443768cdaa80b1a56ed6d3f4190633d8c52d0f9fc8d0f9cc1694fad6a'
@@ -31,8 +31,6 @@ process MPH_REML {
     tuple val(meta), path("${prefix}.log"), emit: log
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
 
-    when:
-    task.ext.when == null || task.ext.when
 
     script:
     def args = task.ext.args ?: ''
@@ -56,13 +54,14 @@ process MPH_REML {
         ${args} \\
         2>&1 | tee "${prefix}.log"
 
-    # MPH's `main()` catches most thrown errors, prints them and returns 0, so the exit status is not the
-    # contract. A GRM prefix that resolves to nothing, a missing `--output_file` and a missing `--trait_names`
-    # all exit 0; the first two write no `mq.*` file at all and the third writes only the log. The result file
+    # MPH's `main()` catches most thrown errors, prints them and returns 0 (issue #55), so the exit status
+    # is not the contract. A GRM prefix that resolves to nothing, a missing `--output_file` and a missing
+    # `--trait_names` all exit 0; the first two write no `mq.*` file at all and the third writes only the log. The result file
     # and the absence of an error line are therefore what this task succeeds on.
     #
-    # A `Warning:` line is deliberately not fatal here: non-convergence and a rank-deficient covariate matrix
-    # are legitimate native states with a complete result written, and classifying them is the caller's job.
+    # A `Warning:` line is deliberately not fatal here: non-convergence (issue #66) and a rank-deficient
+    # covariate matrix (issue #65) are legitimate native states with a complete result written, and
+    # classifying them is the caller's job.
     test -s "${prefix}.mq.vc.csv"
     ! grep -qE '^(Error|Inconsistency)' "${prefix}.log"
     """

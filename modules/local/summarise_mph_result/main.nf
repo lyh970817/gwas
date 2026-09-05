@@ -16,8 +16,6 @@ process SUMMARISE_MPH_RESULT {
     tuple val(meta), path("${prefix}.provenance.json"), emit: provenance
     path 'versions.yml', emit: versions, topic: versions
 
-    when:
-    task.ext.when == null || task.ext.when
 
     script:
     // `prefix` must remain visible to the output declarations. Every other assignment must remain visible to

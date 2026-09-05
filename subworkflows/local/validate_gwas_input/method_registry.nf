@@ -14,7 +14,8 @@
 // reason, and the separation is load-bearing rather than tidy. An MPH relatedness matrix is `.grm.bin` plus
 // `.grm.iid`, headed by an `int32` sample count and a `float32` sum of the SNP weights, over an unnormalised
 // row-major upper triangle; a GCTA one is `.grm.bin`, `.grm.N.bin` and `.grm.id` over an already-normalised
-// row-major lower triangle. Neither tool validates the other's layout and neither refuses it usefully: a GCTA
+// row-major lower triangle (issue #69). Neither tool validates the other's layout and neither refuses it
+// usefully: a GCTA
 // bundle relabelled for MPH runs to exit 0 producing nothing, and an MPH bundle handed to GCTA is read without
 // complaint -- `gcta --pca` on one returned eigenvalues of 11262.9, 7958.5 and 7701.4 against the true 2.78,
 // 2.67 and 2.59, at exit 0. A shared backend name would let routing hand one estimator the other's bytes.

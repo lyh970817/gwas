@@ -46,11 +46,13 @@ nextflow_pipeline {
                         ],
                     ]])
                     gcta_grm_parts = 1
+                    save_relatedness_matrices = true
                 }
             }
 
             then {
                 def individual = new File("${params.outdir}/heritability/individual")
+                def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
                 def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
                 assertAll(
                     { assert workflow.success },
@@ -85,6 +87,12 @@ nextflow_pipeline {
                         'example_pgen_qt.mph_reml_ldms.mq.vc.csv',
                         'example_pgen_qt.mph_reml_ldms.provenance.json',
                     ] },
+                    // Two matrix families, published under two keys by two different selectors: the dense one
+                    // by its own configured selector and the stratified family through the pipeline's output
+                    // block. The dense pair is asserted by name because that selector has no other test.
+                    { assert matrices.list().toList().size() == 2 },
+                    { assert matrices.listFiles().collect { directory -> directory.list().toList().sort() }.find { names -> names.size() == 2 } ==~ /\[mph_dense\..*\.grm\.bin, mph_dense\..*\.grm\.iid\]/ },
+                    { assert matrices.listFiles().collect { directory -> directory.list().toList().sort() }.find { names -> names.size() == 4 }.every { name -> name.startsWith('mph_ldms.') } },
                 )
                 if (!mode.stub) {
                     def runCommands = commands(params.outdir)
@@ -139,7 +147,13 @@ nextflow_pipeline {
                         { assert stratified.stochastic_settings.num_threads != null },
                         { assert stratified.stochastic_settings.reproducibility == 'seed_stable_given_threads_and_memory_mode' },
                         { assert stratified.native_arguments == ['--seed 7'] },
+                        // The shared core key is the sample the estimate was computed on, so it is the same
+                        // number the solver trace reports as its `sample_size`, not the count of rows the
+                        // adapter handed MPH. That one lives under `detail`.
+                        { assert stratified.inputs.samples.retained == lastIteration.sample_size as int },
                         { assert stratified.inputs.samples.retained == 200 },
+                        { assert stratified.inputs.samples.dropped == 0 },
+                        { assert stratified.inputs.samples.detail.written == 200 },
                         { assert stratified.inputs.samples.detail.analysis_set_expected == 200 },
                         { assert stratified.inputs.samples.detail.analysis_set_observed == 200 },
                         { assert stratified.inputs.variants.universe == 'autosomes' },
@@ -214,6 +228,62 @@ nextflow_pipeline {
                 { assert plans.listFiles().first().list().toList().count { name -> name.contains('_snp_group_') } == 2 },
                 { assert matrices.listFiles().first().list().toList().sort().size() == 4 },
                 { assert matrices.listFiles().first().list().toList().count { name -> name.endsWith('.grm.bin') } == 2 },
+            )
+        }
+    }
+
+    test("two analyses declaring different plan settings get two plans and two matrix families") {
+
+        tag "mph_reuse"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'mph_distinct')
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'mph_distinct', { rows ->
+                    rows.clear()
+                    ['mph_two_bins', 'mph_four_bins'].each { analysis_id ->
+                        def row = RELATIONAL.analysis(projectDir, 'example_pgen_qt')
+                        row.analysis_id = analysis_id
+                        row.association_methods = ''
+                        row.heritability_methods = 'mph_reml_ldms'
+                        rows << row
+                    }
+                })
+                method_options = RELATIONAL.methodOptions(outputDir, 'mph_distinct', [analyses: [
+                    mph_two_bins: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0.0, 0.5]], mph: [seed: 7]],
+                    mph_four_bins: [gcta: [ld_score_region_kb: 50, ld_bins: 4, ldms_maf_edges: [0.0, 0.5]], mph: [seed: 7]],
+                ]])
+                gcta_grm_parts = 1
+                save_relatedness_matrices = true
+            }
+        }
+
+        then {
+            def individual = new File("${params.outdir}/heritability/individual/mph_reml_ldms")
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def plans = new File("${params.outdir}/quality_control/ldms_component_plans")
+            def sidecar = { analysis_id -> slurper.parseText(new File(individual, "${analysis_id}/${analysis_id}.mph_reml_ldms.provenance.json").text) }
+            def two = sidecar('mph_two_bins')
+            def four = sidecar('mph_four_bins')
+            assertAll(
+                { assert workflow.success },
+                // The counterpart of the reuse case above. Two declarations that differ only in `ld_bins` must
+                // not collapse onto one family: dropping the plan key from the stratified MPH identity would
+                // publish one matrix directory here and fit both analyses against whichever family won.
+                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 2 },
+                { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 6 },
+                { assert plans.list().toList().size() == 2 },
+                { assert matrices.list().toList().size() == 2 },
+                { assert two.component_plan.plan_key != four.component_plan.plan_key },
+                { assert two.component_plan.matrix_key != four.component_plan.matrix_key },
+                { assert two.component_plan.components.size() == 2 },
+                { assert four.component_plan.components.size() == 4 },
+                // Each family's own key is the directory it published under, so the two records point at the
+                // two directories rather than at one.
+                { assert matrices.list().toList().sort() == [two.component_plan.matrix_key, four.component_plan.matrix_key].sort() },
+                { assert plans.list().toList().sort() == [two.component_plan.plan_key, four.component_plan.plan_key].sort() },
             )
         }
     }

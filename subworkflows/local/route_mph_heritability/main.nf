@@ -174,7 +174,7 @@ def readCsvHeader(csv) {
 // stochastic trace estimator and move the point estimate itself; `iterations` and `tolerance` govern the
 // deterministic solver. Nothing here claims determinism: MPH's default seed is the fixed 0, but the thread
 // count the executor chooses and the memory mode both move the estimate in the sixth to seventh significant
-// digit, and the thread count is not knowable outside the task.
+// digit (issue #68), and the thread count is not knowable outside the task.
 def buildMphEffectiveSettings(options) {
     return [
         seed: options.seed != null ? options.seed : 0,

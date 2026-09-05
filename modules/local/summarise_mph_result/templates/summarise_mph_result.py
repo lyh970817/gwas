@@ -3,15 +3,16 @@
 
 This writer runs after the estimator rather than before it, which is unusual for this pipeline and is forced by
 MPH itself. Both of MPH's quality failures are printed as `Warning:` lines at exit 0 with a complete result set
-written beside them, and the number of variants each component actually contributed exists only in the result
-file. An adapter running before the fit could publish neither, and would have to leave the fields it is
-required to carry as nulls.
+written beside them (issues #65 and #66), and the number of variants each component actually contributed
+exists only in the result file. An adapter running before the fit could publish neither, and would have to
+leave the fields it is required to carry as nulls.
 
 Everything the serializer already decided is copied through unchanged, so no value is computed twice. This
 writer adds exactly what could not exist earlier:
 
     the quality classification and the warning vocabulary, read from the log
-    the analysis-set size MPH itself reports, cross-checked against what the serializer predicted
+    the analysis-set size MPH itself reports, cross-checked against what the serializer predicted, and
+        promoted into the sidecar's shared `inputs.samples.retained` key
     the fitted covariate columns, reconciled against the columns the serializer asked MPH to fit
     the post-quality-control variant count of each component, matched by name and never by row position
     the effective thread count, which the executor chose and which moves the estimate
@@ -23,15 +24,17 @@ The analysis-set cross-check is the runtime proof that this pipeline's missing-v
 agree on which individuals were fitted; a disagreement means the published estimate describes a different
 sample than the sidecar claims.
 
-The covariate reconciliation exists because of a measured silent model change. When the covariate matrix is
-rank deficient MPH prints one warning, prunes columns until the design has full rank, and names none of the
-columns it dropped. Measured on the pinned image, a collinear design made it drop the pipeline's explicit
-`intercept` column, which turned a covariate-adjusted fit into a fit through the origin and moved the
-proportion of variance explained from 0.0849 to 0.1911 with nothing in the result saying so. The whole reason
-this pipeline writes an explicit column of ones is that MPH synthesises no intercept once a covariate is
-named, so an intercept MPH then prunes voids the guarantee and is refused rather than recorded. Any other
-pruned column is recorded by name as a warning, because a redundant covariate is the researcher's design
-choice to correct and not a misstatement of the model that was fitted.
+The covariate reconciliation exists because of a measured silent model change (issue #65). When the
+covariate matrix is rank deficient MPH prints one warning, prunes columns until the design has full rank, and
+names none of the columns it dropped. On the pinned image a collinear design dropped the pipeline's own
+explicit `intercept` column, turning a covariate-adjusted fit into a fit through the origin with nothing in
+the result saying so. That is a different model, not a rounding difference: fitting the same two covariates
+with and without an intercept moved the proportion of variance explained from 0.0849 to 0.1083, identically
+over three repeats. The whole reason this pipeline writes an explicit column of ones is that MPH synthesises
+no intercept once a covariate is named (issue #62), so an intercept MPH then prunes voids the
+guarantee and is refused rather than recorded. Any other pruned column is recorded by name as a warning,
+because a redundant covariate is the researcher's design choice to correct and not a misstatement of the
+model that was fitted.
 """
 
 import json
@@ -50,8 +53,8 @@ PROCESS_NAME = $task_process_literal
 # Warnings this writer raises itself, kept beside the ones it reads out of the log.
 WARNINGS = []
 
-# The two documented quality failures, each measured on the pinned image at exit 0 with every `mq.*` file
-# written. Any other `^Warning:` line is carried through verbatim rather than being silently discarded.
+# The two documented quality failures (issues #66 and #65), each measured on the pinned image at exit 0 with
+# every `mq.*` file written. Any other `^Warning:` line is carried through verbatim rather than discarded.
 WARNING_PATTERNS = [
     (re.compile(r"^Warning: not converged after .*"), "not_converged"),
     (re.compile(r"^Warning: the covariate matrix is not of full rank\\."), "covariate_matrix_rank_deficient"),
@@ -113,7 +116,9 @@ def main():
     m_index = header.index("m")
 
     # One row per component per trait pair, so the same component appears once per pair with the same `m`.
-    # Keyed by name, first occurrence wins, and the residual row is never a component.
+    # Keyed by name, first occurrence wins, and the residual row is never a component. The header repeats its
+    # component labels in the appended covariance blocks (issue #74), so nothing is keyed by header name
+    # beyond the ten fixed leading columns.
     native_m = {}
     for row in body:
         if len(row) <= max(vc_name_index, m_index):
@@ -130,7 +135,11 @@ def main():
     for component in components:
         vc_name = component.get("vc_name")
         if vc_name is None:
-            fail("component {} of the serialised plan carries no vc_name to match the native result by".format(component["ordinal"]))
+            fail(
+                "component {} of the serialised plan carries no vc_name to match the native result by".format(
+                    component["ordinal"]
+                )
+            )
         if vc_name not in native_m:
             fail(
                 "the native result '{}' has no row named '{}'; it names {}. The component plan and the fitted "
@@ -192,6 +201,11 @@ def main():
             "different sample than this record claims".format(observed, expected)
         )
     record["inputs"]["samples"]["detail"]["analysis_set_observed"] = observed
+    # `retained` is the shared core key and means the sample the estimate was computed on, so it must be the
+    # size MPH itself reports rather than the count the serializer predicted. They are equal by the check
+    # above; assigning it here is what makes that true by construction rather than by convention.
+    record["inputs"]["samples"]["retained"] = observed
+    record["inputs"]["samples"]["dropped"] = record["inputs"]["samples"]["detail"]["fam"] - observed
     record["stochastic_settings"]["num_threads"] = scalar_from_log(
         log_lines, NUM_THREADS_PATTERN, "the thread count it ran with"
     )

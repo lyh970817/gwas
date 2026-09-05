@@ -40,7 +40,7 @@ nextflow_process {
 
         then {
             def csv = process.out.snp_info.get(0).get(1)
-            def counts = process.out.snp_info.get(0).get(2)
+            def counts = process.out.counts.get(0).get(1)
             def variants = stagedBim(csv, 'plink_simulated.bim')
             def autosomal = variants.findAll { fields -> fields[0].isInteger() && (fields[0] as int) >= 1 && (fields[0] as int) <= 22 }
             assertAll(
@@ -55,7 +55,7 @@ nextflow_process {
                 { assert rows(csv).tail().every { row -> row == [row[0], '1'] } },
                 // The column order is a contract the consumer reads off the tuple rather than by re-parsing
                 // the CSV, so the echo is asserted rather than assumed.
-                { assert process.out.snp_info.get(0).get(3) == ['all'] },
+                { assert process.out.snp_info.get(0).get(2) == ['all'] },
                 { assert countRows(counts) == [
                     ['stratum_key', 'predictor_count'],
                     ['all', autosomal.size().toString()],
@@ -95,7 +95,7 @@ nextflow_process {
 
         then {
             def csv = process.out.snp_info.get(0).get(1)
-            def counts = process.out.snp_info.get(0).get(2)
+            def counts = process.out.counts.get(0).get(1)
             def variants = stagedBim(csv, 'plink_simulated.bim')
             def data = rows(csv).tail()
             assertAll(
@@ -104,7 +104,7 @@ nextflow_process {
                 // group files happened to stage in. MPH addresses one column per matrix by name, so a
                 // transposed pair here would build both matrices from the wrong variant set at exit 0.
                 { assert rows(csv).first() == ['SNP', 'ld01_maf01', 'ld02_maf01'] },
-                { assert process.out.snp_info.get(0).get(3) == ['ld01_maf01', 'ld02_maf01'] },
+                { assert process.out.snp_info.get(0).get(2) == ['ld01_maf01', 'ld02_maf01'] },
                 { assert data.collect { row -> row[0] } == variants.collect { fields -> fields[1] } },
                 // Disjointness is what the module promises the caller: a variant counted into two components
                 // would be counted twice in the partition, and MPH would never mention it.
@@ -149,7 +149,7 @@ nextflow_process {
 
         then {
             def csv = process.out.snp_info.get(0).get(1)
-            def counts = process.out.snp_info.get(0).get(2)
+            def counts = process.out.counts.get(0).get(1)
             def variants = stagedBim(csv, 'plink_simulated.bim')
             def data = rows(csv).tail()
             assertAll(
@@ -197,7 +197,7 @@ nextflow_process {
 
         then {
             def csv = process.out.snp_info.get(0).get(1)
-            def counts = process.out.snp_info.get(0).get(2)
+            def counts = process.out.counts.get(0).get(1)
             assertAll(
                 { assert process.success },
                 { assert rows(csv) == [
@@ -390,7 +390,7 @@ nextflow_process {
                 // rather than collapsing to a single component.
                 { assert rows(csv).first() == ['SNP', 'ld01_maf01', 'ld02_maf01'] },
                 { assert rows(csv).tail().every { row -> row.size() == 3 } },
-                { assert process.out.snp_info.get(0).get(3) == ['ld01_maf01', 'ld02_maf01'] },
+                { assert process.out.snp_info.get(0).get(2) == ['ld01_maf01', 'ld02_maf01'] },
                 { assert snapshot(sanitizeOutput(process.out, unstableKeys: [])).match() }
             )
         }

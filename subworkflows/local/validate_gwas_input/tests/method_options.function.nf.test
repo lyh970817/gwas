@@ -299,6 +299,102 @@ nextflow_function {
         }
     }
 
+    def mphOptions = [
+        [
+            name: 'a non-positive iteration count',
+            options: [mph: [iterations: 0]],
+            expected: "option 'mph.iterations': expected a positive integer or null",
+        ],
+        [
+            name: 'a fractional iteration count',
+            options: [mph: [iterations: 2.5]],
+            expected: "option 'mph.iterations': expected a positive integer or null",
+        ],
+        [
+            name: 'a non-positive tolerance',
+            options: [mph: [tolerance: 0]],
+            expected: "option 'mph.tolerance': expected a number greater than 0 or null",
+        ],
+        [
+            name: 'a non-positive random-vector count',
+            options: [mph: [random_vectors: 0]],
+            expected: "option 'mph.random_vectors': expected a positive integer or null",
+        ],
+        [
+            name: 'a fractional seed',
+            options: [mph: [seed: 1.5]],
+            expected: "option 'mph.seed': expected an integer or null",
+        ],
+        [
+            name: 'a non-boolean memory-mode flag',
+            options: [mph: [save_memory: 'yes']],
+            expected: "option 'mph.save_memory': expected a boolean",
+        ],
+        [
+            name: 'an unknown option name',
+            options: [mph: [threads_per_grm: 2]],
+            expected: "option 'mph.threads_per_grm': unknown option; accepted MPH options are iterations, tolerance, random_vectors, seed, save_memory",
+        ],
+    ]
+
+    mphOptions.each { scenario ->
+        test("the MPH family rejects ${scenario.name}") {
+            function "validateMethodOptions"
+
+            when {
+                function {
+                    """
+                    input[0] = file('${RELATIONAL.methodOptions(outputDir, "mph_${scenario.name.replace(' ', '_')}", [
+                        example: scenario.options,
+                    ])}', checkIfExists: true)
+                    input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'mph_reml', trait_type: 'quantitative']]]
+                    """
+                }
+            }
+
+            then {
+                def report = function.stdout.join('\n')
+                assertAll(
+                    { assert function.failed },
+                    { assert report.contains(scenario.expected) },
+                )
+            }
+        }
+    }
+
+    test("an MPH row resolves every supplied control into the shape the route reads") {
+        function "validateMethodOptions"
+
+        when {
+            function {
+                """
+                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'mph_resolved', [
+                    example: [mph: [iterations: 20.0, seed: 0]],
+                ])}', checkIfExists: true)
+                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'mph_reml', trait_type: 'quantitative']]]
+                """
+            }
+        }
+
+        then {
+            // `seed: 0` survives as a real value rather than collapsing into the unset default: MPH's own
+            // unset seed is the fixed integer 0, so "asked for 0" and "asked for nothing" render different
+            // command lines and have to stay distinguishable here. A whole-numbered float coerces to the
+            // integer the native flag needs, and an option left out stays null so the native default stands.
+            assertAll(
+                { assert function.success },
+                { assert function.result.example.mph == [
+                    iterations: 20,
+                    tolerance: null,
+                    random_vectors: null,
+                    seed: 0,
+                    save_memory: false,
+                ] },
+                { assert function.result.example.mph.iterations instanceof Integer },
+            )
+        }
+    }
+
     test("a GENIE row resolves every supplied control into the shape the route reads") {
         function "validateMethodOptions"
 

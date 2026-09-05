@@ -4,8 +4,8 @@
 MPH's file interface differs from every other individual-level estimator this pipeline drives, in four ways
 that are each silent when got wrong:
 
-    it keys the phenotype and covariate tables by IID alone, while indexing the relationship matrix itself by
-        the *order* of that matrix's `.grm.iid`. Both halves matter. A sample whose IID appears under one FID
+    it keys the phenotype and covariate tables by IID alone (issue #59), while indexing the relationship
+        matrix itself by the *order* of that matrix's `.grm.iid` (issue #58). Both halves matter. A sample whose IID appears under one FID
         in the genotype FAM and another in the phenotype table would be included by MPH and dropped by GCTA,
         so the two estimators would silently be fitted on different samples; that case is an error here. And a
         `.grm.iid` whose order does not match its own `.grm.bin` is a silent wrong answer rather than a
@@ -14,18 +14,19 @@ that are each silent when got wrong:
         indicating it. That order is therefore proved against the genotype FAM before anything else is done.
     an empty field is its only missing representation, and every other cell is parsed as a number. This is
         not a preference: measured on the pinned image, a literal `NA` in either file aborts the process with
-        `std::invalid_argument what(): stof` at exit 139; `-9` is read as the number minus nine and moved the
-        phenotype's standard deviation from 0.855 to 2.827; and a cell spelled `nan` in the phenotype makes
-        the solver loop without bound -- over five million trust-region attempts and 1.3 GB of output in seven
-        minutes, still running, with neither the iteration limit nor the tolerance able to stop it. The
+        `std::invalid_argument what(): stof` at exit 139 and `-9` is read as the number minus nine, moving the
+        phenotype's standard deviation from 0.855 to 2.827 (issue #60); and a cell spelled `nan` in the
+        phenotype makes the solver loop without bound (issue #61) -- over five million trust-region attempts
+        and 1.3 GB of output in seven minutes, still running, with neither the iteration limit nor the
+        tolerance able to stop it. The
         pipeline's three missing spellings are therefore rewritten to empty fields, and a value that parses as
         a number but is not finite is refused here rather than handed over.
-    it synthesises an intercept only when no covariate is named. A covariate file given with
+    it synthesises an intercept only when no covariate is named (issue #62). A covariate file given with
         `--covariate_names` fits exactly the named columns, so a covariate-adjusted fit without an explicit
         column of ones is a no-intercept model. This adapter always writes that column and names it first.
-    it never expands a categorical covariate. A factor column passed through verbatim becomes a numeric
-        covariate whose levels are read as magnitudes, and the resulting rank deficiency is only a warning at
-        exit 0. Categorical columns are therefore dummy-encoded here, by the same rule
+    it never expands a categorical covariate (issue #64). A factor column passed through verbatim becomes a
+        numeric covariate whose levels are read as magnitudes, and the resulting rank deficiency is only a
+        warning at exit 0 (issue #65). Categorical columns are therefore dummy-encoded here, by the same rule
         `prepare_phenotype_inputs` applies for LDAK's matrix-adjustment design, so the two encodings agree.
 
 The record written beside the CSVs is not published. It is the input to the writer that publishes the sidecar
@@ -100,13 +101,19 @@ def read_table(path, role):
 
 
 def read_headered_table(path, role):
+    """Read a prepared covariate table: two identifier columns, then one column per named covariate.
+
+    The shape of the identifier columns is not re-checked here. Ingress already admitted this file and
+    `prepare_phenotype_inputs` wrote it, so a check would only be able to fail a row the pipeline had already
+    accepted -- and the incoming header is never forwarded to MPH in any case, because this module emits its
+    own `IID,...` line from the covariate names it derives.
+    """
     rows = read_table(path, role)
     header = rows[0][1]
-    if len(header) < 3 or header[0] != "FID" or header[1] != "IID":
+    if len(header) < 3:
         fail(
-            "the {} file '{}' must start with a 'FID IID' header followed by at least one named column".format(
-                role, path
-            )
+            "the {} file '{}' has {} columns; two identifier columns and at least one named covariate "
+            "column are required".format(role, path, len(header))
         )
     # A ragged row would otherwise be handed to MPH as a short CSV line under a full-width header, which MPH
     # reads without complaint.
@@ -139,7 +146,7 @@ def write_lines(path, lines):
 
 
 def check_mph_names(names, role):
-    """MPH splits every name list on commas, so a name carrying one addresses a different column, or none."""
+    """MPH splits every name list on commas, so a name carrying one addresses a different column."""
     for name in names:
         if "," in name or any(character.isspace() for character in name):
             fail(
@@ -161,6 +168,7 @@ def read_sample_order():
             fail("row {} of the genotype FAM '{}' has fewer than two columns".format(number, FAM))
         fid, iid = fields[0], fields[1]
         if iid in fam_by_iid:
+            # MPH keys samples by IID alone and aborts outright on a duplicated one (issue #59).
             fail(
                 "the genotype FAM '{}' lists IID '{}' more than once. MPH keys samples by IID alone, so the "
                 "duplicate rows would collapse into one entry of its sample map at exit 0 and the fit would "
@@ -185,8 +193,8 @@ def numeric_or_fail(value, description):
     """A finite number, or a named error.
 
     MPH parses every non-empty cell as a number and has no diagnostic for one it cannot use. A non-numeric
-    cell aborts the process, and a phenotype cell spelled `nan` sends the solver into an unbounded loop that
-    neither the iteration limit nor the tolerance escapes, so both are refused here by name.
+    cell aborts the process (issue #60), and a phenotype cell spelled `nan` sends the solver into an unbounded
+    loop that neither the iteration limit nor the tolerance escapes (issue #61), so both are refused by name.
     """
     try:
         parsed = float(value)
@@ -305,7 +313,7 @@ def main():
     if covariates is not None:
         source_names, covariate_by_identity = covariates
         # `intercept` is written first and is always 1. MPH synthesises an intercept only when no covariate is
-        # named, so omitting this column would silently fit a model through the origin.
+        # named (issue #62), so omitting this column would silently fit a model through the origin.
         covariate_names = ["intercept"] + list(source_names)
         check_mph_names(covariate_names, "covariate column")
 
@@ -412,7 +420,7 @@ def main():
             "requested": EFFECTIVE["requested"],
             "native_defaults_apply": EFFECTIVE["native_defaults_apply"],
             # Not a boolean `deterministic`: MPH's default seed is the fixed 0, so a run is reproducible, but
-            # only against the same thread count and the same memory mode.
+            # only against the same thread count and the same memory mode (issues #67, #68).
             "reproducibility": "seed_stable_given_threads_and_memory_mode",
         },
         "solver_settings": {
@@ -432,8 +440,13 @@ def main():
         "inputs": {
             "samples": {
                 "order_source": "grm_iid",
-                "retained": len(written),
-                "dropped": len(fam_identities) - len(written),
+                # The shared core keys mean the sample the estimate is computed on, so that one number is
+                # comparable across every route that publishes a sidecar. MPH fits complete cases only, so
+                # that is the complete-case count, not the number of rows this adapter handed it; the
+                # post-fit writer confirms it against the size MPH itself reports. The written-row count and
+                # every intermediate total live under `detail`.
+                "retained": analysis_set_expected,
+                "dropped": len(fam_identities) - analysis_set_expected,
                 "left_nonmissing": None,
                 "right_nonmissing": None,
                 "both": None,
@@ -441,6 +454,7 @@ def main():
                 "detail": {
                     "fam": len(fam_identities),
                     "grm": len(grm_order),
+                    "written": len(written),
                     "phenotype_rows": len(traits_by_iid) + dropped_not_in_grm,
                     "dropped_not_in_grm": dropped_not_in_grm,
                     "per_trait_nonmissing": dict(zip(TRAIT_NAMES, per_trait_nonmissing)),

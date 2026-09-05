@@ -3,7 +3,7 @@ process MPH_MAKEGRM {
     label 'process_high'
 
     // MPH is not packaged for Bioconda, so this module ships a digest-pinned image and no `environment.yml`,
-    // following `metasoft/re2` and `genie/g`. The image is `linux/amd64` only, statically linked against Intel
+    // following `metasoft/re2`. The image is `linux/amd64` only, statically linked against Intel
     // oneMKL, and there is no Conda fallback, so the module cannot run on another architecture.
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
         ? 'docker://ghcr.io/lyh970817/mph@sha256:561fc32443768cdaa80b1a56ed6d3f4190633d8c52d0f9fc8d0f9cc1694fad6a'
@@ -25,8 +25,6 @@ process MPH_MAKEGRM {
     tuple val(meta), path("${prefix}.log"), emit: log
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
 
-    when:
-    task.ext.when == null || task.ext.when
 
     script:
     def args = task.ext.args ?: ''
@@ -43,8 +41,8 @@ process MPH_MAKEGRM {
         ${args} \\
         2>&1 | tee "${prefix}.log"
 
-    # MPH's `main()` catches most thrown errors, prints them and returns 0, so the exit status is not the
-    # contract: the primary bundle and the absence of an error line in the log are. Both members are asserted
+    # MPH's `main()` catches most thrown errors, prints them and returns 0 (issue #55), so the exit status
+    # is not the contract: the primary bundle and the absence of an error line in the log are. Both members are asserted
     # because a missing `.grm.iid` alone would make every downstream sample map silently empty.
     test -s "${prefix}.grm.bin"
     test -s "${prefix}.grm.iid"

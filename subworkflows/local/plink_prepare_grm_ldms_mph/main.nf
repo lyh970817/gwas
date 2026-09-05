@@ -32,7 +32,7 @@ workflow PLINK_PREPARE_GRM_LDMS_MPH {
 
     ch_component_state = ch_family_inputs
         .map { analysis_id, meta, _strata_manifest, _snp_group_files, bed, bim, fam, components -> tuple(analysis_id, meta, bed, bim, fam, components) }
-        .join(CUSTOM_MPHSNPINFO.out.snp_info.map { meta, snp_info, _counts, weight_names -> tuple(meta.id, snp_info, weight_names) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .join(CUSTOM_MPHSNPINFO.out.snp_info.map { meta, snp_info, weight_names -> tuple(meta.id, snp_info, weight_names) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .flatMap { _analysis_id, focal_meta, bed, bim, fam, components, snp_info, weight_names ->
             components.collect { component ->
                 // The stratum key rides in the work identifier as well as the ordinal because MPH copies the
@@ -80,7 +80,7 @@ workflow PLINK_PREPARE_GRM_LDMS_MPH {
 
     emit:
     grm_family = ch_grm_families // channel: [ val(meta), path(grm_files), val(grm_prefixes) ], explicit component order
-    counts     = CUSTOM_MPHSNPINFO.out.snp_info.map { meta, _snp_info, counts, _weight_names -> tuple(meta, counts) } // channel: [ val(meta), path(counts_tsv) ], one per family
+    counts     = CUSTOM_MPHSNPINFO.out.counts // channel: [ val(meta), path(counts_tsv) ], one per family
 }
 
 /*

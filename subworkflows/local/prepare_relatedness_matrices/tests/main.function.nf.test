@@ -422,9 +422,22 @@ nextflow_function {
                 { assert function.success },
                 // The published GCTA key formula is untouched by the plan extraction: its identity is still
                 // the cohort view plus exactly these three settings, with no plan key and no format in it.
-                // The regression anchor for the key value itself is the relational GREML-LDMS snapshot, which
-                // carries the published matrix directory name.
+                //
+                // The key VALUE is anchored here, as a literal, and this is the only place it is anchored: the
+                // relational GREML-LDMS snapshot pins `.hsq` digests and versions, which prove the matrix
+                // bytes and the stratum order did not move but say nothing about the directory the family
+                // publishes under. A digest is used against the design's preference because nf-test runs one
+                // function per test, so the formula cannot be recomputed from `buildScientificArtifactKey`
+                // and compared inside the same case. Both literals below are functions of the view key
+                // `c40da0aa7623`, itself pinned by the compatibility-seam tests at the top of this file.
+                //
+                // WS-I redefines `view_compatibility_key`. When it lands, these two literals and that one move
+                // together and are re-pinned in one commit; a change to either ALONE means the plan extraction
+                // or the MPH work moved a published GCTA key, which is the thing this test exists to catch.
                 { assert function.result.base.type == 'gcta_ldms' },
+                { assert function.result.base.view_compatibility_key == 'c40da0aa7623' },
+                { assert function.result.base.key == 'd4339b608fb2' },
+                { assert function.result.base.plan.key == 'f0c92f5c26dd' },
                 { assert function.result.base.settings == [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]] },
                 { assert function.result.derived == [:] },
                 { assert function.result.selected_key == function.result.base.key },
@@ -436,6 +449,37 @@ nextflow_function {
                 { assert function.result.base.plan.view_compatibility_key == function.result.base.view_compatibility_key },
                 { assert function.result.base.plan_key == function.result.base.plan.key },
                 { assert function.result.base.plan.key != function.result.base.key },
+            )
+        }
+    }
+
+    test("a stratified MPH request resolves the same plan key a GCTA request does from the same declaration") {
+        function "buildRelatednessArtifactRequest"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cohort: 'example_pgen',
+                    genotype_format: 'plink2',
+                    method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
+                ]
+                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[2] = 'mph_ldms'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // The same literal the GCTA case above pins. One declaration, one plan, two matrix families:
+                // if these two ever diverge the two engines partition the same variants twice and the parity
+                // the stratified routes exist to offer is gone.
+                { assert function.result.base.plan.key == 'f0c92f5c26dd' },
+                { assert function.result.base.plan_key == function.result.base.plan.key },
+                // The MPH base is a different artifact from the GCTA base built off that same plan.
+                { assert function.result.base.key != 'd4339b608fb2' },
             )
         }
     }
@@ -469,6 +513,11 @@ nextflow_function {
                 { assert function.result.base.plan.settings == [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]] },
                 { assert function.result.derived == [:] },
                 { assert function.result.selected_key == function.result.base.key },
+                // Pinned so the four-bin case below can compare against it: nf-test runs one function per
+                // test, so two requests cannot be built in one case and the comparison has to go through a
+                // literal. Dropping `plan_key` from the identity map collapses every stratified MPH family of
+                // a cohort onto one key, and that is what these two literals together detect.
+                { assert function.result.base.key == '7b77e5236d74' },
             )
         }
     }
@@ -495,10 +544,51 @@ nextflow_function {
                 { assert function.success },
                 // Its own settings are identical to the two-bin request above, so the only thing that can
                 // separate the two matrix families is the plan key -- which is exactly the dependency this
-                // key shape exists to express.
+                // key shape exists to express. Both literals are the two-bin request's, pinned there.
                 { assert function.result.base.settings == [format: 'mph_grm'] },
                 { assert function.result.base.plan.settings.ld_bins == 4 },
                 { assert function.result.base.plan_key == function.result.base.plan.key },
+                // Both keys are pinned, not merely asserted to differ from the two-bin ones. Inequality alone
+                // is satisfied by any change that moves both families together -- dropping `plan_key` from the
+                // identity gives every stratified MPH family of a cohort one new shared key, which passes an
+                // inequality check against a stale literal and is exactly the collapse this pair exists to
+                // catch. Pinning both means such a change reddens at least one of them.
+                { assert function.result.base.key == '6df57fd4c01f' },
+                { assert function.result.base.plan.key == 'bafcc987d807' },
+                { assert function.result.base.key != '7b77e5236d74' },
+                { assert function.result.base.plan.key != 'f0c92f5c26dd' },
+            )
+        }
+    }
+
+    test("a stratified MPH key is a property of the cohort view and the plan, not of the analysis that asked") {
+        function "buildRelatednessArtifactRequest"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'some_other_analysis',
+                    trait: 'BMI',
+                    heritability_methods: ['gcta_greml_ldms', 'mph_reml_ldms'],
+                    cohort: 'example_pgen',
+                    genotype_format: 'plink2',
+                    method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
+                ]
+                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[2] = 'mph_ldms'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // Same cohort view and same three plan settings as the two-bin case, but a different analysis
+                // identifier, a different trait and a different selector list. The key is unchanged, which is
+                // what makes one matrix family serve every compatible analysis instead of one per row.
+                { assert function.result.base.key == '7b77e5236d74' },
+                { assert function.result.base.plan.key == 'f0c92f5c26dd' },
             )
         }
     }

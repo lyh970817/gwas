@@ -19,11 +19,12 @@ process CUSTOM_MPHSNPINFO {
     val autosome_count
 
     output:
-    tuple val(meta), path("${prefix}.snp_info.csv"), path("${prefix}.snp_info.counts.tsv"), val(weight_names), emit: snp_info
+    // Two emits rather than one bundle: the CSV is what MPH reads through `--snp_info_file`, while the counts
+    // are pipeline accounting that no native command ever sees, and no consumer wants them together.
+    tuple val(meta), path("${prefix}.snp_info.csv"), val(weight_names), emit: snp_info
+    tuple val(meta), path("${prefix}.snp_info.counts.tsv"), emit: counts
     tuple val("${task.process}"), val("python"), eval("python3 --version | sed 's/^Python //'"), emit: versions_python, topic: versions
 
-    when:
-    task.ext.when == null || task.ext.when
 
     script:
     prefix = task.ext.prefix ?: "${meta.id}"
@@ -52,8 +53,8 @@ process CUSTOM_MPHSNPINFO {
     if len(set(columns)) != len(columns):
         fail("weight column names repeat: {}".format(columns))
 
-    # MPH reads the SNP-information file as a CSV keyed on column 0 and splits `--snp_weight_name` on commas,
-    # so a column name carrying a comma or whitespace would name a different column, or none, at exit 0.
+    # MPH reads the SNP-information file as a CSV keyed on column 0 and splits its name lists on commas, so
+    # a column name carrying a comma or whitespace would name a different column, or none, at exit 0.
     for name in columns:
         if "," in name or any(character.isspace() for character in name):
             fail("weight column name '{}' contains a comma or whitespace, which MPH cannot address".format(name))

@@ -23,7 +23,7 @@ workflow PLINK_PREPARE_GRM_MPH {
     ch_make_inputs = ch_genotypes
         .map { meta, bed, bim, fam -> tuple(meta.id, meta, bed, bim, fam) }
         .join(
-            CUSTOM_MPHSNPINFO.out.snp_info.map { meta, snp_info, _counts, weight_names -> tuple(meta.id, snp_info, weight_names) },
+            CUSTOM_MPHSNPINFO.out.snp_info.map { meta, snp_info, weight_names -> tuple(meta.id, snp_info, weight_names) },
             by: 0,
             failOnDuplicate: true,
             failOnMismatch: true,
@@ -39,5 +39,5 @@ workflow PLINK_PREPARE_GRM_MPH {
 
     emit:
     grm_files = MPH_MAKEGRM.out.grm_files // channel: [ val(meta), path(grm_files) ], the [.grm.bin, .grm.iid] bundle
-    counts    = CUSTOM_MPHSNPINFO.out.snp_info.map { meta, _snp_info, counts, _weight_names -> tuple(meta, counts) } // channel: [ val(meta), path(counts_tsv) ]
+    counts    = CUSTOM_MPHSNPINFO.out.counts // channel: [ val(meta), path(counts_tsv) ]
 }

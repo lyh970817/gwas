@@ -176,9 +176,15 @@ nextflow_process {
                 { assert covariates.readLines().drop(1).every { line -> line.split(',', -1)[1] == '1' } },
                 { assert covariates.readLines()[1] == 's01,1,31,0.0110' },
                 // The sample accounting the sidecar publishes, every number of it computed here and once.
+                // `retained` is the shared core key across every route's sidecar and means the sample the
+                // estimate is computed on, so it is the complete-case count -- eight here, because three of
+                // the eleven rows written carry a missing cell -- and not the eleven rows handed to MPH. That
+                // count is `detail.written`.
                 { assert record.inputs.samples.order_source == 'grm_iid' },
-                { assert record.inputs.samples.retained == 11 },
-                { assert record.inputs.samples.dropped == 1 },
+                { assert record.inputs.samples.retained == 8 },
+                { assert record.inputs.samples.dropped == 4 },
+                { assert record.inputs.samples.retained + record.inputs.samples.dropped == record.inputs.samples.detail.fam },
+                { assert record.inputs.samples.detail.written == 11 },
                 { assert record.inputs.samples.detail.fam == 12 },
                 { assert record.inputs.samples.detail.grm == 12 },
                 { assert record.inputs.samples.detail.phenotype_rows == 12 },
@@ -575,7 +581,8 @@ nextflow_process {
                 { assert covariates.every { line -> line.split(',', -1).size() == 4 } },
                 // An incomplete covariate record is not part of the analysis set, and the accounting says so
                 // rather than leaving the discrepancy to be discovered downstream.
-                { assert record.inputs.samples.retained == 12 },
+                { assert record.inputs.samples.retained == 11 },
+                { assert record.inputs.samples.detail.written == 12 },
                 { assert record.inputs.samples.detail.covariate_complete == 11 },
                 { assert record.inputs.samples.detail.analysis_set_expected == 11 },
                 { assert record.warnings.any { warning -> warning.startsWith('complete_case_attrition:') } },

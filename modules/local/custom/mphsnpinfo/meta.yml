@@ -14,8 +14,10 @@ tools:
         A Python 3 representation adapter. It converts a BIM and an optional LD-by-MAF component plan into the
         comma-separated SNP-information file MPH reads through `--snp_info_file`, whose column named by
         `--snp_weight_name` gives each variant its weight in one component.
-      homepage: "https://github.com/jiang18/mph"
+      homepage: "https://github.com/nf-core/modules"
       documentation: "https://jiang18.github.io/mph/"
+      # This adapter is pipeline-authored code and carries the pipeline's own licence. MPH, whose file format
+      # it writes, is GPL-3.0-only and is declared by the two `mph/*` modules that actually invoke it.
       licence: ["MIT"]
       identifier: ""
 input:
@@ -83,17 +85,23 @@ output:
           pattern: "*.snp_info.csv"
           ontologies:
             - edam: "http://edamontology.org/format_3752"
+      - weight_names:
+          type: list
+          description: The weight column names, echoed from the input in the same order.
+  counts:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information, e.g. `[ id:'sample1' ]`
       - "${prefix}.snp_info.counts.tsv":
           type: file
           description: |
             Declared predictor counts: one `stratum_key`/`predictor_count` row per weight column in column
             order, then `__unassigned__` (BIM rows carrying 0 everywhere) and `__bim_rows__` (total BIM rows).
+            Pipeline accounting rather than a native input; no MPH command reads it.
           pattern: "*.snp_info.counts.tsv"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
-      - weight_names:
-          type: list
-          description: The weight column names, echoed from the input in the same order.
   versions_python:
     - - "${task.process}":
           type: string

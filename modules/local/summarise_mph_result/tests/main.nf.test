@@ -282,6 +282,38 @@ nextflow_process {
         }
     }
 
+    test("a covariate-free fit records MPH's own synthesised intercept and reads no fitted set") {
+
+        when {
+            // The model a row with no covariate file gets. MPH names an `intercept` in `.mq.blue.csv` because
+            // it synthesised one, not because the pipeline asked for it, so there is nothing to reconcile and
+            // the writer must not try: a requested set of `[]` can never be a subset of anything.
+            def fixture = fixtures(outputDir, 'no_covariates', [
+                record: recordText([covariates: []]),
+                fixed_effects: blueText(['intercept']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.inputs.covariates == [requested: [], fitted: [], intercept: 'native'] },
+                // A covariate-free fit is not a degraded one, so nothing about it is a warning.
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                // Everything the writer completes from the native result still happens on this path.
+                { assert provenance.inputs.samples.retained == 200 },
+                { assert provenance.stochastic_settings.num_threads == 4 },
+                { assert provenance.solver_settings.iterations_run == 3 },
+                { assert provenance.component_plan.components.collect { component -> component.native_predictor_count } == [1500, 700] },
+            )
+        }
+    }
+
     test("a fit MPH did not converge is estimable with the not_converged token") {
 
         when {

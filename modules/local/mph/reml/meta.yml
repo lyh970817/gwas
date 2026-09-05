@@ -16,28 +16,30 @@ tools:
         residual component, for the traits named in `--trait_names`.
 
         The trace estimator is stochastic, so `--seed` and `--num_random_vectors` move the point estimate and
-        not merely its standard error. The thread count and `--save_memory` move it in the sixth to seventh
-        significant digit. A caller reproducing a fit must hold all four fixed.
+        not merely its standard error (issue #67). The thread count and `--save_memory` move it in the sixth
+        to seventh significant digit (issue #68). A caller reproducing a fit must hold all four fixed.
 
-        MPH synthesises an intercept only when no covariate is named. A `--covariate_file` given with
-        `--covariate_names` fits exactly the named columns and no intercept, so a caller that wants one must
+        MPH synthesises an intercept only when no covariate is named (issue #62). A `--covariate_file` given
+        with `--covariate_names` fits exactly the named columns and no intercept, so a caller that wants one must
         supply an explicit column of ones and name it. A `--covariate_file` given WITHOUT `--covariate_names`
         is silently ignored, and `--covariate_names` given without a file resolves the names against the
         phenotype file instead, so the two are always passed together or not at all.
 
-        A rank-deficient covariate design is a warning, not an error: MPH prunes columns until the design has
-        full rank, names none of the columns it dropped, and writes a complete, normal-looking result. The
-        column it drops can be the caller's own intercept. Reconciling the `covar` column of
+        A rank-deficient covariate design is a warning, not an error (issue #65): MPH prunes columns until the
+        design has full rank, names none of the columns it dropped, and writes a complete, normal-looking
+        result. The column it drops can be the caller's own intercept. Reconciling the `covar` column of
         `.mq.blue.csv` against the requested names is the only way to detect it.
 
-        The runtime image is `linux/amd64` only: the binary is statically linked against Intel oneMKL, which
-        is redistributed under the Intel Simplified Software License, with `libiomp5` under the Intel EULA for
-        Developer Tools. There is no Conda package and no fallback for another architecture.
+        MPH itself is GPL-3.0-only. The runtime image is `linux/amd64` only: the binary is statically linked
+        against Intel oneMKL, which is redistributed under the Intel Simplified Software License, with
+        `libiomp5` under the Intel EULA for Developer Tools, so the image as a whole is labelled
+        `GPL-3.0-only AND LicenseRef-IntelSimplifiedSoftwareOct2022 AND LicenseRef-IntelEULADeveloperToolsOct2021`.
+        There is no Conda package and no fallback for another architecture.
       homepage: "https://jiang18.github.io/mph/"
       documentation: "https://jiang18.github.io/mph/"
       tool_dev_url: "https://github.com/jiang18/mph"
       doi: "10.1093/bioinformatics/btae298"
-      licence: ["MIT"]
+      licence: ["GPL-3.0-only"]
       identifier: ""
 input:
   - - meta:
@@ -49,8 +51,8 @@ input:
         description: |
           One or more `[.grm.bin, .grm.iid]` MPH matrix bundles staged flat. Every component of one family
           shares the same `.grm.iid`, whose line order is what MPH indexes the matrix by: a `.grm.iid` that
-          does not match its own `.grm.bin` produces a complete, stable, wrong result at exit 0. GCTA bundles
-          are not accepted either, and MPH does not usefully refuse one.
+          does not match its own `.grm.bin` produces a complete, stable, wrong result at exit 0 (issue #58).
+          GCTA bundles are not accepted either, and MPH does not usefully refuse one (issue #69).
         pattern: "*.grm.{bin,iid}"
         ontologies:
           - edam: "http://edamontology.org/format_2330"
@@ -75,8 +77,8 @@ input:
         type: list
         description: |
           The trait columns to fit, in order. Mandatory: omitting `--trait_names` prints an error and exits 0
-          having written nothing but the log. A name absent from the header exits 1. More than one name makes
-          this a multi-trait fit and adds `.mq.cor.csv` to the outputs.
+          having written nothing but the log (issue #55). A name absent from the header exits 1. More than
+          one name makes this a multi-trait fit and adds `.mq.cor.csv` to the outputs.
   - - meta3:
         type: map
         description: |
@@ -86,7 +88,8 @@ input:
         description: |
           Optional comma-separated covariate table with a header whose first column is the IID. Use `[]` for
           absence, which is a different model rather than an empty one: MPH synthesises an intercept only when
-          no covariate is named. A sample with an empty covariate cell is dropped from the analysis set.
+          no covariate is named (issue #62). A sample with an empty covariate cell is dropped from the analysis
+          set.
         pattern: "*.csv"
         ontologies:
           - edam: "http://edamontology.org/format_3752"
@@ -94,7 +97,8 @@ input:
         type: list
         description: |
           The covariate columns to fit, in order; use `[]` when no covariate file is supplied. MPH splits this
-          on commas, so no name may contain one. Include an explicit all-ones column here to fit an intercept.
+          on commas, so no name may contain one. Include an explicit all-ones column here to fit
+          an intercept.
 output:
   variance_components:
     - - meta:
@@ -156,7 +160,7 @@ output:
           description: |
             Native genetic correlations for a multi-trait fit: one row per matrix plus `err` and the aggregate
             `G`. Written only when more than one trait is named. The `trait_x`/`trait_y` order is MPH's own and
-            has been observed reversed relative to `--trait_names`, so a caller must select by name.
+            has been observed reversed relative to `--trait_names` (issue #73), so a caller must select by name.
           pattern: "*.mq.cor.csv"
           ontologies:
             - edam: "http://edamontology.org/format_3752"
@@ -170,7 +174,7 @@ output:
           description: |
             Tee'd MPH standard output: the echoed option block including the effective thread count, the
             non-missing analysis set size, the random-vector line, the iteration trace, and the `Warning:` and
-            `Error:` lines MPH prints at exit 0.
+            `Error:` lines MPH prints at exit 0 (issues #55, #65, #66).
           pattern: "*.log"
           ontologies: []
   versions_mph:

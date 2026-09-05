@@ -67,7 +67,7 @@ nextflow_process {
                     file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
                     file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
                 ]
-                input[1] = MPHSNPINFO_DENSE.out.snp_info.map { plan_meta, snp_info, _counts, weight_names -> [ plan_meta, snp_info, weight_names.first() ] }
+                input[1] = MPHSNPINFO_DENSE.out.snp_info.map { plan_meta, snp_info, weight_names -> [ plan_meta, snp_info, weight_names.first() ] }
                 """
             }
         }
@@ -84,7 +84,7 @@ nextflow_process {
                         file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
                     ]
                 }
-                input[1] = MPHSNPINFO_SPLIT.out.snp_info.flatMap { plan_meta, snp_info, _counts, weight_names ->
+                input[1] = MPHSNPINFO_SPLIT.out.snp_info.flatMap { plan_meta, snp_info, weight_names ->
                     weight_names.collect { column -> [ plan_meta, snp_info, column ] }
                 }
                 """
