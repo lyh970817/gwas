@@ -30,10 +30,6 @@
 
   > Chen GB. Estimating heritability of complex traits from genome-wide association studies using IBS-based Haseman-Elston regression. Front Genet. 2014;5:107. doi: 10.3389/fgene.2014.00107. PubMed PMID: 24817879; PubMed Central PMCID: PMC4012219.
 
-- [GENIE](https://doi.org/10.1016/j.ajhg.2024.05.015)
-
-  > Pazokitoroudi A, Liu Z, Dahl A, Zaitlen N, Rosset S, Sankararaman S. A scalable and robust variance components method reveals insights into the architecture of gene-environment interactions underlying complex traits. Am J Hum Genet. 2024;111(7):1462-1480. doi: 10.1016/j.ajhg.2024.05.015. PubMed PMID: 38866020; PubMed Central PMCID: PMC11267529.
-
 - [GWASLab](https://cloufield.github.io/gwaslab/)
 
 - [LDAK](https://doi.org/10.1016/j.ajhg.2012.10.010)
