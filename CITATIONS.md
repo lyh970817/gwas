@@ -50,7 +50,7 @@
 
 - [MPH](https://doi.org/10.1093/bioinformatics/btae298)
 
-  > Jiang J. MPH: fast REML for large-scale genome partitioning of quantitative genetic variation. Bioinformatics. 2024;40(5):btae298. doi: 10.1093/bioinformatics/btae298.
+  > Jiang J. MPH: fast REML for large-scale genome partitioning of quantitative genetic variation. Bioinformatics. 2024;40(5):btae298. doi: 10.1093/bioinformatics/btae298. PubMed PMID: 38688661; PubMed Central PMCID: PMC11093526.
 
 - [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
 
