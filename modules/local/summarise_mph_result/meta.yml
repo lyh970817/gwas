@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "summarise_mph_result"
+description: Publish the per-result provenance sidecar for one completed MPH fit, including the quality classification only its log carries
+keywords:
+  - mph
+  - minque for partitioning heritability
+  - provenance
+  - heritability
+  - quality control
+tools:
+  - "summarise_mph_result":
+      description: |
+        A Python 3 writer that completes the serialised invocation record after the fit. MPH reports
+        non-convergence (issue #66) and a rank-deficient covariate matrix (issue #65) as `Warning:` lines at
+        exit 0 with a complete result written, and reports each component's post-quality-control variant
+        count only inside the result file, so neither can be published by an adapter that runs before the estimator. It also cross-checks
+        MPH's own non-missing analysis-set size against the size the serializer predicted, and the covariate
+        columns MPH actually fitted against the ones it was asked to fit, and fails the task when either
+        disagrees in a way that changes the model.
+      homepage: "https://github.com/nf-core/gwas"
+      documentation: "https://nf-co.re/gwas"
+      # Pipeline-authored code carrying the pipeline's own licence. It invokes no third-party programme; MPH
+      # is GPL-3.0-only and is declared by the two `mph/*` modules that do.
+      licence: ["MIT"]
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing the analysis unit's information, including the selected MPH token.
+    - serialization:
+        type: file
+        description: The unpublished record `prepare_mph_inputs` wrote, whose blocks are copied through unchanged.
+        pattern: "*.mph.inputs.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464"
+    - variance_components:
+        type: file
+        description: |
+          The fit's primary result. Its `m` column supplies each component's post-quality-control variant
+          count, matched by `vc_name` against the staged matrix prefix and never by row position.
+        pattern: "*.mq.vc.csv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3752"
+    - fixed_effects:
+        type: file
+        description: |
+          The fit's fixed-effect result. Its `covar` column names the covariates MPH actually fitted, which is
+          the only way to discover which columns a rank-deficient design had pruned: MPH prints one warning
+          and names none of them (issue #65).
+        pattern: "*.mq.blue.csv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3752"
+    - iterations:
+        type: file
+        description: The solver trace, whose last row supplies the iteration count and the final predicted log-likelihood change.
+        pattern: "*.mq.iter.csv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3752"
+    - native_log:
+        type: file
+        description: |
+          The fit's native standard output, which is the only place MPH states its quality warnings, its
+          non-missing analysis-set size and the thread count it actually ran with (issues #66, #65, #68).
+        pattern: "*.log"
+        ontologies: []
+output:
+  provenance:
+    - - meta:
+          type: map
+          description: Groovy Map containing the analysis unit's information.
+      - "${prefix}.provenance.json":
+          type: file
+          description: |
+            Per-result invocation record: the effective stochastic and solver settings, the component plan with
+            both the declared and the achieved predictor count per component, the sample and input identities
+            as SHA-256 digests, the rendered native arguments, and the quality classification with its warning
+            vocabulary.
+
+            `inputs.samples.retained` is the sample the estimate was computed on -- MPH's own non-missing
+            analysis set, which is complete cases only -- so it is comparable with the same key in every other
+            route's sidecar. `dropped` is the rest of the genotype FAM. The number of rows the adapter handed
+            MPH, and every intermediate total behind these two, are under `inputs.samples.detail`.
+          pattern: "*.provenance.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

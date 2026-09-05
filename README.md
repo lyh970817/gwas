@@ -44,6 +44,10 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
    - LDAK REML
    - LDAK Haseman-Elston regression
    - LDAK PCGC
+   - MPH REML
+   - MPH REML-LDMS
+
+   The two LD- and MAF-stratified routes share one component plan: the LD scores of a cohort's genotype view and the ordered, disjoint SNP groups derived from them are built once per view and settings, and both the GCTA and the MPH stratified matrix families are built from that one plan. MPH builds its matrices in its own layout, which is not interchangeable with GCTA's.
 
    Not every heritability route needs one: LDAK fast Haseman-Elston regression and LDAK fast PCGC estimate directly from the cohort's genotypes and build no relatedness matrix at all.
 
@@ -94,7 +98,7 @@ For more details and further functionality, please refer to the [usage documenta
 
 ## Pipeline output
 
-Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.gwaslab.tsv.gz` with its GWASLab log. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA, LDAK and LDSC requests publish only their native result families under `requests/<method>/<request_id>/`; the pipeline does not assemble a common estimand family or add per-result provenance sidecars. Munged LDSC summaries and other adapters are not republished; prepared genotypes, prepared phenotypes and relatedness matrices remain unpublished unless their save controls are enabled. REGENIE and LDAK-KVIK Step 1 predictions stay in Nextflow work and are consumed directly by Step 2.
+Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.gwaslab.tsv.gz` with its GWASLab log. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA, LDAK and LDSC requests publish only their native result families under `requests/<method>/<request_id>/`, and the pipeline assembles no common estimand family. Results are published native first: every native result is retained unchanged, and a per-result invocation record is added beside it only for `mph_reml` and `mph_reml_ldms`, the routes whose runtime does not record its own invocation. Munged LDSC summaries and other adapters are not republished; prepared genotypes, prepared phenotypes and relatedness matrices remain unpublished unless their save controls are enabled. REGENIE and LDAK-KVIK Step 1 predictions stay in Nextflow work and are consumed directly by Step 2.
 
 For exact filenames, output layout and optional prepared data, see the [output documentation](https://nf-co.re/gwas/output).
 

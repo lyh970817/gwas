@@ -1,0 +1,509 @@
+nextflow_process {
+
+    name "Test Process SUMMARISE_MPH_RESULT"
+    config "./nextflow.config"
+    script "../main.nf"
+    process "SUMMARISE_MPH_RESULT"
+
+    tag "modules"
+    tag "modules_local"
+    tag "summarise_mph_result"
+
+    // The four native artefacts are written by hand rather than fitted, because every case this writer owns is
+    // a shape MPH produces at exit 0 with a complete result set beside it -- a warning line, a pruned covariate
+    // column, a result row order that does not follow the plan -- and fitting one would take a real cohort per
+    // case to reach shapes that are trivially spelled. Every column layout below is copied from the measured
+    // native contract: `.mq.vc.csv` carries `trait_x,trait_y,vc_name,m,var,seV,pve,seP,enrichment,seE` followed
+    // by K enrichment sampling-covariance columns and T(T+1)/2 blocks of K+1 VC sampling-covariance columns
+    // whose header labels repeat, `.mq.blue.csv` carries `trait,covar,blue,se,pval` plus one right-aligned
+    // `<trait>.<covar>` column per fixed effect, and `.mq.iter.csv` carries
+    // `iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton`.
+
+    def meta = """
+                    [
+                        id: 'analysis',
+                        trait: 'QT',
+                        mph_estimator: 'mph_reml_ldms',
+                    ]
+    """
+
+    // Two components and one trait: 10 + K + (K+1)*T(T+1)/2 = 15 columns, the appended labels repeating exactly
+    // as MPH writes them. The rows are deliberately not in the plan's component order, and `err` carries `NA`
+    // for `m` and is never a component.
+    def varianceComponentsText = [
+        'trait_x,trait_y,vc_name,m,var,seV,pve,seP,enrichment,seE,grm_ldms_1,grm_ldms_2,grm_ldms_1,grm_ldms_2,err',
+        'QT,QT,grm_ldms_2,700,-0.0155249,0.0811963,-0.0214376,0.112064,-1.74151,19.2168,-369.285,369.285,7.24518e-05,0.00659283,-0.00687757',
+        'QT,QT,grm_ldms_1,1500,0.033354,0.0892372,0.0460571,0.122972,3.74151,19.2168,369.285,-369.285,0.00796327,7.24521e-05,-0.00755955',
+        'QT,QT,err,NA,0.70636,0.139813,0.975381,0.16737,NA,NA,NA,NA,-0.00755955,-0.00687757,0.0195476',
+    ].join('\n') + '\n'
+
+    def blueText = { fitted ->
+        def numbers = [
+            intercept: ['-0.555521', '0.269171', '0.0390345'],
+            age: ['0.0107829', '0.00522478', '0.0390373'],
+            pc1: ['0.0706147', '0.120505', '0.557881'],
+        ]
+        def header = (['trait', 'covar', 'blue', 'se', 'pval'] + fitted.collect { name -> "QT.${name}" }).join(',')
+        def rows = fitted.collect { name ->
+            (['QT', name] + numbers[name] + fitted.collect { _other -> '   0.072453' }).join(',')
+        }
+        ([header] + rows).join('\n') + '\n'
+    }
+
+    def iterationsText = [
+        'iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton',
+        '1,1,200,2,-3.10773,3.82958,1',
+        '2,1,200,2,-0.00423273,0.170882,1',
+        '3,1,200,2,0.131096,0.00353183,1',
+    ].join('\n') + '\n'
+
+    // The real banner, option echo and analysis-set line, trimmed of the per-iteration trace this writer never
+    // reads. `OPTION num_threads with ARG n` is the executor's choice and moves the estimate in the sixth to
+    // seventh significant digit, so it exists nowhere but here.
+    def logText = { analysisSet, threads, warnings ->
+        ([
+            '***************************************************************************',
+            '* MPH by Jicai Jiang',
+            '* MINQUE for Partitioning Heritability',
+            '* Version 0.55.1 (December 9, 2025)',
+            '***************************************************************************',
+            'Analysis started: Thu Sep  3 08:30:54 2026',
+            '',
+            'OPTION reml initialized',
+            'OPTION grm_list with ARG grm_list.txt',
+            'OPTION phenotype_file with ARG analysis.mph.pheno.csv',
+            'OPTION trait_names with ARG QT',
+            'OPTION covariate_file with ARG analysis.mph.covar.csv',
+            'OPTION covariate_names with ARG intercept,age,pc1',
+            "OPTION num_threads with ARG ${threads}",
+            'OPTION output_file with ARG analysis.mph_reml_ldms',
+            '',
+            'Started REML/MINQUE.',
+            '',
+            'Reading the GRM list from [grm_list.txt].',
+            '2 matrices are in the list.',
+            '',
+            'Reading GRM individual IDs from [grm_ldms_1.grm.iid].',
+            "Non-missing analysis set contains ${analysisSet} individuals.",
+        ] + warnings + [
+            '',
+            'Completed REML/MINQUE.',
+            '',
+            'Analysis finished: Thu Sep  3 08:30:54 2026',
+            'Computational time: 0:0:0',
+        ]).join('\n') + '\n'
+    }
+
+    // The record `PREPARE_MPH_INPUTS` writes and does not publish. Its shape is that module's contract; only
+    // the fields this writer reads or completes are varied between cases.
+    def recordText = { knobs ->
+        def settings = [
+            expected: 200,
+            covariates: ['intercept', 'age', 'pc1'],
+            components: [['ldms_1', 'grm_ldms_1', 1500], ['ldms_2', 'grm_ldms_2', 700]],
+            warnings: [],
+        ] + (knobs ?: [:])
+        def record = [
+            schema_version: '1.1',
+            result: [
+                kind: 'heritability',
+                analysis_id: 'analysis',
+                request_id: null,
+                relationship_id: null,
+                method: 'mph_reml_ldms',
+                left_analysis_id: null,
+                right_analysis_id: null,
+                primary_files: ['analysis.mq.vc.csv'],
+            ],
+            estimator: [
+                option_family: 'mph',
+                estimator_family: 'reml',
+                input_backend: 'mph_grm_family',
+                component_model: 'ld_maf_stratified',
+                stochastic: true,
+            ],
+            stochastic_settings: [
+                seed: 7,
+                random_vectors: 100,
+                save_memory: false,
+                num_threads: null,
+                requested: [seed: 7],
+                native_defaults_apply: ['random_vectors'],
+                reproducibility: 'seed_stable_given_threads_and_memory_mode',
+            ],
+            solver_settings: [iterations: 20, tolerance: 0.01, iterations_run: null, final_dLLpred: null],
+            component_plan: [
+                plan_key: 'mph_ldms.plan.ef56',
+                matrix_key: 'mph_ldms.ab12cd34',
+                settings: [variant_universe: 'autosomes'],
+                components: settings.components.withIndex().collect { component, index ->
+                    [
+                        ordinal: index + 1,
+                        name: component[0],
+                        vc_name: component[1],
+                        plan_predictor_count: component[2],
+                        native_predictor_count: null,
+                    ]
+                },
+            ],
+            inputs: [
+                samples: [
+                    order_source: 'grm_iid',
+                    retained: 200,
+                    dropped: 0,
+                    left_nonmissing: null,
+                    right_nonmissing: null,
+                    both: null,
+                    union: null,
+                    detail: [
+                        fam: 200,
+                        grm: 200,
+                        phenotype_rows: 200,
+                        dropped_not_in_grm: 0,
+                        per_trait_nonmissing: [QT: 200],
+                        all_traits_nonmissing: 200,
+                        covariate_complete: 200,
+                        analysis_set_expected: settings.expected,
+                        analysis_set_observed: null,
+                        order_sha256: '3d914f9348c9cc0ff8a79716700b9fc4bd85f2a53d8b95e8de9c1b1e0f7c6a11',
+                    ],
+                ],
+                variants: [
+                    retained: null,
+                    universe: 'autosomes',
+                    bim_rows: 2400,
+                    assigned: 2200,
+                    unassigned: 200,
+                    annotation_columns: null,
+                ],
+                sha256: [
+                    phenotype: '9f2c1f6a5d3e4b7c8a0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b',
+                    covariates: '5e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a99887766554433221100f',
+                    grm_iid: 'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90',
+                    annotation: null,
+                ],
+            ],
+            residual_covariance: null,
+            derivation: null,
+            software: [tool: 'mph', process: 'MPH_REML', versions_record: 'pipeline_info/nf_core_gwas_software_mqc_versions.yml'],
+            native_checks: [writer: 'MPH_REML', enforced: ['primary_result_file_written', 'no_error_line_in_log']],
+            native_arguments: ['--seed 7'],
+            classification: null,
+            warnings: settings.warnings,
+            trait_names: ['QT'],
+            covariate_names: settings.covariates,
+        ]
+        groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(record)) + '\n'
+    }
+
+    def fixtures = { directory, name, overrides ->
+        def spec = [
+            record: recordText(null),
+            variance_components: varianceComponentsText,
+            fixed_effects: blueText(['intercept', 'age', 'pc1']),
+            iterations: iterationsText,
+            log: logText(200, 4, []),
+        ] + (overrides ?: [:])
+        def root = new File(directory.toString(), "mph_result_${name}")
+        root.mkdirs()
+        def write = { fileName, text ->
+            def target = new File(root, fileName)
+            target.text = text
+            target
+        }
+        [
+            record: write('analysis.mph.inputs.json', spec.record),
+            variance_components: write('analysis.mq.vc.csv', spec.variance_components),
+            fixed_effects: write('analysis.mq.blue.csv', spec.fixed_effects),
+            iterations: write('analysis.mq.iter.csv', spec.iterations),
+            log: write('analysis.mph.log', spec.log),
+        ]
+    }
+
+    def inputs = { fixture ->
+        """
+                input[0] = [
+                    ${meta},
+                    file('${fixture.record}', checkIfExists: true),
+                    file('${fixture.variance_components}', checkIfExists: true),
+                    file('${fixture.fixed_effects}', checkIfExists: true),
+                    file('${fixture.iterations}', checkIfExists: true),
+                    file('${fixture.log}', checkIfExists: true)
+                ]
+        """
+    }
+
+    def jsonOf = { produced -> new groovy.json.JsonSlurper().parseText(path(produced).text) }
+
+    test("a converged fit is classified estimable and completed from the native result") {
+
+        when {
+            def fixture = fixtures(outputDir, 'converged', null)
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                // The result rows are in the order `grm_ldms_2, grm_ldms_1, err` and the plan's order is the
+                // reverse of that, so a writer matching by row position would give component 1 the count 700.
+                // MPH copies each `--grm_list` entry verbatim into `vc_name`, which is the only key that holds.
+                { assert provenance.component_plan.components.collect { component -> component.vc_name } == ['grm_ldms_1', 'grm_ldms_2'] },
+                { assert provenance.component_plan.components.collect { component -> component.native_predictor_count } == [1500, 700] },
+                { assert provenance.component_plan.components.collect { component -> component.plan_predictor_count } == [1500, 700] },
+                // `m` is `NA` on the `err` row, which is the residual and never a component.
+                { assert provenance.inputs.variants.retained == 2200 },
+                // The executor chose the thread count and it moves the estimate in the sixth to seventh
+                // significant digit, so it exists only in the fit's own option echo.
+                { assert provenance.stochastic_settings.num_threads == 4 },
+                { assert provenance.solver_settings.iterations_run == 3 },
+                { assert provenance.solver_settings.final_dLLpred == 0.00353183 },
+                // The runtime proof that this pipeline's missing-value semantics and MPH's agree.
+                { assert provenance.inputs.samples.detail.analysis_set_observed == 200 },
+                { assert provenance.inputs.covariates == [
+                    requested: ['intercept', 'age', 'pc1'],
+                    fitted: ['intercept', 'age', 'pc1'],
+                    intercept: 'explicit',
+                ] },
+                // Nothing the serializer decided is recomputed here.
+                { assert provenance.inputs.sha256.phenotype == '9f2c1f6a5d3e4b7c8a0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b' },
+                { assert provenance.result.method == 'mph_reml_ldms' },
+                { assert provenance.derivation == null },
+                { assert provenance.residual_covariance == null },
+                // Every value in the published document is derived from the inline artefacts above and from a
+                // record this test wrote, so the whole output is stable and is snapshotted whole.
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+
+    test("a covariate-free fit records MPH's own synthesised intercept and reads no fitted set") {
+
+        when {
+            // The model a row with no covariate file gets. MPH names an `intercept` in `.mq.blue.csv` because
+            // it synthesised one, not because the pipeline asked for it, so there is nothing to reconcile and
+            // the writer must not try: a requested set of `[]` can never be a subset of anything.
+            def fixture = fixtures(outputDir, 'no_covariates', [
+                record: recordText([covariates: []]),
+                fixed_effects: blueText(['intercept']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.inputs.covariates == [requested: [], fitted: [], intercept: 'native'] },
+                // A covariate-free fit is not a degraded one, so nothing about it is a warning.
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                // Everything the writer completes from the native result still happens on this path.
+                { assert provenance.inputs.samples.retained == 200 },
+                { assert provenance.stochastic_settings.num_threads == 4 },
+                { assert provenance.solver_settings.iterations_run == 3 },
+                { assert provenance.component_plan.components.collect { component -> component.native_predictor_count } == [1500, 700] },
+            )
+        }
+    }
+
+    test("a fit MPH did not converge is estimable with the not_converged token") {
+
+        when {
+            def fixture = fixtures(outputDir, 'not_converged', [
+                log: logText(200, 1, ['Warning: not converged after 1 iterations.']),
+                iterations: ['iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton', '1,1,200,2,-3.10773,3.82958,1'].join('\n') + '\n',
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // Measured at exit 0 with the complete `.mq.*` set written beside it, so the log is the only
+                // place the failure exists.
+                { assert provenance.warnings == ['not_converged'] },
+                { assert provenance.classification == 'estimable_with_warning' },
+                { assert provenance.solver_settings.iterations_run == 1 },
+                { assert provenance.stochastic_settings.num_threads == 1 },
+            )
+        }
+    }
+
+    test("a rank-deficient covariate design that kept every requested column is a warning") {
+
+        when {
+            def fixture = fixtures(outputDir, 'rank_deficient', [
+                log: logText(200, 4, ['Warning: the covariate matrix is not of full rank.', 'Kept only independent columns.']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.warnings == ['covariate_matrix_rank_deficient'] },
+                { assert provenance.classification == 'estimable_with_warning' },
+                // `Kept only independent columns.` is not a `Warning:` line and is not carried.
+                { assert !provenance.warnings.any { warning -> warning.contains('Kept only') } },
+            )
+        }
+    }
+
+    test("an unrecognised warning line is carried through verbatim") {
+
+        when {
+            def fixture = fixtures(outputDir, 'unknown_warning', [
+                log: logText(200, 4, ['Warning: something this pipeline has never measured happened.']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // A warning vocabulary that silently discarded what it does not recognise would publish a fit
+                // as clean that MPH itself flagged.
+                { assert provenance.warnings == ['Warning: something this pipeline has never measured happened.'] },
+                { assert provenance.classification == 'estimable_with_warning' },
+            )
+        }
+    }
+
+    test("a covariate column MPH pruned is named in a warning") {
+
+        when {
+            def fixture = fixtures(outputDir, 'pruned_covariate', [
+                fixed_effects: blueText(['intercept', 'age']),
+                log: logText(200, 4, ['Warning: the covariate matrix is not of full rank.']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // A redundant covariate is the researcher's design to correct, not a misstatement of the model
+                // that was fitted, so the column is named and the result is published.
+                { assert provenance.warnings == [
+                    'covariate_columns_pruned: MPH dropped pc1 from a rank-deficient covariate design',
+                    'covariate_matrix_rank_deficient',
+                ] },
+                { assert provenance.classification == 'estimable_with_warning' },
+                { assert provenance.inputs.covariates.fitted == ['intercept', 'age'] },
+                { assert provenance.inputs.covariates.requested == ['intercept', 'age', 'pc1'] },
+                { assert provenance.inputs.covariates.intercept == 'explicit' },
+            )
+        }
+    }
+
+    test("the writer refuses an analysis set MPH sized differently to the prepared inputs") {
+
+        when {
+            def fixture = fixtures(outputDir, 'analysis_set', [log: logText(190, 4, [])])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            // A disagreement means the published estimate describes a different sample than the record claims,
+            // so both numbers are named rather than one of them being adopted.
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains("analysis 'analysis'") },
+                { assert process.stdout.join('\n').contains('MPH reports a non-missing analysis set of 190 individuals but the prepared inputs declare 200') },
+            )
+        }
+    }
+
+    test("the writer refuses a fit whose explicit intercept MPH pruned") {
+
+        when {
+            def fixture = fixtures(outputDir, 'pruned_intercept', [
+                fixed_effects: blueText(['age', 'pc1']),
+                log: logText(200, 4, ['Warning: the covariate matrix is not of full rank.']),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            // Measured on the pinned image: a collinear design made MPH drop the pipeline's explicit
+            // `intercept`, which turned a covariate-adjusted fit into a fit through the origin and moved the
+            // proportion of variance explained from 0.0849 to 0.1911 with nothing in the result saying so.
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains("MPH pruned the explicit 'intercept' column out of a rank-deficient covariate design") },
+                { assert process.stdout.join('\n').contains('The fitted columns are age, pc1 against the requested intercept, age, pc1') },
+            )
+        }
+    }
+
+    test("the writer refuses a plan component the native result does not name") {
+
+        when {
+            def fixture = fixtures(outputDir, 'unknown_component', [
+                record: recordText([components: [['ldms_1', 'grm_ldms_1', 1500], ['ldms_3', 'grm_ldms_3', 700]]]),
+            ])
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            // The plan and the fitted matrices being different families is exactly what matching by row
+            // position would hide, and the count published per component would be another component's.
+            assertAll(
+                { assert !process.success },
+                { assert process.stdout.join('\n').contains("has no row named 'grm_ldms_3'; it names grm_ldms_1, grm_ldms_2") },
+                { assert process.stdout.join('\n').contains('The component plan and the fitted matrices are not the same family') },
+            )
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            def fixture = fixtures(outputDir, 'stub', null)
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.result.analysis_id == 'analysis' },
+                { assert provenance.result.method == 'mph_reml_ldms' },
+                { assert provenance.classification == 'estimable' },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+}

@@ -10,3 +10,7 @@ multiqc/multiqc_report.html
 pipeline_info/*.{html,json,txt,yml}
 **/*.ldak_fast_he.log
 **/*.ldak_fast_pcgc.log
+**/*.mph_reml.log
+**/*.mph_reml_ldms.log
+**/*.mph_reml*.mq.*.csv
+**/*.mph_reml*.provenance.json

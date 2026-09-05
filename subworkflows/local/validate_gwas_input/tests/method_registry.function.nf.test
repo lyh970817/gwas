@@ -139,6 +139,8 @@ nextflow_function {
                     'ldak_pcgc',
                     'ldak_fast_he',
                     'ldak_fast_pcgc',
+                    'mph_reml',
+                    'mph_reml_ldms',
                 ] },
                 { assert function.result.gcta_fastgwa.matrix_kind == 'gcta_sparse' },
                 { assert function.result.gcta_greml.matrix_kind == 'gcta_dense' },
@@ -187,6 +189,31 @@ nextflow_function {
                 { assert function.result.ldak_fast_pcgc.stochastic },
                 { assert function.result.ldak_fast_he.citation_keys == ['ldak', 'rhe_mc'] },
                 { assert function.result.ldak_fast_pcgc.citation_keys == ['ldak', 'rhe_mc'] },
+                // MPH is the second tool to declare a reusable matrix kind of its own, and the pair is what
+                // makes `mph_grm`/`mph_grm_family` separate backends from GCTA's: the two on-disk layouts are
+                // mutually unreadable and neither tool rejects the other's. `mph_reml_ldms` shares
+                // `gcta_greml_ldms`'s component model without sharing its matrix kind, which is exactly what
+                // lets one component plan feed two matrix families.
+                { assert function.result.mph_reml.matrix_kind == 'mph_dense' },
+                { assert function.result.mph_reml.option_family == 'mph' },
+                { assert function.result.mph_reml.estimator_family == 'reml' },
+                { assert function.result.mph_reml.input_backend == 'mph_grm' },
+                { assert function.result.mph_reml.component_model == 'single' },
+                { assert function.result.mph_reml.trait_support == [quantitative: true, binary: false] },
+                { assert function.result.mph_reml.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
+                { assert function.result.mph_reml.stochastic },
+                // MPH drops a sample whose covariate cell is blank rather than reading the blank as a value,
+                // which is why it is the first covariate-reading heritability estimator here that does not
+                // require complete cells.
+                { assert !function.result.mph_reml.requires_complete_covariates },
+                { assert !function.result.mph_reml_ldms.requires_complete_covariates },
+                { assert function.result.mph_reml.citation_keys == ['mph'] },
+                { assert function.result.mph_reml_ldms.matrix_kind == 'mph_ldms' },
+                { assert function.result.mph_reml_ldms.input_backend == 'mph_grm_family' },
+                { assert function.result.mph_reml_ldms.component_model == 'ld_maf_stratified' },
+                { assert function.result.mph_reml_ldms.component_model == function.result.gcta_greml_ldms.component_model },
+                { assert function.result.mph_reml_ldms.matrix_kind != function.result.gcta_greml_ldms.matrix_kind },
+                { assert function.result.mph_reml_ldms.citation_keys == ['mph', 'gcta_greml_ldms'] },
                 // LDAK-KVIK reads BED/BIM/FAM natively, so it declares the PLINK 1 direct backend while
                 // REGENIE keeps the format-polymorphic one.
                 { assert function.result.ldak_kvik.input_backend == 'direct_plink1_genotypes' },
@@ -242,6 +269,8 @@ nextflow_function {
                     'dense_grm',
                     'ldms_grm_family',
                     'ldak_kinship',
+                    'mph_grm',
+                    'mph_grm_family',
                     'sparse_grm',
                     'direct_plink_genotypes',
                     'direct_plink1_genotypes',
@@ -293,6 +322,8 @@ nextflow_function {
                 'dense_grm',
                 'ldms_grm_family',
                 'ldak_kinship',
+                'mph_grm',
+                'mph_grm_family',
                 'sparse_grm',
                 'direct_plink_genotypes',
                 'direct_plink1_genotypes',
@@ -418,6 +449,8 @@ nextflow_function {
                     'ldak_kvik',
                     'ldak_pcgc',
                     'ldak_reml',
+                    'mph_reml',
+                    'mph_reml_ldms',
                 ] },
             )
         }
@@ -440,13 +473,18 @@ nextflow_function {
                 gcta_ldms: 'ldms_grm_family',
                 gcta_sparse: 'sparse_grm',
                 ldak_kinship: 'ldak_kinship',
+                mph_dense: 'mph_grm',
+                mph_ldms: 'mph_grm_family',
             ]
             assertAll(
                 { assert function.success },
                 { assert function.result.findAll { _token, details -> details.matrix_kind }.every { _token, details -> details.matrix_kind in contract.keySet() } },
                 { assert function.result.findAll { _token, details -> details.matrix_kind }.every { _token, details -> contract[details.matrix_kind] == details.input_backend } },
                 { assert function.result.findAll { _token, details -> details.input_backend.startsWith('direct_') }.every { _token, details -> !details.containsKey('matrix_kind') } },
-                { assert function.result.every { _token, details -> (details.component_model == 'ld_maf_stratified') == (details.matrix_kind == 'gcta_ldms') } },
+                // The stratified component model is carried by two matrix kinds, one per tool, because both
+                // families consume the same component plan. The biconditional is what keeps a third kind from
+                // being added without deciding whether it is stratified.
+                { assert function.result.every { _token, details -> (details.component_model == 'ld_maf_stratified') == (details.matrix_kind in ['gcta_ldms', 'mph_ldms']) } },
             )
         }
     }
@@ -465,8 +503,10 @@ nextflow_function {
                     gcta_ldms: [input_backend: 'ldms_grm_family', genotype_bundle: 'plink1'],
                     gcta_sparse: [input_backend: 'sparse_grm', genotype_bundle: 'plink'],
                     ldak_kinship: [input_backend: 'ldak_kinship', genotype_bundle: 'plink1'],
+                    mph_dense: [input_backend: 'mph_grm', genotype_bundle: 'plink1'],
+                    mph_ldms: [input_backend: 'mph_grm_family', genotype_bundle: 'plink1'],
                 ] },
-                { assert function.result.keySet().toList() == ['gcta_dense', 'gcta_ldms', 'gcta_sparse', 'ldak_kinship'] },
+                { assert function.result.keySet().toList() == ['gcta_dense', 'gcta_ldms', 'gcta_sparse', 'ldak_kinship', 'mph_dense', 'mph_ldms'] },
             )
         }
     }
@@ -493,6 +533,8 @@ nextflow_function {
         [name: 'the PLINK 1 bundle for LDAK-KVIK', method: 'ldak_kvik', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for LDAK REML', method: 'ldak_reml', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for LDAK fast Haseman-Elston', method: 'ldak_fast_he', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for MPH REML', method: 'mph_reml', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for MPH REML-LDMS', method: 'mph_reml_ldms', expected: 'plink1'],
     ]
 
     genotypeBundles.each { scenario ->
@@ -579,12 +621,15 @@ nextflow_function {
         [name: 'the LDAK kinship heritability estimators', required: [domain: 'heritability', input_backend: 'ldak_kinship'], expected: ['ldak_reml', 'ldak_he', 'ldak_pcgc']],
         [name: 'the direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the stochastic direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
-        [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms']],
+        [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms', 'mph_reml_ldms']],
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],
         [name: 'the LDAK summary pair estimator', required: [domain: 'pairwise', reference_family: 'ldak'], expected: ['ldak_sumcors']],
         [name: 'every direct-genotype heritability estimator, whatever its option family', required: [domain: 'heritability', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the REGENIE association estimator', required: [domain: 'association', option_family: 'regenie'], expected: ['regenie']],
+        [name: 'the MPH heritability estimators', required: [domain: 'heritability', option_family: 'mph'], expected: ['mph_reml', 'mph_reml_ldms']],
+        [name: 'the MPH LDMS heritability estimator', required: [option_family: 'mph', matrix_kind: 'mph_ldms'], expected: ['mph_reml_ldms']],
+        [name: 'the MPH dense heritability estimator', required: [domain: 'heritability', input_backend: 'mph_grm'], expected: ['mph_reml']],
     ]
 
     capabilitySelections.each { scenario ->

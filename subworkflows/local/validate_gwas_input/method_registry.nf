@@ -10,6 +10,16 @@
 // `direct_plink1_genotypes` names an executable that reads BED/BIM/FAM only, `direct_plink_genotypes` one that
 // selects the native flag from the staged primary extension.
 //
+// `mph_grm` and `mph_grm_family` are separate backends from `dense_grm` and `ldms_grm_family` for the same
+// reason, and the separation is load-bearing rather than tidy. An MPH relatedness matrix is `.grm.bin` plus
+// `.grm.iid`, headed by an `int32` sample count and a `float32` sum of the SNP weights, over an unnormalised
+// row-major upper triangle; a GCTA one is `.grm.bin`, `.grm.N.bin` and `.grm.id` over an already-normalised
+// row-major lower triangle (issue #69). Neither tool validates the other's layout and neither refuses it
+// usefully: a GCTA
+// bundle relabelled for MPH runs to exit 0 producing nothing, and an MPH bundle handed to GCTA is read without
+// complaint -- `gcta --pca` on one returned eigenvalues of 11262.9, 7958.5 and 7701.4 against the true 2.78,
+// 2.67 and 2.59, at exit 0. A shared backend name would let routing hand one estimator the other's bytes.
+//
 // `component_model` names the variance-component structure the *pipeline* plans for the estimator. It is what
 // decides whether a row or a pair request may configure the LD- and MAF-stratified plan settings, in
 // `resolveGctaMethodOptions`, `resolvePairRequests` and `resolveRelationships` — keyed on the planned model
@@ -65,6 +75,8 @@ def getMethodCapabilityContract() {
             'dense_grm',
             'ldms_grm_family',
             'ldak_kinship',
+            'mph_grm',
+            'mph_grm_family',
             'sparse_grm',
             'direct_plink_genotypes',
             'direct_plink1_genotypes',
@@ -375,6 +387,35 @@ def getMethodRegistry() {
             requires_complete_covariates: true,
             citation_keys: ['ldak', 'rhe_mc'],
         ],
+        mph_reml: [
+            domain: 'heritability',
+            option_family: 'mph',
+            matrix_kind: 'mph_dense',
+            estimator_family: 'reml',
+            input_backend: 'mph_grm',
+            component_model: 'single',
+            trait_support: [quantitative: true, binary: false],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            // Measured, not assumed: 15 blank covariate cells moved MPH's own
+            // "Non-missing analysis set contains N individuals." from 200 to 185 at exit 0. MPH drops the
+            // sample rather than reading the blank as a value, which is the opposite of LDAK's `--covar`.
+            requires_complete_covariates: false,
+            citation_keys: ['mph'],
+        ],
+        mph_reml_ldms: [
+            domain: 'heritability',
+            option_family: 'mph',
+            matrix_kind: 'mph_ldms',
+            estimator_family: 'reml',
+            input_backend: 'mph_grm_family',
+            component_model: 'ld_maf_stratified',
+            trait_support: [quantitative: true, binary: false],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: false,
+            citation_keys: ['mph', 'gcta_greml_ldms'],
+        ],
     ]
 }
 
@@ -444,6 +485,10 @@ def getMatrixKindContract() {
         gcta_ldms: [input_backend: 'ldms_grm_family', genotype_bundle: 'plink1'],
         gcta_sparse: [input_backend: 'sparse_grm', genotype_bundle: 'plink'],
         ldak_kinship: [input_backend: 'ldak_kinship', genotype_bundle: 'plink1'],
+        // MPH builds its matrices from BED/BIM/FAM directly, so both kinds declare the PLINK 1 bundle even
+        // though `mph_ldms` shares its component plan with `gcta_ldms`, which declares the same bundle.
+        mph_dense: [input_backend: 'mph_grm', genotype_bundle: 'plink1'],
+        mph_ldms: [input_backend: 'mph_grm_family', genotype_bundle: 'plink1'],
     ]
 }
 

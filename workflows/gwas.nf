@@ -12,6 +12,7 @@ include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepa
 include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
 include { ROUTE_LDAK_DIRECT_HERITABILITY     } from '../subworkflows/local/route_ldak_direct_heritability'
+include { ROUTE_MPH_HERITABILITY             } from '../subworkflows/local/route_mph_heritability'
 include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
 include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
@@ -69,6 +70,7 @@ workflow GWAS {
     //          v          v                     v                              v
     //   ROUTE_ASSOCIATION_ANALYSES     ROUTE_GRM_HERITABILITY     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS
     //          |          |
+    //          |   ROUTE_MPH_HERITABILITY           (native MPH matrices built on the spine beside the others)
     //          |   ROUTE_LDAK_DIRECT_HERITABILITY   (direct genotypes; requests no relatedness matrix)
     //          |
     //          | association_results                        ch_external_summary_statistics
@@ -211,6 +213,16 @@ workflow GWAS {
             [meta, phenotype, quant_covariates ?: [], cat_covariates ?: []]
         }
 
+    // MPH's covariate interface is name-keyed: it takes a comma-separated list of column names and reports the
+    // fitted effects under those names, so its serializer consumes the headered prepared tables rather than
+    // the headerless serialisations GCTA and LDAK read. This seam is built here rather than in the route
+    // because deriving per-analysis streams from preparation is spine work, and one absent covariate table is
+    // [] so it stages nothing.
+    def ch_prepared_covariate_tables = ch_analysis_meta_by_id
+        .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
+        .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
+        .map { _analysis_id, meta, quant_covariates, cat_covariates -> [meta, quant_covariates ?: [], cat_covariates ?: []] }
+
     //
     // SUBWORKFLOW: Pipeline route for REGENIE, LDAK-KVIK and GCTA fastGWA associations
     //
@@ -258,6 +270,28 @@ workflow GWAS {
         PREPARE_RELATEDNESS_MATRICES.out.ldak_kinship,
         ch_gcta_phenotypes,
         ch_prepared_adjustment_covariates,
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for MPH REML and REML-LDMS heritability on native MPH matrices
+    //
+    // A second matrix-backed heritability family. Its matrices are built above on the spine beside the GCTA
+    // and LDAK ones and are never interchangeable with them: MPH's layout is its own and both tools read a
+    // foreign bundle to completion at exit 0. Its stratified family shares one LD-by-MAF component plan with
+    // GCTA's, which is why that plan is now built once on the spine rather than inside either matrix builder.
+    //
+    // The controller receives five streams because MPH's serializer needs more than the shared headerless
+    // seam: the matrix records carry their identity in a tuple position, since a unary analysis row never gets
+    // a matrix key and the provenance sidecar needs the plan key and the declared component counts too; and
+    // the PLINK 1 bundle is passed because proving the matrix and the genotypes are the same view, and
+    // resolving each IID's family identifier, both need the cohort FAM. The matrix streams are narrowed to
+    // the unary analysis rows here, mirroring the narrowing the GRM heritability route above receives.
+    ROUTE_MPH_HERITABILITY(
+        PREPARE_RELATEDNESS_MATRICES.out.mph_dense.filter { meta, _matrix_identity, _grm_files -> !meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.mph_ldms.filter { meta, _matrix_identity, _grm_files, _grm_prefixes -> !meta.relationship_id },
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> !meta.relationship_id },
+        ch_gcta_phenotypes,
+        ch_prepared_covariate_tables,
     )
 
     //
@@ -424,4 +458,6 @@ workflow GWAS {
     summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
     multiqc_report      = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
     gcta_ldms_artifacts = PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
+    mph_ldms_artifacts  = PREPARE_RELATEDNESS_MATRICES.out.mph_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
+    ldms_plan_artifacts = PREPARE_RELATEDNESS_MATRICES.out.ldms_plan_artifacts // channel: [ val(plan_meta), path(ld_scores), path(strata_manifest), [ path(snp_group_file), ... ] ], one per plan key
 }

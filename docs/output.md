@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source passes through GWASLab, whose table and log are published directly. Run-level provenance is collected in MultiQC and `pipeline_info/`.
+This document describes the files that nf-core/gwas publishes beneath `--outdir`. Native association, heritability and declared pairwise results are retained. Every internal association result and every external summary source passes through GWASLab, whose table and log are published directly. Run-level provenance is collected in MultiQC and `pipeline_info/`. Results are published native first: the native result is retained unchanged, and a route whose runtime records no invocation of its own additionally publishes a per-result provenance sidecar beside it.
 
 Intermediates are unpublished by default. The optional directories described below appear only when their corresponding save control is enabled.
 
@@ -25,19 +25,20 @@ Use the following provenance chain for any result:
 3. Map the method to its producing tool using the table below.
 4. Read tool versions from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline version and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
-Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table, diagnostics table or per-result provenance sidecar.
+Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table or a diagnostics table. It publishes each native result unchanged and adds a per-result invocation record beside it only for a route whose runtime does not record its own invocation, as `mph_reml` and `mph_reml_ldms` do not: MPH reports its quality failures as warnings at exit 0 and never restates the settings it fitted under.
 
 | Method token                                                                                                                                      | Producing tool |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `regenie`                                                                                                                                         | REGENIE        |
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`, `ldak_fast_he`, `ldak_fast_pcgc`                                                                | LDAK 6         |
+| `mph_reml`, `mph_reml_ldms`                                                                                                                       | MPH 0.55.1     |
 | `ldak_sumher`, `ldak_sumcors`                                                                                                                     | LDAK 6.3       |
 | `ldsc_h2`, `ldsc_rg`                                                                                                                              | LDSC           |
 
 Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline version and producing tool version. Preserve them with an archived result.
 
-Analysis attribution applies under `association/` and `heritability/individual/`; summary attribution applies under `summary_statistics/` and summary-level request outputs. Optional prepared genotypes and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id`, while `quality_control/relatedness_matrices/` is attributed to its reuse key and may serve several analysis rows.
+Analysis attribution applies under `association/` and `heritability/individual/`; summary attribution applies under `summary_statistics/` and summary-level request outputs. Optional prepared genotypes and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id`, while `quality_control/relatedness_matrices/` and `quality_control/ldms_component_plans/` are attributed to their own reuse keys and may each serve several analysis rows.
 
 ## Pipeline overview
 
@@ -52,6 +53,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
   - [GCTA GREML and GREML-LDMS](#gcta-greml-and-greml-ldms)
   - [LDAK estimators](#ldak-estimators)
   - [LDAK direct-genotype estimators](#ldak-direct-genotype-estimators)
+  - [MPH REML and REML-LDMS](#mph-reml-and-reml-ldms)
   - [Summary-level LDSC H2 and RG](#summary-level-ldsc-h2-and-rg)
 - [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
 - [LDAK summary-statistics heritability and correlation](#ldak-summary-statistics-heritability-and-correlation)
@@ -183,6 +185,28 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 
 The per-predictor (`.ind.hers`), per-block (`.jackests`), per-random-vector (`.repetitions`), label, progress and combined-covariate files stay in the work directory: they are large or purely diagnostic. Three things about these results are worth stating plainly. `ldak.fast_num_blocks` sets the number of **predictor** jackknife blocks — LDAK partitions predictors, not samples — so it moves the standard error and not the point estimate, and a block-jackknife standard error is not comparable across block settings nor to the exact `ldak_he`/`ldak_pcgc` standard error. An unseeded run cannot be reproduced: LDAK records no seed in its log unless one was supplied, so set `ldak.fast_seed` for anything you intend to publish. And with `weights_policy: provided`, inspect the `.log` for `contains weights for only`, which means LDAK gave weight zero to every predictor the weights file omitted.
 
+### MPH REML and REML-LDMS
+
+<details markdown="1">
+<summary>Output files</summary>
+
+[MPH](https://jiang18.github.io/mph/) fits a REML variance-component model by MINQUE, estimating the trace terms with random vectors, over relationship matrices it builds itself. `mph_reml` fits one component over the autosomal variant universe; `mph_reml_ldms` fits one component per LD-by-MAF stratum of the shared component plan. Both add the residual component `err`, both are quantitative-only, and both publish MPH's own files unchanged.
+
+- `heritability/individual/mph_reml/<analysis_id>/` and `heritability/individual/mph_reml_ldms/<analysis_id>/`
+  - `<analysis_id>.<method>.mq.vc.csv`: Primary result. `trait_x`, `trait_y`, `vc_name`, `m`, `var`, `seV`, `pve`, `seP`, `enrichment`, `seE`, one row per component in matrix-list order and `err` last, followed by the enrichment and variance-component sampling-covariance blocks. `vc_name` is the staged matrix prefix verbatim and carries the stratum key for a stratified fit; `m` is that component's post-quality-control variant count and is `NA` on the `err` row. Variances are unconstrained, so a negative one is native. The appended covariance columns repeat their names, so a header-keyed reader will silently collapse them.
+  - `<analysis_id>.<method>.mq.blue.csv`: Best linear unbiased estimates of the fitted covariates: `trait`, `covar`, `blue`, `se`, `pval`, then their sampling covariance in columns named `<trait>.<covar>`. `covar` names the columns MPH actually fitted, which is what the sidecar reconciles against the columns the pipeline asked it to fit.
+  - `<analysis_id>.<method>.mq.iter.csv`: Solver trace, one row per completed iteration: `iter`, `num_traits`, `sample_size`, `num_GRMs`, `logLL`, `dLLpred`, `dogleg_Newton`. `sample_size` is the analysis set the fit used.
+  - `<analysis_id>.<method>.log`: Complete MPH standard output: the echoed option block including the effective thread count, the `Non-missing analysis set contains N individuals` line, the random-vector line and the per-iteration trust-region trace. MPH writes no summary of its estimates anywhere and prints its two quality failures — non-convergence ([#66](https://github.com/lyh970817/gwas/issues/66)) and a rank-deficient covariate design ([#65](https://github.com/lyh970817/gwas/issues/65)) — only here, as `Warning:` lines at exit 0.
+  - `<analysis_id>.<method>.provenance.json`: Invocation record for this result: the effective stochastic and solver settings and which of them are MPH's own defaults, the rendered native arguments, the component plan and matrix keys with each component's declared and achieved variant count matched by name, the sample accounting -- where `inputs.samples.retained` is the sample the estimate was computed on, MPH's own complete-case analysis set, and the row counts behind it are under `detail` -- and the SHA-256 digests of the files the fit was given, the covariate columns requested and the ones fitted, the thread count read back from MPH's own option echo, and the classification and warnings read from the log.
+
+</details>
+
+`<analysis_id>.<method>.mq.py.csv`, MPH's fixed-effect-adjusted phenotype, is deliberately not published: it is one row per individual and grows with the cohort, so it stays in the task work directory for the same reason LDAK's per-individual heritabilities do. The matrix list the fit is addressed by and the serializer's own record stay there too.
+
+The sidecar is written after the fit rather than before it, because three of the things it has to carry cannot exist earlier: MPH reports both of its quality failures as warnings at exit 0 with a complete result set beside them, it states each component's achieved variant count only inside `.mq.vc.csv`, and the thread count that moves the estimate is chosen by the executor. Two of its checks fail the run. MPH's own non-missing analysis-set size must equal the count the prepared inputs predict, because a disagreement means the published estimate describes a different sample than the record claims; and the fitted covariate set must still contain the explicit `intercept` column, because MPH prunes a rank-deficient design without naming what it dropped ([#65](https://github.com/lyh970817/gwas/issues/65)), and dropping that column turns a covariate-adjusted fit into a fit through the origin — MPH synthesises no intercept of its own once any covariate is named ([#62](https://github.com/lyh970817/gwas/issues/62)). Any other pruned column is recorded as a warning instead, as is non-convergence: a fit that exhausted its iterations is published with `not_converged` in `warnings` and `estimable_with_warning` as its `classification`, so check that field before using an estimate.
+
+Two things about these results are worth stating plainly. A seed makes an MPH fit repeatable, not stable: measured on a 200-sample cohort over seeds 1 to 8, the proportion of variance explained spanned `0.052` at MPH's default of 100 random vectors and `0.114` at 50, while the reported standard error moved only between `0.124` and `0.129` and therefore contains none of that Monte-Carlo component — so set `mph.random_vectors` explicitly for anything you intend to publish. And an estimate is reproducible only against the same seed, random-vector count, thread count and memory mode ([#67](https://github.com/lyh970817/gwas/issues/67), [#68](https://github.com/lyh970817/gwas/issues/68)): the last two move it in the sixth to seventh significant digit, which is why the sidecar records both.
+
 ### Summary-level LDSC H2 and RG
 
 <details markdown="1">
@@ -251,7 +275,7 @@ The native files retain LDAK's own result structure, warnings and missing-value 
 <details markdown="1">
 <summary>Output files</summary>
 
-The pipeline builds each reusable [GCTA](https://yanglab.westlake.edu.cn/software/gcta/) or [LDAK](https://dougspeed.com/ldak/) base artifact once and derives each requested child artifact once. Compatible GREML and fastGWA routes share a dense GCTA base, while the fastGWA cutoff identifies only its sparse child. Filtered and unrestricted LDAK routes share a kinship base, while unrelated-sample subsetting identifies only its child. LDAK HE and PCGC likewise share a covariate-adjusted child when their selected parent, effective sample subset, covariate content and native options match.
+The pipeline builds each reusable [GCTA](https://yanglab.westlake.edu.cn/software/gcta/), [LDAK](https://dougspeed.com/ldak/) or [MPH](https://jiang18.github.io/mph/) base artifact once and derives each requested child artifact once. Compatible GREML and fastGWA routes share a dense GCTA base, while the fastGWA cutoff identifies only its sparse child. Filtered and unrestricted LDAK routes share a kinship base, while unrelated-sample subsetting identifies only its child. LDAK HE and PCGC likewise share a covariate-adjusted child when their selected parent, effective sample subset, covariate content and native options match.
 
 Matrices are unpublished by default because they are large intermediates. `<key>` is a content-derived artifact identity over immutable input or parent identity and effective scientific settings. It never contains focal analysis, estimator or publication state. Key-addressing is necessary because one cohort may need several artifacts, while one artifact may serve unary, pairwise and association consumers. Each base or child is published exactly once by its own key; per-partition construction files and logs are never published.
 
@@ -261,10 +285,29 @@ Matrices are unpublished by default because they are large intermediates. `<key>
   - `*.grm.bin`, `*.grm.N.bin`, `*.grm.id`: GCTA GREML-LDMS stratified matrix bundles in their declared non-empty LD-by-MAF order. Each native consumer writes its small MGRM control list inside its own task; the control list is not an independently published artifact.
   - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`: Base or unrelated-sample child LDAK kinship bundle.
   - `*.grm.bin`, `*.grm.id`, `*.grm.details`, `*.grm.adjust`, `*.grm.root`: Covariate-adjusted LDAK child bundle.
+  - `*.grm.bin`, `*.grm.iid`: One-component or LD-by-MAF-stratified MPH matrix bundle, the stratified family in its declared non-empty order. There is no `*.grm.N.bin`.
 
 </details>
 
-Relatedness matrices are the only current `quality_control/` publication family; validation failures are reported before execution and do not create a published validation report. LDAK fast Haseman-Elston and fast PCGC build no matrix and therefore publish nothing here.
+An MPH bundle and a GCTA bundle are never interchangeable, and renaming one into the other is not a conversion. MPH writes an 8-byte header holding the sample count and the sum of the SNP weights, an unnormalised row-major upper triangle, and an IID-only companion; GCTA writes a headerless normalised row-major lower triangle with `.grm.N.bin` beside it and a FID/IID companion. Neither tool refuses the other's layout usefully ([#69](https://github.com/lyh970817/gwas/issues/69)): a GCTA bundle relabelled for MPH runs to exit 0 and produces nothing, and an MPH bundle relabelled for GCTA is read without complaint — `gcta --pca` on one returned eigenvalues of 11262.9, 7958.5 and 7701.4 against the true 2.78, 2.67 and 2.59, at exit 0. Build the matrix each route asks for instead.
+
+Relatedness matrices and LD-by-MAF component plans are the two current `quality_control/` publication families; validation failures are reported before execution and do not create a published validation report. LDAK fast Haseman-Elston and fast PCGC build no matrix and therefore publish nothing here.
+
+### LDMS component plans
+
+<details markdown="1">
+<summary>Output files</summary>
+
+An LD-by-MAF component plan is the LD scores of one cohort genotype view and the ordered, disjoint SNP groups derived from them. It is built once by GCTA's LD-score pass and the pipeline's stratifier, and every stratified matrix family that declares the same settings reads it, so `gcta_greml_ldms` and `mph_reml_ldms` on one row partition one identical variant set. `<plan_key>` digests that genotype view and the three plan settings only, never the tool or the method token that asked for it, which is why the plan is published as its own family rather than inside either matrix family.
+
+- `quality_control/ldms_component_plans/<plan_key>/` (with `--save_relatedness_matrices`)
+  - `*_gcta_ld.score.ld`: Native GCTA per-variant LD scores for the plan's declared region size.
+  - `*.strata.tsv`: Ordered stratum manifest, LD-major and MAF-minor with empty strata omitted: `model_key`, `stratum_key`, `ld_lower`, `ld_upper`, `maf_lower`, `maf_upper`, `predictor_count`, `group_filename`.
+  - `*_snp_group_<stratum_key>.txt`: The variant IDs of one non-empty stratum, one per line.
+
+</details>
+
+The manifest's row order is the component order of every matrix family and every result built from the plan, and `stratum_key` appears verbatim in the `vc_name` of an MPH stratified result, so a component can be traced from the published estimate back to its variant list by name rather than by row position. `predictor_count` is what the plan declares; the count a tool retained after its own quality control is reported by that tool's result.
 
 ### Prepared genotypes
 

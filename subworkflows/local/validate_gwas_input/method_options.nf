@@ -137,14 +137,21 @@ def resolveRegenieMethodOptions(analysis_id, options, methods, defaults, fail) {
 
 def resolveGctaMethodOptions(analysis_id, options, methods, defaults, fail) {
     def capabilities = getMethodCapabilities()
-    def selected = (methods.association_methods + methods.heritability_methods).any { method -> capabilities[method] && capabilities[method].option_family == 'gcta' }
-    if (options && !selected) {
+    // The LD- and MAF-stratified plan settings live in this family because GCTA's own LD-score pass builds the
+    // plan, but the plan itself is shared: one component plan now feeds the GCTA and the MPH stratified matrix
+    // families. A row selecting only `mph_reml_ldms` therefore configures the plan through `gcta.*` and must
+    // reach the per-option gates below rather than being turned away here for selecting no GCTA method.
+    def stratified_heritability = getMethodTokensWithCapabilities([domain: 'heritability', component_model: 'ld_maf_stratified'])
+    def selects_gcta = (methods.association_methods + methods.heritability_methods).any { method -> capabilities[method] && capabilities[method].option_family == 'gcta' }
+    def selects_stratified = methods.heritability_methods.any { method -> method in stratified_heritability }
+    if (options && !selects_gcta && !selects_stratified) {
         fail.call(analysis_id, "gcta.${options.keySet().first()}", 'analysis does not select a GCTA method')
     }
     def gcta_greml_estimators = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', estimator_family: 'reml'])
     def gcta_dense_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', input_backend: 'dense_grm'])
-    def gcta_ldms_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'gcta', component_model: 'ld_maf_stratified'])
+    def gcta_ldms_heritability = stratified_heritability
     def gcta_sparse_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'gcta', input_backend: 'sparse_grm'])
+    def mph_matrix_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'mph'])
     if (options.containsKey('reml_no_constrain') && !methods.heritability_methods.any { method -> method in gcta_greml_estimators }) {
         fail.call(analysis_id, 'gcta.reml_no_constrain', "option is consumed by GCTA GREML estimators only, but this analysis selects neither 'gcta_greml' nor 'gcta_greml_ldms'")
     }
@@ -153,12 +160,25 @@ def resolveGctaMethodOptions(analysis_id, options, methods, defaults, fail) {
             fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml' only, which this analysis does not select")
         }
     }
+    // Both options restrict the GCTA dense predictor set and nothing else: matrix construction applies them to
+    // `gcta_dense`/`gcta_sparse` only, and MPH's matrices are built over their own declared variant universe.
+    // A row selecting both families would therefore publish a filtered GCTA estimate and an unfiltered MPH one
+    // side by side under one analysis identifier with nothing in either native output saying so, which is the
+    // failure mode a matched comparison exists to avoid. Refused rather than routed, following
+    // `ldak.relatedness_filter`: making a `gcta.*` option govern MPH bytes would require renaming it out of
+    // this family first.
+    def selected_mph = methods.heritability_methods.findAll { method -> method in mph_matrix_heritability }
+    ['grm_maf', 'grm_extract'].each { option ->
+        if (options.containsKey(option) && selected_mph) {
+            fail.call(analysis_id, "gcta.${option}", "option restricts the GCTA dense predictor set only; the MPH matrices this analysis also selects (${selected_mph.join(', ')}) are built over the declared MPH variant universe, so the two estimates would be published side by side over different predictor sets. Remove the option or drop the MPH selector(s) from this row")
+        }
+    }
     if (options.containsKey('sparse_cutoff') && !methods.association_methods.any { method -> method in gcta_sparse_association }) {
         fail.call(analysis_id, 'gcta.sparse_cutoff', "option is consumed by 'gcta_fastgwa' only, which this analysis does not select")
     }
     ['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges'].each { option ->
         if (options.containsKey(option) && !methods.heritability_methods.any { method -> method in gcta_ldms_heritability }) {
-            fail.call(analysis_id, "gcta.${option}", "option is consumed by 'gcta_greml_ldms' only, which this analysis does not select")
+            fail.call(analysis_id, "gcta.${option}", "option is consumed by the LD- and MAF-stratified estimators ${gcta_ldms_heritability.join(', ')} only, none of which this analysis selects")
         }
     }
 
@@ -311,15 +331,49 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     ]
 }
 
-// MPH has no wired selector until its routes land, so any supplied option is an option for a method this
-// analysis cannot select. The selection query is registry-derived and starts matching the moment the token
-// exists, at which point this body is replaced by the family's real validation.
+// MPH's controls split into two kinds and the resolver keeps them apart deliberately, because only one kind
+// moves the answer. `seed`, `random_vectors` and `save_memory` govern the stochastic trace estimator: measured
+// on the pinned image, the point estimate — not merely its standard error — moved across seeds (issue #67), so
+// a seed here changes the number that gets published. `iterations` and `tolerance` govern the deterministic solver.
+//
+// Unlike the LDAK seed controls, an unset `mph.seed` needs no unseeded-run warning: MPH's own default
+// is the fixed integer 0, so an unseeded run is reproducible and its seed is recoverable from the log's option
+// echo. `tolerance` is validated as any positive number rather than against MPH's own 1e-4 floor, because the
+// floor is applied natively and this pipeline records what the researcher asked for beside what
+// the tool did rather than pre-empting it.
 def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
     def mph_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'mph'])
     if (options && !methods.heritability_methods.any { method -> method in mph_heritability }) {
         fail.call(analysis_id, "mph.${options.keySet().first()}", 'analysis does not select an MPH method')
     }
-    return defaults
+
+    def iterations = options.containsKey('iterations') ? options.iterations : defaults.iterations
+    def tolerance = options.containsKey('tolerance') ? options.tolerance : defaults.tolerance
+    def random_vectors = options.containsKey('random_vectors') ? options.random_vectors : defaults.random_vectors
+    def seed = options.containsKey('seed') ? options.seed : defaults.seed
+    def save_memory = options.containsKey('save_memory') ? options.save_memory : defaults.save_memory
+    if (iterations != null && (!(iterations instanceof Number) || iterations < 1 || iterations != iterations.toInteger())) {
+        fail.call(analysis_id, 'mph.iterations', 'expected a positive integer or null')
+    }
+    if (tolerance != null && (!(tolerance instanceof Number) || tolerance <= 0)) {
+        fail.call(analysis_id, 'mph.tolerance', 'expected a number greater than 0 or null')
+    }
+    if (random_vectors != null && (!(random_vectors instanceof Number) || random_vectors < 1 || random_vectors != random_vectors.toInteger())) {
+        fail.call(analysis_id, 'mph.random_vectors', 'expected a positive integer or null')
+    }
+    if (seed != null && (!(seed instanceof Number) || seed != seed.toInteger())) {
+        fail.call(analysis_id, 'mph.seed', 'expected an integer or null')
+    }
+    if (!(save_memory instanceof Boolean)) {
+        fail.call(analysis_id, 'mph.save_memory', 'expected a boolean')
+    }
+    return [
+        iterations: iterations == null ? null : iterations.toInteger(),
+        tolerance: tolerance,
+        random_vectors: random_vectors == null ? null : random_vectors.toInteger(),
+        seed: seed == null ? null : seed.toInteger(),
+        save_memory: save_memory,
+    ]
 }
 
 def readMethodOptionsDocument(method_options) {
