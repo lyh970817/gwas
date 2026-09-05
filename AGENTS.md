@@ -11,11 +11,16 @@ repository do not require that approval.
 
 Wire a third-party programme that this pipeline invokes according to its own documentation. Investigate its
 native behavior when the wiring at hand needs it: a contract the documentation leaves ambiguous, an output the
-pipeline must parse, a failure the pipeline must detect. Do not investigate as an end in itself. Record every
-defect found as an individual issue in this repository, naming the pinned image or version it was measured on.
-Do not build compensation for a tool defect, whether a refusal, an assertion, or a recomputation, without the
-owner's explicit decision. Validating user-supplied input such as manifest rows, method options, and resource
-files is unaffected.
+pipeline must parse, a failure the pipeline must detect. Do not investigate as an end in itself. Report a
+defect in such a programme, whether in an issue, a review, or documentation, only when it is material: the
+programme returns a wrong or unusable result on input in its expected form, or the defect lies on a
+conventional route that ordinary users take, such as categorical covariates in a GWAS. Behavior on malformed,
+unconventional, or adversarial input, such as a missing header, a name containing a comma, an empty file, a
+sentinel value, or a hostile flag combination, is not a defect here; do not report it, guard against it,
+document it, or test for it. Record every material defect as an individual issue in this repository, naming
+the pinned image or version it was measured on. Do not build compensation for a tool defect, whether a
+refusal, an assertion, or a recomputation, without the owner's explicit decision. Validating user-supplied
+input such as manifest rows, method options, and resource files is unaffected.
 
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
 
