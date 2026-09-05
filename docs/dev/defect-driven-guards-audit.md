@@ -3,6 +3,11 @@
 Prepared 2026-09-03, against `personal` @ `725304b`, following the decision that this pipeline assumes the
 output of the programmes it invokes is correct and wires them per their documentation.
 
+*Update, 2026-09-05.* The owner has retracted the blanket rule ("you may do this when it's sensible"); the
+keep-or-remove decisions below remain pending, and this document remains their record. Every defect surfaced
+by the audits has since been filed as an individual issue in this repository, and the entries below now cite
+them.
+
 That decision governs new work from now on. It does not by itself retire anything already merged. This
 document exists so each existing case can be decided on its own.
 
@@ -10,8 +15,8 @@ document exists so each existing case can be decided on its own.
 
 Five read-only audits covered the preparation and adapter modules, the validation and routing layer, the
 user-facing documentation, the test suite, and the pinned flags and command shapes. GENIE is excluded
-throughout because it is being deleted; MPH is excluded because it has not landed. The MPH agents were
-told to report their own defect-driven work separately, and that will be appended when it arrives.
+throughout because it is being deleted; MPH is excluded from the five audits because it had not landed.
+The MPH implementer's own list arrived on 2026-09-05 and is appended as Group 8.
 
 Each item says what happens **if it is removed**, because that is the only question that matters. The
 distinction that runs through the whole document is between an item that prevents a **wrong number being
@@ -30,14 +35,14 @@ here; they are listed so they are not swept up by a keyword search for "tool def
 
 | ID | Where | Removing it |
 |---|---|---|
-| `ldsc-stdout-capture` | `modules/local/ldsc/h2/main.nf:30-40`, `ldsc/rg/main.nf:30-40` | LDSC writes its analysis log to stdout and leaves the file it opened at `--out` empty. That log is the **only declared output** of both processes; the h² and rg estimates exist nowhere else. Remove the redirect and the pipeline publishes an empty file on a successful run. |
-| `ldsc-gzip-predecompress` | `modules/local/ldsc/mungesumstats/main.nf:27-34` | The pinned LDSC revision reads a gzip header as bytes and crashes. The pipeline's own harmonised output is gzipped, so the route stops working. |
-| `ldak-kvik-column-surgery` | `modules/local/ldak/kvikstep2/main.nf:53-139` | LDAK's KVIK association table has no unambiguous effect-allele frequency and no per-variant N. The join supplies both. Without them GWASLab harmonisation of the KVIK route cannot run. The **native** `.assoc` is published untouched either way (`conf/modules/ldak.config:29`). |
+| `ldsc-stdout-capture` | `modules/local/ldsc/h2/main.nf:30-40`, `ldsc/rg/main.nf:30-40` | LDSC writes its analysis log to stdout and leaves the file it opened at `--out` empty. That log is the **only declared output** of both processes; the h² and rg estimates exist nowhere else. Remove the redirect and the pipeline publishes an empty file on a successful run. Root cause now known: the logger opens the `--out` file and never flushes or closes it, and pandas 1.5's `lru_cache`d `find_stack_level` pins the live frame when the gzip-read warning fires, so the handle is never finalised at exit. Issue #45. |
+| `ldsc-gzip-predecompress` | `modules/local/ldsc/mungesumstats/main.nf:27-34` | The pinned LDSC revision reads a gzip header as bytes and crashes — no longer inferred: reproduced on the pinned image with the exact `TypeError` at `munge_sumstats.py:125`. The fork's `main` has fixed it, but `main` has diverged from the pinned `ldsc39` branch, so a pin bump within `ldsc39` does not help. The pipeline's own harmonised output is gzipped, so the route stops working. Issue #46. |
+| `ldak-kvik-column-surgery` | `modules/local/ldak/kvikstep2/main.nf:53-139` | LDAK's KVIK association table has no unambiguous effect-allele frequency and no per-variant N. The join supplies both. Without them GWASLab harmonisation of the KVIK route cannot run. The **native** `.assoc` is published untouched either way (`conf/modules/ldak.config:29`). Already documented in issue #4, where the re-measurement was recorded as a comment rather than a new issue. |
 | `ldak-kvik-step1-symlink-alias` | `modules/local/ldak/kvikstep2/main.nf:37-41` | `--kvik-step2` uses one prefix for both input discovery and output naming. |
-| `ldak-63-ghcr-image` | `modules/local/ldak/{sumher,sumcors}/main.nf:5-7`, `sumher/Dockerfile:19,26` | The upstream LDAK 6.3 image has an intercepting entrypoint and no Bash, so a normal Nextflow task cannot launch it. Version selection, not command pinning. Issue #7. |
-| `ldsc-cbiit-fork-pin` | `modules/local/ldsc/{h2,rg,mungesumstats}/main.nf:5-7` | Upstream LDSC is Python 2. This is which build to run, not how to run it. |
-| `metasoft-launcher` | image at `modules/local/metasoft/re2/main.nf:5-7` | METASOFT's default P-value table is a bare relative path that fails with exit 255 in any Nextflow task directory. |
-| `mrmega-absolute-binary-path` | `modules/local/mrmega/main.nf:26` | A trailing `/MR-MEGA` PATH entry is not reliably preserved by Apptainer, Podman or some Kubernetes executors. |
+| `ldak-63-ghcr-image` | `modules/local/ldak/{sumher,sumcors}/main.nf:5-7`, `sumher/Dockerfile:19,26` | The upstream LDAK 6.3 image has an intercepting entrypoint and no Bash, so a normal Nextflow task cannot launch it. Version selection, not command pinning. Issue #7 — which now also records that the pipeline's pinned "LDAK 6" image is conda `genomedk::ldak6=6.1`, not 6.2 or 6.3, that both builds print only `Version 6`, and that 6.3 `--fast-he` fails on the upstream test dataset where 6.1 succeeds. |
+| `ldsc-cbiit-fork-pin` | `modules/local/ldsc/{h2,rg,mungesumstats}/main.nf:5-7` | Upstream LDSC is Python 2. This is which build to run, not how to run it. The pinned fork's own version metadata disagree (distribution 3.0.2, `ldsc.__version__` 3.0.1; issue #47), and its `main` has diverged from `ldsc39` (issue #46). |
+| `metasoft-launcher` | image at `modules/local/metasoft/re2/main.nf:5-7` | METASOFT's default P-value table is a bare relative path that fails with exit 255 in any Nextflow task directory. Issue #78; the absence of any version string is issue #80. |
+| `mrmega-absolute-binary-path` | `modules/local/mrmega/main.nf:26` | A trailing `/MR-MEGA` PATH entry is not reliably preserved by Apptainer, Podman or some Kubernetes executors. Issue #89 — the executor claim is recorded there, not measured under Apptainer or Podman. |
 | `gwaslab-float-formats` | `modules/local/gwaslab/harmonize/templates/harmonize.py:33-59` | See Group 2 — listed there because it is a genuine decision, but it belongs in spirit here. |
 | `phenotype-input-staging` | `modules/local/prepare_phenotype_inputs/main.nf:11-19` | Guards against Nextflow's staging model, not a genetics tool: an analysis id equal to its phenotype file's stem — how the fixture bundle names things — writes the output through the staged symlink and **destroys the researcher's source file**, silently, with the run reporting success. The only irreversible data-loss path found. |
 
@@ -59,6 +64,8 @@ summary-statistics file, and the inverse-variance weight `1/SE²` divides by zer
 one place where "publish what the tool said" and "publish a correct number" genuinely conflict.
 
 This is not an assertion about the tool's output — it is choosing a serialisation option the tool exposes.
+Issue #44 (verified against the 4.1.9 wheel in the image and the upstream 4.1.9 commit; the vendored copy
+read for this audit is actually 4.2.0).
 
 ### 2.2 `gwaslab-remove-invalid` and `gwaslab-fixchrpos` — recommend REVERT or DOCUMENT
 `modules/local/gwaslab/harmonize/templates/harmonize.py:93-94`.
@@ -80,7 +87,8 @@ HE or PCGC analysis with a categorical covariate exits 1.
 
 **This is the only place in the audited tree where the pipeline constructs a scientific input to route
 around a rejected flag.** The design matrix is pipeline-authored, not LDAK's. `adjustgrm/main.nf` carries
-no trace of why `--factors` is missing.
+no trace of why `--factors` is missing. Issue #50 (the rejection is present in both the 6.2 and the 6.3
+`consistent.c`).
 
 ### 2.4 `ldak-covar-missing-cell` — recommend KEEP
 Guard at `modules/local/prepare_phenotype_inputs/templates/prepare_phenotype_inputs.py:385-414`; declared by
@@ -100,6 +108,15 @@ Worth knowing about the evidence: the **first version of this claim was wrong**.
 removed only the first covariate of the first row, where the substituted value coincidentally matched zero.
 Commit `e1b6717` corrected it — a mid-row cell gives an estimate that setting the same cell to zero does not
 reproduce. The guard turned out to be more justified than it had been described.
+
+The defect is specific to the pinned build. The pipeline's "LDAK 6" image
+(`community.wave.seqera.io/library/ldak6_r-base:452828f72b3c9129`) is conda `genomedk::ldak6=6.1`, not 6.2 or
+6.3. The defect reproduces there exactly — a mid-row `NA` takes the neighbouring column's value, a wholly
+missing first row takes 1.1761e-316, exit 0 — while the LDAK 6.3 image mean-imputes a missing cell as
+documented, and both the 6.2 and the 6.3 sources carry that imputation branch. Both builds print only
+`Version 6`, so the modules' version output cannot tell them apart. The guard's justification therefore
+disappears on migration to 6.3 (issue #7), which is itself gated by a 6.3 `--fast-he` failure ("Kinship
+Matrix 1 has trace zero") on the upstream test dataset where 6.1 succeeds. Issue #49.
 
 Note the honest framing: a missing cell is legal, well-formed user input. It becomes invalid only because of
 how LDAK reads it. This is a defect-driven refusal wearing input-validation clothes.
@@ -123,17 +140,19 @@ is byte-identical with and without covariates.
 covariate-adjusted one. If you do drop it, stop advertising HE as a covariate-comparable sensitivity beside
 REML — the two would then differ for a reason nothing records.
 
-### 2.6 `ldak-adjustgrm-root-basename` — recommend KEEP, but verify before deleting
+### 2.6 `ldak-adjustgrm-root-basename` — recommend KEEP, as a clear-failure guard
 `subworkflows/local/route_grm_heritability/main.nf:95-102,111-124`.
 
 Adjusted GRM artifacts are deduplicated by content. LDAK records the covariate **filename** in the artifact's
 `.grm.root` contract, so every consumer of a shared artifact is invoked with the one representative file
 that built it rather than with its own copy.
 
-**This is the weakest-evidenced finding in the document.** The claim rests entirely on one inline comment;
-the introducing commit is subject-only and nobody has ever run the failing case. Whether a basename
-disagreement is an error or a wrong answer is untested. If you want this gone, it deserves one live check
-first.
+This was the weakest-evidenced finding in the document when it was written; it no longer is. The failing
+case has now been run on both LDAK images (issue #54): a byte-identical covariate file under another name,
+or the same basename in a subdirectory, makes LDAK exit 1 with an explicit message that names `--check-root
+NO` as the bypass. It is a loud error, not an undefined or wrong answer. The recommendation stands, but the
+reason changes: the guard prevents a clear late failure on every consumer of a shared artifact, not a wrong
+number. In kind it belongs with Group 3, and it should be weighed at that price.
 
 ---
 
@@ -149,7 +168,7 @@ Nothing here can cause a wrong number. Each converts an obscure late failure int
 | `harmonize-pinned-defaults` | `modules/local/gwaslab/harmonize/templates/harmonize.py:95` | **Remove.** `sweep_mode=False` is already GWASLab's default, is uncommented, and contradicts the adjacent comment saying the remaining defaults are left alone. |
 | `ldak-sumher-sumcors-pipefail` | `modules/local/ldak/sumher/main.nf:35`, `sumcors/main.nf:29` | **Remove.** Redundant — `nextflow.config:249` already sets `process.shell` with pipefail — and an archived issue closed **wontfix** on exactly this point. Nine of the eleven other tee-capturing LDAK modules omit it. The cleanest removal in the audit. |
 | `ldak-fast-num-blocks-floor` | `subworkflows/local/validate_gwas_input/method_options.nf:260-263` | **Your call, stylistic.** LDAK refuses cleanly with a better message than the pipeline's own. Not defect-driven — the tool behaves correctly — but it has the shape you asked about. |
-| `kvik-summary-join-assertions` (header and missing-file checks) | `modules/local/ldak/kvikstep2/main.nf:56-59,71-74,93-96` | **Remove these three.** **Keep the two duplicate-key checks and the unmatched-key check** at `:78-81,109-113,114-117,127-137` — a duplicated key silently attaches the *last* match's EAF and N, giving a wrong-but-finite number that propagates into meta-analysis weights and is caught nowhere else. |
+| `kvik-summary-join-assertions` (header and missing-file checks) | `modules/local/ldak/kvikstep2/main.nf:56-59,71-74,93-96` | **Remove these three.** **Keep the two duplicate-key checks and the unmatched-key check** at `:78-81,109-113,114-117,127-137` — a duplicated key silently attaches the *last* match's EAF and N, giving a wrong-but-finite number that propagates into meta-analysis weights and is caught nowhere else. The join's motive is issue #4. |
 
 ---
 
@@ -163,7 +182,8 @@ every worth-keeping item pins a string this repository authored.
 ### 4.1 Remove — snapshots of tool arithmetic with nothing behind them
 
 - `tests/relational_gcta_bivariate_he.nf.test` pins the whole native `.HEreg` text including
-  `rG -3.79993 7.45616 -nan`. No rG-recomputation code exists anywhere.
+  `rG -3.79993 7.45616 -nan`. No rG-recomputation code exists anywhere. The `-nan` SE, and the jackknife
+  var/cov matrix that reaches only the `.log`, are issue #40.
 - `tests/summary_statistics_ldsc.nf.test` pins ~10 floats per invocation including
   `Total Observed scale h2: -1.2938e-15 (1.1092e-15)` — numerical noise near zero, not scientific content.
 - MD5 snapshots of real output in `modules/local/gcta/bivariatehereg`, `gcta/bivariateheregldms`,
@@ -171,18 +191,20 @@ every worth-keeping item pins a string this repository authored.
   `tests/heritability_gcta_greml_ldms.nf.test`, `tests/relational_gcta_greml_ldms.nf.test`,
   `tests/relational_gcta_greml.nf.test`. Keep the adjacent structural checks (`V(G)` single source row,
   `/Vp_L` presence or absence) — they catch real stratum-wiring regressions and cost nothing.
-- Exact P-value strings in `modules/local/mrmega/tests` (`0.0010333`, `0.00103304`) and METASOFT's
-  fixed-width `0.00000` underflow format. Keep the header and column-shape assertions.
+- Exact P-value strings in `modules/local/mrmega/tests` (`0.0010333`, `0.00103304`; the pins at `:70,96` are
+  noted in issue #18's new comment) and METASOFT's fixed-width `0.00000` underflow format (issue #84). Keep
+  the header and column-shape assertions.
 - `modules/local/ldsc/mungesumstats/tests` pins a native rejection message — and already hedges between two
   possible strings, so the test anticipates its own staleness.
 - `metasoft-re2-native-log-table-path` asserts an internal container path with no pipeline dependency.
-- KVIK, HE and PCGC content snapshots stabilised only by a **test-only** `--random-seed 7`.
+- KVIK, HE and PCGC content snapshots stabilised only by a **test-only** `--random-seed 7`. The unseeded
+  jackknife SE spread on the pinned 6.1 build is issue #53.
 - `sumher`/`sumcors` tests pinning LDAK's exact error wording for input the tool correctly refuses — this
   documents correct behaviour, not misbehaviour. Loosen to a generic failure check.
 - `sumher-sumcors-liability-arg-order` pins exact flag **order** with no evidence LDAK's parser is
   order-sensitive. Replace with unordered presence checks.
 - `ldak-fast-he-pcgc-unseeded-reproducibility-warning` asserts a hardcoded factual claim about LDAK's log
-  that is never re-verified against a live run.
+  that is never re-verified against a live run. The claim itself is now measured: issue #52.
 
 **The clearest single instance of the retired practice** is `fasthe-partial-weights-warning`
 (`modules/local/ldak/fasthe/tests` and `tests/heritability_ldak_fast_estimators.nf.test`). It pins an exact
@@ -194,7 +216,7 @@ will now never be built. Remove both instances.
 
 - `missing-covariate-cell-refusal` (`tests/heritability_ldak_fast_estimators.nf.test`, four scenarios) —
   every pinned string is pipeline-authored, and no other test exercises that guard. The strongest keep in
-  the audit.
+  the audit. Issue #49; note the build-specific caveat in 2.4.
 - `hereg-covariate-message` and `hereg-binary-endpoint-message` — pipeline-authored diagnostics proven to
   block task submission. Exactly the shape the new rule preserves.
 - `gcta-ldak-native-column-mapping` (`method_registry.function.nf.test`) — the load-bearing interface
@@ -205,18 +227,19 @@ will now never be built. Remove both instances.
 - `hereg-manual-regression-reproduction` — independently recomputes the HE-CP regression in Groovy and
   compares to GCTA within tolerance. The most scientifically valuable test found, though note it verifies
   GCTA's mathematics rather than defending against it.
-- The `ldak.fast_seed` behavioural tests, `fasthe-default-weights-equal-alias-equivalence`,
-  `hereg-ldms-native-total-contract`, the LDSC stdout-redirect tests, and `ldsc-firewall-reject-samp-prev`.
+- The `ldak.fast_seed` behavioural tests (issue #52), `fasthe-default-weights-equal-alias-equivalence`,
+  `hereg-ldms-native-total-contract`, the LDSC stdout-redirect tests (issue #45), and
+  `ldsc-firewall-reject-samp-prev`.
 - `gcta-fastgwa-binary-beta-header-pin` — keep as an **isolated** canary. GCTA reports the log-odds effect
   as `BETA` on its binary MLM route, and effect-semantic drift is a real risk; isolate it so an unrelated
-  GCTA point release does not also fail the surrounding snapshot-heavy test.
+  GCTA point release does not also fail the surrounding snapshot-heavy test. Issue #39.
 
 ### 4.3 Two test defects found on the way
 
 - **`gwaslab-harmonize-six-digit-float-format` does not actually exercise the defence.** Its fixture uses
   BETA=0.10 and SE=0.02, which do not underflow at four decimals. The most consequential guard in the
   pipeline has a test that would pass with the guard removed. Needs a small-magnitude fixture such as
-  3.12e-05.
+  3.12e-05. Recorded in issue #44.
 - **`hereg-command-line-no-covariate-flags` is vacuous.** It asserts the emitted command carries no
   covariate flags, but the request under test never attaches a covariate. If covariate forwarding were
   re-added to `GCTA_BIVARIATEHEREG`, **no test in the whole GCTA-bivariate slice would catch it.**
@@ -229,20 +252,22 @@ Prose describing tool misbehaviour, in `docs/usage.md`, `docs/output.md` and `CH
 are the written rationale for guards that are still enforced, and must move only if their guard moves:
 
 1. The GCTA HE-CP covariate rejection — `docs/usage.md:122`, `docs/output.md:248`, `CHANGELOG.md:33`.
-2. The LDAK missing-covariate-cell rejection — `docs/usage.md:364`, `CHANGELOG.md:43`.
-3. The LDAK unseeded-fast-route warning — `docs/usage.md:172,335`, `docs/output.md:186`.
+2. The LDAK missing-covariate-cell rejection — `docs/usage.md:364`, `CHANGELOG.md:43`. Issue #49; if it
+   stays, it should name the 6.1 build it applies to.
+3. The LDAK unseeded-fast-route warning — `docs/usage.md:172,335`, `docs/output.md:186`. Issue #52.
 
 Recommend keeping, trimmed:
 
 - The LDAK zero-weight note (`docs/usage.md:331`) — **nothing in code catches this**, so the prose is the
-  only safety net.
+  only safety net. Issue #51.
 - The predictor-jackknife-block caveat (`docs/usage.md:334`) — prevents a user comparing incomparable
   standard errors.
 - `CHANGELOG.md:43` — a "Breaking" entry with no stated cause is worse documentation than one with a cause.
   This is the single place where removal looks actively harmful to the record.
 
-Recommend trimming to one line: the "stochastic in standard errors only" note (`docs/usage.md:172`), and the
-duplicate seed warning that appears in both `usage.md` and `output.md`.
+Recommend trimming to one line: the "stochastic in standard errors only" note (`docs/usage.md:172`; issue
+#53, which also records that five unseeded runs on the 6.3 image gave identical SEs — suggestive, not
+proven), and the duplicate seed warning that appears in both `usage.md` and `output.md`.
 
 Recommend removing: the `#21` clause at `CHANGELOG.md:33` — it reads as a defect note but is ordinary
 capability documentation.
@@ -299,7 +324,10 @@ requires unconditional recomputation in log space.
 The pipeline currently publishes the native `.result` verbatim and does not recompute. The saving grace is
 that `COMMON_VARIANT_META_ANALYSIS` is **not wired into `workflows/gwas.nf`** — verified — so nothing is
 published today. It cannot be wired without settling this. This is the one place where "assume the output
-is correct" has a documented counterexample, and it needs your explicit call rather than mine.
+is correct" has a documented counterexample, and it needs your explicit call rather than mine. The
+re-measurement is recorded as a comment on issue #18: the df=3 profile is refined, the df=2 branch is exact,
+and `fixP.r` is necessary but **not sufficient** — it still returns P=0 at χ²=7459, where the true log10 P is
+−1617.87, and the six-significant-figure χ² bounds any recomputation to about 0.002 in log10 P.
 
 ### 7.3 A precision regression that was never a decision
 `modules/local/prepare_ldak_summary_statistics/templates/prepare_ldak_summary_statistics.py:26` computes
@@ -312,13 +340,17 @@ text. Recommend restoring the precision.
 ### 7.4 Two claimed defences that do not exist
 The METASOFT K=50 cliff and MR-MEGA's `pc ≤ K-3` constraint are **not enforced anywhere**. The whole
 meta-analysis stack was grepped; no code implements either and no test goes near 50 studies. Nothing to
-remove — but nothing protecting against either, either.
+remove — but nothing protecting against either, either. Both are now filed: the METASOFT K=50 method switch
+is issue #82 and the MR-MEGA `pc ≤ K-3` constraint is issue #88, each recording that the pipeline enforces
+nothing. On the direction of the K=50 switch, for the record: the tabulated table covers K=2..50, and the
+ratio of tabulated to asymptotic value is 0.607 at K=50 and 1.000 at K=51, so the K≥51 values are 1.65×
+**larger** — any earlier "anti-conservative" label is directionally wrong if the table is the reference.
 
 ### 7.5 The LDAK HE/PCGC seed is test-only
 `--random-seed 7` for `LDAK_HE` and `LDAK_PCGC` lives in `tests/nextflow.config` alone, with an explicit
 comment that production remains unseeded. The production reproducibility feature is the separate
 `ldak.fast_seed` option on different modules on a different route. Any reasoning that treated the HE/PCGC
-seed as a production control was wrong.
+seed as a production control was wrong. Issues #52 and #53.
 
 ### 7.6 Lost rationale, and thin evidence generally
 Seven load-bearing commits have **empty bodies** — `ba6d8fa`, `f6405fae`, `a851f1e`, `bf531c00`, `3d3e2000`,
@@ -334,11 +366,12 @@ the likeliest thing a future refactor removes. For several items in this documen
   are dead template artifacts. `modules/nf-core/gawk` is installed and never invoked.
 - `modules/local/metasoft/re2/main.nf:21` sets `JAVA_TOOL_OPTIONS`, which the image's own comment
   deliberately refuses to do because setting it at all makes the JVM print to stderr on every invocation.
+  Issue #81.
 - `modules/local/custom/gctamergegrmparts/main.nf:32` still reports a coreutils version via `sort --version`
   although `sort` is no longer invoked.
 - `modules/local/plink2/vcf/main.nf:26-32` places `${args}` early while `makebed` and `makepgen` place it
   last. This repository has measured a real PLINK 2 positional quirk before. Worth confirming it was
-  deliberate.
+  deliberate. Noted inside issue #42.
 - `subworkflows/local/route_grm_heritability/main.nf:60` filters on an uncommented magic tuple arity and
   will silently drop every record if the tuple width changes.
 - `resolve_references.nf:47-49` validates a declared reference checksum as 64 hex characters and **never
@@ -349,16 +382,130 @@ the likeliest thing a future refactor removes. For several items in this documen
 
 ---
 
+## Group 8 — MPH
+
+These items are on branch `add-mph-heritability` (at `a6dda90`), not yet merged. They were listed by the
+implementer on 2026-09-05 as the branch's own defect-driven work, and nothing on the list has been removed.
+The owner rules on them exactly as on Groups 1–7: for each, the question is what happens if it is removed,
+and whether that is a wrong number or only a worse message. The implementer gave no recommendations, and
+the review of the branch is still running; recommendations will follow the review. Each MPH behaviour was
+filed as an issue against MPH 0.55.1 (banner "Version 0.55.1 (December 9, 2025)", release commit
+`13ffe63`) on 2026-09-05; the numbers are given per item, and an item with no number defends against
+something that is not an MPH defect.
+
+### 8.1 Atom script post-conditions
+
+| # | Where | Defends against |
+|---|---|---|
+| 1 | `mph/makegrm/main.nf`: `test -s *.grm.bin, *.grm.iid` | MPH prints an error and returns 0 having written nothing. Issue #55. |
+| 2 | `mph/makegrm/main.nf`: `! grep -qE '^(Error\|Inconsistency)'` | Same, for errors that leave a partial file. Issue #55. |
+| 3 | `mph/reml/main.nf`: `test -s *.mq.vc.csv` | A failed fit exits 0 writing only a header-only trace. Issue #55. |
+| 4 | `mph/reml/main.nf`: `! grep -qE '^(Error\|Inconsistency)'` | Same. Issue #55. |
+| 5 | both atoms: `eval("(mph 2>&1 \|\| true) \| sed ...")` | MPH exits 1 on its banner and has no `--version`. Issue #56. |
+
+Issue #55 is one mechanism — `main()` catches, prints, and returns 0 — behind all four post-conditions.
+Issue #72 (an unwritable `--output_file`: full fit, nothing written, no message, exit 0) is a different
+mechanism that items 3 and 4 also happen to catch.
+
+### 8.2 `custom/mphsnpinfo` (`main.nf`)
+
+| # | Where | Defends against |
+|---|---|---|
+| 6 | weight-name comma/whitespace refusal (l.59) | MPH splits its name lists on commas only. Issue #57. |
+| 7 | autosome universe (`in_universe`, `autosome_count`) plus weight-0 rows | GCTA restricts GRMs to autosomes; MPH applies no chromosome rule, so a shared bundle would give the two engines different predictor sets. Documented GCTA behaviour, not filed. |
+| 8 | SNP in more than one group file (l.107) | Plan/BIM consistency. Pipeline-side. |
+| 9 | group SNP absent from the BIM (l.102) | The plan and the bundle are not the same view. MPH's silent `--snp_info_file` subsetting of the BIM is documented behaviour, not filed. |
+| 10 | group SNP outside the autosome universe (l.112) | The plan and the BIM disagree on the universe. Pipeline-side. |
+
+### 8.3 `prepare_mph_inputs` (`templates/prepare_mph_inputs.py`)
+
+| # | Where | Defends against |
+|---|---|---|
+| 11 | `read_sample_order`: `.grm.iid` must equal the FAM IID column in FAM order (l.177) | MPH indexes the matrix by that file's order with no check; a reversed file gives a complete, stable, **wrong** result at exit 0 (pve 0.115563 → −0.299462, 5/5 runs). Issue #58. |
+| 12 | `read_sample_order`: duplicate IID in the FAM (l.164) | MPH keys samples by IID alone; a duplicate IID segfaults with no message. Issue #59. |
+| 13 | `read_traits`: FID/IID pairing must match the FAM (l.219) | MPH would include a sample GCTA would drop. Issue #59. |
+| 14 | `MISSING_TOKENS` rewritten to empty fields | A literal `NA` aborts MPH (uncaught `std::invalid_argument`, exit 139); `-9` is read as the number −9. Issue #60. |
+| 15 | `numeric_or_fail` non-finite refusal (l.196) | A `nan` phenotype makes the solver loop without bound; a `nan` covariate gives a header-only trace at exit 0. Issue #61. |
+| 16 | explicit all-ones intercept column, named first | MPH synthesises no intercept once a covariate is named. Issue #62. |
+| 17 | `encode_covariates` dummy encoding | MPH never expands a categorical covariate. Issue #64. |
+| 18 | `check_mph_names` on emitted covariate names (l.145/151) | MPH splits `--covariate_names` on commas. Issue #57. |
+| 19 | zero-analysis-set refusal (l.314) | An empty analysis set is not a fittable model. Pipeline-side. |
+| 20 | `complete_case_attrition` warning (l.357) | Records samples MPH will drop for an empty covariate cell. Documented MPH behaviour, not filed. |
+| 21 | `dropped_not_in_grm` warning (l.362) | Records phenotype rows outside the matrix. Pipeline-side. |
+| 22 | `split_row` / per-row column-count check (l.106/115) | Our own reader. The implementer classes this as ordinary input validation, not a guard. |
+
+### 8.4 `summarise_mph_result` (`templates/summarise_mph_result.py`)
+
+| # | Where | Defends against |
+|---|---|---|
+| 23 | analysis-set cross-check, fatal (l.189) | MPH's reported N against the count the prepared inputs predict. Pipeline-side. |
+| 24 | pruned-intercept refusal (l.158) | MPH prunes a rank-deficient design silently; the pruned column is unnamed and can be the intercept, which changes the model. Issue #65. |
+| 25 | other pruned covariate → warning (l.165) | Records columns MPH dropped and never names. Issue #65. |
+| 26 | `WARNING_PATTERNS` → `not_converged`, `covariate_matrix_rank_deficient`, verbatim others | Both are exit-0 log lines beside a complete result (non-convergence: pve 0.142655 against 0.0873109). Issues #66 and #65. |
+| 27 | `native_predictor_count` matched by `vc_name`; a plan component with no result row is fatal (l.135) | Never match by position. Pipeline-side. |
+| 28 | `num_threads` read from the log's `OPTION` echo | The thread count is an input to the estimate. Issue #68. |
+
+### 8.5 Registry, options, route, config
+
+| # | Where | Defends against |
+|---|---|---|
+| 29 | `method_registry.nf`: `mph_grm`/`mph_grm_family` separation, with a comment citing the `gcta --pca` eigenvalue evidence | Neither engine may be handed the other's bytes: the GRM formats differ in header, triangle order, scaling and companion files, and relabelling fails silently both ways. Issue #69. |
+| 30 | `method_registry.nf`: `requires_complete_covariates: false`, with a measured comment | MPH drops a blank-cell sample and reports it. Documented behaviour, not filed. |
+| 31 | `method_options.nf`: `gcta.grm_maf`/`gcta.grm_extract` refused beside an MPH selector | The implementer classes this as **pipeline policy**, not a defect. |
+| 32 | `method_options.nf`: `resolveMphMethodOptions` comments (seed moves point estimates; tolerance floor recorded) | Prose only. Issues #67 and #76. |
+| 33 | `route_mph_heritability/main.nf`: `buildMphEffectiveSettings` emits `reproducibility`, no `deterministic` | A determinism claim would be false across thread counts and memory modes. Issues #67 and #68. |
+| 34 | `conf/modules/mph.config`: `.mq.py.csv` excluded from publication | Individual-level data, scaling with the cohort. Pipeline-side. |
+| 35 | `tests/nextflow.config`: `MPH_MAKEGRM\|MPH_REML` container override, cpus/memory not pinned, with a comment | Prose only. |
+
+On seeds, for the record: `tests/nextflow.config` does **not** pin an MPH seed; the route test does
+(`tests/heritability_mph_reml.nf.test:45,110`). Issue #67.
+
+### 8.6 Two corrections recorded during filing
+
+- **The 0.085 → 0.191 figure is confounded** (issue #65). It compares the `C-cov_with_intercept` and
+  `C-cov_all` fits, and the `all` fit also carries `Q1`, `Q2`, `Q3` and `SEX`; no run isolates the intercept.
+  `docs/usage.md:382` and `summarise_mph_result.py:26-30` on the branch overstate it, and item 24's
+  justification rests on the mechanism, not on that number.
+- **The enrichment row was mislabelled** (issue #68). `MPH-NATIVE-CONTRACT.md` C11's
+  4.19322/4.19319/4.19325 is the enrichment-**covariance** column; the enrichment itself is
+  1.70283/1.70282/1.70283 across thread counts. The conclusion that the thread count moves the sixth to
+  seventh figure survives the relabelling.
+
+### 8.7 Tests and prose on the branch that pin defect behaviour
+
+Expected-failure cases for items 6, 8–13, 15, 18, 23, 24 and 27 in
+`modules/local/{custom/mphsnpinfo,mph/reml,prepare_mph_inputs,summarise_mph_result}/tests/main.nf.test`;
+warning-vocabulary, cross-check and covariate-reconciliation assertions in `tests/heritability_mph_reml.nf.test`;
+a `--num_iterations 1` non-convergence case in `modules/local/mph/reml/tests/main.nf.test` (issue #66).
+
+Prose describing MPH misbehaviour: the `docs/usage.md` reproducibility paragraph (seed-to-seed spread at
+three random-vector settings; issue #67), rank-deficiency paragraph (intercept pruning and the confounded
+0.085 → 0.191 figure; issue #65), missing-value paragraph (`NA` / `-9` / `nan`; issues #60, #61), and the
+iterations and tolerance table cells (issue #76); in `docs/output.md`, "sidecar is written after the fit" and
+the GCTA/MPH bundle non-interchangeability (issue #69); in `CHANGELOG.md`, the `--pca` eigenvalue sentence
+(issue #69), the `.grm.iid`-order sentence (issue #58) and the cross-check sentence; and the `meta.yml` of
+`mph/makegrm`, `mph/reml`, `prepare_mph_inputs` and `summarise_mph_result`. These are decided with their
+guards, as in Group 5.
+
+Also reported by the implementer, not a guard: a helper hit `gcta --ld-score-region` exiting 139 with no
+message when the bundle's base-pair span is narrower than one region width. Nextflow fails the task on the
+exit code, so it is not silent, and no compensation was built. Issue #38.
+
+---
+
 ## What this audit could not establish
 
 It was read-only by design. Nothing was executed, so every claim about what a tool does comes from the
 tree, from vendored upstream source, or from a previously recorded measurement — not from a fresh run.
-Three items rest on inference rather than record and are marked as such above: the LDAK `.grm.root`
-basename coupling (2.6), the LDSC gzip crash mechanism (Group 1), and the MR-MEGA ordinal filename motive.
+Three items rested on inference rather than record when this was written. Two have since been measured
+during issue filing: the LDAK `.grm.root` basename coupling (2.6, issue #54) and the LDSC gzip crash
+mechanism (Group 1, issue #46). Only the MR-MEGA ordinal filename motive remains inferred.
 
-Two scopes were not covered and would need the same treatment for a complete inventory: the
-`subworkflows/local/common_variant_meta_analysis/` stack, and the GENIE and MPH routes — the first because
-it is being deleted, the second because it has not landed.
+Two scopes were not covered by the five audits and would need the same treatment for a complete inventory:
+the `subworkflows/local/common_variant_meta_analysis/` stack, and the GENIE and MPH routes — the first
+because it is being deleted, the second because it had not landed. The METASOFT and MR-MEGA tools behind
+the first are now covered by issues #78–#104, though the stack itself has still not been audited. Group 8
+lists the MPH items as reported by their implementer; it is not an independent audit of that route.
 
 ---
 
@@ -371,5 +518,5 @@ opinion."* Everything in this document is an exception to a rule the codebase al
 
 **The concentration is narrow.** Across all 32 GCTA and LDAK module files there is not one comment inside a
 `script:` or `stub:` block, no flag pinned to a documented default, and no order claim. The retired pattern
-lives in exactly three places: GWASLab formatting, LDSC's broken logger and gzip reader, and GENIE — which
-was by far the densest case and is already leaving.
+lives in exactly three places: GWASLab formatting (issue #44), LDSC's broken logger and gzip reader (issues
+#45, #46), and GENIE — which was by far the densest case and is already leaving.
