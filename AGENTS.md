@@ -16,11 +16,13 @@ defect in such a programme, whether in an issue, a review, or documentation, onl
 programme returns a wrong or unusable result on input in its expected form, or the defect lies on a
 conventional route that ordinary users take, such as categorical covariates in a GWAS. Behavior on malformed,
 unconventional, or adversarial input, such as a missing header, a name containing a comma, an empty file, a
-sentinel value, or a hostile flag combination, is not a defect here; do not report it, guard against it,
-document it, or test for it. Record every material defect as an individual issue in this repository, naming
-the pinned image or version it was measured on. Do not build compensation for a tool defect, whether a
-refusal, an assertion, or a recomputation, without the owner's explicit decision. Validating user-supplied
-input such as manifest rows, method options, and resource files is unaffected.
+sentinel value, or a hostile flag combination, is not a defect here; do not guard against it, document it in
+user-facing docs, or test for it. It may be recorded, but only in the programme's single consolidated issue of
+non-material defects, recorded and not guarded, never as an individual issue. Record every material defect as
+an individual issue in this repository, naming the pinned image or version it was measured on. Do not build
+compensation for a tool defect, whether a refusal, an assertion, or a recomputation, without the owner's
+explicit decision. Validating user-supplied input such as manifest rows, method options, and resource files is
+unaffected.
 
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
 
