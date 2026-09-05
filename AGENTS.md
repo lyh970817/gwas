@@ -9,13 +9,13 @@ Ask for the user's explicit approval before deciding to patch the source of a th
 pipeline invokes directly and that we did not write. Changes to pipeline code and programmes owned by this
 repository do not require that approval.
 
-Treat the output of a third-party programme that this pipeline invokes as correct, and wire the programme
-according to its own documentation. Do not investigate or characterise its defects: no probe or reproducer run
-against a pinned image to establish how a tool misbehaves, no preflight refusal or post-hoc assertion that
-defends against a suspected tool bug, and no test or document that pins measured defect behavior. Keep
-validating user-supplied input such as manifest rows, method options, and resource files, which distrusts the
-pipeline's user rather than the tool, and keep running this pipeline's own tests to confirm that our wiring
-works.
+Wire a third-party programme that this pipeline invokes according to its own documentation. Investigate its
+native behavior when the wiring at hand needs it: a contract the documentation leaves ambiguous, an output the
+pipeline must parse, a failure the pipeline must detect. Do not investigate as an end in itself. Record every
+defect found as an individual issue in this repository, naming the pinned image or version it was measured on.
+Do not build compensation for a tool defect, whether a refusal, an assertion, or a recomputation, without the
+owner's explicit decision. Validating user-supplied input such as manifest rows, method options, and resource
+files is unaffected.
 
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
 
