@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_gcta_bivariate_relationships
-description: Route declared individual-level relationship requests through shared bivariate trait preparation into native GCTA bivariate REML and HEreg outputs
+description: Route declared individual-level relationship requests from the shared prepared pair into native GCTA bivariate REML and HEreg outputs
 keywords:
   - gcta
   - bivariate reml
@@ -8,7 +8,6 @@ keywords:
   - ldms
   - relationship
 components:
-  - prepare/bivariate/traits
   - gcta/bivariatereml
   - gcta/bivariateremlldms
   - gcta/bivariatehereg
@@ -19,10 +18,10 @@ input:
       structure: "[map meta, [ path genotype_file, ... ], path pair_quant_covariates|[], path pair_cat_covariates|[]]"
       pattern: "*.{bed,bim,fam,pgen,psam,pvar,vcf,vcf.gz,tsv,txt}"
       ontologies: []
-  - ch_prepared_phenotypes:
-      description: Headerless prepared phenotype for every analysis unit
-      structure: "[map meta, path phenotype]"
-      pattern: "*.pheno"
+  - ch_prepared_relationship_traits:
+      description: The shared prepared pair, one record per relationship, with headerless covariates and [] for an absent table
+      structure: "[map relationship_meta, path phenotype, path quant_covariates|[], path cat_covariates|[]]"
+      pattern: "*.{pheno,noheader.qcovar,noheader.catcovar}"
       ontologies: []
   - ch_relationship_dense_matrices:
       description: Dense GCTA relatedness matrices fanned out per request

@@ -34,8 +34,11 @@ process PREPARE_MPH_INPUTS {
     fam_literal = groovy.json.JsonOutput.toJson(fam.toString())
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
-    method_literal = groovy.json.JsonOutput.toJson(meta.mph_estimator.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
+    // The result block the sidecar is keyed by. It is supplied by the route rather than assembled here,
+    // because whether a fit is a unary heritability estimate or an oriented pair is a routing fact: the same
+    // serializer writes both and must not switch on the trait count to decide which identity it is publishing.
+    result_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_result))
     // Serialised twice on purpose: the inner call renders the structure as JSON, the outer one renders that
     // JSON as a quoted string. A bare JSON object is not valid Python -- its `null`, `true` and `false` are
     // not Python literals -- so the template parses a string rather than embedding an expression.
@@ -59,10 +62,11 @@ process PREPARE_MPH_INPUTS {
         ? "printf 'IID,intercept,stub_covariate\\nstub,1,0\\n' > \"${prefix}.mph.covar.csv\""
         : ''
     def stub_covariate_names = quant_covariates || cat_covariates ? '["intercept", "stub_covariate"]' : '[]'
+    def stub_result = groovy.json.JsonOutput.toJson(meta.mph_result)
     """
     printf 'IID,${stub_traits}\\nstub,${stub_trait_values}\\n' > "${prefix}.mph.pheno.csv"
     ${stub_covariates}
-    printf '%s\\n' '{"schema_version": "1.1", "result": {"kind": "heritability", "analysis_id": "${meta.id}", "method": "${meta.mph_estimator}"}, "covariate_names": ${stub_covariate_names}, "trait_names": ${groovy.json.JsonOutput.toJson(meta.mph_trait_names)}, "analysis_set_expected": 1, "warnings": []}' > "${prefix}.mph.inputs.json"
+    printf '%s\\n' '{"schema_version": "1.1", "result": ${stub_result}, "covariate_names": ${stub_covariate_names}, "trait_names": ${groovy.json.JsonOutput.toJson(meta.mph_trait_names)}, "analysis_set_expected": 1, "warnings": []}' > "${prefix}.mph.inputs.json"
     printf '"%s":\\n    python: %s\\n' \\
         '${task.process}' \\
         "\$(python3 --version | sed 's/^Python //')" \\

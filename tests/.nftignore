@@ -14,3 +14,6 @@ pipeline_info/*.{html,json,txt,yml}
 **/*.mph_reml_ldms.log
 **/*.mph_reml*.mq.*.csv
 **/*.mph_reml*.provenance.json
+requests/mph_bivariate_reml*/*/native.log
+requests/mph_bivariate_reml*/*/native.mq.*.csv
+requests/mph_bivariate_reml*/*/derived.provenance.json

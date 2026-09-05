@@ -44,6 +44,7 @@ nextflow_process {
                             stochastic: true,
                         ],
                         mph_trait_names: DECLARED_TRAITS,
+                        mph_result: DECLARED_RESULT,
                         mph_matrix: [
                             key: 'mph_ldms.ab12cd34',
                             layer: 'cohort',
@@ -71,13 +72,36 @@ nextflow_process {
     def defaultComponents = "[[ordinal: 1, name: 'ldms_1', plan_predictor_count: 1500], [ordinal: 2, name: 'ldms_2', plan_predictor_count: 700]]"
     def defaultPrefixes = "['grm_ldms_1', 'grm_ldms_2']"
 
+    // The identity of the result this fit will produce, minted by the route and copied into the record
+    // verbatim. Whether a fit is a unary heritability estimate or an oriented pair is a routing fact, so it is
+    // declared here in both shapes rather than inferred from how many traits a case happens to name.
+    def heritabilityResult = """[
+                            kind: 'heritability',
+                            analysis_id: 'analysis',
+                            request_id: null,
+                            relationship_id: null,
+                            method: 'mph_reml_ldms',
+                            left_analysis_id: null,
+                            right_analysis_id: null,
+                        ]"""
+    def pairwiseResult = """[
+                            kind: 'pairwise',
+                            analysis_id: null,
+                            request_id: 'mph_reml_ldms--rel_left_right',
+                            relationship_id: 'rel_left_right',
+                            method: 'mph_reml_ldms',
+                            left_analysis_id: 'left',
+                            right_analysis_id: 'right',
+                        ]"""
+
     def declared = { knobs ->
-        def settings = [traits: "['PHENO']", components: defaultComponents, prefixes: defaultPrefixes, plan_key: "'mph_ldms.plan.ef56'"] + (knobs ?: [:])
+        def settings = [traits: "['PHENO']", components: defaultComponents, prefixes: defaultPrefixes, plan_key: "'mph_ldms.plan.ef56'", result: heritabilityResult] + (knobs ?: [:])
         metaTemplate
             .replace('DECLARED_TRAITS', settings.traits)
             .replace('DECLARED_COMPONENTS', settings.components)
             .replace('DECLARED_PREFIXES', settings.prefixes)
             .replace('DECLARED_PLAN_KEY', settings.plan_key)
+            .replace('DECLARED_RESULT', settings.result)
     }
 
     // Every file this module reads, written into the test's own output directory. `null` for a covariate table
@@ -193,6 +217,18 @@ nextflow_process {
                 { assert record.inputs.samples.detail.all_traits_nonmissing == 8 },
                 { assert record.inputs.samples.detail.covariate_complete == 11 },
                 { assert record.inputs.samples.detail.analysis_set_expected == 8 },
+                // The pair overlap keys belong to an oriented pair result and say nothing about a single
+                // trait, so a heritability result leaves all four null rather than restating `retained`.
+                { assert record.inputs.samples.left_nonmissing == null },
+                { assert record.inputs.samples.right_nonmissing == null },
+                { assert record.inputs.samples.both == null },
+                { assert record.inputs.samples.union == null },
+                // MPH fits individuals with every named trait and every named covariate observed, which is not
+                // what the other estimators do with the same tables, so the policy is named rather than implied.
+                { assert record.inputs.samples.detail.sample_policy == 'complete_case_intersection' },
+                // One trait names one primary result file: MPH writes the correlation table only for a fit
+                // that names more than one.
+                { assert record.result.primary_files == ['analysis.mq.vc.csv'] },
                 // Only the post-fit writer can fill these, and it is the one component that does.
                 { assert record.inputs.samples.detail.analysis_set_observed == null },
                 { assert record.inputs.variants.retained == null },
@@ -327,7 +363,7 @@ nextflow_process {
         }
     }
 
-    test("a two-trait table is written under both declared trait names") {
+    test("an oriented pair is written under both declared trait names and carries the pair's own overlap") {
 
         when {
             def fixture = fixtures(outputDir, 'bivariate', [
@@ -335,7 +371,7 @@ nextflow_process {
                 pheno: (1..12).collect { index -> "f${pad(index)} s${pad(index)} ${trait(index)} ${trait(index + 20)}" }.join('\n') + '\n',
             ])
             process {
-                inputs(fixture, declared([traits: "['L', 'R']"]))
+                inputs(fixture, declared([traits: "['L', 'R']", result: pairwiseResult]))
             }
         }
 
@@ -344,10 +380,120 @@ nextflow_process {
             def record = jsonOf(process.out.serialization.get(0).get(1))
             assertAll(
                 { assert process.success },
+                // The declared order becomes `--trait_names` in this order and is what fixes which endpoint is
+                // the left one in every native output, so the header is the route's order and not a sorted one.
                 { assert phenotype.readLines().first() == 'IID,L,R' },
                 { assert phenotype.readLines()[1] == "s01,${trait(1)},${trait(21)}" },
+                // MPH indexes the matrix by the position of an entry in `.grm.iid`, so a pair's rows follow the
+                // same sequence a single trait's do.
+                { assert phenotype.readLines().drop(1).collect { line -> line.split(',', -1).first() } == (1..12).collect { index -> "s${pad(index)}" } },
                 { assert record.trait_names == ['L', 'R'] },
+                // The identity is the route's and is copied through: this module never reads the trait count to
+                // decide which kind of result it is serialising for.
+                { assert record.result.kind == 'pairwise' },
+                { assert record.result.analysis_id == null },
+                { assert record.result.request_id == 'mph_reml_ldms--rel_left_right' },
+                { assert record.result.relationship_id == 'rel_left_right' },
+                { assert record.result.left_analysis_id == 'left' },
+                { assert record.result.right_analysis_id == 'right' },
+                // MPH writes the correlation result if and only if more than one trait is named, so it is a
+                // declared primary file of this fit exactly when the pair is fitted.
+                { assert record.result.primary_files == ['analysis.mq.vc.csv', 'analysis.mq.cor.csv'] },
+                // Complete on both endpoints here, so the four counts coincide. The case below is the one that
+                // separates them.
+                { assert record.inputs.samples.left_nonmissing == 12 },
+                { assert record.inputs.samples.right_nonmissing == 12 },
+                { assert record.inputs.samples.both == 12 },
+                { assert record.inputs.samples.union == 12 },
+                { assert record.inputs.samples.retained == 12 },
                 { assert record.inputs.samples.detail.per_trait_nonmissing == [L: 12, R: 12] },
+                { assert record.inputs.samples.detail.sample_policy == 'complete_case_intersection' },
+            )
+        }
+    }
+
+    test("a pair whose endpoints were measured on overlapping subsets records the overlap and the attrition") {
+
+        when {
+            // Two endpoints observed on different, overlapping parts of one cohort, which is what an ordinary
+            // pair of manifest analyses looks like rather than an exception: `s01` and `s02` carry the right
+            // endpoint only, `s03` to `s05` the left only, `s06` neither, and `s07` has a blank covariate cell.
+            def fixture = fixtures(outputDir, 'bivariate_partial', [
+                pheno: (1..12).collect { index ->
+                    def left = index in [1, 2, 6] ? 'NA' : trait(index)
+                    def right = index in [3, 4, 5, 6] ? 'NA' : trait(index + 20)
+                    "f${pad(index)} s${pad(index)} ${left} ${right}"
+                }.join('\n') + '\n',
+                qcovar: "FID\tIID\tage\tpc1\n" + (1..12).collect { index ->
+                    "f${pad(index)}\ts${pad(index)}\t${index == 7 ? '' : (30 + index).toString()}\t${String.format('%.4f', index * 0.011d)}"
+                }.join('\n') + '\n',
+            ])
+            process {
+                inputs(fixture, declared([traits: "['L', 'R']", result: pairwiseResult]))
+            }
+        }
+
+        then {
+            def record = jsonOf(process.out.serialization.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // The fact a reader comparing two pair results needs: MPH fits the complete-case intersection
+                // of both endpoints and every named covariate, so the sample the estimate describes can be far
+                // smaller than the sample either endpoint was measured on, and nothing else published says so.
+                { assert record.inputs.samples.left_nonmissing == 9 },
+                { assert record.inputs.samples.right_nonmissing == 8 },
+                { assert record.inputs.samples.both == 6 },
+                { assert record.inputs.samples.union == 11 },
+                { assert record.inputs.samples.both < record.inputs.samples.union },
+                // `retained` is the shared core key and means the sample the estimate is computed on: the six
+                // individuals complete on both endpoints, less the one whose covariate cell is blank.
+                { assert record.inputs.samples.retained == 5 },
+                { assert record.inputs.samples.dropped == 7 },
+                { assert record.inputs.samples.detail.written == 12 },
+                { assert record.inputs.samples.detail.covariate_complete == 11 },
+                { assert record.inputs.samples.detail.all_traits_nonmissing == 6 },
+                { assert record.inputs.samples.detail.analysis_set_expected == 5 },
+                { assert record.inputs.samples.detail.sample_policy == 'complete_case_intersection' },
+                { assert record.warnings == [
+                    'complete_case_attrition: 7 of 12 individuals written have a missing trait or covariate cell and are dropped by MPH',
+                ] },
+            )
+        }
+    }
+
+    test("the declared trait order is the route's own and is never sorted") {
+
+        when {
+            // Names that sort the other way round, so an implementation that ordered the columns itself would
+            // write the endpoints the wrong way about and every native label would be reversed with it. The two
+            // endpoints are deliberately observed on different numbers of individuals, so the left and right
+            // counts distinguish which column is which as well as the header does.
+            def fixture = fixtures(outputDir, 'bivariate_declared_order', [
+                qcovar: null,
+                pheno: (1..12).collect { index ->
+                    def first = index == 1 ? 'NA' : trait(index)
+                    def second = index in [2, 3] ? 'NA' : trait(index + 20)
+                    "f${pad(index)} s${pad(index)} ${first} ${second}"
+                }.join('\n') + '\n',
+            ])
+            process {
+                inputs(fixture, declared([traits: "['ZTRAIT', 'ATRAIT']", result: pairwiseResult]))
+            }
+        }
+
+        then {
+            def phenotype = path(process.out.phenotype.get(0).get(1))
+            def record = jsonOf(process.out.serialization.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert phenotype.readLines().first() == 'IID,ZTRAIT,ATRAIT' },
+                { assert record.trait_names == ['ZTRAIT', 'ATRAIT'] },
+                // The declared first column is the one whose cell is empty for `s01`, which is what proves the
+                // values travel under the names they were declared with.
+                { assert phenotype.readLines()[1] == "s01,,${trait(21)}" },
+                { assert record.inputs.samples.left_nonmissing == 11 },
+                { assert record.inputs.samples.right_nonmissing == 10 },
+                { assert record.inputs.samples.detail.per_trait_nonmissing == [ZTRAIT: 11, ATRAIT: 10] },
             )
         }
     }

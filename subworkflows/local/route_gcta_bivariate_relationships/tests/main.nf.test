@@ -9,12 +9,14 @@ nextflow_workflow {
     tag "relationship"
 
     // Every case is stubbed, so the staged phenotypes and matrix families only have to exist. What is under
-    // test is the routing: that a relationship selecting both methods is prepared exactly once and executed by
-    // each method, that an analysis reused as an endpoint of several relationships resolves for each of them,
-    // that the dense and LDMS branches never claim each other's matrices, that declared orientation survives
-    // into presentation, that an absent optional pair covariate stays absent, and that the native and reuse
-    // identities the invocation needed are stripped from the emitted record. The scientific content of the
-    // two-trait table is covered end to end by `tests/relational_gcta_bivariate_reml*.nf.test`.
+    // test is the routing: that the one prepared pair a relationship owns is fanned back out to every GCTA
+    // estimator that selected it, that each relationship is executed against its own attributed matrix, that
+    // the dense and LDMS branches never claim each other's matrices, that declared orientation survives into
+    // presentation, that an absent optional pair covariate stays absent, and that the native and reuse
+    // identities the invocation needed are stripped from the emitted record. Preparing that pair once per
+    // relationship and resolving its endpoints now happens on the spine in `PREPARE_RELATIONSHIP_TRAITS` and is
+    // covered by that subworkflow's own tests. The scientific content of the two-trait table is covered end to
+    // end by `tests/relational_gcta_bivariate_reml*.nf.test`.
     def TESTS = { project_dir -> "${project_dir}/subworkflows/local/route_gcta_bivariate_relationships/tests" }
     def RESOURCE = { project_dir, name -> "file('${TESTS(project_dir)}/${name}', checkIfExists: true)" }
 
@@ -58,8 +60,31 @@ nextflow_workflow {
         ]"""
     }
 
-    def phenotype = { project_dir, analysis_id, source ->
-        "[[id: '${analysis_id}', cohort: 'cohort_a', trait: 'TRAIT_${analysis_id}'], ${RESOURCE(project_dir, source)}]"
+    // The prepared pair as `PREPARE_RELATIONSHIP_TRAITS` emits it: exactly one record per relationship,
+    // whichever estimators selected it. Its meta is the relationship definition and carries none of the
+    // requesting estimator's state, so `id` and `request_id` are the relationship identifier and
+    // `relationship_id` is the only key this controller joins on. The covariate tables are the headerless
+    // serialisation the GCTA estimators read, and a relationship that declared none carries `[]`.
+    def preparedPair = { project_dir, relationship_id, left_analysis_id, right_analysis_id, source, quant_covariates = null, cat_covariates = null ->
+        """[
+            [
+                relationship_id: '${relationship_id}',
+                id: '${relationship_id}',
+                request_id: '${relationship_id}',
+                cohort: 'cohort_a',
+                left_analysis_id: '${left_analysis_id}',
+                right_analysis_id: '${right_analysis_id}',
+                left_trait_id: 'TRAIT_${left_analysis_id}',
+                right_trait_id: 'TRAIT_${right_analysis_id}',
+                left_trait_type: 'quantitative',
+                right_trait_type: 'quantitative',
+                left_is_binary: false,
+                right_is_binary: false,
+            ],
+            ${RESOURCE(project_dir, source)},
+            ${quant_covariates ? RESOURCE(project_dir, quant_covariates) : '[]'},
+            ${cat_covariates ? RESOURCE(project_dir, cat_covariates) : '[]'},
+        ]"""
     }
 
     // The matrix stream as `PREPARE_RELATEDNESS_MATRICES` emits it for a relationship request: the request's
@@ -90,7 +115,7 @@ nextflow_workflow {
         ]"""
     }
 
-    test("a relationship selecting both methods is prepared once and executed by each method") {
+    test("a relationship selecting both methods executes each of them from its one prepared pair") {
 
         options "-stub"
 
@@ -104,11 +129,7 @@ nextflow_workflow {
                     ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml', 'alpha', 'beta')},
                     ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml_ldms', 'alpha', 'beta')},
                 )
-                input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                    ${phenotype(projectDir, 'gamma', 'analysis_gamma.pheno')},
-                )
+                input[1] = channel.of(${preparedPair(projectDir, 'rel_ab', 'alpha', 'beta', 'analysis_alpha.pheno')})
                 input[2] = channel.of(${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha')})
                 input[3] = channel.of(${ldmsMatrix(projectDir, 'rel_ab', 'alpha', 'beta')})
                 """
@@ -118,12 +139,9 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // The per-method request fan-out is collapsed to one relationship definition, so the expensive
-                // two-trait construction happens once however many bivariate methods the relationship selects.
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
-                { assert TRACE.tags(workflow, 'PREPARE_BIVARIATE_TRAITS') == ['rel_ab'] },
-                // The prepared artifact is then fanned back out by request, one execution per method. Neither
-                // branch claims the other's matrix.
+                // The single prepared record is fanned back out by request, one execution per selected method,
+                // so a relationship selecting several bivariate methods still consumes one prepared pair.
+                // Neither branch claims the other's matrix.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 // The dense atom retains the request identity while deriving its input basename from the
@@ -139,8 +157,9 @@ nextflow_workflow {
                 { assert workflow.out.reml_log.size() == 1 },
                 { assert workflow.out.reml_ldms_results.size() == 1 },
                 { assert workflow.out.reml_ldms_log.size() == 1 },
-                // The emitted record is the request. The dense request identity crossed execution unchanged;
-                // the matrix reuse key existed only for invocation attribution and is stripped.
+                // The emitted record is the request, not the prepared pair whose meta carries the relationship
+                // identity. The dense request identity crossed execution unchanged; the matrix reuse key
+                // existed only for invocation attribution and is stripped.
                 { assert workflow.out.reml_results[0][0].id == 'gcta_bivariate_reml--rel_ab' },
                 { assert workflow.out.reml_ldms_results[0][0].id == 'gcta_bivariate_reml_ldms--rel_ab' },
                 { assert [workflow.out.reml_results[0][0], workflow.out.reml_ldms_results[0][0]].every { meta -> !meta.containsKey('matrix_key') } },
@@ -151,7 +170,7 @@ nextflow_workflow {
         }
     }
 
-    test("one relationship selecting all four estimators shares one preparation and one matrix identity per backend") {
+    test("one relationship selecting all four estimators shares one prepared pair and one matrix identity per backend") {
 
         options "-stub"
 
@@ -167,10 +186,7 @@ nextflow_workflow {
                     ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml_ldms', 'alpha', 'beta')},
                     ${relationship(projectDir, 'rel_ab', 'gcta_bivariate_he_ldms', 'alpha', 'beta')},
                 )
-                input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                )
+                input[1] = channel.of(${preparedPair(projectDir, 'rel_ab', 'alpha', 'beta', 'analysis_alpha.pheno')})
                 input[2] = channel.of(
                     ${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha')},
                     ${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha', 'gcta_bivariate_he')},
@@ -186,10 +202,7 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // Four selected estimators, one relationship, one expensive two-trait construction.
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
-                { assert TRACE.tags(workflow, 'PREPARE_BIVARIATE_TRAITS') == ['rel_ab'] },
-                // Each estimator runs once and only against its own backend's matrix.
+                // Four selected estimators, one relationship, one prepared pair addressed by all of them.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
@@ -221,11 +234,8 @@ nextflow_workflow {
             }
             workflow {
                 """
-                input[0] = channel.of(${relationship(projectDir, 'rel_he', 'gcta_bivariate_he', 'alpha', 'beta')})
-                input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                )
+                input[0] = channel.of(${relationship(projectDir, 'rel_he', 'gcta_bivariate_he', 'alpha', 'beta', 'pair.qcovar', 'pair.covar')})
+                input[1] = channel.of(${preparedPair(projectDir, 'rel_he', 'alpha', 'beta', 'analysis_alpha.pheno', 'pair.qcovar', 'pair.covar')})
                 input[2] = channel.of(${denseMatrix(projectDir, 'rel_he', 'alpha', 'beta', 'matrix_alpha', 'gcta_bivariate_he')})
                 input[3] = channel.empty()
                 """
@@ -234,6 +244,8 @@ nextflow_workflow {
 
         then {
             assertAll(
+                // The prepared pair carries both covariate tables, but `gcta --HEreg-bivar` reads neither, so
+                // the controller drops them rather than forwarding an argument the estimator ignores.
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
@@ -246,7 +258,7 @@ nextflow_workflow {
         }
     }
 
-    test("one analysis reused as an endpoint of several relationships resolves for each of them") {
+    test("each relationship executes from its own prepared pair against its own attributed matrix") {
 
         options "-stub"
 
@@ -262,9 +274,9 @@ nextflow_workflow {
                     ${relationship(projectDir, 'rel_ga', 'gcta_bivariate_reml', 'gamma', 'alpha')},
                 )
                 input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                    ${phenotype(projectDir, 'gamma', 'analysis_gamma.pheno')},
+                    ${preparedPair(projectDir, 'rel_ab', 'alpha', 'beta', 'analysis_alpha.pheno')},
+                    ${preparedPair(projectDir, 'rel_ag', 'alpha', 'gamma', 'analysis_beta.pheno')},
+                    ${preparedPair(projectDir, 'rel_ga', 'gamma', 'alpha', 'analysis_gamma.pheno')},
                 )
                 input[2] = channel.of(
                     ${denseMatrix(projectDir, 'rel_ab', 'alpha', 'beta', 'matrix_alpha')},
@@ -279,10 +291,9 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // Endpoint resolution is a one-to-many seam: `alpha` is an endpoint of all three
-                // relationships, and each relationship is still prepared and executed exactly once.
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 3 },
-                { assert TRACE.tags(workflow, 'PREPARE_BIVARIATE_TRAITS') == ['rel_ab', 'rel_ag', 'rel_ga'] },
+                // Three relationships arrive as three prepared records and each is executed exactly once. The
+                // fan-out from prepared pair to request is keyed on the relationship, so no request picks up a
+                // sibling relationship's table.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 3 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
                 { assert workflow.out.reml_results.size() == 3 },
@@ -293,7 +304,7 @@ nextflow_workflow {
                 { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ga' }[0].left_analysis_id == 'gamma' },
                 { assert workflow.out.reml_results.find { meta, _result -> meta.relationship_id == 'rel_ga' }[0].right_analysis_id == 'alpha' },
                 // Each request is executed against its own attributed matrix; a shared matrix does not merge
-                // two requests, and a distinct one does not detach a request from its prepared phenotype.
+                // two requests, and a distinct one does not detach a request from its prepared pair.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML').sort() == ['gcta_bivariate_reml--rel_ab_gcta_bivariate_reml--rel_ab', 'gcta_bivariate_reml--rel_ag_gcta_bivariate_reml--rel_ag', 'gcta_bivariate_reml--rel_ga_gcta_bivariate_reml--rel_ga'] },
             )
         }
@@ -310,10 +321,7 @@ nextflow_workflow {
             workflow {
                 """
                 input[0] = channel.of(${relationship(projectDir, 'rel_ab', 'gcta_bivariate_reml_ldms', 'alpha', 'beta')})
-                input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                )
+                input[1] = channel.of(${preparedPair(projectDir, 'rel_ab', 'alpha', 'beta', 'analysis_alpha.pheno')})
                 input[2] = channel.empty()
                 input[3] = channel.of(${ldmsMatrix(projectDir, 'rel_ab', 'alpha', 'beta')})
                 """
@@ -323,7 +331,6 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert workflow.out.reml_ldms_results.size() == 1 },
@@ -332,7 +339,7 @@ nextflow_workflow {
         }
     }
 
-    test("an absent optional pair covariate stays absent through preparation and execution") {
+    test("an absent optional pair covariate stays absent through execution") {
 
         options "-stub"
 
@@ -347,9 +354,8 @@ nextflow_workflow {
                     ${relationship(projectDir, 'rel_covar', 'gcta_bivariate_reml', 'alpha', 'gamma', 'pair.qcovar', 'pair.covar')},
                 )
                 input[1] = channel.of(
-                    ${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')},
-                    ${phenotype(projectDir, 'beta', 'analysis_beta.pheno')},
-                    ${phenotype(projectDir, 'gamma', 'analysis_gamma.pheno')},
+                    ${preparedPair(projectDir, 'rel_bare', 'alpha', 'beta', 'analysis_alpha.pheno')},
+                    ${preparedPair(projectDir, 'rel_covar', 'alpha', 'gamma', 'analysis_beta.pheno', 'pair.qcovar', 'pair.covar')},
                 )
                 input[2] = channel.of(
                     ${denseMatrix(projectDir, 'rel_bare', 'alpha', 'beta', 'matrix_alpha')},
@@ -362,12 +368,10 @@ nextflow_workflow {
 
         then {
             assertAll(
-                // The preparation module emits its covariate files optionally, so the relationship that
-                // supplied none produces no `.qcovar`/`.covar`. The remainder joins that fold them back in
-                // must therefore still yield a complete record for it, and `[]` — never a placeholder file and
-                // never a null path — must reach the GCTA invocation.
+                // A relationship that declared no covariates arrives with `[]` in both covariate positions,
+                // and `[]` — never a placeholder file and never a null path — must reach the GCTA invocation.
+                // A covariate-bearing sibling in the same run must not lend it a table either.
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 2 },
                 { assert workflow.out.reml_results.collect { meta, _result -> meta.relationship_id }.sort() == ['rel_bare', 'rel_covar'] },
                 { assert workflow.out.reml_log.size() == 2 },
@@ -375,7 +379,7 @@ nextflow_workflow {
         }
     }
 
-    test("a run declaring no relationship executes nothing and emits nothing") {
+    test("a run declaring no relationship request executes nothing and emits nothing") {
 
         options "-stub"
 
@@ -386,7 +390,7 @@ nextflow_workflow {
             workflow {
                 """
                 input[0] = channel.empty()
-                input[1] = channel.of(${phenotype(projectDir, 'alpha', 'analysis_alpha.pheno')})
+                input[1] = channel.of(${preparedPair(projectDir, 'rel_ab', 'alpha', 'beta', 'analysis_alpha.pheno')})
                 input[2] = channel.empty()
                 input[3] = channel.empty()
                 """
@@ -395,10 +399,13 @@ nextflow_workflow {
 
         then {
             assertAll(
+                // The request stream, not the prepared-pair stream, decides what executes: a prepared pair no
+                // GCTA request selected must start no estimator.
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
+                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
                 { assert workflow.out.reml_results.size() == 0 },
                 { assert workflow.out.reml_log.size() == 0 },
                 { assert workflow.out.hereg_results.size() == 0 },

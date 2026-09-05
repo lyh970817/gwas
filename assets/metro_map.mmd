@@ -42,6 +42,7 @@ graph LR
         plink1_import[PLINK 2 --make-pgen (PLINK 1 only)]
         vcf_import[PLINK 2 VCF import]
         prepare_phenotypes[Prepare phenotype and covariate inputs]
+        prepare_pair_traits[Prepare relationship traits]
         makebed[PLINK 2 --make-bed]
         ldms_plan[LD-by-MAF component plan]
         _genotypes_ready[hidden]
@@ -60,6 +61,7 @@ graph LR
         manifests_in -->|regenie,gcta,ldak,mph| _analysis_ready
         _genotypes_ready -->|regenie,gcta,ldak,mph| _analysis_ready
         prepare_phenotypes -->|regenie,gcta,ldak,mph| _analysis_ready
+        _analysis_ready -->|gcta,mph| prepare_pair_traits
     end
 
     subgraph association [Association methods and summary ingress]
@@ -111,6 +113,10 @@ graph LR
         gcta_ldms -->|gcta| greml_ldms
         gcta_ldms -->|gcta| bivariate_reml_ldms
         gcta_ldms -->|gcta| bivariate_he_ldms
+        prepare_pair_traits -->|gcta| bivariate_reml
+        prepare_pair_traits -->|gcta| bivariate_he
+        prepare_pair_traits -->|gcta| bivariate_reml_ldms
+        prepare_pair_traits -->|gcta| bivariate_he_ldms
         greml -->|gcta| gcta_native
         bivariate_reml -->|gcta| gcta_native
         bivariate_he -->|gcta| gcta_native
@@ -176,20 +182,28 @@ graph LR
         ldak_fast_pcgc -->|ldak| ldak_native
     end
 
-    subgraph mph_heritability [MPH heritability]
+    subgraph mph_heritability [MPH heritability and relationships]
         %%metro entry: left | mph
         mph_dense[Dense MPH GRM]
         mph_ldms[LDMS MPH GRMs]
         mph_reml[MPH REML]
         mph_reml_ldms[MPH REML-LDMS]
+        mph_bivariate_reml[MPH bivariate REML]
+        mph_bivariate_reml_ldms[MPH bivariate REML-LDMS]
         mph_native[MPH native results and provenance]
 
         makebed -->|mph| mph_dense
         ldms_plan -->|mph| mph_ldms
         mph_dense -->|mph| mph_reml
         mph_ldms -->|mph| mph_reml_ldms
+        mph_dense -->|mph| mph_bivariate_reml
+        mph_ldms -->|mph| mph_bivariate_reml_ldms
+        prepare_pair_traits -->|mph| mph_bivariate_reml
+        prepare_pair_traits -->|mph| mph_bivariate_reml_ldms
         mph_reml -->|mph| mph_native
         mph_reml_ldms -->|mph| mph_native
+        mph_bivariate_reml -->|mph| mph_native
+        mph_bivariate_reml_ldms -->|mph| mph_native
     end
 
     subgraph products [Products and reporting]

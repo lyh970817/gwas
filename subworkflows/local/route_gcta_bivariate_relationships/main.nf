@@ -1,8 +1,8 @@
 // Route nf-core/gwas individual-level relationship requests through the GCTA bivariate estimators. A
 // relationship is a declared, oriented pair of analysis units over one cohort; it is a different domain from a
 // summary-statistics pair request and the two are never merged here. Dense REML, REML-LDMS, dense HEreg and
-// HEreg-LDMS share one controller because they share the relationship definition, the endpoint resolution
-// against the prepared phenotypes and the one ordered two-trait table built from them: a relationship
+// HEreg-LDMS share one controller because they share the relationship definition and the one ordered two-trait
+// table prepared from it on the spine: a relationship
 // selecting several of them is prepared exactly once, and the dense or LDMS matrix a REML request already
 // caused to be built is the same matrix its HEreg sibling consumes, because the matrix reuse key is derived
 // only from the cohort, the genotype bundle and the declared matrix settings.
@@ -22,70 +22,28 @@ include { GCTA_BIVARIATEREMLLDMS   } from '../../../modules/nf-core/gcta/bivaria
 // MODULE: Local to the pipeline
 include { GCTA_BIVARIATEHEREG      } from '../../../modules/local/gcta/bivariatehereg/main'
 include { GCTA_BIVARIATEHEREGLDMS  } from '../../../modules/local/gcta/bivariateheregldms/main'
-include { PREPARE_BIVARIATE_TRAITS } from '../../../modules/local/prepare_bivariate_traits/main'
 
 workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     take:
     ch_relationships // channel: [ val(meta), [ path(genotype_file), ... ], path(pair_quant_covariates), path(pair_cat_covariates) ], one validated row per selected method per relationship
-    ch_prepared_phenotypes // channel: [ val(meta), path(phenotype) ], the headerless phenotype of every analysis unit, keyed one-to-one on the analysis meta
+    ch_prepared_relationship_traits // channel: [ val(relationship_meta), path(phenotype), path(quant_covariates), path(cat_covariates) ], headerless, one per relationship; [] for an absent covariate table
     ch_relationship_dense_matrices // channel: [ val(meta), [ path(grm_file), ... ] ], the dense GCTA matrices built for relationship requests, already fanned out per request
     ch_relationship_ldms_matrices // channel: [ val(meta), [ path(grm_file), ... ], val(grm_prefixes) ], ordered LDMS matrix families built for relationship requests
 
     main:
 
-    // Relationships own their orientation and covariates. Collapse the per-method request fan-out to one
-    // relationship definition, resolve each endpoint against the canonical unary phenotype stream, and
-    // construct one ordered full-union two-trait table. `combine` is deliberate at the endpoint seams: one
-    // analysis may be reused by several relationships. The prepared artifact is fanned back out by
-    // relationship ID only after construction, so selecting several estimators does not duplicate it.
-    def ch_relationship_definitions = ch_relationships
-        .map { meta, genotype_files, pair_quant_covariates, pair_cat_covariates ->
-            def relationship_meta = meta + [
-                id: meta.relationship_id,
-                request_id: meta.relationship_id,
-            ]
-            [meta.relationship_id, relationship_meta, genotype_files, pair_quant_covariates, pair_cat_covariates]
-        }
-        .unique { relationship_id, _meta, _genotype_files, _pair_quant_covariates, _pair_cat_covariates -> relationship_id }
-
-    def ch_left_pair_phenotypes = ch_relationship_definitions
-        .map { relationship_id, meta, _genotype_files, pair_quant_covariates, pair_cat_covariates ->
-            [meta.left_analysis_id, relationship_id, meta, pair_quant_covariates ?: [], pair_cat_covariates ?: []]
-        }
-        .combine(
-            ch_prepared_phenotypes.map { meta, phenotype -> [meta.id, phenotype] },
-            by: 0
-        )
-        .map { _analysis_id, relationship_id, meta, pair_quant_covariates, pair_cat_covariates, phenotype ->
-            [relationship_id, meta, phenotype, pair_quant_covariates, pair_cat_covariates]
-        }
-
-    def ch_right_pair_phenotypes = ch_relationship_definitions
-        .map { relationship_id, meta, _genotype_files, _pair_quant_covariates, _pair_cat_covariates -> [meta.right_analysis_id, relationship_id] }
-        .combine(
-            ch_prepared_phenotypes.map { meta, phenotype -> [meta.id, phenotype] },
-            by: 0
-        )
-        .map { _analysis_id, relationship_id, phenotype -> [relationship_id, phenotype] }
-
-    def ch_pair_trait_inputs = ch_left_pair_phenotypes
-        .join(ch_right_pair_phenotypes, failOnDuplicate: true, failOnMismatch: true)
-        .map { _relationship_id, meta, left_phenotype, pair_quant_covariates, pair_cat_covariates, right_phenotype ->
-            [meta, left_phenotype, right_phenotype, pair_quant_covariates, pair_cat_covariates]
-        }
-
-    PREPARE_BIVARIATE_TRAITS(ch_pair_trait_inputs)
-
-    def ch_prepared_relationships = PREPARE_BIVARIATE_TRAITS.out.phenotype
-        .join(PREPARE_BIVARIATE_TRAITS.out.quant_covariates, remainder: true)
-        .join(PREPARE_BIVARIATE_TRAITS.out.cat_covariates, remainder: true)
-        .map { meta, phenotype, quant_covariates, cat_covariates ->
-            [meta.relationship_id, phenotype, quant_covariates ?: [], cat_covariates ?: []]
-        }
-
+    // The ordered two-trait table and the normalised pair covariates are the scientific pair, prepared once
+    // per relationship on the spine because the MPH pair controller consumes the same artifact. This
+    // controller fans that one record back out by relationship ID, so selecting several GCTA estimators still
+    // costs one preparation and defines no second endpoint sample set.
     def ch_prepared_pairs = ch_relationships
         .map { meta, _genotype_files, _pair_quant_covariates, _pair_cat_covariates -> [meta.relationship_id, meta] }
-        .combine(ch_prepared_relationships, by: 0)
+        .combine(
+            ch_prepared_relationship_traits.map { relationship_meta, phenotype, quant_covariates, cat_covariates ->
+                [relationship_meta.relationship_id, phenotype, quant_covariates ?: [], cat_covariates ?: []]
+            },
+            by: 0,
+        )
         .map { _relationship_id, meta, phenotype, quant_covariates, cat_covariates ->
             [meta.request_id, meta, phenotype, quant_covariates, cat_covariates]
         }

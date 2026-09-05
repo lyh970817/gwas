@@ -467,4 +467,60 @@ nextflow_function {
             )
         }
     }
+
+    // The MPH value rules are shared verbatim by the analysis namespace and the pair-request namespace, which
+    // is what keeps one option meaning one thing wherever it is declared. The shared validator carries no
+    // namespace of its own: it labels a failure with the bare option name and the caller renders the sentence.
+    def mphValueRules = [
+        [name: 'a non-integer iteration cap', options: [iterations: 2.5], label: 'iterations', reason: 'expected a positive integer or null'],
+        [name: 'a zero iteration cap', options: [iterations: 0], label: 'iterations', reason: 'expected a positive integer or null'],
+        [name: 'a zero tolerance', options: [tolerance: 0], label: 'tolerance', reason: 'expected a number greater than 0 or null'],
+        [name: 'a zero random-vector count', options: [random_vectors: 0], label: 'random_vectors', reason: 'expected a positive integer or null'],
+        [name: 'a fractional seed', options: [seed: 1.5], label: 'seed', reason: 'expected an integer or null'],
+        [name: 'a non-boolean memory mode', options: [save_memory: 'yes'], label: 'save_memory', reason: 'expected a boolean'],
+    ]
+
+    mphValueRules.each { scenario ->
+        test("the shared MPH value rules reject ${scenario.name} under a bare option label") {
+            function "validateMphOptionValues"
+
+            when {
+                function {
+                    """
+                    input[0] = ${scenario.options.inspect()}
+                    input[1] = [iterations: null, tolerance: null, random_vectors: null, seed: null, save_memory: false]
+                    input[2] = { option, reason -> error("[nf-core/gwas] ERROR: option '\${option}': \${reason}") }
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.failed },
+                    { assert function.stdout.join('\n').contains("option '${scenario.label}': ${scenario.reason}") },
+                )
+            }
+        }
+    }
+
+    test("the shared MPH value rules fall back to the declared defaults for every option left out") {
+        function "validateMphOptionValues"
+
+        when {
+            function {
+                """
+                input[0] = [seed: 7]
+                input[1] = [iterations: null, tolerance: null, random_vectors: null, seed: null, save_memory: false]
+                input[2] = { option, reason -> error("[nf-core/gwas] ERROR: option '\${option}': \${reason}") }
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == [iterations: null, tolerance: null, random_vectors: null, seed: 7, save_memory: false] },
+            )
+        }
+    }
 }

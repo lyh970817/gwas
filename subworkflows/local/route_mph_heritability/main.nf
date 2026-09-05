@@ -47,6 +47,7 @@ workflow ROUTE_MPH_HERITABILITY {
                 mph_matrix: identity,
                 mph_grm_prefixes: grm_prefixes,
                 mph_effective: buildMphEffectiveSettings(meta.method_options.mph),
+                mph_result: buildMphResultRecord(meta, estimator),
             ]
             [routeKey(route_meta), route_meta, grm_files, grm_prefixes, phenotype]
         }
@@ -116,7 +117,8 @@ workflow ROUTE_MPH_HERITABILITY {
         .join(MPH_REML.out.fixed_effects.map { meta, fixed_effects -> [routeKey(meta), fixed_effects] }, failOnDuplicate: true, failOnMismatch: true)
         .join(MPH_REML.out.iterations.map { meta, iterations -> [routeKey(meta), iterations] }, failOnDuplicate: true, failOnMismatch: true)
         .join(MPH_REML.out.log.map { meta, native_log -> [routeKey(meta), native_log] }, failOnDuplicate: true, failOnMismatch: true)
-        .map { _key, meta, serialization, variance_components, fixed_effects, iterations, native_log -> [meta, serialization, variance_components, fixed_effects, iterations, native_log] }
+        // A one-trait fit writes no correlation result, so the writer's optional last member is absent here.
+        .map { _key, meta, serialization, variance_components, fixed_effects, iterations, native_log -> [meta, serialization, variance_components, fixed_effects, iterations, native_log, []] }
     SUMMARISE_MPH_RESULT(ch_summary_inputs)
 
     emit:
@@ -152,6 +154,21 @@ def selectedMphEstimators(meta) {
 
 def routeKey(meta) {
     return [meta.id, meta.mph_estimator]
+}
+
+// The published result's identity, resolved by the route because whether a fit is a unary heritability
+// estimate or an oriented pair is a routing fact. The serializer copies this block through rather than
+// inferring it from the number of traits it was handed.
+def buildMphResultRecord(meta, estimator) {
+    return [
+        kind: 'heritability',
+        analysis_id: meta.id,
+        request_id: null,
+        relationship_id: null,
+        method: estimator,
+        left_analysis_id: null,
+        right_analysis_id: null,
+    ]
 }
 
 // The staged bundle's prefix, taken from the member whose name defines it. MPH's `--grm_list` names prefixes
@@ -198,5 +215,5 @@ def buildMphEffectiveSettings(options) {
 // selected token and its resolved settings. Everything but the token is stripped before emission, so a
 // consumer receives the focal analysis identity it supplied and the route cannot leak its own bookkeeping.
 def stripMphRouteState(meta) {
-    return meta.findAll { name, _value -> !(name in ['mph_capability', 'mph_trait_names', 'mph_matrix', 'mph_grm_prefixes', 'mph_effective']) }
+    return meta.findAll { name, _value -> !(name in ['mph_capability', 'mph_trait_names', 'mph_matrix', 'mph_grm_prefixes', 'mph_effective', 'mph_result']) }
 }

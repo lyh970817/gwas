@@ -346,26 +346,34 @@ def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
     if (options && !methods.heritability_methods.any { method -> method in mph_heritability }) {
         fail.call(analysis_id, "mph.${options.keySet().first()}", 'analysis does not select an MPH method')
     }
+    return validateMphOptionValues(options, defaults) { option, reason -> fail.call(analysis_id, "mph.${option}", reason) }
+}
 
+// The MPH option value rules with no namespace and no selection knowledge, so the analysis namespace and the
+// pair-request namespace apply one set of rules rather than two that can drift. The caller supplies a
+// `fail(option_name, reason)` closure that renders its own namespace's diagnostic; the selection guard above
+// stays in `resolveMphMethodOptions` because only the analysis namespace can declare an option for a method
+// the row does not select. A pair request is keyed `<method>--<relationship_id>`, so its method is its identity.
+def validateMphOptionValues(options, defaults, fail) {
     def iterations = options.containsKey('iterations') ? options.iterations : defaults.iterations
     def tolerance = options.containsKey('tolerance') ? options.tolerance : defaults.tolerance
     def random_vectors = options.containsKey('random_vectors') ? options.random_vectors : defaults.random_vectors
     def seed = options.containsKey('seed') ? options.seed : defaults.seed
     def save_memory = options.containsKey('save_memory') ? options.save_memory : defaults.save_memory
     if (iterations != null && (!(iterations instanceof Number) || iterations < 1 || iterations != iterations.toInteger())) {
-        fail.call(analysis_id, 'mph.iterations', 'expected a positive integer or null')
+        fail.call('iterations', 'expected a positive integer or null')
     }
     if (tolerance != null && (!(tolerance instanceof Number) || tolerance <= 0)) {
-        fail.call(analysis_id, 'mph.tolerance', 'expected a number greater than 0 or null')
+        fail.call('tolerance', 'expected a number greater than 0 or null')
     }
     if (random_vectors != null && (!(random_vectors instanceof Number) || random_vectors < 1 || random_vectors != random_vectors.toInteger())) {
-        fail.call(analysis_id, 'mph.random_vectors', 'expected a positive integer or null')
+        fail.call('random_vectors', 'expected a positive integer or null')
     }
     if (seed != null && (!(seed instanceof Number) || seed != seed.toInteger())) {
-        fail.call(analysis_id, 'mph.seed', 'expected an integer or null')
+        fail.call('seed', 'expected an integer or null')
     }
     if (!(save_memory instanceof Boolean)) {
-        fail.call(analysis_id, 'mph.save_memory', 'expected a boolean')
+        fail.call('save_memory', 'expected a boolean')
     }
     return [
         iterations: iterations == null ? null : iterations.toInteger(),

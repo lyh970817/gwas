@@ -416,6 +416,39 @@ def getMethodRegistry() {
             requires_complete_covariates: false,
             citation_keys: ['mph', 'gcta_greml_ldms'],
         ],
+        // The MPH pair entries name the same matrix kinds and backends as their unary siblings, which is what
+        // lets one relationship request and one analysis row share a single built matrix family. They carry no
+        // `supports_covariates: false`: MPH fits the pair covariates for both traits and reports per-trait
+        // BLUEs, so the covariate refusal that protects the HEreg selectors must not fire for them. Binary and
+        // mixed pairs stay out because MPH has no prevalence or liability-scale contract at all.
+        mph_bivariate_reml: [
+            domain: 'pairwise',
+            endpoint_domain: 'analysis',
+            option_family: 'mph',
+            matrix_kind: 'mph_dense',
+            estimator_family: 'reml',
+            input_backend: 'mph_grm',
+            component_model: 'single',
+            trait_support: [quantitative: true, binary: false],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: false,
+            citation_keys: ['mph'],
+        ],
+        mph_bivariate_reml_ldms: [
+            domain: 'pairwise',
+            endpoint_domain: 'analysis',
+            option_family: 'mph',
+            matrix_kind: 'mph_ldms',
+            estimator_family: 'reml',
+            input_backend: 'mph_grm_family',
+            component_model: 'ld_maf_stratified',
+            trait_support: [quantitative: true, binary: false],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            stochastic: true,
+            requires_complete_covariates: false,
+            citation_keys: ['mph', 'gcta_greml_ldms'],
+        ],
     ]
 }
 

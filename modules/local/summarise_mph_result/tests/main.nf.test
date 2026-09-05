@@ -9,23 +9,65 @@ nextflow_process {
     tag "modules_local"
     tag "summarise_mph_result"
 
-    // The four native artefacts are written by hand rather than fitted, because every case this writer owns is
+    // The native artefacts are written by hand rather than fitted, because every case this writer owns is
     // a shape MPH produces at exit 0 with a complete result set beside it -- a warning line, a pruned covariate
-    // column, a result row order that does not follow the plan -- and fitting one would take a real cohort per
-    // case to reach shapes that are trivially spelled. Every column layout below is copied from the measured
-    // native contract: `.mq.vc.csv` carries `trait_x,trait_y,vc_name,m,var,seV,pve,seP,enrichment,seE` followed
+    // column, a result row order that does not follow the plan, a correlation MPH could not compute -- and
+    // fitting one would take a real cohort per case to reach shapes that are trivially spelled. Every column
+    // layout below is copied from the measured native contract: `.mq.vc.csv` carries `trait_x,trait_y,vc_name,m,var,seV,pve,seP,enrichment,seE` followed
     // by K enrichment sampling-covariance columns and T(T+1)/2 blocks of K+1 VC sampling-covariance columns
     // whose header labels repeat, `.mq.blue.csv` carries `trait,covar,blue,se,pval` plus one right-aligned
-    // `<trait>.<covar>` column per fixed effect, and `.mq.iter.csv` carries
-    // `iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton`.
+    // `<trait>.<covar>` column per fixed effect, `.mq.iter.csv` carries
+    // `iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton`, and the multi-trait `.mq.cor.csv`
+    // carries `vc_name,trait_x,trait_y,cor,se`.
 
-    def meta = """
+    // The result identity the route mints and this writer copies through, in both of its shapes. It is a
+    // routing fact rather than something either adapter infers from the number of traits, so the meta carries
+    // it for the stub and the serialised record carries it for a real run. `primary_files` is not part of it:
+    // the serializer adds that member, because only it knows the prefix the fit will produce.
+    def heritabilityResult = [
+        kind: 'heritability',
+        analysis_id: 'analysis',
+        request_id: null,
+        relationship_id: null,
+        method: 'mph_reml_ldms',
+        left_analysis_id: null,
+        right_analysis_id: null,
+    ]
+
+    def pairwiseResult = [
+        kind: 'pairwise',
+        analysis_id: null,
+        request_id: 'mph_reml_ldms--rel_left_right',
+        relationship_id: 'rel_left_right',
+        method: 'mph_reml_ldms',
+        left_analysis_id: 'left',
+        right_analysis_id: 'right',
+    ]
+
+    // A process block is Groovy rather than JSON, so the result identity is rendered as a map literal: an
+    // absent endpoint is the keyword `null` and a list of file names is a list of quoted strings.
+    def groovyLiteral = { value ->
+        if (value == null) {
+            return 'null'
+        }
+        return value instanceof List
+            ? '[' + value.collect { item -> "'${item}'" }.join(', ') + ']'
+            : "'${value}'"
+    }
+
+    def metaText = { result ->
+        """
                     [
                         id: 'analysis',
                         trait: 'QT',
                         mph_estimator: 'mph_reml_ldms',
+                        mph_result: [${result.collect { name, value -> "${name}: ${groovyLiteral(value)}" }.join(', ')}],
                     ]
-    """
+        """
+    }
+
+    def meta = metaText(heritabilityResult)
+    def pairMeta = metaText(pairwiseResult)
 
     // Two components and one trait: 10 + K + (K+1)*T(T+1)/2 = 15 columns, the appended labels repeating exactly
     // as MPH writes them. The rows are deliberately not in the plan's component order, and `err` carries `NA`
@@ -37,15 +79,39 @@ nextflow_process {
         'QT,QT,err,NA,0.70636,0.139813,0.975381,0.16737,NA,NA,NA,NA,-0.00755955,-0.00687757,0.0195476',
     ].join('\n') + '\n'
 
-    def blueText = { fitted ->
+    // Two components and two traits: the same ten leading columns, then K enrichment sampling-covariance
+    // columns and T(T+1)/2 = 3 blocks of K+1 columns, one block per trait pair. MPH writes the pair blocks as
+    // `QT,QT`, then the cross block labelled in reverse as `QT2,QT`, then `QT2,QT2`, and repeats the component
+    // labels in every appended block. The appended magnitudes are placeholders because nothing reads them; the
+    // labels, the column count and the row order are the contract this fixture exists to state.
+    def pairVarianceComponentsText = {
+        def appended = ['grm_ldms_1', 'grm_ldms_2'] + (1..3).collectMany { _block -> ['grm_ldms_1', 'grm_ldms_2', 'err'] }
+        def header = (['trait_x', 'trait_y', 'vc_name', 'm', 'var', 'seV', 'pve', 'seP', 'enrichment', 'seE'] + appended).join(',')
+        def filler = appended.collect { _column -> '0.0001' }
+        // Deliberately not in the plan's component order, in every block, so a writer matching by row position
+        // would give component 1 the second component's variant count.
+        def rows = [['QT', 'QT'], ['QT2', 'QT'], ['QT2', 'QT2']].collectMany { pair ->
+            [
+                (pair + ['grm_ldms_2', '700', '-0.0155249', '0.0811963', '-0.0214376', '0.112064', '-1.74151', '19.2168'] + filler).join(','),
+                (pair + ['grm_ldms_1', '1500', '0.033354', '0.0892372', '0.0460571', '0.122972', '3.74151', '19.2168'] + filler).join(','),
+                (pair + ['err', 'NA', '0.70636', '0.139813', '0.975381', '0.16737', 'NA', 'NA'] + filler).join(','),
+            ]
+        }
+        ([header] + rows).join('\n') + '\n'
+    }()
+
+    def blueText = { fitted, traits = ['QT'] ->
         def numbers = [
             intercept: ['-0.555521', '0.269171', '0.0390345'],
             age: ['0.0107829', '0.00522478', '0.0390373'],
             pc1: ['0.0706147', '0.120505', '0.557881'],
         ]
-        def header = (['trait', 'covar', 'blue', 'se', 'pval'] + fitted.collect { name -> "QT.${name}" }).join(',')
-        def rows = fitted.collect { name ->
-            (['QT', name] + numbers[name] + fitted.collect { _other -> '   0.072453' }).join(',')
+        // One sampling-covariance column per trait and fitted effect, named `<trait>.<covar>`, and one row per
+        // trait and fitted effect: a multi-trait fit repeats the whole covariate block under each trait.
+        def effects = traits.collectMany { trait -> fitted.collect { name -> "${trait}.${name}" } }
+        def header = (['trait', 'covar', 'blue', 'se', 'pval'] + effects).join(',')
+        def rows = traits.collectMany { trait ->
+            fitted.collect { name -> ([trait, name] + numbers[name] + effects.collect { _other -> '   0.072453' }).join(',') }
         }
         ([header] + rows).join('\n') + '\n'
     }
@@ -57,10 +123,35 @@ nextflow_process {
         '3,1,200,2,0.131096,0.00353183,1',
     ].join('\n') + '\n'
 
+    def pairIterationsText = [
+        'iter,num_traits,sample_size,num_GRMs,logLL,dLLpred,dogleg_Newton',
+        '1,2,200,2,19.0838,28.0179,1',
+        '2,2,200,2,42.7758,0.671982,1',
+        '3,2,200,2,43.7495,0.0681985,1',
+        '4,2,200,2,43.8453,0.00676133,1',
+    ].join('\n') + '\n'
+
+    // `.mq.cor.csv`, which MPH writes if and only if more than one trait is named: one row per component in
+    // `--grm_list` order, then the residual `err` row, then the synthetic genome-wide `G` row. Every row is
+    // labelled with the trait pair in the reverse of the requested order (issue #73), which is measured and
+    // consistent, so the pair travels as an argument here rather than being assumed.
+    def correlationsText = { rows, pair = ['QT2', 'QT'] ->
+        (['vc_name,trait_x,trait_y,cor,se'] + rows.collect { row -> ([row[0]] + pair + row.drop(1)).join(',') }).join('\n') + '\n'
+    }
+
+    // The `err` row is copied from a measured two-trait fit; the genetic rows are the finite case, which the
+    // cases below then vary.
+    def correlationRows = [
+        ['grm_ldms_1', '0.412233', '0.204118'],
+        ['grm_ldms_2', '-0.183044', '0.311907'],
+        ['err', '0.566886', '0.0685649'],
+        ['G', '0.257119', '0.186442'],
+    ]
+
     // The real banner, option echo and analysis-set line, trimmed of the per-iteration trace this writer never
     // reads. `OPTION num_threads with ARG n` is the executor's choice and moves the estimate in the sixth to
     // seventh significant digit, so it exists nowhere but here.
-    def logText = { analysisSet, threads, warnings ->
+    def logText = { analysisSet, threads, warnings, traits = ['QT'] ->
         ([
             '***************************************************************************',
             '* MPH by Jicai Jiang',
@@ -72,7 +163,7 @@ nextflow_process {
             'OPTION reml initialized',
             'OPTION grm_list with ARG grm_list.txt',
             'OPTION phenotype_file with ARG analysis.mph.pheno.csv',
-            'OPTION trait_names with ARG QT',
+            "OPTION trait_names with ARG ${traits.join(',')}",
             'OPTION covariate_file with ARG analysis.mph.covar.csv',
             'OPTION covariate_names with ARG intercept,age,pc1',
             "OPTION num_threads with ARG ${threads}",
@@ -102,18 +193,16 @@ nextflow_process {
             covariates: ['intercept', 'age', 'pc1'],
             components: [['ldms_1', 'grm_ldms_1', 1500], ['ldms_2', 'grm_ldms_2', 700]],
             warnings: [],
+            traits: ['QT'],
+            identity: heritabilityResult,
         ] + (knobs ?: [:])
+        // A pair fit is the one that names two traits, and it is the identity that says so rather than the
+        // count: the four overlap keys are populated for an oriented pair and null for a single trait.
+        def isPair = settings.identity.kind == 'pairwise'
         def record = [
             schema_version: '1.1',
-            result: [
-                kind: 'heritability',
-                analysis_id: 'analysis',
-                request_id: null,
-                relationship_id: null,
-                method: 'mph_reml_ldms',
-                left_analysis_id: null,
-                right_analysis_id: null,
-                primary_files: ['analysis.mq.vc.csv'],
+            result: settings.identity + [
+                primary_files: ['analysis.mq.vc.csv'] + (settings.traits.size() > 1 ? ['analysis.mq.cor.csv'] : []),
             ],
             estimator: [
                 option_family: 'mph',
@@ -151,20 +240,21 @@ nextflow_process {
                     order_source: 'grm_iid',
                     retained: 200,
                     dropped: 0,
-                    left_nonmissing: null,
-                    right_nonmissing: null,
-                    both: null,
-                    union: null,
+                    left_nonmissing: isPair ? 200 : null,
+                    right_nonmissing: isPair ? 200 : null,
+                    both: isPair ? 200 : null,
+                    union: isPair ? 200 : null,
                     detail: [
                         fam: 200,
                         grm: 200,
                         phenotype_rows: 200,
                         dropped_not_in_grm: 0,
-                        per_trait_nonmissing: [QT: 200],
+                        per_trait_nonmissing: settings.traits.collectEntries { name -> [(name): 200] },
                         all_traits_nonmissing: 200,
                         covariate_complete: 200,
                         analysis_set_expected: settings.expected,
                         analysis_set_observed: null,
+                        sample_policy: 'complete_case_intersection',
                         order_sha256: '3d914f9348c9cc0ff8a79716700b9fc4bd85f2a53d8b95e8de9c1b1e0f7c6a11',
                     ],
                 ],
@@ -190,19 +280,37 @@ nextflow_process {
             native_arguments: ['--seed 7'],
             classification: null,
             warnings: settings.warnings,
-            trait_names: ['QT'],
+            trait_names: settings.traits,
             covariate_names: settings.covariates,
         ]
         groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(record)) + '\n'
     }
 
+    // The whole native artefact set of an oriented pair fit, so a pair case varies only the one file it is
+    // about. `.mq.cor.csv` is present here and absent from every one-trait case, which is the cardinality MPH
+    // itself imposes.
+    def pairFixture = { overrides ->
+        [
+            meta: pairMeta,
+            record: recordText([traits: ['QT', 'QT2'], identity: pairwiseResult]),
+            variance_components: pairVarianceComponentsText,
+            fixed_effects: blueText(['intercept', 'age', 'pc1'], ['QT', 'QT2']),
+            iterations: pairIterationsText,
+            log: logText(200, 4, [], ['QT', 'QT2']),
+            correlations: correlationsText(correlationRows),
+        ] + (overrides ?: [:])
+    }
+
     def fixtures = { directory, name, overrides ->
         def spec = [
+            meta: meta,
             record: recordText(null),
             variance_components: varianceComponentsText,
             fixed_effects: blueText(['intercept', 'age', 'pc1']),
             iterations: iterationsText,
             log: logText(200, 4, []),
+            // A one-trait fit has no correlation result at all, which the caller spells as `[]`.
+            correlations: null,
         ] + (overrides ?: [:])
         def root = new File(directory.toString(), "mph_result_${name}")
         root.mkdirs()
@@ -212,23 +320,26 @@ nextflow_process {
             target
         }
         [
+            meta: spec.meta,
             record: write('analysis.mph.inputs.json', spec.record),
             variance_components: write('analysis.mq.vc.csv', spec.variance_components),
             fixed_effects: write('analysis.mq.blue.csv', spec.fixed_effects),
             iterations: write('analysis.mq.iter.csv', spec.iterations),
             log: write('analysis.mph.log', spec.log),
+            correlations: spec.correlations == null ? null : write('analysis.mq.cor.csv', spec.correlations),
         ]
     }
 
     def inputs = { fixture ->
         """
                 input[0] = [
-                    ${meta},
+                    ${fixture.meta},
                     file('${fixture.record}', checkIfExists: true),
                     file('${fixture.variance_components}', checkIfExists: true),
                     file('${fixture.fixed_effects}', checkIfExists: true),
                     file('${fixture.iterations}', checkIfExists: true),
-                    file('${fixture.log}', checkIfExists: true)
+                    file('${fixture.log}', checkIfExists: true),
+                    ${fixture.correlations == null ? '[]' : "file('${fixture.correlations}', checkIfExists: true)"}
                 ]
         """
     }
@@ -484,6 +595,184 @@ nextflow_process {
         }
     }
 
+    test("a pair fit publishes MPH's own correlations against the declared orientation") {
+
+        when {
+            def fixture = fixtures(outputDir, 'pair', pairFixture(null))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            def correlations = provenance.correlations
+            assertAll(
+                { assert process.success },
+                // MPH labels every row of this file with the pair reversed: `--trait_names QT,QT2` produces
+                // `trait_x = QT2, trait_y = QT`. The relabelling is recorded rather than assumed, so a reader
+                // can see which order the estimator used and which order the request declared.
+                { assert correlations.declared_trait_order == ['QT', 'QT2'] },
+                { assert correlations.native_trait_pair_labels.trait_x == 'QT2' },
+                { assert correlations.native_trait_pair_labels.trait_y == 'QT' },
+                { assert correlations.native_pair_order == 'reversed' },
+                { assert correlations.source == 'analysis.mq.cor.csv' },
+                // Matched against the serialised component plan by `vc_name`, which is the staged matrix prefix
+                // MPH copies verbatim, and carrying MPH's own numbers unchanged.
+                { assert correlations.components.size() == 2 },
+                { assert correlations.components[0].vc_name == 'grm_ldms_1' },
+                { assert correlations.components[0].ordinal == 1 },
+                { assert correlations.components[0].name == 'ldms_1' },
+                { assert correlations.components[0].correlation == 0.412233 },
+                { assert correlations.components[0].se == 0.204118 },
+                { assert correlations.components[1].vc_name == 'grm_ldms_2' },
+                { assert correlations.components[1].ordinal == 2 },
+                { assert correlations.components[1].name == 'ldms_2' },
+                { assert correlations.components[1].correlation == -0.183044 },
+                { assert correlations.components[1].se == 0.311907 },
+                // The aggregate is MPH's own synthetic `G` row and the residual is its `err` row. Neither is
+                // recomputed here, and neither is a component.
+                { assert correlations.total.vc_name == 'G' },
+                { assert correlations.total.correlation == 0.257119 },
+                { assert correlations.total.se == 0.186442 },
+                { assert correlations.residual.vc_name == 'err' },
+                { assert correlations.residual.correlation == 0.566886 },
+                { assert correlations.residual.se == 0.0685649 },
+                // MPH always estimates the residual covariance of a multi-trait model and offers no option to
+                // drop it, so the fit that was run is what this statement follows from.
+                { assert provenance.residual_covariance == 'estimated' },
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                // The identity is the route's, carried through from the serialised record unchanged.
+                { assert provenance.result.kind == 'pairwise' },
+                { assert provenance.result.left_analysis_id == 'left' },
+                { assert provenance.result.right_analysis_id == 'right' },
+                // Everything the writer completes from the native result happens on this path too.
+                { assert provenance.component_plan.components.collect { component -> component.native_predictor_count } == [1500, 700] },
+                { assert provenance.solver_settings.iterations_run == 4 },
+                { assert provenance.inputs.samples.retained == 200 },
+            )
+        }
+    }
+
+    test("the component correlations are matched by name and not by the row order MPH wrote") {
+
+        when {
+            // The same fit with the two component rows exchanged. MPH's row order follows `--grm_list`, and a
+            // reader keyed by position would publish each component's correlation under the other's name.
+            def fixture = fixtures(outputDir, 'pair_row_order', pairFixture([
+                correlations: correlationsText([correlationRows[1], correlationRows[0], correlationRows[2], correlationRows[3]]),
+            ]))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def correlations = jsonOf(process.out.provenance.get(0).get(1)).correlations
+            assertAll(
+                { assert process.success },
+                { assert correlations.components.collect { component -> component.vc_name } == ['grm_ldms_1', 'grm_ldms_2'] },
+                { assert correlations.components[0].correlation == 0.412233 },
+                { assert correlations.components[1].correlation == -0.183044 },
+                { assert correlations.total.correlation == 0.257119 },
+            )
+        }
+    }
+
+    test("a component whose correlation MPH could not compute is published as null and named in a warning") {
+
+        when {
+            // Measured on the pinned image at exit 0 on ordinary input (issue #73): a component whose genetic
+            // covariance the fit drove out of the positive-definite region reports `-nan` for both the
+            // correlation and its standard error, with a complete result set written beside it.
+            def fixture = fixtures(outputDir, 'pair_non_finite_component', pairFixture([
+                correlations: correlationsText([
+                    correlationRows[0],
+                    ['grm_ldms_2', '-nan', 'nan'],
+                    correlationRows[2],
+                    correlationRows[3],
+                ]),
+            ]))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            def correlations = provenance.correlations
+            assertAll(
+                { assert process.success },
+                // Published as null and named, rather than rewritten, clamped or dropped: the fit ran and MPH
+                // reported this.
+                { assert correlations.components[1].vc_name == 'grm_ldms_2' },
+                { assert correlations.components[1].correlation == null },
+                { assert correlations.components[1].se == null },
+                // The component that was estimable is untouched, and so is the aggregate.
+                { assert correlations.components[0].correlation == 0.412233 },
+                { assert correlations.total.correlation == 0.257119 },
+                { assert provenance.warnings.contains('non_finite_correlation:G2') },
+                { assert provenance.warnings.contains('non_finite_correlation:G2.se') },
+                { assert provenance.classification == 'estimable_with_warning' },
+            )
+        }
+    }
+
+    test("a fit whose aggregate correlation is not a number is completed but not estimable") {
+
+        when {
+            def fixture = fixtures(outputDir, 'pair_non_finite_total', pairFixture([
+                correlations: correlationsText([
+                    correlationRows[0],
+                    correlationRows[1],
+                    correlationRows[2],
+                    ['G', '-nan', 'nan'],
+                ]),
+            ]))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // The run completed and everything it produced is published, but the genome-wide genetic
+                // correlation is the question the pair was asked, so a result that does not answer it is
+                // classified rather than presented as an estimate.
+                { assert provenance.correlations.total.correlation == null },
+                { assert provenance.classification == 'completed_nonestimable' },
+                { assert provenance.warnings.contains('non_finite_correlation:total') },
+                { assert provenance.correlations.components[0].correlation == 0.412233 },
+            )
+        }
+    }
+
+    test("the writer refuses a correlation result that names a trait the request did not declare") {
+
+        when {
+            def fixture = fixtures(outputDir, 'pair_wrong_pair', pairFixture([
+                correlations: correlationsText(correlationRows, ['QT3', 'QT']),
+            ]))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            // The pair is read as an unordered set and checked, because the labels are the only evidence that
+            // the file beside the fit belongs to the request whose record it is about to be published under.
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains("analysis 'analysis'") },
+                { assert process.stdout.join('\n').contains('does not describe the pair that was requested') },
+            )
+        }
+    }
+
     test("stub") {
 
         options "-stub"
@@ -502,6 +791,36 @@ nextflow_process {
                 { assert provenance.result.analysis_id == 'analysis' },
                 { assert provenance.result.method == 'mph_reml_ldms' },
                 { assert provenance.classification == 'estimable' },
+                { assert provenance.residual_covariance == null },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+        }
+    }
+
+    test("stub - a pair result") {
+
+        options "-stub"
+
+        when {
+            def fixture = fixtures(outputDir, 'stub_pair', pairFixture(null))
+            process {
+                inputs(fixture)
+            }
+        }
+
+        then {
+            // The stub branches on the same optional input the script does, so a route test running in stub
+            // mode sees the pair identity and the residual-covariance statement a real pair run would publish
+            // rather than a heritability document a real run would then contradict.
+            def provenance = jsonOf(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.result.kind == 'pairwise' },
+                { assert provenance.result.analysis_id == null },
+                { assert provenance.result.relationship_id == 'rel_left_right' },
+                { assert provenance.result.left_analysis_id == 'left' },
+                { assert provenance.result.right_analysis_id == 'right' },
+                { assert provenance.residual_covariance == 'estimated' },
                 { assert snapshot(sanitizeOutput(process.out)).match() }
             )
         }

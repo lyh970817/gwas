@@ -70,6 +70,15 @@
                                     "unassigned": 200
                                 }
                             },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "mph_trait_names": [
                                 "PHENO"
                             ],
@@ -145,6 +154,15 @@
                                     "bim_rows": 2400,
                                     "unassigned": 200
                                 }
+                            },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
                             },
                             "mph_trait_names": [
                                 "PHENO"
@@ -222,12 +240,21 @@
                                     "unassigned": 200
                                 }
                             },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "mph_trait_names": [
                                 "PHENO"
                             ],
                             "trait": "QT"
                         },
-                        "analysis.mph.inputs.json:md5,00e771a97be3a64be976c915fbf8194f"
+                        "analysis.mph.inputs.json:md5,d771b9218934b2466458e28bac450e9e"
                     ]
                 ],
                 "versions": [
@@ -235,7 +262,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-03T10:45:45.811290902",
+        "timestamp": "2026-09-05T22:52:25.634992199",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -311,6 +338,15 @@
                                     "bim_rows": 2400,
                                     "unassigned": 200
                                 }
+                            },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
                             },
                             "mph_trait_names": [
                                 "PHENO"
@@ -388,6 +424,15 @@
                                     "unassigned": 200
                                 }
                             },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "mph_trait_names": [
                                 "PHENO"
                             ],
@@ -464,12 +509,21 @@
                                     "unassigned": 200
                                 }
                             },
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "mph_trait_names": [
                                 "PHENO"
                             ],
                             "trait": "QT"
                         },
-                        "analysis.mph.inputs.json:md5,8eb7576e92d19cd2c7f9b246a1581ffb"
+                        "analysis.mph.inputs.json:md5,5e7c89c437404856a6ef8f5df9efa866"
                     ]
                 ],
                 "versions": [
@@ -477,7 +531,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-05T15:06:32.075710597",
+        "timestamp": "2026-09-05T22:49:07.2248539",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

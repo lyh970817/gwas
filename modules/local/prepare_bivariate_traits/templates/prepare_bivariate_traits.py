@@ -82,10 +82,15 @@ write_rows(PREFIX + ".pheno", phenotype_rows)
 
 quant_header, quant_rows = read_covariates(PAIR_QUANT_COVARIATES, "relationship quantitative covariate")
 cat_header, cat_rows = read_covariates(PAIR_CAT_COVARIATES, "relationship categorical covariate")
+# The headered files carry the header this module has already validated, so the two serialisations are the same
+# rows and differ only in whether the column names survive. GCTA rejects a header; MPH addresses its covariates
+# by name.
 if quant_header:
-    write_rows(PREFIX + ".qcovar", quant_rows)
+    write_rows(PREFIX + ".qcovar", [quant_header] + quant_rows)
+    write_rows(PREFIX + ".noheader.qcovar", quant_rows)
 if cat_header:
-    write_rows(PREFIX + ".covar", cat_rows)
+    write_rows(PREFIX + ".catcovar", [cat_header] + cat_rows)
+    write_rows(PREFIX + ".noheader.catcovar", cat_rows)
 
 with open("versions.yml", "w", newline="") as handle:
     handle.write('"{}":\\n'.format(PROCESS_NAME))

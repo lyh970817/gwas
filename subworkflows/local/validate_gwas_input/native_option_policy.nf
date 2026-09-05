@@ -1,4 +1,4 @@
-include { getMethodCapability ; getMethodTokensWithCapabilities } from './method_registry'
+include { getMethodCapabilities ; getMethodCapability ; getMethodTokensWithCapabilities } from './method_registry'
 
 // Which native LDSC operation a request owns follows from its registered domain: a unary summary request owns
 // `--h2` and a pairwise one owns `--rg`, so each is protected for its own method and refused for the other.
@@ -140,7 +140,66 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
     return native_args
 }
 
-def validateNativeArgumentTokens(method_options, request_id, native_args) {
+// An individual-level pair request is firewalled against the option namespace of the tool it actually runs.
+// The two namespaces share no spelling at all -- GCTA's are hyphenated and MPH's underscored -- so applying one
+// list to both would reject legal tokens of one tool and accept illegal tokens of the other.
+def validateAnalysisPairNativeArgumentTokens(method_options, request_id, method, native_args) {
+    if (getMethodCapabilities()[method]?.option_family == 'mph') {
+        return validateMphNativeArgumentTokens(method_options, request_id, native_args)
+    }
+    return validateGctaNativeArgumentTokens(method_options, request_id, native_args)
+}
+
+// Everything MPH understands is owned by this pipeline except three sensitivity and verbosity knobs, so the
+// MPH firewall is a positive allow-list rather than a list of things to keep out. That is the stricter shape
+// and it is also the simpler one: the invocation mode, the matrix list, the trait and covariate name lists,
+// the output basename, the thread count and every curated stochastic and solver control are rendered by the
+// wrapper from validated request state, and none of them may be set a second time from a manifest.
+def getMphNativeArgumentAllowList() {
+    return ['--min_maf', '--min_hwe_pval', '--verbose']
+}
+
+def validateMphNativeArgumentTokens(method_options, request_id, native_args) {
+    def fail = { reason ->
+        error("[nf-core/gwas] ERROR: Method-options document '${method_options}', pair_request_id '${request_id}', option 'native_args': ${reason}")
+    }
+    if (!(native_args instanceof List)) {
+        fail.call('expected an array of individual command-line argument tokens')
+    }
+    if (native_args && !native_args.first().toString().startsWith('--')) {
+        fail.call("the first token must be a native option beginning with '--'")
+    }
+
+    def allowed = getMphNativeArgumentAllowList()
+    native_args.eachWithIndex { token, index ->
+        if (!(token instanceof String) || !token) {
+            fail.call("token ${index + 1} must be a non-empty string")
+        }
+        if (!(token ==~ /^[A-Za-z0-9_.:+,@%=-]+$/)) {
+            fail.call("token ${index + 1} '${token}' contains whitespace, shell syntax or a path separator; pass individual non-file native tokens only")
+        }
+        if (token ==~ /^[A-Za-z_][A-Za-z0-9_]*=.*/) {
+            fail.call("token ${index + 1} '${token}' resembles an environment assignment; native arguments cannot alter the task environment")
+        }
+        if (token.startsWith('--')) {
+            def option_name = token.contains('=') ? token.substring(0, token.indexOf('=')) : token
+            if (!(option_name in allowed)) {
+                fail.call("token ${index + 1} '${token}' is not an accepted MPH native argument; only ${allowed.join(', ')} may be set this way, because every other MPH option is owned by the wrapper's invocation, model, trait or component set")
+            }
+        }
+        def argument_value = token.contains('=') ? token.substring(token.indexOf('=') + 1) : token
+        if (!token.startsWith('--') || token.contains('=')) {
+            def candidate = file(argument_value)
+            def looks_like_file = argument_value ==~ /(?i).+\.(bed|bim|fam|pgen|pvar|psam|gz|bgz|txt|tsv|csv|list|grm|iid|phen|pheno|covar|qcovar|dat)/
+            if (candidate.exists() || looks_like_file) {
+                fail.call("token ${index + 1} '${token}' resembles an undeclared file input; file-taking native options require a typed staged resource")
+            }
+        }
+    }
+    return native_args
+}
+
+def validateGctaNativeArgumentTokens(method_options, request_id, native_args) {
     def fail = { reason ->
         error("[nf-core/gwas] ERROR: Method-options document '${method_options}', pair_request_id '${request_id}', option 'native_args': ${reason}")
     }

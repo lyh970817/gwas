@@ -52,7 +52,7 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
    Not every heritability route needs one: LDAK fast Haseman-Elston regression and LDAK fast PCGC estimate directly from the cohort's genotypes and build no relatedness matrix at all.
 
 8. Resolve declared unary and pair summary-statistics requests against explicit LDAK or LDSC reference bundles, including LDAK SumHer heritability and SumCors genetic correlation.
-9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg and publish each native result and log directly.
+9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg, or with dense or LDMS MPH bivariate REML, and publish each native result and log directly. The ordered two-trait table and the relationship-owned covariates are prepared once per relationship and shared by every selected pair estimator, so several estimators over one relationship still define one endpoint sample set.
 10. Run declared LDSC H2 and ordered RG requests, reusing content-identical munging and publishing the observed- and available liability-scale native logs directly.
 11. Collect run and software provenance with MultiQC and Nextflow reports.
 
@@ -77,7 +77,7 @@ height,my_cohort,height,quantitative,/data/phenotypes.tsv,height,,,,,regenie,,,
 
 Runnable minimal and heterogeneous examples are available under [`assets/examples/relational/`](assets/examples/relational/).
 
-To ingest external summaries or select unary summary methods for a pipeline-generated association result, add the summary-statistics manifest. To request pairwise analysis, add the optional relationship manifest; no pair is inferred. GCTA pairs accept two distinct analysis IDs from the same cohort and select `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms` or both. Summary requests select one named LDAK or LDSC bundle through `--method_options`, with the staged resource roles declared once in `--reference_catalog`.
+To ingest external summaries or select unary summary methods for a pipeline-generated association result, add the summary-statistics manifest. To request pairwise analysis, add the optional relationship manifest; no pair is inferred. Individual-level pairs accept two distinct analysis IDs from the same cohort and select any of `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms`, `mph_bivariate_reml` and `mph_bivariate_reml_ldms`. Summary requests select one named LDAK or LDSC bundle through `--method_options`, with the staged resource roles declared once in `--reference_catalog`.
 
 Then run:
 
@@ -98,7 +98,7 @@ For more details and further functionality, please refer to the [usage documenta
 
 ## Pipeline output
 
-Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.gwaslab.tsv.gz` with its GWASLab log. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA, LDAK and LDSC requests publish only their native result families under `requests/<method>/<request_id>/`, and the pipeline assembles no common estimand family. Results are published native first: every native result is retained unchanged, and a per-result invocation record is added beside it only for `mph_reml` and `mph_reml_ldms`, the routes whose runtime does not record its own invocation. Munged LDSC summaries and other adapters are not republished; prepared genotypes, prepared phenotypes and relatedness matrices remain unpublished unless their save controls are enabled. REGENIE and LDAK-KVIK Step 1 predictions stay in Nextflow work and are consumed directly by Step 2.
+Native association results are published under `association/<method>/<analysis_id>/`. Every internal or external summary result is published once under `summary_statistics/<summary_statistics_id>/` as `<summary_statistics_id>.gwaslab.tsv.gz` with its GWASLab log. Individual-level heritability estimates remain under `heritability/individual/<method>/<analysis_id>/`. Declared GCTA, MPH, LDAK and LDSC requests publish only their native result families under `requests/<method>/<request_id>/`, and the pipeline assembles no common estimand family. Results are published native first: every native result is retained unchanged, and a per-result invocation record is added beside it only for the MPH routes, whose runtime does not record its own invocation. Munged LDSC summaries and other adapters are not republished; prepared genotypes, prepared phenotypes and relatedness matrices remain unpublished unless their save controls are enabled. REGENIE and LDAK-KVIK Step 1 predictions stay in Nextflow work and are consumed directly by Step 2.
 
 For exact filenames, output layout and optional prepared data, see the [output documentation](https://nf-co.re/gwas/output).
 

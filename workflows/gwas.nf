@@ -9,11 +9,13 @@ include { PREPARE_PHENOTYPE_INPUTS           } from '../modules/local/prepare_ph
 // SUBWORKFLOW: Consisting of a mix of local and nf-core/modules
 include { PREPARE_COHORT_GENOTYPES           } from '../subworkflows/local/prepare_cohort_genotypes'
 include { PREPARE_RELATEDNESS_MATRICES       } from '../subworkflows/local/prepare_relatedness_matrices'
+include { PREPARE_RELATIONSHIP_TRAITS        } from '../subworkflows/local/prepare_relationship_traits'
 include { ROUTE_ASSOCIATION_ANALYSES         } from '../subworkflows/local/route_association_analyses'
 include { ROUTE_GRM_HERITABILITY             } from '../subworkflows/local/route_grm_heritability'
 include { ROUTE_LDAK_DIRECT_HERITABILITY     } from '../subworkflows/local/route_ldak_direct_heritability'
 include { ROUTE_MPH_HERITABILITY             } from '../subworkflows/local/route_mph_heritability'
 include { ROUTE_GCTA_BIVARIATE_RELATIONSHIPS } from '../subworkflows/local/route_gcta_bivariate_relationships'
+include { ROUTE_MPH_BIVARIATE_RELATIONSHIPS  } from '../subworkflows/local/route_mph_bivariate_relationships'
 include { ROUTE_CANONICAL_SUMMARY_STATISTICS } from '../subworkflows/local/route_canonical_summary_statistics'
 include { ROUTE_LDAK_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldak_summary_analyses'
 include { ROUTE_LDSC_SUMMARY_ANALYSES        } from '../subworkflows/local/route_ldsc_summary_analyses'
@@ -65,11 +67,12 @@ workflow GWAS {
     //          v
     //   PREPARE_COHORT_GENOTYPES ---> PREPARE_RELATEDNESS_MATRICES     PREPARE_PHENOTYPE_INPUTS
     //          |          |                     |                              |
+    //          |          |                     |                    PREPARE_RELATIONSHIP_TRAITS
     //          +----------+---------------------+------------------------------+   shared resources,
     //          |          |                     |                              |   each built once
     //          v          v                     v                              v
     //   ROUTE_ASSOCIATION_ANALYSES     ROUTE_GRM_HERITABILITY     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS
-    //          |          |
+    //          |          |                                       ROUTE_MPH_BIVARIATE_RELATIONSHIPS
     //          |   ROUTE_MPH_HERITABILITY           (native MPH matrices built on the spine beside the others)
     //          |   ROUTE_LDAK_DIRECT_HERITABILITY   (direct genotypes; requests no relatedness matrix)
     //          |
@@ -218,6 +221,14 @@ workflow GWAS {
     // the headerless serialisations GCTA and LDAK read. This seam is built here rather than in the route
     // because deriving per-analysis streams from preparation is spine work, and one absent covariate table is
     // [] so it stages nothing.
+    //
+    // SUBWORKFLOW: Prepare each relationship's ordered two-trait table and pair covariates once
+    //
+    // A relationship is prepared once however many individual-level pair methods select it: the ordered union
+    // table and the normalised pair covariates are the scientific pair, and every method adapter serialises
+    // that one artifact rather than resolving the endpoints again. Both pair controllers below consume it.
+    PREPARE_RELATIONSHIP_TRAITS(ch_relationships, PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless)
+
     def ch_prepared_covariate_tables = ch_analysis_meta_by_id
         .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
         .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
@@ -324,9 +335,27 @@ workflow GWAS {
     // controller never sees a unary analysis matrix.
     ROUTE_GCTA_BIVARIATE_RELATIONSHIPS(
         ch_relationships,
-        PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless,
+        PREPARE_RELATIONSHIP_TRAITS.out.pairs,
         PREPARE_RELATEDNESS_MATRICES.out.gcta_dense.filter { meta, _grm_files -> meta.relationship_id },
         PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms.filter { meta, _grm_files, _grm_prefixes -> meta.relationship_id },
+    )
+
+    //
+    // SUBWORKFLOW: Pipeline route for MPH bivariate REML and REML-LDMS relationship requests
+    //
+    // The same relationship domain as the GCTA pairs above, over the same prepared pair, but on native MPH
+    // matrices, which are a different byte format and are never interchanged with GCTA's. The matrix streams
+    // are narrowed to the relationship-scoped rows here, mirroring the unary narrowing the MPH heritability
+    // route receives, and the headered covariate stream is the second serialisation of that one prepared pair:
+    // MPH names its covariates on the command line, so its serializer reads the header the GCTA estimators
+    // reject.
+    ROUTE_MPH_BIVARIATE_RELATIONSHIPS(
+        ch_relationships,
+        PREPARE_RELATIONSHIP_TRAITS.out.pairs,
+        PREPARE_RELATIONSHIP_TRAITS.out.named_covariates,
+        PREPARE_COHORT_GENOTYPES.out.plink1_genotypes.filter { meta, _bed, _bim, _fam -> meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.mph_dense.filter { meta, _matrix_identity, _grm_files -> meta.relationship_id },
+        PREPARE_RELATEDNESS_MATRICES.out.mph_ldms.filter { meta, _matrix_identity, _grm_files, _grm_prefixes -> meta.relationship_id },
     )
 
     //
