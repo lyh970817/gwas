@@ -11,6 +11,15 @@ them.
 That decision governs new work from now on. It does not by itself retire anything already merged. This
 document exists so each existing case can be decided on its own.
 
+*Issue triage, 2026-09-05.* The 67 defect issues filed against the invoked programmes were triaged that day
+against the materiality rule. Twenty-seven were kept open and given the `guarded` label — "the pipeline
+carries a guard for this defect; owner reviews whether it stays". Nine were kept open as material but
+unguarded: #41, #53, #73, #82, #84, #88, #90, #99 and #104. The remaining thirty-one were non-material,
+were folded into one consolidated per-programme record each — #105 (GCTA 1.94.1), #106 (PLINK 2
+2.0.0a.6.9), #107 (LDAK 6, genomedk 6.1 build), #108 (METASOFT 2.0.1), #109 (MR-MEGA v0.2), #110 (MPH
+0.55.1) — and closed. The `guarded`-labelled issues and this document are two views of the same decision
+set: that label set is the owner's review index, and the guards catalogued here are its subjects.
+
 ## How to read this
 
 Five read-only audits covered the preparation and adapter modules, the validation and routing layer, the
@@ -384,14 +393,16 @@ the likeliest thing a future refactor removes. For several items in this documen
 
 ## Group 8 — MPH
 
-These items are on branch `add-mph-heritability` (at `a6dda90`), not yet merged. They were listed by the
-implementer on 2026-09-05 as the branch's own defect-driven work, and nothing on the list has been removed.
-The owner rules on them exactly as on Groups 1–7: for each, the question is what happens if it is removed,
-and whether that is a wrong number or only a worse message. The implementer gave no recommendations, and
-the review of the branch is still running; recommendations will follow the review. Each MPH behaviour was
-filed as an issue against MPH 0.55.1 (banner "Version 0.55.1 (December 9, 2025)", release commit
-`13ffe63`) on 2026-09-05; the numbers are given per item, and an item with no number defends against
-something that is not an MPH defect.
+These items are now **on `personal`**. `add-mph-heritability` was adversarially reviewed, the thirteen
+confirmed findings were applied in `39df4fc`, and the branch merged at `0ffb541`. Nothing on the list was
+removed by that review; the one item it reaches is 23, and it also removed a refusal the list never carried.
+Both are marked below. The decision framing is unchanged: the owner rules on these exactly as on Groups
+1–7 — for each, the question is what happens if it is removed,
+and whether that is a wrong number or only a worse message. The implementer gave no recommendations and none
+are added here. Each MPH behaviour was filed as an issue against MPH 0.55.1 (banner "Version 0.55.1
+(December 9, 2025)", release commit `13ffe63`) on 2026-09-05; the numbers are given per item, and an item
+with no number defends against something that is not an MPH defect. Line references are against the merged
+tree at `0ffb541`, not against `a6dda90`.
 
 ### 8.1 Atom script post-conditions
 
@@ -411,39 +422,56 @@ mechanism that items 3 and 4 also happen to catch.
 
 | # | Where | Defends against |
 |---|---|---|
-| 6 | weight-name comma/whitespace refusal (l.59) | MPH splits its name lists on commas only. Issue #57. |
+| 6 | weight-name comma/whitespace refusal (l.60) | MPH splits its name lists on commas only. Issue #57. |
 | 7 | autosome universe (`in_universe`, `autosome_count`) plus weight-0 rows | GCTA restricts GRMs to autosomes; MPH applies no chromosome rule, so a shared bundle would give the two engines different predictor sets. Documented GCTA behaviour, not filed. |
-| 8 | SNP in more than one group file (l.107) | Plan/BIM consistency. Pipeline-side. |
+| 8 | SNP in more than one group file (l.112) | Plan/BIM consistency. Pipeline-side. |
 | 9 | group SNP absent from the BIM (l.102) | The plan and the bundle are not the same view. MPH's silent `--snp_info_file` subsetting of the BIM is documented behaviour, not filed. |
-| 10 | group SNP outside the autosome universe (l.112) | The plan and the BIM disagree on the universe. Pipeline-side. |
+| 10 | group SNP outside the autosome universe (l.107) | The plan and the BIM disagree on the universe. Pipeline-side. |
 
 ### 8.3 `prepare_mph_inputs` (`templates/prepare_mph_inputs.py`)
 
 | # | Where | Defends against |
 |---|---|---|
-| 11 | `read_sample_order`: `.grm.iid` must equal the FAM IID column in FAM order (l.177) | MPH indexes the matrix by that file's order with no check; a reversed file gives a complete, stable, **wrong** result at exit 0 (pve 0.115563 → −0.299462, 5/5 runs). Issue #58. |
-| 12 | `read_sample_order`: duplicate IID in the FAM (l.164) | MPH keys samples by IID alone; a duplicate IID segfaults with no message. Issue #59. |
-| 13 | `read_traits`: FID/IID pairing must match the FAM (l.219) | MPH would include a sample GCTA would drop. Issue #59. |
+| 11 | `read_sample_order`: `.grm.iid` must equal the FAM IID column in FAM order (l.184) | MPH indexes the matrix by that file's order with no check; a reversed file gives a complete, stable, **wrong** result at exit 0 (pve 0.115563 → −0.299462, 5/5 runs). Issue #58. |
+| 12 | `read_sample_order`: duplicate IID in the FAM (l.170) | MPH keys samples by IID alone; a duplicate IID segfaults with no message. Issue #59. |
+| 13 | `read_traits`: FID/IID pairing must match the FAM (l.226) | MPH would include a sample GCTA would drop. Issue #59. |
 | 14 | `MISSING_TOKENS` rewritten to empty fields | A literal `NA` aborts MPH (uncaught `std::invalid_argument`, exit 139); `-9` is read as the number −9. Issue #60. |
-| 15 | `numeric_or_fail` non-finite refusal (l.196) | A `nan` phenotype makes the solver loop without bound; a `nan` covariate gives a header-only trace at exit 0. Issue #61. |
-| 16 | explicit all-ones intercept column, named first | MPH synthesises no intercept once a covariate is named. Issue #62. |
+| 15 | `numeric_or_fail` non-finite refusal (l.204) | A `nan` phenotype makes the solver loop without bound; a `nan` covariate gives a header-only trace at exit 0. Issue #61. |
+| 16 | explicit all-ones intercept column, named first (l.317) | MPH synthesises no intercept once a covariate is named. Issue #62. |
 | 17 | `encode_covariates` dummy encoding | MPH never expands a categorical covariate. Issue #64. |
-| 18 | `check_mph_names` on emitted covariate names (l.145/151) | MPH splits `--covariate_names` on commas. Issue #57. |
-| 19 | zero-analysis-set refusal (l.314) | An empty analysis set is not a fittable model. Pipeline-side. |
-| 20 | `complete_case_attrition` warning (l.357) | Records samples MPH will drop for an empty covariate cell. Documented MPH behaviour, not filed. |
-| 21 | `dropped_not_in_grm` warning (l.362) | Records phenotype rows outside the matrix. Pipeline-side. |
-| 22 | `split_row` / per-row column-count check (l.106/115) | Our own reader. The implementer classes this as ordinary input validation, not a guard. |
+| 18 | `check_mph_names` on emitted covariate names (l.148, applied at l.318) | MPH splits `--covariate_names` on commas. Issue #57. `docs/usage.md:551` carries the user-facing diagnostics row for this refusal (`contains a comma or whitespace`, `names repeat`, `which is not a number`); it is the doc face of this guard and stands or falls with the ruling on #57. |
+| 19 | zero-analysis-set refusal (l.359) | An empty analysis set is not a fittable model. Pipeline-side. |
+| 20 | `complete_case_attrition` warning (l.364) | Records samples MPH will drop for an empty covariate cell. Documented MPH behaviour, not filed. |
+| 21 | `dropped_not_in_grm` warning (l.369) | Records phenotype rows outside the matrix. Pipeline-side. |
+| 22 | `split_row` / per-row column-count check (l.77/121) | Our own reader. The implementer classes this as ordinary input validation, not a guard. |
+
+Two review deltas land in this module. Review finding **C9 removed a refusal this list never carried**: the
+serializer used to reject a covariate table whose identifier header was not literally `FID IID`
+(`read_headered_table`, `prepare_mph_inputs.py:105` on `a6dda90`). It was removed in `39df4fc` because
+ingress had already admitted that file and the module never forwards the incoming header to MPH, so the
+refusal could only fail a row the pipeline had already accepted. Nothing replaced it; there is no decision
+left here, it is recorded so a later reader does not look for it.
+
+Review finding **C3 changed what the sidecar's shared `inputs.samples.retained` and `dropped` mean**. They
+now mean the sample the estimate was computed on — the complete-case count (`prepare_mph_inputs.py:448-449`)
+— rather than the number of rows the adapter handed MPH, which moved to `detail.written`. Items 20 and 21
+are unaffected: they are warning strings about attrition and about phenotype rows outside the matrix, and
+both still say what they said. The item the change reaches is 23, below.
 
 ### 8.4 `summarise_mph_result` (`templates/summarise_mph_result.py`)
 
+Item 36 is out of numeric order because it was added after the implementer's list closed at 35. It belongs
+to this module, so it is filed here rather than after 8.5.
+
 | # | Where | Defends against |
 |---|---|---|
-| 23 | analysis-set cross-check, fatal (l.189) | MPH's reported N against the count the prepared inputs predict. Pipeline-side. |
-| 24 | pruned-intercept refusal (l.158) | MPH prunes a rank-deficient design silently; the pruned column is unnamed and can be the intercept, which changes the model. Issue #65. |
-| 25 | other pruned covariate → warning (l.165) | Records columns MPH dropped and never names. Issue #65. |
+| 23 | analysis-set cross-check, fatal (l.197) | MPH's reported N against the count the prepared inputs predict. Pipeline-side. Since review finding C3 it also **sources a published number**: the sidecar's shared `inputs.samples.retained` is assigned from MPH's own reported analysis set at `l.207`, equal to the serializer's prediction only because this check has already proven it. Removing the check leaves the assignment unverified rather than merely unreported. |
+| 24 | pruned-intercept refusal (l.166) | MPH prunes a rank-deficient design silently; the pruned column is unnamed and can be the intercept, which changes the model. Issue #65. |
+| 25 | other pruned covariate → warning (l.173) | Records columns MPH dropped and never names. Issue #65. |
 | 26 | `WARNING_PATTERNS` → `not_converged`, `covariate_matrix_rank_deficient`, verbatim others | Both are exit-0 log lines beside a complete result (non-convergence: pve 0.142655 against 0.0873109). Issues #66 and #65. |
-| 27 | `native_predictor_count` matched by `vc_name`; a plan component with no result row is fatal (l.135) | Never match by position. Pipeline-side. |
+| 27 | `native_predictor_count` matched by `vc_name`; a plan component with no result row is fatal (l.143) | Never match by position. Pipeline-side. |
 | 28 | `num_threads` read from the log's `OPTION` echo | The thread count is an input to the estimate. Issue #68. |
+| 36 | `.mq.vc.csv` read by first occurrence of each `vc_name`, and nothing keyed by header name beyond the ten fixed leading columns (l.115-127) | The list omitted this one; the triage found it while verifying issue #74. MPH's `.mq.vc.csv` **repeats its component labels** as column names in the appended covariance blocks, so a header-name lookup is ambiguous by construction. The reader takes `header.index("vc_name")` and `header.index("m")`, which resolve to the first occurrence, and keys rows by name with first occurrence winning. Issue #74. |
 
 ### 8.5 Registry, options, route, config
 
@@ -464,14 +492,17 @@ On seeds, for the record: `tests/nextflow.config` does **not** pin an MPH seed; 
 
 - **The 0.085 → 0.191 figure is confounded** (issue #65). It compares the `C-cov_with_intercept` and
   `C-cov_all` fits, and the `all` fit also carries `Q1`, `Q2`, `Q3` and `SEX`; no run isolates the intercept.
-  `docs/usage.md:382` and `summarise_mph_result.py:26-30` on the branch overstate it, and item 24's
-  justification rests on the mechanism, not on that number.
+  Item 24's justification rests on the mechanism, not on that number. **Since resolved:** commit `b39688d`
+  ran the isolating comparison — the same two covariates named with and without `intercept`, which is the
+  model a caller lands on when MPH prunes theirs — giving 0.0849 against 0.1083, identical over three
+  repeats. `docs/usage.md:357` and `summarise_mph_result.py:24-32` now quote that figure and no longer
+  attribute a size to a change they did not measure.
 - **The enrichment row was mislabelled** (issue #68). `MPH-NATIVE-CONTRACT.md` C11's
   4.19322/4.19319/4.19325 is the enrichment-**covariance** column; the enrichment itself is
   1.70283/1.70282/1.70283 across thread counts. The conclusion that the thread count moves the sixth to
   seventh figure survives the relabelling.
 
-### 8.7 Tests and prose on the branch that pin defect behaviour
+### 8.7 Tests and prose that pin defect behaviour
 
 Expected-failure cases for items 6, 8–13, 15, 18, 23, 24 and 27 in
 `modules/local/{custom/mphsnpinfo,mph/reml,prepare_mph_inputs,summarise_mph_result}/tests/main.nf.test`;
@@ -479,11 +510,12 @@ warning-vocabulary, cross-check and covariate-reconciliation assertions in `test
 a `--num_iterations 1` non-convergence case in `modules/local/mph/reml/tests/main.nf.test` (issue #66).
 
 Prose describing MPH misbehaviour: the `docs/usage.md` reproducibility paragraph (seed-to-seed spread at
-three random-vector settings; issue #67), rank-deficiency paragraph (intercept pruning and the confounded
-0.085 → 0.191 figure; issue #65), missing-value paragraph (`NA` / `-9` / `nan`; issues #60, #61), and the
-iterations and tolerance table cells (issue #76); in `docs/output.md`, "sidecar is written after the fit" and
-the GCTA/MPH bundle non-interchangeability (issue #69); in `CHANGELOG.md`, the `--pca` eigenvalue sentence
-(issue #69), the `.grm.iid`-order sentence (issue #58) and the cross-check sentence; and the `meta.yml` of
+three random-vector settings; issue #67), rank-deficiency paragraph (intercept pruning, now quoting the
+isolated 0.0849 → 0.1083 figure; issue #65), missing-value paragraph (`NA` / `-9` / `nan`; issues #60, #61)
+and the covariate-name diagnostics row at `docs/usage.md:551` (item 18; issue #57); in `docs/output.md`,
+"sidecar is written after the fit" and the GCTA/MPH bundle non-interchangeability (issue #69); in
+`CHANGELOG.md`, the `--pca` eigenvalue sentence (issue #69), the `.grm.iid`-order sentence (issue #58) and
+the cross-check sentence; and the `meta.yml` of
 `mph/makegrm`, `mph/reml`, `prepare_mph_inputs` and `summarise_mph_result`. These are decided with their
 guards, as in Group 5.
 
@@ -505,7 +537,10 @@ Two scopes were not covered by the five audits and would need the same treatment
 the `subworkflows/local/common_variant_meta_analysis/` stack, and the GENIE and MPH routes — the first
 because it is being deleted, the second because it had not landed. The METASOFT and MR-MEGA tools behind
 the first are now covered by issues #78–#104, though the stack itself has still not been audited. Group 8
-lists the MPH items as reported by their implementer; it is not an independent audit of that route.
+lists the MPH items as reported by their implementer, plus one the triage found afterwards; it is not an
+independent audit of that route. The MPH route has since landed on `personal` at `0ffb541`, and its branch
+was adversarially reviewed before merging, but that review checked the components against the module and
+pipeline standards — it was not a guards audit of the shape the five audits were.
 
 ---
 
