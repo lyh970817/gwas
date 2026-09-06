@@ -402,7 +402,9 @@ and whether that is a wrong number or only a worse message. The implementer gave
 are added here. Each MPH behaviour was filed as an issue against MPH 0.55.1 (banner "Version 0.55.1
 (December 9, 2025)", release commit `13ffe63`) on 2026-09-05; the numbers are given per item, and an item
 with no number defends against something that is not an MPH defect. Line references are against the merged
-tree at `0ffb541`, not against `a6dda90`.
+tree at `0ffb541`, not against `a6dda90`. Items 37–39 arrived later, with the bivariate routes (merge
+`fb0891d`, line references against that tree), and carry no recommendations either — they are here so the
+owner rules on them on the same basis as items 1–36.
 
 ### 8.1 Atom script post-conditions
 
@@ -413,6 +415,7 @@ tree at `0ffb541`, not against `a6dda90`.
 | 3 | `mph/reml/main.nf`: `test -s *.mq.vc.csv` | A failed fit exits 0 writing only a header-only trace. Issue #55. |
 | 4 | `mph/reml/main.nf`: `! grep -qE '^(Error\|Inconsistency)'` | Same. Issue #55. |
 | 5 | both atoms: `eval("(mph 2>&1 \|\| true) \| sed ...")` | MPH exits 1 on its banner and has no `--version`. Issue #56. |
+| 37 | `mph/reml/main.nf`: `test -s *.mq.cor.csv`, emitted only when more than one trait is named (l.45, applied at l.69) | The same class as item 3's `.mq.vc.csv` check: MPH exits 0 on a failed fit (issue #55), and for a multi-trait fit this is a declared result file the pair route joins on. Issue #73 context. |
 
 Issue #55 is one mechanism — `main()` catches, prints, and returns 0 — behind all four post-conditions.
 Issue #72 (an unwritable `--output_file`: full fit, nothing written, no message, exit 0) is a different
@@ -472,6 +475,8 @@ to this module, so it is filed here rather than after 8.5.
 | 27 | `native_predictor_count` matched by `vc_name`; a plan component with no result row is fatal (l.143) | Never match by position. Pipeline-side. |
 | 28 | `num_threads` read from the log's `OPTION` echo | The thread count is an input to the estimate. Issue #68. |
 | 36 | `.mq.vc.csv` read by first occurrence of each `vc_name`, and nothing keyed by header name beyond the ten fixed leading columns (l.115-127) | The list omitted this one; the triage found it while verifying issue #74. MPH's `.mq.vc.csv` **repeats its component labels** as column names in the appended covariance blocks, so a header-name lookup is ambiguous by construction. The reader takes `header.index("vc_name")` and `header.index("m")`, which resolve to the first occurrence, and keys rows by name with first occurrence winning. Issue #74. |
+| 38 | `read_correlations`: the native pair labels must name the declared trait pair (l.142-143) | MPH labels `.mq.cor.csv` with the trait pair reversed — `--trait_names A,B` yields `trait_x = B`, `trait_y = A` — reproduced on the shipped fixture. This is the parse validation that makes relabelling that pair safe rather than trusted. Issue #73. |
+| 39 | `finite_or_none` (l.99-113, applied at l.161-162), and the `completed_nonestimable` classification when the aggregate `G` row is itself non-finite (l.322-325) | A non-finite native correlation or SE is recorded as `null` plus a named `non_finite_correlation:<row>` warning. Recording, not compensation: nothing is clamped or recomputed. Known wart for the owner — a single non-finite component currently emits two warning tokens, `:G1` and `:G1.se`. Mechanism, measured on the shipped fixture: the `-nan` arises from a negative marginal genetic variance for the second trait (−0.0475305), so the correlation takes the root of a negative number. Issue #73. |
 
 ### 8.5 Registry, options, route, config
 
