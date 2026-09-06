@@ -653,6 +653,17 @@ class RELATIONAL {
         return resource(outputDir, name, lines.join('\n') + '\n')
     }
 
+    // A byte-for-byte copy of a fixture file under a new name. `resource` writes text, which corrupts a
+    // binary member such as a `.pgen`, so a test that needs a renamed-but-identical bundle uses this.
+    static String copyResource(Object outputDir, String name, Object source) {
+        def directory = new File(new File(outputDir.toString()).parentFile, 'resources')
+        directory.mkdirs()
+        def target = new File(directory, name)
+        target.parentFile.mkdirs()
+        target.bytes = new File(source.toString()).bytes
+        return target.absolutePath
+    }
+
     static String resource(Object outputDir, String name, String content) {
         def directory = new File(new File(outputDir.toString()).parentFile, 'resources')
         directory.mkdirs()

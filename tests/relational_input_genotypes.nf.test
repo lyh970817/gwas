@@ -7,11 +7,26 @@ nextflow_pipeline {
     tag "relational"
     tag "genotypes"
 
+    // Representation is preserved: only a VCF cohort is converted at all, and only into PGEN. `regenie_flag`
+    // is the native flag REGENIE must derive from the primary member it was handed, which is what proves the
+    // cohort reached it in its own representation rather than through a conversion.
     def encodings = [
-        plink2: [cohort: 'example_pgen', conversion: null],
-        plink1: [cohort: 'example_bfile', conversion: 'PLINK2_MAKEPGEN'],
-        vcf: [cohort: 'example_vcf', conversion: 'PLINK2_VCF'],
+        plink2: [cohort: 'example_pgen', imports: 0, probes: 1, regenie_flag: '--pgen', native_format: 'plink2'],
+        plink1: [cohort: 'example_bfile', imports: 0, probes: 0, regenie_flag: '--bed', native_format: 'plink1'],
+        vcf: [cohort: 'example_vcf', imports: 1, probes: 1, regenie_flag: '--pgen', native_format: 'plink2'],
     ]
+
+    // Every `.command.sh` a run wrote, so a native flag can be asserted against the command the task actually
+    // ran rather than against the tuple the test handed in.
+    def commands = { output_dir ->
+        def rendered = []
+        new File(new File(output_dir.toString()).parentFile, 'work').eachFileRecurse { entry ->
+            if (entry.isFile() && entry.name == '.command.sh') {
+                rendered << entry.text
+            }
+        }
+        return rendered
+    }
 
     encodings.each { encoding, fixture ->
         test("a ${encoding} cohort completes a REGENIE association through linked manifests") {
@@ -38,13 +53,27 @@ nextflow_pipeline {
                     includeDir: true,
                 ).findAll { path -> path.toString() }
                 def stable_path_association = RELATIONAL.gzipTextHashes("${params.outdir}/association")
+                def record = new File("${params.outdir}/genotypes/${fixture.cohort}/${fixture.cohort}.genotype_view.json")
+                def view = new groovy.json.JsonSlurper().parse(record)
                 assertAll(
                     { assert workflow.success },
                     { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS') == [analysisId] },
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
-                    { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == (fixture.conversion == 'PLINK2_MAKEPGEN' ? 1 : 0) },
-                    { assert TRACE.count(workflow, 'PLINK2_VCF') == (fixture.conversion == 'PLINK2_VCF' ? 1 : 0) },
+                    // No cohort is converted to reach REGENIE, and no cohort is projected: REGENIE reads
+                    // whatever representation it was given.
+                    { assert TRACE.count(workflow, 'PLINK2_VCF') == fixture.imports },
+                    { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                    { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
+                    { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == fixture.probes },
+                    // REGENIE derives its own native flag from the primary member it was staged, so this is
+                    // the assertion that the representation survived the whole route.
+                    { assert commands(outputDir).any { command -> command.contains('regenie') && command.contains("${fixture.regenie_flag} ") } },
+                    { assert view.source.format == encoding },
+                    { assert view.source.identity.mode == 'sha256' },
+                    { assert view.native_view.format == fixture.native_format },
+                    { assert view.plink1 == null },
                     { assert snapshot(stable_name_association, stable_path_association).match("${encoding}-association") },
+                    { assert snapshot(view).match("${encoding}-genotype-view") },
                     { assert snapshot(removeNextflowVersion(versions.toString())).match("${encoding}-versions") },
                 )
             }
@@ -78,13 +107,220 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                 { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == expected },
                 // The four rows share phenotype bytes, covariates and `is_binary`, so the REGENIE Step 1
                 // reuse key collapses them onto one fit that all four Step 2 runs consume.
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == expected.size() },
                 { assert new File("${params.outdir}/association/regenie").list().toList().sort() == expected },
+            )
+        }
+    }
+
+
+    test("a PLINK 2 cohort serves REGENIE natively and LDAK-KVIK from one shared projection") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "coexistence", { rows ->
+                    rows[0] = RELATIONAL.cohort('example_pgen')
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "coexistence", { rows ->
+                    rows[0].analysis_id = 'example_pgen_coexistence_qt'
+                    rows[0].association_methods = 'regenie,ldak_kvik'
+                })
+            }
+        }
+
+        then {
+            def record = new File("${params.outdir}/genotypes/example_pgen/example_pgen.genotype_view.json")
+            def view = new groovy.json.JsonSlurper().parse(record)
+            def rendered = commands(outputDir)
+            assertAll(
+                { assert workflow.success },
+                // The native PGEN and its PLINK 1 derivative feed two routes in the same run, and the
+                // derivative is built once for the whole cohort.
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert rendered.any { command -> command.contains('regenie') && command.contains('--pgen ') } },
+                { assert rendered.any { command -> command.contains('--bfile') && command.contains('example_pgen') } },
+                { assert view.plink1.origin == 'hard_call_projection' },
+                { assert view.plink1.parent_key == view.native_view.key },
+                { assert view.plink1.information_loss == ['dosage', 'phase', 'multiallelic_state'] },
+            )
+        }
+    }
+
+    test("a declared genotype view identity replaces the content digest") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "declared_identity", { rows ->
+                    rows[0] = RELATIONAL.cohort('example_bfile')
+                    rows[0].genotype_view_id = 'biofuse:52d1d326413775cd'
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "declared_identity", { rows ->
+                    rows[0].analysis_id = 'example_bfile_declared_qt'
+                    rows[0].cohort_id = 'example_bfile'
+                })
+            }
+        }
+
+        then {
+            def record = new File("${params.outdir}/genotypes/example_bfile/example_bfile.genotype_view.json")
+            def view = new groovy.json.JsonSlurper().parse(record)
+            assertAll(
+                { assert workflow.success },
+                // A declared identity is the contract a mounted view relies on: the pipeline never opens the
+                // files, so nothing about the route depends on them being ordinary local copies.
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
+                { assert view.source.identity == [mode: 'declared', value: 'biofuse:52d1d326413775cd'] },
+                { assert view.source.members == null },
+            )
+        }
+    }
+
+    test("two cohort identifiers over identical genotypes share one relatedness matrix") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "shared_identity", { rows ->
+                    rows[0] = RELATIONAL.cohort('example_bfile')
+                    def twin = RELATIONAL.cohort('example_bfile')
+                    twin.cohort_id = 'example_bfile_twin'
+                    rows << twin
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "shared_identity", { rows ->
+                    def template = rows[0]
+                    rows.clear()
+                    ['example_bfile', 'example_bfile_twin'].each { cohort ->
+                        def analysis = new LinkedHashMap(template)
+                        analysis.analysis_id = "${cohort}_shared_qt"
+                        analysis.cohort_id = cohort
+                        analysis.association_methods = ''
+                        analysis.heritability_methods = 'ldak_reml'
+                        rows << analysis
+                    }
+                })
+            }
+        }
+
+        then {
+            def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
+            def leftRecord = new groovy.json.JsonSlurper().parse(new File("${params.outdir}/genotypes/example_bfile/example_bfile.genotype_view.json"))
+            def rightRecord = new groovy.json.JsonSlurper().parse(new File("${params.outdir}/genotypes/example_bfile_twin/example_bfile_twin.genotype_view.json"))
+            assertAll(
+                { assert workflow.success },
+                // Byte-identical genotypes are one view whatever the manifest calls the cohort, so the LDAK
+                // kinship matrix is built once and both analyses receive it.
+                { assert leftRecord.native_view.key == rightRecord.native_view.key },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 2 },
+                { assert getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true)
+                    .collect { path -> path.toString() }
+                    .any { path -> path.contains('example_bfile_twin_shared_qt') } },
+                { assert getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true)
+                    .collect { path -> path.toString() }
+                    .any { path -> path.contains('example_bfile_shared_qt') } },
+            )
+        }
+    }
+
+
+    test("the genotype cache boundary is the view identity, not the file names") {
+        tag "resume"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "identity_cache", { rows ->
+                    rows[0] = RELATIONAL.cohort('example_pgen')
+                    rows[0].cohort_id = 'identity_cache'
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "identity_cache", { rows ->
+                    rows[0].analysis_id = 'identity_cache_qt'
+                    rows[0].cohort_id = 'identity_cache'
+                    rows[0].association_methods = 'regenie'
+                    rows[0].heritability_methods = 'ldak_reml'
+                })
+            }
+        }
+
+        then {
+            def viewKey = { -> new groovy.json.JsonSlurper()
+                .parse(new File("${params.outdir}/genotypes/identity_cache/identity_cache.genotype_view.json"))
+                .native_view.key }
+            def firstKey = viewKey()
+
+            // (1) Nothing changed. Every preparation task and both fitted artifacts are reused.
+            def unchanged = RESUME.rerun(outputDir, [:])
+
+            // (2) A copy of the bundle under different member names, byte for byte the same. Nextflow stages
+            // differently named files, so the tasks that stage them re-execute — but the view identity folds
+            // only the member roles and digests, so every published artifact key is unmoved and the run
+            // produces the same directories under the same names.
+            def source = "${FIXTURES.base(projectDir)}results/fixtures/genotypes"
+            def renamed = ['pgen', 'psam', 'pvar'].collectEntries { role ->
+                [(role): RELATIONAL.copyResource(outputDir, "renamed_bundle.${role}", "${source}/example_all.${role}")]
+            }
+            def renamedManifest = RELATIONAL.cohorts(projectDir, outputDir, "identity_cache_renamed", { rows ->
+                rows[0] = RELATIONAL.cohort('example_pgen')
+                rows[0].cohort_id = 'identity_cache'
+                rows[0].pgen = renamed.pgen
+                rows[0].psam = renamed.psam
+                rows[0].pvar = renamed.pvar
+            })
+            def renamedTrace = RESUME.rerun(outputDir, [cohort_manifest: renamedManifest])
+            def renamedKey = viewKey()
+
+            // (3) One edited byte in the variant file. The identity moves, so every conversion, projection and
+            // fitted artifact downstream of it re-executes.
+            def edited = ['pgen', 'psam'].collectEntries { role ->
+                [(role): RELATIONAL.copyResource(outputDir, "edited_bundle.${role}", "${source}/example_all.${role}")]
+            }
+            def editedPvarLines = new File("${source}/example_all.pvar").readLines()
+            def editedVariant = editedPvarLines.last().split('\t', -1)
+            editedVariant[2] = "${editedVariant[2]}_edited"
+            edited.pvar = RELATIONAL.resource(
+                outputDir,
+                'edited_bundle.pvar',
+                (editedPvarLines[0..-2] + [editedVariant.join('\t')]).join('\n') + '\n',
+            )
+            def editedManifest = RELATIONAL.cohorts(projectDir, outputDir, "identity_cache_edited", { rows ->
+                rows[0] = RELATIONAL.cohort('example_pgen')
+                rows[0].cohort_id = 'identity_cache'
+                rows[0].pgen = edited.pgen
+                rows[0].psam = edited.psam
+                rows[0].pvar = edited.pvar
+            })
+            def editedTrace = RESUME.rerun(outputDir, [cohort_manifest: editedManifest])
+            def editedKey = viewKey()
+
+            assertAll(
+                { assert workflow.success },
+                // (1) unchanged
+                { assert RESUME.statuses(unchanged, 'PREPARE_GENOTYPE_SOURCE') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'PREPARE_PGEN_STATE') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'PLINK2_MAKEBED') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'REGENIE_STEP1') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'LDAK_CALCKINS') == ['CACHED'] },
+                { assert RESUME.tasks(unchanged, 'REGENIE_STEP2').size() == 1 },
+                // (2) renamed but byte-identical: the identity, and therefore every key, is unmoved
+                { assert renamedKey == firstKey },
+                { assert RESUME.tasks(renamedTrace, 'REGENIE_STEP2').size() == 1 },
+                { assert RESUME.tasks(renamedTrace, 'PLINK2_MAKEBED').size() == 1 },
+                // (3) one edited byte: the identity moves and the work is redone
+                { assert editedKey != firstKey },
+                { assert RESUME.statuses(editedTrace, 'PREPARE_GENOTYPE_SOURCE') == ['COMPLETED'] },
+                { assert RESUME.statuses(editedTrace, 'PLINK2_MAKEBED') == ['COMPLETED'] },
+                { assert RESUME.statuses(editedTrace, 'REGENIE_STEP1') == ['COMPLETED'] },
+                { assert RESUME.statuses(editedTrace, 'LDAK_CALCKINS') == ['COMPLETED'] },
+                { assert RESUME.tasks(editedTrace, 'REGENIE_STEP2').size() == 1 },
             )
         }
     }
@@ -112,6 +348,28 @@ nextflow_pipeline {
             fields: ['psam'],
             message: "genotype group 'plink2' is only partly populated",
         ],
+        [
+            name: 'a genotype group whose members do not share one basename stem',
+            mutate: { rows -> rows[0].pvar = rows[0].pvar.toString().replace('example_all.pvar', 'example_chr1.pvar') },
+            fields: ['pgen', 'psam', 'pvar'],
+            message: 'do not share one basename stem',
+        ],
+        [
+            name: 'a Zstandard-compressed variant file',
+            mutate: { rows -> rows[0].pvar = rows[0].pvar.toString() + '.zst' },
+            fields: ['pvar'],
+            message: "must have extension '.pvar'",
+            // nf-schema rejects this at parameter validation, before the per-row resolver runs, so the
+            // message carries the field and the reason but not the resolver's row-and-cohort prefix.
+            schema_level: true,
+        ],
+        [
+            name: 'a genotype view identity that is not a hexadecimal digest',
+            mutate: { rows -> rows[0].genotype_view_id = '/mnt/views/example' },
+            fields: ['genotype_view_id'],
+            message: '16 to 64 lowercase hexadecimal characters',
+            schema_level: true,
+        ],
     ]
 
     invalidRepresentations.eachWithIndex { invalid, index ->
@@ -130,12 +388,13 @@ nextflow_pipeline {
                 assertAll(
                     { assert !workflow.success },
                     { assert report.contains(params.cohort_manifest.toString()) },
-                    { assert report.contains("row 2 (cohort_id 'example_pgen')") },
+                    { assert invalid.schema_level || report.contains("row 2 (cohort_id 'example_pgen')") },
                     { invalid.fields.each { field -> assert report.contains("'${field}'") } },
                     { assert report.contains(invalid.message) },
                     { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-                    { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 0 },
+                    { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == 0 },
+                    { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                 )
             }
         }
