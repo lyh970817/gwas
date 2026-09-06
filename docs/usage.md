@@ -38,13 +38,16 @@ The cohort manifest owns reusable genotype facts. The analysis manifest owns one
 | `ancestry`     | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`. |
 | `pgen`         | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                  |
 | `psam`         | By group | PLINK 2 sample file.                                                                                                    |
-| `pvar`         | By group | PLINK 2 variant file ending in `.pvar` or `.pvar.zst`.                                                                  |
+| `pvar`         | By group | PLINK 2 variant file ending in `.pvar`. A Zstandard-compressed `.pvar.zst` is not accepted: it requires PLINK 2's `vzs` modifier, which the PLINK 2, GCTA and REGENIE consumers here do not pass. |
 | `bed`          | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                     |
 | `bim`          | By group | PLINK 1 variant file.                                                                                                   |
 | `fam`          | By group | PLINK 1 sample file.                                                                                                    |
 | `vcf`          | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                            |
+| `genotype_view_id` | No   | Immutable identity of the supplied genotype view: 16–64 lowercase hexadecimal characters, optionally prefixed by a backend namespace such as `biofuse:`. When absent, the pipeline digests the supplied bytes once per cohort in a task. |
 
-Populate exactly one complete genotype representation on each row. PLINK 1 and VCF cohorts are converted once to canonical PLINK 2; PLINK 2 cohorts pass through.
+Populate exactly one complete genotype representation on each row, and give the members of a multi-file group one shared basename stem — every PLINK, GCTA and REGENIE consumer addresses a fileset by a single prefix.
+
+The supplied representation is preserved. A PLINK 1 or PLINK 2 cohort is used exactly as given and nothing is converted for it; a VCF cohort is imported once to PLINK 2 PGEN. A PLINK 1 BED/BIM/FAM view is derived from a PGEN cohort once, and only when a selected method reads PLINK 1 — the LDAK estimators, LDAK-KVIK, the LD- and MAF-stratified GCTA routes and the MPH routes. That projection takes hard calls at an explicit `--hard-call-threshold 0.1`, refuses a multiallelic source naming the cohort, and drops dosage and phase; every cohort's `genotypes/<cohort_id>/<cohort_id>.genotype_view.json` records which of these applied to it.
 
 ### Analysis manifest fields
 
@@ -165,7 +168,7 @@ Every selector carries only capabilities that validation, routing, reporting or 
 
 | Method group                  | Estimator family           | Input backend            | Component model   | Stochastic | Trait support                         | Prevalence contract                   |
 | ----------------------------- | -------------------------- | ------------------------ | ----------------- | ---------- | ------------------------------------- | ------------------------------------- |
-| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes   | None              | No         | Quantitative and binary               | Not consumed                          |
+| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes (BED or PGEN) | None    | No         | Quantitative and binary               | Not consumed                          |
 | `gcta_fastgwa`                | Mixed linear model         | Sparse GRM               | Single            | No         | Quantitative and binary               | Not consumed                          |
 | `ldak_kvik`                   | Mixed linear model         | Direct PLINK 1 genotypes | Single            | Yes        | Quantitative and binary               | Not consumed                          |
 | `gcta_greml`                  | REML                       | Dense GRM                | Single            | No         | Quantitative and binary               | Population value consumed             |
@@ -448,7 +451,7 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 
 The three opt-in save controls are:
 
-- `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
+- `--save_prepared_genotypes`: publish the PLINK 2 PGEN bundle the pipeline imported from a VCF cohort, under `genotypes/<cohort_id>/`. `genotypes/<cohort_id>/<cohort_id>.genotype_view.json` is written for every cohort regardless of this control.
 - `--save_normalised_phenotypes`: publish headered prepared phenotype and covariate files under `phenotypes/<analysis_id>/`. The parameter name is retained for compatibility.
 - `--save_relatedness_matrices`: publish each reusable GCTA, LDAK or MPH base or derived matrix artifact once under `quality_control/relatedness_matrices/<key>/`, and each LD-by-MAF component plan once under `quality_control/ldms_component_plans/<plan_key>/`.
 
