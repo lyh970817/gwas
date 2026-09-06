@@ -27,7 +27,9 @@ input:
   - - meta:
         type: map
         description: |
-          Groovy Map containing the analysis unit's information, including the selected MPH token.
+          Groovy Map containing the analysis unit's information, including the selected MPH token and the
+          result identity `mph_result`, which only the stub reads: a real run copies that identity out of the
+          serialised record instead.
     - serialization:
         type: file
         description: The unpublished record `prepare_mph_inputs` wrote, whose blocks are copied through unchanged.
@@ -64,6 +66,16 @@ input:
           non-missing analysis-set size and the thread count it actually ran with (issues #66, #65, #68).
         pattern: "*.log"
         ontologies: []
+    - correlations:
+        type: file
+        description: |
+          Optional multi-trait correlation result: one row per component, a residual row and MPH's synthetic
+          genome-wide `G` row, each with a standard error. Use `[]` for a one-trait fit, which produces no such
+          file. MPH labels the trait pair in reverse (issue #73), so the rows are matched by trait name and the
+          order MPH used is recorded rather than trusted.
+        pattern: "*.mq.cor.csv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3752"
 output:
   provenance:
     - - meta:
@@ -81,6 +93,10 @@ output:
             analysis set, which is complete cases only -- so it is comparable with the same key in every other
             route's sidecar. `dropped` is the rest of the genotype FAM. The number of rows the adapter handed
             MPH, and every intermediate total behind these two, are under `inputs.samples.detail`.
+
+            A multi-trait fit additionally carries `correlations`: MPH's own per-component, residual and
+            genome-wide `G` correlations with their standard errors, relabelled onto the declared left/right
+            orientation, with the label order MPH used recorded beside them. Nothing there is recomputed.
           pattern: "*.provenance.json"
           ontologies:
             - edam: "http://edamontology.org/format_3464"

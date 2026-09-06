@@ -45,8 +45,10 @@ GRM_IID = $grm_iid_literal
 FAM = $fam_literal
 PREFIX = $prefix_literal
 ANALYSIS_ID = $analysis_id_literal
-METHOD = $method_literal
 PROCESS_NAME = $task_process_literal
+# The route's own result identity: `kind: heritability` for one analysis unit, `kind: pairwise` for an oriented
+# relationship. The serializer never infers which it is from the number of traits it was given.
+RESULT = json.loads($result_literal)
 TRAIT_NAMES = json.loads($trait_names_literal)
 EFFECTIVE = json.loads($effective_literal)
 MATRIX = json.loads($matrix_literal)
@@ -67,7 +69,8 @@ WARNINGS = []
 
 
 def fail(message):
-    sys.exit("[nf-core/gwas] ERROR: analysis '{}': {}".format(ANALYSIS_ID, message))
+    role = "pair request" if RESULT.get("kind") == "pairwise" else "analysis"
+    sys.exit("[nf-core/gwas] ERROR: {} '{}': {}".format(role, ANALYSIS_ID, message))
 
 
 def is_missing(value):
@@ -326,6 +329,7 @@ def main():
 
     per_trait_nonmissing = [0] * len(TRAIT_NAMES)
     all_traits_nonmissing = 0
+    any_trait_nonmissing = 0
     covariate_complete = 0
     analysis_set_expected = 0
     phenotype_lines = ["IID," + ",".join(TRAIT_NAMES)]
@@ -339,6 +343,8 @@ def main():
         traits_complete = all(value != "" for value in values)
         if traits_complete:
             all_traits_nonmissing += 1
+        if any(value != "" for value in values):
+            any_trait_nonmissing += 1
         phenotype_lines.append(",".join([iid] + values))
 
         if covariates is not None:
@@ -397,18 +403,24 @@ def main():
         for component, prefix in zip(MATRIX["components"], GRM_PREFIXES)
     ]
 
+    # The shared core keys of the sidecar's sample block. They are null for a one-trait fit and populated for an
+    # oriented pair, where the pair's own overlap is the fact a reader of two pair results needs: MPH fits the
+    # complete-case intersection of the two endpoints and every named covariate, so `retained` can be far below
+    # `union` without anything else in the published output saying so.
+    pair_counts = {"left_nonmissing": None, "right_nonmissing": None, "both": None, "union": None}
+    if RESULT.get("kind") == "pairwise":
+        pair_counts = {
+            "left_nonmissing": per_trait_nonmissing[0],
+            "right_nonmissing": per_trait_nonmissing[1],
+            "both": all_traits_nonmissing,
+            "union": any_trait_nonmissing,
+        }
+
     record = {
         "schema_version": "1.1",
-        "result": {
-            "kind": "heritability",
-            "analysis_id": ANALYSIS_ID,
-            "request_id": None,
-            "relationship_id": None,
-            "method": METHOD,
-            "left_analysis_id": None,
-            "right_analysis_id": None,
-            "primary_files": ["{}.mq.vc.csv".format(PREFIX)],
-        },
+        "result": dict(RESULT, primary_files=["{}.mq.vc.csv".format(PREFIX)] + (
+            ["{}.mq.cor.csv".format(PREFIX)] if len(TRAIT_NAMES) > 1 else []
+        )),
         "estimator": CAPABILITY,
         "stochastic_settings": {
             "seed": EFFECTIVE["seed"],
@@ -447,10 +459,10 @@ def main():
                 # every intermediate total live under `detail`.
                 "retained": analysis_set_expected,
                 "dropped": len(fam_identities) - analysis_set_expected,
-                "left_nonmissing": None,
-                "right_nonmissing": None,
-                "both": None,
-                "union": None,
+                "left_nonmissing": pair_counts["left_nonmissing"],
+                "right_nonmissing": pair_counts["right_nonmissing"],
+                "both": pair_counts["both"],
+                "union": pair_counts["union"],
                 "detail": {
                     "fam": len(fam_identities),
                     "grm": len(grm_order),
@@ -462,6 +474,10 @@ def main():
                     "covariate_complete": covariate_complete if covariates is not None else None,
                     "analysis_set_expected": analysis_set_expected,
                     "analysis_set_observed": None,
+                    # Named rather than implied: MPH restricts the fit to individuals with every named trait
+                    # and every named covariate observed, which is not what GCTA's bivariate REML does with
+                    # the same two endpoints.
+                    "sample_policy": "complete_case_intersection",
                     "order_sha256": sha256_text("".join(iid + "\\n" for iid in written)),
                 },
             },

@@ -40,6 +40,9 @@ process MPH_REML {
     def covariate_arguments = covariate_csv
         ? "--covariate_file \"${covariate_csv}\" --covariate_names \"${covariate_names.join(',')}\""
         : ''
+    // MPH writes the correlation result if and only if more than one trait is named, so for a multi-trait fit
+    // it is a declared result file of the same standing as `mq.vc.csv` and is asserted the same way.
+    def correlations_check = trait_names.size() > 1 ? "test -s \"${prefix}.mq.cor.csv\"" : ''
     """
     printf '%s\\n' ${grm_entries} > "${grm_list}"
 
@@ -63,6 +66,7 @@ process MPH_REML {
     # covariate matrix (issue #65) are legitimate native states with a complete result written, and
     # classifying them is the caller's job.
     test -s "${prefix}.mq.vc.csv"
+    ${correlations_check}
     ! grep -qE '^(Error|Inconsistency)' "${prefix}.log"
     """
 

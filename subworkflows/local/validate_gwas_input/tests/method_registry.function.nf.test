@@ -141,6 +141,8 @@ nextflow_function {
                     'ldak_fast_pcgc',
                     'mph_reml',
                     'mph_reml_ldms',
+                    'mph_bivariate_reml',
+                    'mph_bivariate_reml_ldms',
                 ] },
                 { assert function.result.gcta_fastgwa.matrix_kind == 'gcta_sparse' },
                 { assert function.result.gcta_greml.matrix_kind == 'gcta_dense' },
@@ -214,6 +216,32 @@ nextflow_function {
                 { assert function.result.mph_reml_ldms.component_model == function.result.gcta_greml_ldms.component_model },
                 { assert function.result.mph_reml_ldms.matrix_kind != function.result.gcta_greml_ldms.matrix_kind },
                 { assert function.result.mph_reml_ldms.citation_keys == ['mph', 'gcta_greml_ldms'] },
+                // The MPH pair entries declare the same matrix kinds and backends as their unary siblings,
+                // which is what lets one relationship request and one analysis row share a built matrix family
+                // rather than each causing its own. They are quantitative-only because MPH has no prevalence
+                // or liability-scale contract at all, and they carry no `supports_covariates` because MPH does
+                // fit the pair covariates and reports a BLUE per trait for each of them.
+                { assert function.result.mph_bivariate_reml.domain == 'pairwise' },
+                { assert function.result.mph_bivariate_reml.endpoint_domain == 'analysis' },
+                { assert function.result.mph_bivariate_reml.option_family == 'mph' },
+                { assert function.result.mph_bivariate_reml.matrix_kind == function.result.mph_reml.matrix_kind },
+                { assert function.result.mph_bivariate_reml.input_backend == function.result.mph_reml.input_backend },
+                { assert function.result.mph_bivariate_reml.component_model == 'single' },
+                { assert function.result.mph_bivariate_reml.estimator_family == 'reml' },
+                { assert function.result.mph_bivariate_reml.trait_support == [quantitative: true, binary: false] },
+                { assert function.result.mph_bivariate_reml.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
+                { assert function.result.mph_bivariate_reml.stochastic },
+                { assert !function.result.mph_bivariate_reml.containsKey('supports_covariates') },
+                { assert !function.result.mph_bivariate_reml.requires_complete_covariates },
+                { assert function.result.mph_bivariate_reml.citation_keys == ['mph'] },
+                { assert function.result.mph_bivariate_reml_ldms.domain == 'pairwise' },
+                { assert function.result.mph_bivariate_reml_ldms.matrix_kind == function.result.mph_reml_ldms.matrix_kind },
+                { assert function.result.mph_bivariate_reml_ldms.input_backend == function.result.mph_reml_ldms.input_backend },
+                { assert function.result.mph_bivariate_reml_ldms.component_model == 'ld_maf_stratified' },
+                { assert function.result.mph_bivariate_reml_ldms.component_model == function.result.gcta_bivariate_reml_ldms.component_model },
+                { assert function.result.mph_bivariate_reml_ldms.matrix_kind != function.result.gcta_bivariate_reml_ldms.matrix_kind },
+                { assert !function.result.mph_bivariate_reml_ldms.containsKey('supports_covariates') },
+                { assert function.result.mph_bivariate_reml_ldms.citation_keys == ['mph', 'gcta_greml_ldms'] },
                 // LDAK-KVIK reads BED/BIM/FAM natively, so it declares the PLINK 1 direct backend while
                 // REGENIE keeps the format-polymorphic one.
                 { assert function.result.ldak_kvik.input_backend == 'direct_plink1_genotypes' },
@@ -449,6 +477,8 @@ nextflow_function {
                     'ldak_kvik',
                     'ldak_pcgc',
                     'ldak_reml',
+                    'mph_bivariate_reml',
+                    'mph_bivariate_reml_ldms',
                     'mph_reml',
                     'mph_reml_ldms',
                 ] },
@@ -535,6 +565,8 @@ nextflow_function {
         [name: 'the PLINK 1 bundle for LDAK fast Haseman-Elston', method: 'ldak_fast_he', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for MPH REML', method: 'mph_reml', expected: 'plink1'],
         [name: 'the PLINK 1 bundle for MPH REML-LDMS', method: 'mph_reml_ldms', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for MPH bivariate REML', method: 'mph_bivariate_reml', expected: 'plink1'],
+        [name: 'the PLINK 1 bundle for MPH bivariate REML-LDMS', method: 'mph_bivariate_reml_ldms', expected: 'plink1'],
     ]
 
     genotypeBundles.each { scenario ->
@@ -621,15 +653,20 @@ nextflow_function {
         [name: 'the LDAK kinship heritability estimators', required: [domain: 'heritability', input_backend: 'ldak_kinship'], expected: ['ldak_reml', 'ldak_he', 'ldak_pcgc']],
         [name: 'the direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the stochastic direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
-        [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms', 'mph_reml_ldms']],
+        [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms', 'mph_reml_ldms', 'mph_bivariate_reml_ldms']],
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],
         [name: 'the LDAK summary pair estimator', required: [domain: 'pairwise', reference_family: 'ldak'], expected: ['ldak_sumcors']],
         [name: 'every direct-genotype heritability estimator, whatever its option family', required: [domain: 'heritability', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the REGENIE association estimator', required: [domain: 'association', option_family: 'regenie'], expected: ['regenie']],
         [name: 'the MPH heritability estimators', required: [domain: 'heritability', option_family: 'mph'], expected: ['mph_reml', 'mph_reml_ldms']],
-        [name: 'the MPH LDMS heritability estimator', required: [option_family: 'mph', matrix_kind: 'mph_ldms'], expected: ['mph_reml_ldms']],
+        [name: 'both MPH estimators over the stratified matrix family', required: [option_family: 'mph', matrix_kind: 'mph_ldms'], expected: ['mph_reml_ldms', 'mph_bivariate_reml_ldms']],
         [name: 'the MPH dense heritability estimator', required: [domain: 'heritability', input_backend: 'mph_grm'], expected: ['mph_reml']],
+        // The pair controller selects its own requests by this query rather than by a token literal, so the
+        // answer is pinned here.
+        [name: 'the MPH individual-level pair estimators', required: [domain: 'pairwise', endpoint_domain: 'analysis', option_family: 'mph'], expected: ['mph_bivariate_reml', 'mph_bivariate_reml_ldms']],
+        [name: 'the MPH dense pair estimator', required: [domain: 'pairwise', input_backend: 'mph_grm'], expected: ['mph_bivariate_reml']],
+        [name: 'every individual-level pair estimator, whatever its option family', required: [domain: 'pairwise', endpoint_domain: 'analysis'], expected: ['gcta_bivariate_reml', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he', 'gcta_bivariate_he_ldms', 'mph_bivariate_reml', 'mph_bivariate_reml_ldms']],
     ]
 
     capabilitySelections.each { scenario ->

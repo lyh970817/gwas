@@ -10,7 +10,9 @@ process SUMMARISE_MPH_RESULT {
     input:
     // Everything is staged under `input/` so the published sidecar can never be written through a staged
     // symlink onto one of the native results it is summarising.
-    tuple val(meta), path(serialization, stageAs: 'input/*'), path(variance_components, stageAs: 'input/*'), path(fixed_effects, stageAs: 'input/*'), path(iterations, stageAs: 'input/*'), path(native_log, stageAs: 'input/*')
+    // `correlations` is the multi-trait correlation result and is `[]` for a one-trait fit, because MPH writes
+    // that file if and only if more than one trait is named.
+    tuple val(meta), path(serialization, stageAs: 'input/*'), path(variance_components, stageAs: 'input/*'), path(fixed_effects, stageAs: 'input/*'), path(iterations, stageAs: 'input/*'), path(native_log, stageAs: 'input/*'), path(correlations, stageAs: 'input/*')
 
     output:
     tuple val(meta), path("${prefix}.provenance.json"), emit: provenance
@@ -28,6 +30,7 @@ process SUMMARISE_MPH_RESULT {
     // Deliberately not named `log`: that identifier is Nextflow's own logger inside a script block, and a
     // process input named `log` resolves to the logger rather than to the staged file.
     log_literal = groovy.json.JsonOutput.toJson(native_log.toString())
+    correlations_literal = groovy.json.JsonOutput.toJson(correlations ? correlations.toString() : '')
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
@@ -36,7 +39,7 @@ process SUMMARISE_MPH_RESULT {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    printf '%s\\n' '{"schema_version": "1.1", "result": {"kind": "heritability", "analysis_id": "${meta.id}", "method": "${meta.mph_estimator}"}, "residual_covariance": null, "derivation": null, "classification": "estimable", "warnings": []}' > "${prefix}.provenance.json"
+    printf '%s\\n' '{"schema_version": "1.1", "result": ${groovy.json.JsonOutput.toJson(meta.mph_result)}, "residual_covariance": ${correlations ? '"estimated"' : 'null'}, "derivation": null, "classification": "estimable", "warnings": []}' > "${prefix}.provenance.json"
     printf '"%s":\\n    python: %s\\n' \\
         '${task.process}' \\
         "\$(python3 --version | sed 's/^Python //')" \\

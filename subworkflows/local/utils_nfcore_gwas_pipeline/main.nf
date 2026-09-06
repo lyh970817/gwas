@@ -322,6 +322,8 @@ def toolCitationText(selected_methods) {
         gcta_bivariate_reml_ldms: 'GCTA bivariate REML-LDMS (Lee <em>et al.</em>, 2012; Yang <em>et al.</em>, 2015)',
         gcta_bivariate_he: 'GCTA bivariate Haseman-Elston regression (Chen, 2014)',
         gcta_bivariate_he_ldms: 'GCTA bivariate Haseman-Elston regression over LD- and MAF-stratified components (Chen, 2014; Yang <em>et al.</em>, 2015)',
+        mph_bivariate_reml: 'MPH bivariate REML (Jiang, 2024)',
+        mph_bivariate_reml_ldms: 'MPH bivariate REML over LD- and MAF-stratified components (Jiang, 2024; Yang <em>et al.</em>, 2015)',
         ldak_sumcors: 'LDAK SumCors (Speed and Balding, 2019)',
         ldsc_rg: 'LDSC genetic correlation (Bulik-Sullivan <em>et al.</em>, 2015)',
     ]

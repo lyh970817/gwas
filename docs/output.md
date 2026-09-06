@@ -25,14 +25,14 @@ Use the following provenance chain for any result:
 3. Map the method to its producing tool using the table below.
 4. Read tool versions from `pipeline_info/nf_core_gwas_software_mqc_versions.yml`. The pipeline version and complete run parameters are recorded by the `pipeline_info/` reports and `params_<timestamp>.json`.
 
-Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table or a diagnostics table. It publishes each native result unchanged and adds a per-result invocation record beside it only for a route whose runtime does not record its own invocation, as `mph_reml` and `mph_reml_ldms` do not: MPH reports its quality failures as warnings at exit 0 and never restates the settings it fitted under.
+Pairwise outputs instead use the deterministic request ID `<method>--<relationship_id>`. Find `relationship_id` in `--relationship_manifest`, follow its ordered left and right endpoint IDs, and inspect the native result and log under `requests/<method>/<request_id>/`. The pipeline does not add a normalized estimand table or a diagnostics table. It publishes each native result unchanged and adds a per-result invocation record beside it only for a route whose runtime does not record its own invocation, as the four MPH routes do not: MPH reports its quality failures as warnings at exit 0 and never restates the settings it fitted under.
 
 | Method token                                                                                                                                      | Producing tool |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `regenie`                                                                                                                                         | REGENIE        |
 | `gcta_fastgwa`, `gcta_greml`, `gcta_greml_ldms`, `gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms` | GCTA           |
 | `ldak_kvik`, `ldak_reml`, `ldak_he`, `ldak_pcgc`, `ldak_fast_he`, `ldak_fast_pcgc`                                                                | LDAK 6         |
-| `mph_reml`, `mph_reml_ldms`                                                                                                                       | MPH 0.55.1     |
+| `mph_reml`, `mph_reml_ldms`, `mph_bivariate_reml`, `mph_bivariate_reml_ldms`                                                                      | MPH 0.55.1     |
 | `ldak_sumher`, `ldak_sumcors`                                                                                                                     | LDAK 6.3       |
 | `ldsc_h2`, `ldsc_rg`                                                                                                                              | LDSC           |
 
@@ -56,6 +56,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and publishes:
   - [MPH REML and REML-LDMS](#mph-reml-and-reml-ldms)
   - [Summary-level LDSC H2 and RG](#summary-level-ldsc-h2-and-rg)
 - [Pairwise GCTA bivariate REML and HEreg](#pairwise-gcta-bivariate-reml-and-hereg)
+- [Pairwise MPH bivariate REML](#pairwise-mph-bivariate-reml)
 - [LDAK summary-statistics heritability and correlation](#ldak-summary-statistics-heritability-and-correlation)
 - [Quality control and optional prepared data](#quality-control-and-optional-prepared-data)
 - [MultiQC](#multiqc)
@@ -248,6 +249,37 @@ The dense route uses one explicit all-variant GCTA matrix. The relationship's de
 </details>
 
 The pipeline preserves GCTA's native values and does not compare methods or choose a preferred result. For binary endpoints, a declared `population_prevalence` is passed only through GCTA's endpoint-aware `--reml-bivar-prevalence` interface; ordinary unary `--prevalence` is never used on this route. `gcta_bivariate_he` and `gcta_bivariate_he_ldms` accept quantitative pairs only and do not accept pair covariates. HEreg fits the declared left-trait-by-right-trait orientation on the lower triangle of the GRM, so reversed duplicate relationships remain invalid.
+
+## Pairwise MPH bivariate REML
+
+<details markdown="1">
+<summary>Output files</summary>
+
+[MPH](https://jiang18.github.io/mph/) fits the two declared endpoints jointly by REML, estimating the trace terms with random vectors, over relationship matrices it builds itself. `mph_bivariate_reml` fits one component over the autosomal variant universe; `mph_bivariate_reml_ldms` fits one component per LD-by-MAF stratum of the shared component plan, whose settings the relationship's deterministic LDMS request owns. Both add the residual component `err`, both accept quantitative pairs only, and both publish MPH's own files unchanged beside the pipeline's provenance sidecar.
+
+- `requests/mph_bivariate_reml/<request_id>/` and `requests/mph_bivariate_reml_ldms/<request_id>/`
+  - `native.mq.vc.csv`: Primary variance-component result. `trait_x`, `trait_y`, `vc_name`, `m`, `var`, `seV`, `pve`, `seP`, `enrichment`, `seE`, one row per component in matrix-list order and `err` last, for each trait and for the cross pair, followed by the enrichment and variance-component sampling-covariance blocks. `vc_name` is the staged matrix prefix verbatim and carries the stratum key for a stratified fit; `m` is that component's post-quality-control variant count and is `NA` on the `err` row. Variances and covariances are unconstrained, so a negative one is native. The appended covariance columns repeat their names, so a header-keyed reader will silently collapse them.
+  - `native.mq.cor.csv`: Native correlations: `vc_name`, `trait_x`, `trait_y`, `cor` and `se`, with one row per fitted component, a residual row `err` and the genome-wide row `G`.
+  - `native.mq.blue.csv`: Best linear unbiased estimates of the fitted covariates, one block per trait: `trait`, `covar`, `blue`, `se`, `pval`, then their sampling covariance in columns named `<trait>.<covar>`. `covar` names the columns MPH actually fitted, which is what the sidecar reconciles against the columns the pipeline asked it to fit.
+  - `native.mq.iter.csv`: Solver trace, one row per completed iteration: `iter`, `num_traits`, `sample_size`, `num_GRMs`, `logLL`, `dLLpred`, `dogleg_Newton`. `sample_size` is the analysis set the fit used.
+  - `native.log`: Complete MPH standard output: the echoed option block including the effective thread count, the `Non-missing analysis set contains N individuals` line, the random-vector line and the per-iteration trust-region trace. MPH writes no summary of its estimates anywhere and prints its quality failures only here, as `Warning:` lines at exit 0.
+  - `derived.provenance.json`: Invocation record for this result: the effective stochastic and solver settings and which of them are MPH's own defaults, the rendered native arguments, the component plan and matrix keys with each component's declared and achieved variant count matched by name, the sample accounting for the ordered pair, the trait labels MPH used and the order it used them in, the SHA-256 digests of the files the fit was given, the covariate columns requested and the ones fitted, the thread count read back from MPH's own option echo, and the classification and warnings, which on this route are read from the native correlation result as well as from the log.
+
+</details>
+
+The genome-wide total is MPH's own number. MPH prints the genome-wide genetic correlation and its standard error itself, as the synthetic `G` row of `native.mq.cor.csv`, for the one-component and the multi-component fit alike; for `mph_bivariate_reml` that row is the single component's row. The pipeline publishes what MPH wrote and derives nothing, so these two routes have no derived estimand table at all; the sidecar's `correlations` block repeats MPH's own component, residual and total values rather than recomputing them. This is a difference from `gcta_bivariate_reml_ldms`, whose native output carries no total genetic correlation ([#21](https://github.com/lyh970817/gwas/issues/21)) and which therefore retains only per-stratum values.
+
+MPH does not always form a correlation for every row. Its variance components are unconstrained, so a component can carry a negative fitted genetic variance for one of the two traits, and that component's correlation then comes out `-nan` with a `nan` standard error, at exit 0, with every other row of the same file complete ([#73](https://github.com/lyh970817/gwas/issues/73)). This happens on the shipped compact fixture. The sidecar records such an entry as JSON `null` and names it in `warnings` as `non_finite_correlation:<row>`. Nothing is clamped, censored, dropped or substituted, and the native file keeps MPH's own `-nan` unchanged. A result carrying such an entry is classified `estimable_with_warning` while its remaining rows, including the genome-wide total, stay populated and usable. When the genome-wide `G` row is itself the non-finite one the result is classified `completed_nonestimable` instead: the fit ran and is published in full, but it answers no question about the pair.
+
+Read the native pair by trait name rather than by column position. The declared left/right order is written into MPH's `--trait_names` in that order, and MPH then labels its output pair in reverse — `--trait_names A,B` produces rows labelled `trait_x = B`, `trait_y = A` — consistently, in `native.mq.cor.csv` and in the cross block of `native.mq.vc.csv`. The pipeline matches rows by name and records what it saw in the sidecar as `correlations.native_trait_pair_labels` and `correlations.native_pair_order`.
+
+MPH fits the complete-case intersection: both traits and every named covariate must be observed for an individual to enter the fit. GCTA's bivariate REML keeps every individual over the same partially overlapping pair and fits an unbalanced design instead, so the two published results are not matched models and their difference is not attributable to the estimator alone. The sidecar therefore carries `inputs.samples.left_nonmissing`, `inputs.samples.right_nonmissing`, `inputs.samples.both`, `inputs.samples.union` and `inputs.samples.retained`, and names the rule as `inputs.samples.detail.sample_policy`.
+
+The sample is one of two things that separate the two pair families. The other is the constraint: MPH's REML is unconstrained and has no option to constrain, while the pipeline's GCTA bivariate routes run GCTA's constrained default, since their rendered arguments are the endpoint-aware prevalence and the request's own `native_args` and nothing more. On a pair where that constraint binds — a low-signal pair will do it — a published MPH result and a published GCTA result are two different estimators rather than two implementations of one, whatever their samples. `--reml-no-constrain` on the GCTA pair request is the setting that matches them, and it is the researcher's to add.
+
+`native.mq.py.csv`, MPH's fixed-effect-adjusted phenotype, is deliberately not published: it is one projected phenotype per individual and grows with the cohort, so it stays in the task work directory for the same reason the unary route's does. The matrix list the fit is addressed by and the serializer's own record stay there too.
+
+An MPH pair estimate is reproducible against the same seed, random-vector count, thread count and memory mode, and not otherwise. MPH's unset seed is the fixed integer `0` rather than entropy, so an unseeded run repeats; but the seed value moves the point estimate and not merely its standard error ([#67](https://github.com/lyh970817/gwas/issues/67)), and the thread count the executor chooses and `save_memory` move it in the sixth to seventh significant digit ([#68](https://github.com/lyh970817/gwas/issues/68)). All four are recorded in the sidecar. Raise `random_vectors` on the pair request for anything you intend to publish, and treat both routes as a recommended REML candidate rather than an established default until parity with the GCTA pair routes has been demonstrated.
 
 ## LDAK summary-statistics heritability and correlation
 

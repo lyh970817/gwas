@@ -46,6 +46,8 @@ VARIANCE_COMPONENTS = $variance_components_literal
 FIXED_EFFECTS = $fixed_effects_literal
 ITERATIONS = $iterations_literal
 LOG = $log_literal
+# Empty for a one-trait fit: MPH writes the correlation result only when more than one trait is named.
+CORRELATIONS = $correlations_literal
 PREFIX = $prefix_literal
 ANALYSIS_ID = $analysis_id_literal
 PROCESS_NAME = $task_process_literal
@@ -92,6 +94,102 @@ def classify(log_lines):
                 break
         warnings.append(matched if matched is not None else line)
     return warnings
+
+
+def finite_or_none(value, label):
+    """MPH's correlation columns can hold `-nan` or `nan` at exit 0 (issue #73).
+
+    A non-finite entry is published as null and named in the warning vocabulary rather than rewritten,
+    clamped or dropped: the fit ran, MPH reported this, and the record says so.
+    """
+    try:
+        parsed = float(value)
+    except ValueError:
+        WARNINGS.append("non_finite_correlation:{}".format(label))
+        return None
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):
+        WARNINGS.append("non_finite_correlation:{}".format(label))
+        return None
+    return parsed
+
+
+def read_correlations(record):
+    """Read `.mq.cor.csv` and orient it against the trait order this pipeline declared.
+
+    MPH reverses the trait pair in this file -- `--trait_names A,B` yields rows labelled `trait_x = B`,
+    `trait_y = A` -- consistently, in every row and in the cross block of `.mq.vc.csv` too (issue #73). Nothing
+    is therefore keyed by row position or by which label happens to sit in which column: the pair is read as an
+    unordered set, checked against the pair the caller asked for, and the order MPH used is recorded verbatim
+    so the relabelling is auditable rather than trusted.
+
+    Every value is MPH's own. The genome-wide aggregate is MPH's synthetic `G` row, published as it stands;
+    nothing here recomputes a total or a standard error.
+    """
+    header, body = read_csv(CORRELATIONS)
+    for column in ["vc_name", "trait_x", "trait_y", "cor", "se"]:
+        if column not in header:
+            fail("the native correlation result '{}' has no '{}' column".format(CORRELATIONS, column))
+    rows = [dict(zip(header, row)) for row in body if len(row) >= len(header)]
+    if not rows:
+        fail("the native correlation result '{}' has no data rows".format(CORRELATIONS))
+
+    declared = list(record.get("trait_names") or [])
+    if len(declared) != 2:
+        fail(
+            "the correlation result '{}' was produced for a fit this record declares {} trait(s) for; "
+            "the pair route declares exactly two".format(CORRELATIONS, len(declared))
+        )
+    labelled = {(row["trait_x"], row["trait_y"]) for row in rows}
+    if len(labelled) != 1 or set(labelled.pop()) != set(declared):
+        fail(
+            "the native correlation result '{}' labels its trait pair {} but this request declared {}; the "
+            "result does not describe the pair that was requested".format(
+                CORRELATIONS,
+                sorted({label for row in rows for label in (row["trait_x"], row["trait_y"])}),
+                declared,
+            )
+        )
+    first = rows[0]
+
+    # `G` is MPH's synthetic aggregate row rather than a component name; every component this pipeline builds
+    # is named after its staged matrix prefix, so the two cannot collide.
+    by_name = {}
+    for row in rows:
+        by_name.setdefault(row["vc_name"], row)
+    entry = lambda row, label: {
+        "vc_name": row["vc_name"],
+        "correlation": finite_or_none(row["cor"], label),
+        "se": finite_or_none(row["se"], "{}.se".format(label)),
+    }
+
+    components = []
+    for component in record["component_plan"]["components"]:
+        row = by_name.get(component["vc_name"])
+        if row is None:
+            fail(
+                "the native correlation result '{}' has no row named '{}'; it names {}".format(
+                    CORRELATIONS, component["vc_name"], ", ".join(sorted(by_name))
+                )
+            )
+        components.append(dict(entry(row, "G{}".format(component["ordinal"])), ordinal=component["ordinal"], name=component["name"]))
+
+    for required in ["err", "G"]:
+        if required not in by_name:
+            fail(
+                "the native correlation result '{}' has no '{}' row; it names {}".format(
+                    CORRELATIONS, required, ", ".join(sorted(by_name))
+                )
+            )
+
+    return {
+        "source": CORRELATIONS.split("/")[-1],
+        "declared_trait_order": declared,
+        "native_trait_pair_labels": {"trait_x": first["trait_x"], "trait_y": first["trait_y"]},
+        "native_pair_order": "declared" if [first["trait_x"], first["trait_y"]] == declared else "reversed",
+        "total": entry(by_name["G"], "total"),
+        "residual": entry(by_name["err"], "residual"),
+        "components": components,
+    }
 
 
 def scalar_from_log(log_lines, pattern, description):
@@ -210,8 +308,23 @@ def main():
         log_lines, NUM_THREADS_PATTERN, "the thread count it ran with"
     )
 
+    # The multi-trait correlation result, oriented against the declared pair. Both its presence and the
+    # residual-covariance statement follow from the fit that was actually run: MPH always estimates the
+    # residual covariance of a multi-trait model and offers no option to drop it, so a pair result records
+    # `estimated` and publishes the residual correlation MPH reported beside the genetic ones.
+    if CORRELATIONS:
+        record["correlations"] = read_correlations(record)
+        record["residual_covariance"] = "estimated"
+
     record["warnings"] = list(record.get("warnings") or []) + WARNINGS + classify(log_lines)
-    record["classification"] = "estimable" if not record["warnings"] else "estimable_with_warning"
+    # A fit whose aggregate genetic correlation is not a number completed and is published, but it answers
+    # nothing, so it is classified rather than presented as an estimate.
+    total_nonestimable = CORRELATIONS and record["correlations"]["total"]["correlation"] is None
+    record["classification"] = (
+        "completed_nonestimable"
+        if total_nonestimable
+        else "estimable" if not record["warnings"] else "estimable_with_warning"
+    )
 
     with open("{}.provenance.json".format(PREFIX), "w", newline="\\n") as handle:
         handle.write(json.dumps(record, indent=2) + "\\n")

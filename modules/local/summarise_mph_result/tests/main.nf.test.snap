@@ -1,4 +1,37 @@
 {
+    "stub - a pair result": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "id": "analysis",
+                            "mph_estimator": "mph_reml_ldms",
+                            "mph_result": {
+                                "analysis_id": null,
+                                "kind": "pairwise",
+                                "left_analysis_id": "left",
+                                "method": "mph_reml_ldms",
+                                "relationship_id": "rel_left_right",
+                                "request_id": "mph_reml_ldms--rel_left_right",
+                                "right_analysis_id": "right"
+                            },
+                            "trait": "QT"
+                        },
+                        "analysis.provenance.json:md5,b0a6c1333d2203136e8985daba050d1a"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,aa016f0ebeedc21094166e3055be544c"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-05T22:48:12.000638576",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
     "stub": {
         "content": [
             {
@@ -7,9 +40,18 @@
                         {
                             "id": "analysis",
                             "mph_estimator": "mph_reml_ldms",
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "trait": "QT"
                         },
-                        "analysis.provenance.json:md5,dba173c226d522a4c1c1b2ddd437cf98"
+                        "analysis.provenance.json:md5,3e591f6529797a789e34c8969ce3916b"
                     ]
                 ],
                 "versions": [
@@ -17,7 +59,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-03T10:36:16.519242823",
+        "timestamp": "2026-09-05T22:55:53.835626397",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -31,9 +73,18 @@
                         {
                             "id": "analysis",
                             "mph_estimator": "mph_reml_ldms",
+                            "mph_result": {
+                                "analysis_id": "analysis",
+                                "kind": "heritability",
+                                "left_analysis_id": null,
+                                "method": "mph_reml_ldms",
+                                "relationship_id": null,
+                                "request_id": null,
+                                "right_analysis_id": null
+                            },
                             "trait": "QT"
                         },
-                        "analysis.provenance.json:md5,a8cb26e1944c667ab9aff5437cde6881"
+                        "analysis.provenance.json:md5,415de45e06cb99eb76b7f4d69e2dd47f"
                     ]
                 ],
                 "versions": [
@@ -41,7 +92,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-03T10:34:56.85186072",
+        "timestamp": "2026-09-05T22:53:03.245494315",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

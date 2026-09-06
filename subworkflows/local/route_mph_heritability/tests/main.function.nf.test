@@ -160,6 +160,36 @@ nextflow_function {
         }
     }
 
+    test("the result record a unary fit publishes under is the heritability shape, with both endpoint slots empty") {
+        function "buildMphResultRecord"
+
+        when {
+            function {
+                """
+                input[0] = [id: 'analysis', trait: 'QT']
+                input[1] = 'mph_reml_ldms'
+                """
+            }
+        }
+
+        then {
+            // The serializer copies this block through rather than deciding for itself what kind of result it
+            // is writing, so the shape is the route's statement and is pinned here.
+            assertAll(
+                { assert function.success },
+                { assert function.result == [
+                    kind: 'heritability',
+                    analysis_id: 'analysis',
+                    request_id: null,
+                    relationship_id: null,
+                    method: 'mph_reml_ldms',
+                    left_analysis_id: null,
+                    right_analysis_id: null,
+                ] },
+            )
+        }
+    }
+
     test("the route key is the analysis and its selected estimator, which is the fan-out axis") {
         function "routeKey"
 
@@ -239,6 +269,7 @@ nextflow_function {
                     mph_matrix: [key: 'abc123'],
                     mph_grm_prefixes: ['mph_dense.abc123'],
                     mph_effective: [seed: 0],
+                    mph_result: [kind: 'heritability', analysis_id: 'analysis'],
                 ]
                 """
             }

@@ -27,7 +27,9 @@ input:
         type: map
         description: |
           Groovy Map containing the analysis unit's information, including the selected MPH token, the trait
-          names, the matrix identity, the staged matrix prefixes and the resolved effective settings.
+          names, the matrix identity, the staged matrix prefixes, the resolved effective settings and the
+          result identity `mph_result`, which the route supplies and this module copies into the record
+          verbatim rather than inferring from how many traits it was given.
     - phenotype_table:
         type: file
         description: |
