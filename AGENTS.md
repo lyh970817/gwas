@@ -39,8 +39,6 @@ During multi-workstream programmes, maintain a numbered queue of decisions that 
 numbers so answers can arrive by number. Surface new decisions as they arise, and print the full outstanding
 queue plus what is still running on request. Never silently block a workstream on an unrecorded decision.
 
-Choose the model family and reasoning effort for each subagent task according to its difficulty.
-
 Standing opt-in: for multi-issue implementation programmes, use the Workflow tool and background subagents
 freely without asking, respecting inter-issue dependencies.
 
