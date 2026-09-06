@@ -184,6 +184,12 @@ def resolveRelationships(relationship_rows, relationship_columns, relationship_m
                             getMethodOptionDefaults().gcta.subMap(['ld_score_region_kb', 'ld_bins', 'ldms_maf_edges']),
                         ) { option, reason -> reject.call('relationship_methods', "default ${option}: ${reason}") }
                         : [:]
+                    // A pair inherits the left endpoint's cohort identity, so it inherits the declared
+                    // genotype view identity the same way and by the same rule: present only when declared,
+                    // never as a `null` that would move every existing pair's task hash.
+                    def declared_view_id = left_analysis_meta.genotype_view_id
+                        ? [genotype_view_id: left_analysis_meta.genotype_view_id]
+                        : [:]
                     def pair_meta = common_meta + [
                         cohort: left_analysis_meta.cohort,
                         build: left_analysis_meta.build,
@@ -192,7 +198,7 @@ def resolveRelationships(relationship_rows, relationship_columns, relationship_m
                         matrix_kind: capability.matrix_kind,
                         matrix_settings: matrix_settings,
                         reml_bivar_prevalence: getGctaBivariatePrevalence(left_analysis_meta, right_analysis_meta),
-                    ]
+                    ] + declared_view_id
                     def payload = [pair_meta, left_analysis[1], cells.pair_quant_covariates, cells.pair_cat_covariates]
                     gcta_primary_requests << [
                         request_id: request_id,

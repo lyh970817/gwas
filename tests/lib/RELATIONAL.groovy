@@ -23,7 +23,7 @@ class RELATIONAL {
     }
 
     static String cohorts(Object projectDir, Object outputDir, String name, Closure mutate = null) {
-        def header = ['cohort_id', 'genome_build', 'ancestry', 'pgen', 'psam', 'pvar', 'bed', 'bim', 'fam', 'vcf']
+        def header = ['cohort_id', 'genome_build', 'ancestry', 'pgen', 'psam', 'pvar', 'bed', 'bim', 'fam', 'vcf', 'genotype_view_id']
         def rows = [cohort('example_pgen')]
         if (mutate) {
             mutate(rows)
@@ -45,6 +45,7 @@ class RELATIONAL {
                 bim: '',
                 fam: '',
                 vcf: '',
+                genotype_view_id: '',
             ],
             example_bfile: [
                 cohort_id: 'example_bfile',
@@ -57,6 +58,7 @@ class RELATIONAL {
                 bim: fixture('genotypes/example_all.bim'),
                 fam: fixture('genotypes/example_all.fam'),
                 vcf: '',
+                genotype_view_id: '',
             ],
             example_vcf: [
                 cohort_id: 'example_vcf',
@@ -69,6 +71,7 @@ class RELATIONAL {
                 bim: '',
                 fam: '',
                 vcf: fixture('genotypes/example_all.vcf.gz'),
+                genotype_view_id: '',
             ],
         ]
         if (!cohorts.containsKey(cohortId)) {
@@ -630,6 +633,24 @@ class RELATIONAL {
         }
         target[index] = 'NA'
         return resource(outputDir, name, ([header.join('\t')] + body.collect { row -> row.join('\t') }).join('\n') + '\n')
+    }
+
+    // A minimal four-sample VCF whose first variant carries three alleles and whose second is biallelic.
+    // plink2 imports it to PGEN without complaint — `--pgen-info` then reports a maximum allele count of 3 —
+    // and refuses only at `--make-bed`, with a message that names no cohort. That is exactly the shape a
+    // multiallelic source takes on every route into this pipeline, so it is what the pre-projection refusal
+    // and the state probe are tested against. It is written here rather than shipped as a fixture because it
+    // is two variants of synthetic text with no scientific content.
+    static String multiallelicVcf(Object outputDir, String name) {
+        def lines = [
+            '##fileformat=VCFv4.2',
+            '##contig=<ID=1>',
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+            ['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT', 'S1', 'S2', 'S3', 'S4'].join('\t'),
+            ['1', '100', 'm1', 'A', 'C,G', '.', 'PASS', '.', 'GT', '0/1', '1/2', '0/0', '2/2'].join('\t'),
+            ['1', '200', 'b1', 'A', 'T', '.', 'PASS', '.', 'GT', '0/1', '0/0', '1/1', './.'].join('\t'),
+        ]
+        return resource(outputDir, name, lines.join('\n') + '\n')
     }
 
     static String resource(Object outputDir, String name, String content) {

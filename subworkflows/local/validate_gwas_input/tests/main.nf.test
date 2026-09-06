@@ -490,4 +490,195 @@ nextflow_workflow {
             )
         }
     }
+
+    // A cohort that declares no view identity must carry no `genotype_view_id` key at all, not a null one:
+    // analysis metadata is a task-hash input everywhere downstream, so an unconditional null would move every
+    // existing analysis's hash and every pinned snapshot for cohorts that declare nothing.
+    test("an undeclared genotype view identity leaves the key absent from analysis metadata") {
+        tag "genotype_view_id"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'undeclared_view_id')}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'undeclared_view_id')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert !workflow.out.analyses[0][0].containsKey('genotype_view_id') },
+            )
+        }
+    }
+
+    def declaredViewIds = [
+        [name: 'a bare hexadecimal digest', token: '52d1d326413775cd52d1d326413775cd52d1d326413775cd52d1d326413775cd'],
+        [name: 'a shortest-accepted digest', token: '52d1d326413775cd'],
+        [name: 'a backend-namespaced identity', token: 'biofuse:52d1d326413775cd'],
+    ]
+
+    declaredViewIds.each { scenario ->
+        test("${scenario.name} declared as genotype_view_id reaches the analysis metadata") {
+            tag "genotype_view_id"
+
+            when {
+                workflow {
+                    """
+                    input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, "declared_view_id_${scenario.token.replaceAll(/[^a-z0-9]/, '_')}", { rows -> rows[0].genotype_view_id = scenario.token })}', checkIfExists: true)
+                    input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, "declared_view_id_${scenario.token.replaceAll(/[^a-z0-9]/, '_')}")}', checkIfExists: true)
+                    input[2] = null
+                    input[3] = null
+                    input[4] = null
+                    input[5] = null
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert workflow.success },
+                    { assert workflow.out.analyses[0][0].genotype_view_id == scenario.token },
+                )
+            }
+        }
+    }
+
+    def rejectedViewIds = [
+        [name: 'an upper-case digest', token: '52D1D326413775CD'],
+        [name: 'a digest shorter than sixteen characters', token: '52d1d32641377'],
+        [name: 'a path', token: '/mnt/views/52d1d326413775cd'],
+        [name: 'a namespace with no digest', token: 'biofuse:'],
+    ]
+
+    rejectedViewIds.eachWithIndex { scenario, index ->
+        test("${scenario.name} is refused as a genotype_view_id") {
+            tag "genotype_view_id"
+
+            when {
+                workflow {
+                    """
+                    input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, "rejected_view_id_${index}", { rows -> rows[0].genotype_view_id = scenario.token })}', checkIfExists: true)
+                    input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, "rejected_view_id_${index}")}', checkIfExists: true)
+                    input[2] = null
+                    input[3] = null
+                    input[4] = null
+                    input[5] = null
+                    """
+                }
+            }
+
+            then {
+                def report = VALIDATION.report(outputDir, workflow.stdout)
+                assertAll(
+                    { assert !workflow.success },
+                    { assert report.contains('genotype_view_id') },
+                    { assert report.contains('16 to 64 lowercase hexadecimal characters') },
+                )
+            }
+        }
+    }
+
+    // Two rows sharing a `cohort_id` are one cohort, so their declared identities must agree. Without the
+    // identity in the compared definition the second row would be discarded silently and the run would key
+    // every shared artifact on whichever row happened to be read first.
+    test("conflicting genotype view identities on one cohort_id are rejected by name") {
+        tag "genotype_view_id"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'conflicting_view_id', { rows ->
+                    rows[0].genotype_view_id = '52d1d326413775cd'
+                    def duplicate = new LinkedHashMap(rows[0])
+                    duplicate.genotype_view_id = 'ab1d1d326413775c'
+                    rows << duplicate
+                })}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'conflicting_view_id')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains("duplicate cohort_id 'example_pgen' conflicts with row 2") },
+                { assert report.contains("'genotype_view_id'") },
+            )
+        }
+    }
+
+    // Every PLINK, GCTA and REGENIE consumer addresses a fileset by one prefix. Before representation-
+    // preserving preparation a mismatched trio failed once, deep inside the mandatory PGEN conversion; with
+    // passthrough there is no such single point, so it is refused at ingress where the cohort can be named.
+    test("a genotype group whose members do not share one basename stem is rejected at ingress") {
+        tag "genotype_view_id"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'mismatched_stems', { rows ->
+                    rows[0].pvar = rows[0].pvar.toString().replace('example_all.pvar', 'example_chr1.pvar')
+                })}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'mismatched_stems')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains("row 2 (cohort_id 'example_pgen')") },
+                { assert report.contains('do not share one basename stem') },
+                { assert report.contains("pgen='example_all'") },
+                { assert report.contains("pvar='example_chr1'") },
+            )
+        }
+    }
+
+    // A `.pvar.zst` needs plink2's `vzs` modifier, which no consumer in this pipeline passes: every one of
+    // them derives a bare `--pfile`/`--mpfile` prefix. It is refused at ingress rather than left reachable.
+    test("a Zstandard-compressed pvar is refused at ingress") {
+        tag "genotype_view_id"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'zstd_pvar', { rows ->
+                    rows[0].pvar = rows[0].pvar.toString() + '.zst'
+                })}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'zstd_pvar')}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains('pvar') },
+                { assert report.contains("must have extension '.pvar'") },
+            )
+        }
+    }
 }
