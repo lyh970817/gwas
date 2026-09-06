@@ -221,6 +221,11 @@ workflow GWAS {
     // the headerless serialisations GCTA and LDAK read. This seam is built here rather than in the route
     // because deriving per-analysis streams from preparation is spine work, and one absent covariate table is
     // [] so it stages nothing.
+    def ch_prepared_covariate_tables = ch_analysis_meta_by_id
+        .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
+        .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
+        .map { _analysis_id, meta, quant_covariates, cat_covariates -> [meta, quant_covariates ?: [], cat_covariates ?: []] }
+
     //
     // SUBWORKFLOW: Prepare each relationship's ordered two-trait table and pair covariates once
     //
@@ -228,11 +233,6 @@ workflow GWAS {
     // table and the normalised pair covariates are the scientific pair, and every method adapter serialises
     // that one artifact rather than resolving the endpoints again. Both pair controllers below consume it.
     PREPARE_RELATIONSHIP_TRAITS(ch_relationships, PREPARE_PHENOTYPE_INPUTS.out.phenotype_headerless)
-
-    def ch_prepared_covariate_tables = ch_analysis_meta_by_id
-        .join(PREPARE_PHENOTYPE_INPUTS.out.quant_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
-        .join(PREPARE_PHENOTYPE_INPUTS.out.cat_covariates.map { preparation_meta, covariates -> [preparation_meta.id, covariates] }, remainder: true)
-        .map { _analysis_id, meta, quant_covariates, cat_covariates -> [meta, quant_covariates ?: [], cat_covariates ?: []] }
 
     //
     // SUBWORKFLOW: Pipeline route for REGENIE, LDAK-KVIK and GCTA fastGWA associations
