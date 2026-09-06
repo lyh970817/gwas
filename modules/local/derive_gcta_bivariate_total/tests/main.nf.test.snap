@@ -1,0 +1,460 @@
+{
+    "the sampling covariance of the estimates changes the derived standard error and nothing else": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.provenance.json:md5,e549fc02a8254973dbc1c7aaf6d8bdc5"
+                    ]
+                ],
+                "total": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv:md5,c7166ce35a2e4f87baa8e9ca0f392e5a"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,7fa70a6310421e7f1c2de832c4e452ee"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-06T04:10:23.199664586",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a one-stratum fit is the degenerate case whose total is its single component": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.provenance.json:md5,2735809b6b4d02ce64c5340bf7af9035"
+                    ]
+                ],
+                "total": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv:md5,b7fd0c7a5e8a886f08ad60fb37226737"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,7fa70a6310421e7f1c2de832c4e452ee"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-06T04:10:37.573815388",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a hand-computable two-component vector reproduces the closed-form total and its delta-method standard error": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.provenance.json:md5,2994a66db9c511f4d1c223ecfc5c3aa7"
+                    ]
+                ],
+                "total": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv:md5,d60edf1caf044a235af3529c48739cea"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,7fa70a6310421e7f1c2de832c4e452ee"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-06T04:10:16.227128796",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a fit run without a residual covariance records why from the native option echo": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.provenance.json:md5,62eae6b5e6a9937492337954e107e092"
+                    ]
+                ],
+                "total": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv:md5,6bed9296261e08a0cd3761e5fdd29811"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,7fa70a6310421e7f1c2de832c4e452ee"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-06T04:10:44.517136367",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "a real two-stratum GCTA fit is derived from the sampling covariance its log carries": {
+        "content": [
+            {
+                "provenance": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.provenance.json:md5,ba23bee4570f88b39d78c000fe2d8f3a"
+                    ]
+                ],
+                "total": [
+                    [
+                        {
+                            "gcta_capability": {
+                                "component_model": "ld_maf_stratified",
+                                "estimator_family": "reml",
+                                "input_backend": "ldms_grm_family",
+                                "option_family": "gcta",
+                                "stochastic": false
+                            },
+                            "id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "left_analysis_id": "example_pgen_qt",
+                            "left_trait_id": "QT",
+                            "matrix_key": "e8639c59a4d7",
+                            "matrix_settings": {
+                                "ld_bins": 2,
+                                "ld_score_region_kb": 50,
+                                "maf_edges": [
+                                    0,
+                                    0.5
+                                ]
+                            },
+                            "method": "gcta_bivariate_reml_ldms",
+                            "native_args": [
+                                "--reml-maxit",
+                                "500",
+                                "--reml-no-constrain"
+                            ],
+                            "relationship_id": "qt_bt",
+                            "reml_bivar_prevalence": [
+                                0.1
+                            ],
+                            "request_id": "gcta_bivariate_reml_ldms--qt_bt",
+                            "right_analysis_id": "example_pgen_bt",
+                            "right_trait_id": "BT"
+                        },
+                        "gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv:md5,d3726a29732865f639b37650685b8195"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,7fa70a6310421e7f1c2de832c4e452ee"
+                ]
+            }
+        ],
+        "timestamp": "2026-09-06T04:10:30.474273607",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

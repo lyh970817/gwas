@@ -1,0 +1,38 @@
+*******************************************************************
+* Genome-wide Complex Trait Analysis (GCTA)
+* version v1.94.1 Linux
+*******************************************************************
+
+Accepted options:
+--reml-bivar 1 2
+--mgrm native.mgrm
+--pheno native.pheno
+--reml-maxit 500
+--reml-no-constrain
+--out native
+
+200 individuals are in common in these files.
+200 non-missing phenotypes for trait #1 and 200 for trait #2
+
+400 observations, 2 fixed effect(s), and 9 variance component(s)(including residual variance).
+Running AI-REML algorithm ...
+Iter.	logL	V(G1)_tr1
+1	-100.00	1.00000
+Log-likelihood ratio converged.
+
+Summary result of REML analysis:
+
+Sampling variance/covariance matrix carries two off-diagonal entries in this test vector.
+Sampling variance/covariance of the estimates of variance components:
+1.000000e-02	0.000000e+00	4.000000e-03	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	
+0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	
+4.000000e-03	0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	5.000000e-03	0.000000e+00	0.000000e+00	0.000000e+00	
+0.000000e+00	0.000000e+00	0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	
+0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	
+0.000000e+00	0.000000e+00	5.000000e-03	0.000000e+00	0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	0.000000e+00	
+0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	1.000000e-02	0.000000e+00	0.000000e+00	
+0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	1.000000e-02	0.000000e+00	
+0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	0.000000e+00	1.000000e-02	
+
+Summary result of REML analysis has been saved in the file [native.hsq].
+
