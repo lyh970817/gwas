@@ -168,24 +168,27 @@ workflow PREPARE_COHORT_GENOTYPES {
 
     PLINK2_MAKEBED(ch_projection_inputs)
 
-    def ch_plink1_cohorts = ch_plink1_by_origin.supplied
-        .map { view_meta, bed, bim, fam, _state -> [view_meta.id, view_meta + [plink1: view_meta.native_view], bed, bim, fam] }
+    // A supplied PLINK 1 bundle is its own PLINK 1 view, so it travels under its `layer: 'view'` meta and its
+    // native key; a projection travels under the derived meta the atom was invoked with. `buildViewRecord`
+    // tells the two apart by `layer`, and both expose the `key` its consumers ask for.
+    def ch_plink1_views = ch_plink1_by_origin.supplied
+        .map { view_meta, bed, bim, fam, _state -> [view_meta.id, view_meta, bed, bim, fam] }
         .mix(PLINK2_MAKEBED.out.bed.map { projection_meta, bed, bim, fam -> [projection_meta.id, projection_meta, bed, bim, fam] })
 
     // Each view key is emitted from the stream that produces it rather than from the joined record below.
     // `join(remainder: true)` releases its unmatched items only once both operands have completed, so a key
     // taken from the record would hold every REGENIE Step 1 fit and every dense GCTA GRM behind an unrelated
-    // cohort's whole-genome hard-call projection. `ch_plink1_cohorts` holds an element for exactly the
+    // cohort's whole-genome hard-call projection. `ch_plink1_views` holds an element for exactly the
     // cohorts that have a PLINK 1 view, which is exactly the set its consumers ask about, so the PLINK 1 key
     // channel is partial by design and null-free by construction.
     def ch_cohort_native_view_keys = ch_native_state.map { view_meta, _primary, _variant_file, _sample_file, _members, _state -> [view_meta.id, view_meta.native_view.key] }
-    def ch_cohort_plink1_view_keys = ch_plink1_cohorts.map { cohort_id, plink1_meta, _bed, _bim, _fam -> [cohort_id, plink1_meta.key] }
+    def ch_cohort_plink1_view_keys = ch_plink1_views.map { cohort_id, plink1_meta, _bed, _bim, _fam -> [cohort_id, plink1_meta.key] }
 
     // The joined record is provenance only. It is the one consumer of `remainder: true` and the one consumer
     // of the per-member detail, and it feeds a `collectFile` on the spine where late emission is harmless.
     def ch_cohort_views = ch_native_state
         .map { view_meta, _primary, _variant_file, _sample_file, members, state -> [view_meta.id, view_meta, members, state] }
-        .join(ch_plink1_cohorts.map { cohort_id, plink1_meta, _bed, _bim, _fam -> [cohort_id, plink1_meta] }, remainder: true)
+        .join(ch_plink1_views.map { cohort_id, plink1_meta, _bed, _bim, _fam -> [cohort_id, plink1_meta] }, remainder: true)
         .map { _cohort_id, view_meta, members, state, plink1_meta -> [buildCohortMeta(view_meta), buildViewRecord(view_meta, members, state, plink1_meta)] }
 
     //
@@ -210,7 +213,7 @@ workflow PREPARE_COHORT_GENOTYPES {
 
     def ch_plink1_genotypes = ch_plink1_requests
         .map { meta, _genotype_files -> [meta.cohort, meta] }
-        .combine(ch_plink1_cohorts.map { cohort_id, _plink1_meta, bed, bim, fam -> [cohort_id, bed, bim, fam] }, by: 0)
+        .combine(ch_plink1_views.map { cohort_id, _plink1_meta, bed, bim, fam -> [cohort_id, bed, bim, fam] }, by: 0)
         .map { _cohort_id, meta, bed, bim, fam -> [meta, bed, bim, fam] }
 
     emit:
