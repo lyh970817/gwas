@@ -103,8 +103,11 @@ SYMMETRY_RELATIVE_TOLERANCE = 1e-6
 COMPONENT_SE_ABSOLUTE_TOLERANCE = 1e-4
 COMPONENT_SE_RELATIVE_TOLERANCE = 1e-3
 # A component GCTA pinned at its constrain floor has a near-singular block whose native standard error is not
-# reproducible from it. The floor is a fraction of the phenotypic sum of squares rather than a constant, so
-# the predicate is scale-free.
+# reproducible from it. GCTA's floor is a fraction of the phenotypic sum of squares (`est_hsq.cpp`), so the
+# predicate compares each parameter against the phenotypic variance of the trait it belongs to. It must not
+# be a fraction of the largest GENETIC variance in the fit: the candidate's own parameters are part of that
+# maximum, so the component attaining it can never satisfy the test, and a single-component fit -- which the
+# one-stratum LDMS plan produces -- can therefore never be exempt at all.
 CONSTRAIN_FLOOR_RATIO = 1e-3
 
 WARNINGS = []
@@ -116,6 +119,18 @@ def fail(message):
 
 def is_finite(value):
     return value == value and value not in (float("inf"), float("-inf"))
+
+
+def finite(value):
+    """The JSON form of a number GCTA printed: the value itself, or null when it is not a real number.
+
+    Every float that reaches the provenance record goes through this, so `allow_nan=False` on the writer
+    stays the assertion it was meant to be rather than a crash path. A non-finite value is a DATA outcome of
+    a fit that already succeeded, and this module classifies those rather than raising.
+    """
+    if value is None or not is_finite(value):
+        return None
+    return value
 
 
 def read_lines(path):
@@ -221,6 +236,14 @@ def parse_native_result():
             )
         if len(row) < 3:
             fail("row '{}' of the native result '{}' has no standard error".format(label, NATIVE_RESULT))
+        # The correlation rows are inspected for finiteness too, not only the variance-component rows: GCTA
+        # does print `-nan` in an `rG` row of this family, with every other row a real number.
+        for cell in row[1:3]:
+            try:
+                if not is_finite(float(cell)):
+                    WARNINGS.append("non_finite_native_value")
+            except ValueError:
+                WARNINGS.append("non_finite_native_value")
         correlations.append([row[1], row[2]])
 
     observations = None
@@ -236,6 +259,17 @@ def parse_native_result():
         except (IndexError, ValueError):
             log_likelihood = None
 
+    # The two phenotypic variances, which are the scale GCTA's own constrain floor is a fraction of. They are
+    # read here rather than recomputed from the components, because a fit without a residual covariance sums
+    # a different set of rows.
+    phenotypic_variances = []
+    for label in ["Vp_tr1", "Vp_tr2"]:
+        row = labelled.get(label)
+        try:
+            phenotypic_variances.append(float(row[1]))
+        except (IndexError, TypeError, ValueError):
+            phenotypic_variances.append(None)
+
     return {
         "layout": layout,
         "n_components": n_components,
@@ -245,6 +279,7 @@ def parse_native_result():
         "standard_errors": standard_errors,
         "standard_errors_text": standard_errors_text,
         "correlations": correlations,
+        "phenotypic_variances": phenotypic_variances,
         "residual_covariance_estimated": residual_covariance_estimated,
         "observations": observations,
         "log_likelihood": log_likelihood,
@@ -290,8 +325,15 @@ def parse_sampling_covariance(log_lines, order):
                 NATIVE_LOG, len(matrix), widths or "[]", size, ", ".join(order)
             )
         )
+    # A non-finite entry is a data outcome of a converged fit, so it is named rather than raised. It is
+    # recorded before the symmetry check, whose `> tolerance` comparison is False for a NaN and would
+    # otherwise let one through in silence.
+    if not all(is_finite(cell) for row in matrix for cell in row):
+        WARNINGS.append("non_finite_native_value")
     for i in range(size):
         for j in range(i):
+            if not (is_finite(matrix[i][j]) and is_finite(matrix[j][i])):
+                continue
             deviation = abs(matrix[i][j] - matrix[j][i])
             if deviation > SYMMETRY_ABSOLUTE_TOLERANCE + SYMMETRY_RELATIVE_TOLERANCE * abs(matrix[i][j]):
                 fail(
@@ -303,11 +345,18 @@ def parse_sampling_covariance(log_lines, order):
 
 
 def check_diagonal(matrix, native):
-    """sqrt of every diagonal entry must reproduce the standard error the `.hsq` printed for that row."""
+    """sqrt of every diagonal entry must reproduce the standard error the `.hsq` printed for that row.
+
+    A row whose entry or standard error is not a real number is skipped and excluded from the reported
+    maximum, because folding a NaN into the comparison would report a deviation of zero for a row that was
+    never actually compared. Its non-finiteness is already in the warning vocabulary.
+    """
     worst = 0.0
     for index, label in enumerate(native["labels"]):
         entry = matrix[index][index]
         standard_error = native["standard_errors"][index]
+        if not (is_finite(entry) and is_finite(standard_error)):
+            continue
         if entry < 0.0:
             fail(
                 "the sampling variance of '{}' in '{}' is negative ({}), so it cannot be the variance of an "
@@ -330,16 +379,21 @@ def check_diagonal(matrix, native):
 def component_pinned(native, index):
     """Is component `index` pinned at GCTA's constrain floor?
 
-    The floor is a fraction of the phenotypic sum of squares rather than an absolute constant, so a component
-    counts as pinned when its three parameters are negligible against the largest genetic variance in the fit.
+    The floor is a fraction of the phenotypic sum of squares rather than an absolute constant, so the
+    reference has to be the phenotypic variance of the trait each parameter belongs to. Deliberately NOT the
+    largest genetic variance in the fit: that maximum includes the candidate's own parameters, so the
+    component attaining it could never be exempt, and a single-component fit -- the one-stratum LDMS layout --
+    could never be exempt at all.
     """
-    scale = 0.0
-    for component in range(native["n_components"]):
-        base = 3 * component
-        scale = max(scale, abs(native["values"][base]), abs(native["values"][base + 1]))
+    left_vp, right_vp = native["phenotypic_variances"]
+    if not (left_vp and right_vp and is_finite(left_vp) and is_finite(right_vp) and left_vp > 0.0 and right_vp > 0.0):
+        return False
     base = 3 * index
-    magnitude = max(abs(native["values"][base + offset]) for offset in range(3))
-    return scale > 0.0 and magnitude <= CONSTRAIN_FLOOR_RATIO * scale
+    return (
+        abs(native["values"][base]) <= CONSTRAIN_FLOOR_RATIO * left_vp
+        and abs(native["values"][base + 1]) <= CONSTRAIN_FLOOR_RATIO * right_vp
+        and abs(native["values"][base + 2]) <= CONSTRAIN_FLOOR_RATIO * math.sqrt(left_vp * right_vp)
+    )
 
 
 def check_components(matrix, native, constrained_components):
@@ -365,6 +419,12 @@ def check_components(matrix, native, constrained_components):
             "se_checked": False,
         }
 
+        # Nothing is recomputed from a value that is not a real number: a NaN passes every `> tolerance`
+        # comparison below silently and would then be stored in the record.
+        if not all(is_finite(value) for value in (left, right, covariance)):
+            WARNINGS.append("component_se_cross_check_skipped:{}".format(label))
+            records.append(record)
+            continue
         # GCTA's own guard is the product rather than each factor: two negative variances still yield a
         # printed correlation, so the recomputation must use the same rule.
         if not (left * right > 0.0) or covariance == 0.0:
@@ -393,8 +453,8 @@ def check_components(matrix, native, constrained_components):
             + abs(recomputed) * 5e-7 * (1.0 / (2.0 * abs(left)) + 1.0 / (2.0 * abs(right)))
         )
         deviation = abs(recomputed - native_rg_value)
-        record["rg_abs_deviation"] = deviation
-        record["rg_tolerance"] = tolerance
+        record["rg_abs_deviation"] = finite(deviation)
+        record["rg_tolerance"] = finite(tolerance)
         if deviation > tolerance:
             fail(
                 "the native result '{}' reports {} = {:.6f} for component {}, but its own variance "
@@ -422,7 +482,7 @@ def check_components(matrix, native, constrained_components):
             continue
 
         recomputed_se = math.sqrt(variance)
-        record["se_relative_deviation"] = (
+        record["se_relative_deviation"] = finite(
             abs(recomputed_se - native_se_value) / native_se_value if native_se_value else None
         )
         record["se_checked"] = True
@@ -447,7 +507,11 @@ def sum_standard_error(matrix, indices):
     for i in indices:
         for j in indices:
             variance += matrix[i][j]
-    if variance < 0.0 or not is_finite(variance):
+    # A non-finite sum is already named `non_finite_native_value` by the block parser, so it is not also
+    # reported as a non-positive sampling variance, which it is not.
+    if not is_finite(variance):
+        return None
+    if variance < 0.0:
         WARNINGS.append("total_se_nonpositive_sampling_variance")
         return None
     return math.sqrt(variance)
@@ -473,9 +537,13 @@ def derive_total(matrix, native):
         "rg_se": None,
     }
 
+    # A non-finite sum is already named `non_finite_native_value` where it was read, and is not a
+    # non-positive genetic variance, so it is not reported as one. The total is simply not derivable.
+    if not (is_finite(left) and is_finite(right) and is_finite(covariance)):
+        return total
     # Deliberately stricter than GCTA's per-component `V1 * V2 > 0`: two negative sums give a real square
     # root and a meaningless genome-wide correlation.
-    if not (left > 0.0 and right > 0.0) or not (is_finite(left) and is_finite(right) and is_finite(covariance)):
+    if not (left > 0.0 and right > 0.0):
         WARNINGS.append("total_nonestimable_nonpositive_genetic_variance")
         return total
 
@@ -500,9 +568,13 @@ def derive_total(matrix, native):
             if gj == 0.0:
                 continue
             variance += gi * matrix[i][j] * gj
+    # A non-finite variance follows from a non-finite entry in the block, which is already named where it was
+    # read; it is not a non-positive sampling variance and is not reported as one.
+    if not is_finite(variance):
+        return total
     # GCTA reports that it bends a variance-covariance matrix to positive-definiteness, so the block is not
     # guaranteed to be positive semi-definite and a negative variance is reachable. Never take its root.
-    if variance < 0.0 or not is_finite(variance):
+    if variance < 0.0:
         WARNINGS.append("total_se_nonpositive_sampling_variance")
         return total
     total["rg_se"] = math.sqrt(variance)
@@ -554,8 +626,12 @@ def scalar_from_log(log_lines, pattern, group=1):
 
 
 def render(value):
-    """Derived numbers render at GCTA's own six decimals; the provenance carries the full double."""
-    return "NA" if value is None else format(value, ".6f")
+    """Derived numbers render at GCTA's own six decimals; the provenance carries the full double.
+
+    A value that is not a real number renders as `NA` rather than as the literal `nan` or `inf`, because the
+    published contract is that a value the fit does not support is `NA` and never a number.
+    """
+    return "NA" if finite(value) is None else format(value, ".6f")
 
 
 def main():
@@ -632,7 +708,7 @@ def main():
 
     warnings = sorted(set(WARNINGS))
     classification = "estimable"
-    if total["rg"] is None:
+    if finite(total["rg"]) is None:
         classification = "completed_nonestimable"
     elif warnings:
         classification = "estimable_with_warning"
@@ -680,12 +756,15 @@ def main():
             "n_components": native["n_components"],
             "parameter_order": native["labels"],
             "sampling_covariance_source": "native_log",
-            "sampling_covariance": matrix,
-            "diagonal_check_max_abs_deviation": diagonal_deviation,
+            # Every float below goes through `finite`, so a value GCTA printed as `nan` or `inf` is published
+            # as JSON null rather than aborting the writer. `allow_nan=False` on the dump stays as the
+            # assertion that nothing slipped past.
+            "sampling_covariance": [[finite(cell) for cell in row] for row in matrix],
+            "diagonal_check_max_abs_deviation": finite(diagonal_deviation),
             "component_cross_check": component_records,
-            "total_rg_value": total["rg"],
-            "total_rg_standard_error": total["rg_se"],
-            "log_likelihood": native["log_likelihood"],
+            "total_rg_value": finite(total["rg"]),
+            "total_rg_standard_error": finite(total["rg_se"]),
+            "log_likelihood": finite(native["log_likelihood"]),
             "converged": True,
             # GCTA reports twice the number of individuals here for a bivariate fit, so it is recorded under
             # its own key and never mapped onto a sample count.

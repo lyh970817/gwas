@@ -432,6 +432,96 @@ nextflow_process {
         }
     }
 
+    test("a component GCTA held at its constrain floor is exempt from the standard-error cross-check") {
+
+        when {
+            // The shape GCTA produces when it pins a component: all three of its parameters sit at the
+            // constrain floor, which is a fraction of the phenotypic sum of squares, and the correlation's
+            // native standard error is enormous and not reproducible from the near-singular 3x3 block it
+            // came from. The exemption exists for exactly this, and the single-component layout is where it
+            // has to work, because that is what a one-stratum LDMS plan produces.
+            def staged = stage(projectDir, outputDir, 'pinned', 'synthetic_pinned')
+            process {
+                inputs(staged, "['--reml-maxit', '500']")
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                // Without the exemption this run aborts: the block gives 584.052160 against GCTA's own
+                // 140680.566879, which is 140096 outside the max(1e-4, 1e-3 * SE) tolerance.
+                { assert process.success },
+                { assert rows*.component == ['total', 'G1'] },
+                { assert rows[1].rg_se == '140680.566879' },
+                { assert provenance.derivation.constrained_components == 1 },
+                { assert provenance.derivation.component_cross_check*.se_checked == [false] },
+                { assert provenance.warnings.contains('component_se_cross_check_skipped:G1') },
+                { assert provenance.warnings.contains('constrained_components:1') },
+                { assert provenance.warnings.contains('standard_error_unreliable_constrained_fit') },
+                { assert provenance.classification == 'estimable_with_warning' },
+                // The reference the floor is measured against must be the phenotypic variance, not the
+                // largest genetic variance in the fit: that maximum includes the candidate's own parameters,
+                // so on a one-component fit the predicate would be false for every value it could ever take.
+                { assert provenance.derivation.n_components == 1 },
+                { assert new File(fixture(projectDir, 'synthetic_pinned.hsq')).text.contains('Vp_tr1\t0.720143') },
+            )
+        }
+    }
+
+    test("a value GCTA did not compute is classified rather than crashing the writer") {
+
+        when {
+            // Three non-finite shapes at once, because the failure policy is one policy: a non-finite cell in
+            // the native result, a symmetric non-finite pair in the log's sampling covariance, and a
+            // non-finite confined to an `rG` row, which is the shape this GCTA family is recorded producing.
+            // None of them may abort a run whose native result already succeeded and was published.
+            def sourceHsq = new File(fixture(projectDir, 'two_stratum.hsq')).text
+            def staged = stage(projectDir, outputDir, 'non_finite', 'two_stratum', [
+                hsq: sourceHsq.replace('rG1\t-0.524266\t2.210397', 'rG1\t-nan\t-nan'),
+                log: rewriteMatrix(projectDir, 'two_stratum', { matrix ->
+                    def patched = matrix.collect { row -> row.collect() }
+                    patched[0][2] = Double.NaN
+                    patched[2][0] = Double.NaN
+                    return patched
+                }),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.warnings.contains('non_finite_native_value') },
+                { assert provenance.classification == 'estimable_with_warning' },
+                // The point estimate still comes from the native variance components, which are real
+                // numbers; only the standard error, which needs the block, is withheld.
+                { assert total.rg == '-4.774394' },
+                { assert total.rg_se == 'NA' },
+                // A derived cell is `NA`, never the literal `nan`.
+                { assert !rows.any { row -> row.origin == 'delta_method' && row.values().any { cell -> cell.toString().toLowerCase().contains('nan') } } },
+                // A native cell is GCTA's own text, so what GCTA printed stands and is named in `warnings`.
+                { assert rows[1].rg == '-nan' },
+                // The record is a real file that parses, and `allow_nan=False` on the writer stayed an
+                // assertion rather than becoming the crash path.
+                { assert new File(process.out.provenance.get(0).get(1).toString()).length() > 0 },
+                { assert provenance.derivation.sampling_covariance[0][2] == null },
+                { assert provenance.derivation.sampling_covariance[2][0] == null },
+                { assert provenance.derivation.total_rg_standard_error == null },
+                // The diagonal check reports a deviation it actually measured, rather than folding a
+                // non-comparable row in as a zero.
+                { assert provenance.derivation.diagonal_check_max_abs_deviation > 0 },
+                { assert provenance.derivation.diagonal_check_max_abs_deviation < 1.1e-6 },
+            )
+        }
+    }
+
     test("the derivation refuses a log whose sampling covariance block is absent") {
 
         when {

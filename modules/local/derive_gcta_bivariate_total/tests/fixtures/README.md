@@ -54,6 +54,26 @@ Every diagonal entry is unchanged, so this pair differs from the first only in w
 error of the total depends on. It is the case that goes red when the derivation drops the off-diagonal terms
 (`se(rg)` returns to `0.037500`) or takes the wrong sign on the two variance-sum gradients (`0.046435`).
 
+**`synthetic_pinned`** — a single-component vector with the component held at GCTA's constrain floor, which is
+the shape the constrain-floor exemption exists for and the one no real fit on a 200-sample fixture reaches.
+GCTA's floor is `_y_Ssq * 1e-6`, so on a cohort with `Vp ~ 0.72` over 200 individuals it lands near `1.4e-4`;
+all three genetic parameters are set to `0.000143`, the log carries `(1 component(s) constrained)` inside the
+fitted model's AI-REML table, and the native `rG` standard error is `140680.566879` — the magnitude measured
+from a real pinned component. The sampling covariance is diagonal, with `sqrt(diag)` equal to the printed
+standard errors, so the diagonal check and the point-estimate check both pass and only the standard-error
+cross-check is in question:
+
+```
+rg  = 0.000143 / sqrt(0.000143 * 0.000143) = 1.000000
+se(rG) recomputed from the block          =    584.052160
+se(rG) GCTA printed                       = 140680.566879
+tolerance max(1e-4, 1e-3 * 140680.57)     =    140.680567
+```
+
+So without the exemption the run aborts, 140096 outside tolerance. The exemption fires only if the reference
+scale is the phenotypic variance (`0.000143 <= 1e-3 * 0.720143`); against the largest **genetic** variance in
+the fit it cannot fire at all, because on a one-component fit that maximum is the candidate's own parameter.
+
 ## Real GCTA output
 
 Produced on the pinned image `community.wave.seqera.io/library/gcta:1.94.1--9bc35dc424fcf6e9` (GCTA

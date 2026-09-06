@@ -74,8 +74,10 @@ output:
             transformation rescales the variances and leaves the correlation unchanged, so `rg` and `rg_se`
             need no conversion; the declared prevalence is recorded in the provenance instead.
 
-            A non-estimable value is `NA` rather than a number: a non-positive genetic variance sum leaves the
-            whole total `NA`, and a non-positive sampling variance leaves that one standard error `NA`.
+            A non-estimable derived value is `NA` rather than a number: a non-positive genetic variance sum
+            leaves the whole total `NA`, and a non-positive or non-finite sampling variance leaves that one
+            standard error `NA`. The `G1..GK` rows are GCTA's own text character for character, so a value
+            GCTA itself printed as `-nan` stands as it is and is named in the provenance's `warnings`.
           pattern: "*.total_rg.tsv"
           ontologies:
             - edam: "http://edamontology.org/format_3475"
