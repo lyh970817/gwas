@@ -97,6 +97,8 @@ PY
     name = "nf-test";
     runtimeInputs = [ pkgs.jdk17_headless nextflowCli ];
     text = ''
+      # Pin any nextflow bootstrap nf-test performs; no manual NXF_VER needed.
+      export NXF_VER="${nextflowVersion}"
       exec java -jar "${nfTestJar}/share/nf-test/nf-test.jar" "$@"
     '';
   };
@@ -258,6 +260,7 @@ pkgs.mkShell {
     waveCli
   ];
   shellHook = ''
+    export NXF_VER="${nextflowVersion}"
     if [[ $- == *i* && -z "''${DIRENV_IN_ENVRC:-}" && "''${SHELL:-}" != */bash ]]; then
       exec bash
     fi

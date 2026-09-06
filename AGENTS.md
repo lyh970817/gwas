@@ -9,6 +9,9 @@ Ask for the user's explicit approval before deciding to patch the source of a th
 pipeline invokes directly and that we did not write. Changes to pipeline code and programmes owned by this
 repository do not require that approval.
 
+File issues, comments, and reproducers only on lyh970817/gwas by default. Posting anything to an upstream or
+third-party repository requires the user's explicit approval per item, even when a reproducer is ready.
+
 Wire a third-party programme that this pipeline invokes according to its own documentation. Investigate its
 native behavior when the wiring at hand needs it: a contract the documentation leaves ambiguous, an output the
 pipeline must parse, a failure the pipeline must detect. Do not investigate as an end in itself. Report a
@@ -24,7 +27,22 @@ compensation for a tool defect, whether a refusal, an assertion, or a recomputat
 explicit decision. Validating user-supplied input such as manifest rows, method options, and resource files is
 unaffected.
 
+Licensing and redistribution questions for the wired scientific tools are resolved and are the user's concern.
+Never defer, descope, or block work on licence grounds; at most record licence status in the issue or image
+metadata.
+
+When any workstream, route, or capability is deferred, postponed, or descoped, file a detailed issue on
+lyh970817/gwas without being asked: the decision, its rationale, the evidence, a minimal reproducer where a
+defect is involved, and a checkable resumption condition. A deferral is complete only when its issue exists.
+
+During multi-workstream programmes, maintain a numbered queue of decisions that need the user, with stable
+numbers so answers can arrive by number. Surface new decisions as they arise, and print the full outstanding
+queue plus what is still running on request. Never silently block a workstream on an unrecorded decision.
+
 Choose the model family and reasoning effort for each subagent task according to its difficulty.
+
+Standing opt-in: for multi-issue implementation programmes, use the Workflow tool and background subagents
+freely without asking, respecting inter-issue dependencies.
 
 ## Repository identity and routing
 
@@ -55,6 +73,23 @@ and all merged temporary branches and worktrees have been cleaned up.
 Never merge a branch that still carries files which must never be tracked, anything under `.scratch/` above
 all; the merge reintroduces those blobs. Rewrite the branch first.
 
+## Worktree-isolated agents
+
+In a worktree-isolated agent, the isolation verifier accepts only plain, single-purpose commands with literal
+paths. It refuses chained one-liners, path arguments held in shell variables, `git -C` or `cd` toward the
+shared checkout or `.references/`, and complex constructs around git or docker. Write multi-step logic to a
+script file inside the worktree with the Write tool and run that; spell out scratchpad and worktree paths
+literally.
+
+A linked worktree has `shell.nix` but no direnv activation. Run toolchain commands as
+`nix-shell shell.nix --run '<command>'` from the worktree root (the isolation verifier accepts this form);
+never hard-code `/nix/store` paths or export `NXF_VER` manually — the dev shell and its `nf-test` wrapper
+already pin Nextflow.
+
+Bash `timeout` is capped at 600000 ms; larger values are silently truncated. Never sleep-wait for a background
+task or subagent — launch long runs (nf-test shards, container builds) with `run_in_background: true` and act
+on the completion notification. If polling is unavoidable, sleep at most 240 s per call.
+
 ## Generated development documents
 
 Commit issue-specific generated audit and evidence documents while they are needed for review or historical
@@ -76,3 +111,6 @@ resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and r
 Automatic `.references/test-datasets-gwas` discovery is personal-track behavior. A portable upstream PR
 checkout uses the public remote fallback unless `GWAS_FIXTURE_SOURCE` is explicitly supplied. Run local
 compact-fixture benchmarks on the personal track, or explicitly pin and verify the local source.
+
+The public remote fixture fallback is dead (404); materialize fixtures from the local
+`.references/test-datasets-gwas` resolver or an explicitly pinned `GWAS_FIXTURE_SOURCE`.
