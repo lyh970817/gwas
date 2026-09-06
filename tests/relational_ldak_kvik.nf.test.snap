@@ -12,11 +12,8 @@
                 "LDAK_KVIKSTEP2": {
                     "ldak6": 6
                 },
-                "PLINK2_MAKEBED": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PLINK2_MAKEPGEN": {
-                    "plink2": "2.0.0-a.6.9LM"
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -26,7 +23,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-31T00:10:42.697869148",
+        "timestamp": "2026-09-06T13:31:53.593764224",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

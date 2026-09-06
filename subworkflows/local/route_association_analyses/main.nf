@@ -6,7 +6,10 @@
 // They stay on the pipeline spine so each distinct cohort bundle, each scientifically distinct matrix and each
 // analysis unit's prepared phenotype is built once and fanned out to every consumer across every domain. What
 // this controller owns is the adaptation of those prepared streams into each association family's native call
-// shape, the per-method selection, and the naming of the producing method on the way out.
+// shape, the per-method selection, and the naming of the producing method on the way out. It declares no
+// genotype representation either: the native stream arrives in a format-polymorphic member order and each
+// consumer of it derives its own native flag from the primary member, while the PLINK 1 stream carries only
+// the requests whose selected method the registry says reads PLINK 1.
 //
 // The two prediction-reusing routes are called as subworkflows rather than inlined: `ROUTE_REGENIE_ASSOCIATIONS`
 // and `ROUTE_LDAK_KVIK_ASSOCIATIONS` own their own Step 1 reuse identity, and those keys stay private to them.
@@ -85,11 +88,13 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
         .filter { meta, _kvik_extract -> 'ldak_kvik' in meta.association_methods }
         .map { meta, kvik_extract -> [meta, kvik_extract, meta.method_options.ldak.kvik_step1_subset] }
 
-    // A relationship-scoped row reaches the PLINK 1 derivative too, and it carries no association methods at
-    // all, so the selected-method test is guarded rather than assuming the key is present.
-    // Total for its own inputs and needing no null guard: an element of `ch_plink1_genotypes` exists only for
-    // a cohort that has a PLINK 1 view, and every such cohort has an element in `ch_cohort_plink1_view_keys`.
-    // Preparation emits both from the same stream, so the two cannot disagree.
+    // A relationship-scoped row reaches the PLINK 1 view too, and it carries no association methods at all,
+    // so the selected-method test is guarded rather than assuming the key is present.
+    //
+    // Attaching the PLINK 1 view key here is total for this stream's own inputs and needs no null guard: an
+    // element of `ch_plink1_genotypes` exists only for a cohort that has a PLINK 1 view, and every such
+    // cohort has an element in `ch_cohort_plink1_view_keys`. Preparation emits both from one stream, so the
+    // two cannot disagree, and a cohort with no PLINK 1 view is absent from both rather than carrying a null.
     def ch_kvik_genotypes = ch_plink1_genotypes
         .filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in (meta.association_methods ?: []) }
         .map { meta, bed, bim, fam -> [meta.cohort, meta, bed, bim, fam] }
