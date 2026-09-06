@@ -17,11 +17,8 @@
                 "GCTA_REMLLDMS": {
                     "gcta": "1.94.1"
                 },
-                "PLINK2_MAKEBED": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PLINK2_MAKEPGEN": {
-                    "plink2": "2.0.0-a.6.9LM"
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -31,7 +28,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T02:32:33.862101356",
+        "timestamp": "2026-09-06T12:18:58.024648318",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

@@ -20,6 +20,12 @@
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -28,7 +34,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-31T00:08:31.873899901",
+        "timestamp": "2026-09-06T13:03:30.538176046",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

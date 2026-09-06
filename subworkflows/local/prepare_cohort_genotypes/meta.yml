@@ -58,7 +58,9 @@ output:
       description: One native view key per cohort, emitted with the native bundle so that no consumer of it waits on an unrelated cohort's projection.
       structure: [val cohort_id, val native_view_key]
   - cohort_plink1_view_keys:
-      description: One PLINK 1 view key per cohort that has a PLINK 1 view. Partial by design and null-free by construction: an element exists for exactly the cohorts whose consumers ask about one.
+      description: |
+        One PLINK 1 view key per cohort that has a PLINK 1 view. Partial by design and null-free by
+        construction: an element exists for exactly the cohorts whose consumers ask about one.
       structure: [val cohort_id, val plink1_view_key]
   - cohort_views:
       description: |

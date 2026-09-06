@@ -31,19 +31,19 @@ The cohort manifest owns reusable genotype facts. The analysis manifest owns one
 
 ### Cohort manifest fields
 
-| Column         | Required | Description                                                                                                             |
-| -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `cohort_id`    | Yes      | Unique, whitespace-free cohort identifier and analysis-manifest foreign key.                                            |
-| `genome_build` | Yes      | `GRCh37` or `GRCh38`; selects build-specific harmonisation resources.                                                   |
-| `ancestry`     | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`. |
-| `pgen`         | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                  |
-| `psam`         | By group | PLINK 2 sample file.                                                                                                    |
-| `pvar`         | By group | PLINK 2 variant file ending in `.pvar`. A Zstandard-compressed `.pvar.zst` is not accepted: it requires PLINK 2's `vzs` modifier, which the PLINK 2, GCTA and REGENIE consumers here do not pass. |
-| `bed`          | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                     |
-| `bim`          | By group | PLINK 1 variant file.                                                                                                   |
-| `fam`          | By group | PLINK 1 sample file.                                                                                                    |
-| `vcf`          | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                            |
-| `genotype_view_id` | No   | Immutable identity of the supplied genotype view: 16–64 lowercase hexadecimal characters, optionally prefixed by a backend namespace such as `biofuse:`. When absent, the pipeline digests the supplied bytes once per cohort in a task. |
+| Column             | Required | Description                                                                                                                                                                                                                              |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cohort_id`        | Yes      | Unique, whitespace-free cohort identifier and analysis-manifest foreign key.                                                                                                                                                             |
+| `genome_build`     | Yes      | `GRCh37` or `GRCh38`; selects build-specific harmonisation resources.                                                                                                                                                                    |
+| `ancestry`         | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`.                                                                                                                  |
+| `pgen`             | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                                                                                                                                   |
+| `psam`             | By group | PLINK 2 sample file.                                                                                                                                                                                                                     |
+| `pvar`             | By group | PLINK 2 variant file ending in `.pvar`. A Zstandard-compressed `.pvar.zst` is not accepted: it requires PLINK 2's `vzs` modifier, which the PLINK 2, GCTA and REGENIE consumers here do not pass.                                        |
+| `bed`              | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                                                                                                                                      |
+| `bim`              | By group | PLINK 1 variant file.                                                                                                                                                                                                                    |
+| `fam`              | By group | PLINK 1 sample file.                                                                                                                                                                                                                     |
+| `vcf`              | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                                                                                                                                             |
+| `genotype_view_id` | No       | Immutable identity of the supplied genotype view: 16–64 lowercase hexadecimal characters, optionally prefixed by a backend namespace such as `biofuse:`. When absent, the pipeline digests the supplied bytes once per cohort in a task. |
 
 Populate exactly one complete genotype representation on each row, and give the members of a multi-file group one shared basename stem — every PLINK, GCTA and REGENIE consumer addresses a fileset by a single prefix.
 
@@ -166,25 +166,25 @@ Summary pair request IDs use the same rule:
 
 Every selector carries only capabilities that validation, routing, reporting or GWASLab adaptation actively consumes. Selection stays explicit: the pipeline never substitutes one estimator for another according to sample size, memory, trait type or a failed task.
 
-| Method group                  | Estimator family           | Input backend            | Component model   | Stochastic | Trait support                         | Prevalence contract                   |
-| ----------------------------- | -------------------------- | ------------------------ | ----------------- | ---------- | ------------------------------------- | ------------------------------------- |
-| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes (BED or PGEN) | None    | No         | Quantitative and binary               | Not consumed                          |
-| `gcta_fastgwa`                | Mixed linear model         | Sparse GRM               | Single            | No         | Quantitative and binary               | Not consumed                          |
-| `ldak_kvik`                   | Mixed linear model         | Direct PLINK 1 genotypes | Single            | Yes        | Quantitative and binary               | Not consumed                          |
-| `gcta_greml`                  | REML                       | Dense GRM                | Single            | No         | Quantitative and binary               | Population value consumed             |
-| `gcta_greml_ldms`             | REML                       | LDMS GRM family          | LD/MAF stratified | No         | Quantitative and binary               | Population value consumed             |
-| `ldak_reml`                   | REML                       | LDAK kinship             | Single            | No         | Quantitative and binary               | Population value consumed             |
-| `ldak_he`                     | Moment HE                  | LDAK kinship             | Single            | Yes        | Quantitative and binary               | Not consumed                          |
-| `ldak_pcgc`                   | PCGC                       | LDAK kinship             | Single            | Yes        | Binary only                           | Population value required             |
-| `ldak_fast_he`                | Moment HE (randomised)     | Direct PLINK 1 genotypes | Single            | Yes        | Quantitative only (route policy)      | Not consumed                          |
-| `ldak_fast_pcgc`              | PCGC (randomised)          | Direct PLINK 1 genotypes | Single            | Yes        | Binary only                           | Population value required             |
-| `mph_reml`                    | REML (randomised trace)    | MPH GRM                  | Single            | Yes        | Quantitative only                     | Not consumed                          |
-| `mph_reml_ldms`               | REML (randomised trace)    | MPH GRM family           | LD/MAF stratified | Yes        | Quantitative only                     | Not consumed                          |
-| GCTA bivariate REML           | REML                       | Dense or LDMS GRM        | Single or LD/MAF  | No         | Quantitative and binary               | Population value consumed             |
-| GCTA bivariate HE             | Moment HE                  | Dense or LDMS GRM        | Single or LD/MAF  | No         | Quantitative only; no pair covariates | Not consumed                          |
-| MPH bivariate REML            | REML (randomised trace)    | MPH GRM or GRM family    | Single or LD/MAF  | Yes        | Quantitative only                     | Not consumed                          |
-| `ldsc_h2`, `ldsc_rg`          | LD-score regression        | Summary statistics       | Single            | No         | Quantitative and binary               | Population and sample values consumed |
-| `ldak_sumher`, `ldak_sumcors` | Summary tagging regression | Summary statistics       | Tagging bundle    | No         | Quantitative and binary               | Population and sample values consumed |
+| Method group                  | Estimator family           | Input backend                        | Component model   | Stochastic | Trait support                         | Prevalence contract                   |
+| ----------------------------- | -------------------------- | ------------------------------------ | ----------------- | ---------- | ------------------------------------- | ------------------------------------- |
+| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes (BED or PGEN) | None              | No         | Quantitative and binary               | Not consumed                          |
+| `gcta_fastgwa`                | Mixed linear model         | Sparse GRM                           | Single            | No         | Quantitative and binary               | Not consumed                          |
+| `ldak_kvik`                   | Mixed linear model         | Direct PLINK 1 genotypes             | Single            | Yes        | Quantitative and binary               | Not consumed                          |
+| `gcta_greml`                  | REML                       | Dense GRM                            | Single            | No         | Quantitative and binary               | Population value consumed             |
+| `gcta_greml_ldms`             | REML                       | LDMS GRM family                      | LD/MAF stratified | No         | Quantitative and binary               | Population value consumed             |
+| `ldak_reml`                   | REML                       | LDAK kinship                         | Single            | No         | Quantitative and binary               | Population value consumed             |
+| `ldak_he`                     | Moment HE                  | LDAK kinship                         | Single            | Yes        | Quantitative and binary               | Not consumed                          |
+| `ldak_pcgc`                   | PCGC                       | LDAK kinship                         | Single            | Yes        | Binary only                           | Population value required             |
+| `ldak_fast_he`                | Moment HE (randomised)     | Direct PLINK 1 genotypes             | Single            | Yes        | Quantitative only (route policy)      | Not consumed                          |
+| `ldak_fast_pcgc`              | PCGC (randomised)          | Direct PLINK 1 genotypes             | Single            | Yes        | Binary only                           | Population value required             |
+| `mph_reml`                    | REML (randomised trace)    | MPH GRM                              | Single            | Yes        | Quantitative only                     | Not consumed                          |
+| `mph_reml_ldms`               | REML (randomised trace)    | MPH GRM family                       | LD/MAF stratified | Yes        | Quantitative only                     | Not consumed                          |
+| GCTA bivariate REML           | REML                       | Dense or LDMS GRM                    | Single or LD/MAF  | No         | Quantitative and binary               | Population value consumed             |
+| GCTA bivariate HE             | Moment HE                  | Dense or LDMS GRM                    | Single or LD/MAF  | No         | Quantitative only; no pair covariates | Not consumed                          |
+| MPH bivariate REML            | REML (randomised trace)    | MPH GRM or GRM family                | Single or LD/MAF  | Yes        | Quantitative only                     | Not consumed                          |
+| `ldsc_h2`, `ldsc_rg`          | LD-score regression        | Summary statistics                   | Single            | No         | Quantitative and binary               | Population and sample values consumed |
+| `ldak_sumher`, `ldak_sumcors` | Summary tagging regression | Summary statistics                   | Tagging bundle    | No         | Quantitative and binary               | Population and sample values consumed |
 
 Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`. A direct-genotype route requests no matrix at all: `ldak_fast_he` and `ldak_fast_pcgc` read the cohort's PLINK 1 derivative and build nothing under `quality_control/`.
 
