@@ -13,6 +13,14 @@ Read the root fixture-safety boundary, `tests/AGENTS.md`, and
 Use the repository resolver's default bundle from the primary checkout or a worktree under `.worktrees/`. Set
 `GWAS_TEST_FIXTURES` only for an explicit private override such as a modified fixture copy.
 
+## Invocation environment and durations
+
+The dev shell's `nf-test` wrapper execs the jar directly with pinned Nextflow; do not export `NXF_VER` or
+hard-code `/nix/store` paths. From a linked worktree, which has no direnv activation, run
+`nix-shell shell.nix --run '<command>'` from the worktree root. A full three-shard suite takes tens of
+minutes; launch shards with `run_in_background: true` and act on completion notifications rather than
+sleep-waiting — Bash `timeout` caps at 10 minutes.
+
 ## Run the requested scope
 
 Discover the current filename before a focused run:
