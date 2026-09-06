@@ -1,0 +1,122 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "derive_gcta_bivariate_total"
+description: Derive the genome-wide total genetic correlation of a multi-component GCTA bivariate REML fit by the delta method, and publish it beside the native result as a clearly derived file
+keywords:
+  - gcta
+  - bivariate reml
+  - genetic correlation
+  - delta method
+  - ldms
+tools:
+  - "derive_gcta_bivariate_total":
+      description: |
+        A Python 3 writer that computes the one result GCTA's multi-GRM bivariate REML does not emit. GCTA
+        reports a genetic correlation per component and no genome-wide total: univariate REML sums its
+        components deliberately and fences bivariate mode out, and the newer HEreg estimator in the same
+        package does print a total for the same model (issue #34; #21 is the closed gap record). The complete
+        sampling variance/covariance matrix a valid delta-method standard error needs is written to the
+        native log and to no other file, so this writer reads it there, asserts that it describes the `.hsq`
+        it is paired with, and derives
+
+            sum(C(Gk)_tr12) / sqrt(sum(V(Gk)_tr1) * sum(V(Gk)_tr2))
+
+        with a delta-method standard error over the 3K genetic parameters. It never builds a total standard
+        error from the marginal per-component ones. Every value it computes is labelled derived, in the file
+        name, in the `origin` column and in the provenance sidecar; the native files are republished
+        untouched beside it.
+      homepage: "https://github.com/nf-core/gwas"
+      documentation: "https://nf-co.re/gwas"
+      # Pipeline-authored code carrying the pipeline's own licence. It invokes no third-party programme; GCTA
+      # is GPL-3.0-or-later and is declared by the `gcta/*` modules that do.
+      licence: ["MIT"]
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing the pair request's information: the request and relationship identity, the
+          declared endpoints and traits, the matrix reuse key and settings, the declared bivariate prevalence,
+          the request's native arguments, and `gcta_capability`, the method registry's estimator block.
+    - native_result:
+        type: file
+        description: |
+          The fit's native result. Its variance-component rows, their standard errors and its per-component
+          `rG` rows are the values the total is summed from. Rows after `Vp_tr1` are never read positionally,
+          because a request may legally add `--reml-bivar-lrt-rg`, whose extra rows are not numeric.
+        pattern: "*.hsq"
+        ontologies: []
+    - native_log:
+        type: file
+        description: |
+          The fit's native log. It is the only file that carries the sampling variance/covariance matrix of
+          the variance-component estimates, which is what makes a valid delta-method standard error possible;
+          it is also where the convergence marker, the constrained-component markers, GCTA's own note that it
+          bent a variance-covariance matrix to positive-definiteness, and the residual-covariance drop
+          statements live. With `--reml-bivar-prevalence` it additionally carries the liability-scale
+          `V(G)/Vp_*_L` rows that the bivariate `.hsq` does not (issue #41).
+        pattern: "*.log"
+        ontologies: []
+output:
+  total:
+    - - meta:
+          type: map
+          description: Groovy Map containing the pair request's information.
+      - "${prefix}.total_rg.tsv":
+          type: file
+          description: |
+            One header and K+1 rows. The primary row is `component = total`, `origin = delta_method`: the
+            summed genetic variances and covariance, each with a standard error taken from the matching
+            sub-block of the sampling covariance, and the genome-wide genetic correlation with its
+            delta-method standard error. The `G1..GK` rows carry GCTA's own per-component text verbatim with
+            `origin = native` and are secondary model diagnostics.
+
+            `scale = observed` qualifies the variance and covariance columns only. GCTA's observed-to-liability
+            transformation rescales the variances and leaves the correlation unchanged, so `rg` and `rg_se`
+            need no conversion; the declared prevalence is recorded in the provenance instead.
+
+            A non-estimable derived value is `NA` rather than a number: a non-positive genetic variance sum
+            leaves the whole total `NA`, and a non-positive or non-finite sampling variance leaves that one
+            standard error `NA`. The `G1..GK` rows are GCTA's own text character for character, so a value
+            GCTA itself printed as `-nan` stands as it is and is named in the provenance's `warnings`.
+          pattern: "*.total_rg.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475"
+  provenance:
+    - - meta:
+          type: map
+          description: Groovy Map containing the pair request's information.
+      - "${prefix}.provenance.json":
+          type: file
+          description: |
+            Per-result derivation record: the request and estimator identity, the component plan, the sample
+            counts GCTA reports, the residual-covariance decision with the native sentence or option token it
+            was read from, the rendered native arguments, the quality classification and its warning
+            vocabulary.
+
+            Its `derivation` block is what makes the derived number auditable: the formula as an identity
+            string, the parsed parameter order, the complete sampling covariance matrix, the source file it
+            came from, the maximum deviation of the diagonal cross-check, the per-component cross-check
+            record, the number of constrained components in the fitted model, and whether GCTA reported
+            bending a variance-covariance matrix to positive-definiteness. `n_observations` is GCTA's own `n`
+            row, which is twice the number of individuals for a bivariate fit and is deliberately not mapped
+            onto any sample count.
+          pattern: "*.provenance.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464"
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+topics:
+  versions:
+    - "versions.yml":
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies: []
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

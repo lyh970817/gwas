@@ -103,6 +103,7 @@ graph LR
         greml_ldms[GREML-LDMS]
         bivariate_reml_ldms[Bivariate REML-LDMS]
         bivariate_he_ldms[HEreg bivariate LDMS]
+        bivariate_total[Derived genome-wide rG]
         gcta_native[Method-specific native results]
 
         makebed -->|gcta| gcta_dense
@@ -122,6 +123,8 @@ graph LR
         bivariate_he -->|gcta| gcta_native
         greml_ldms -->|gcta| gcta_native
         bivariate_reml_ldms -->|gcta| gcta_native
+        bivariate_reml_ldms -->|gcta| bivariate_total
+        bivariate_total -->|gcta| gcta_native
         bivariate_he_ldms -->|gcta| gcta_native
     end
 

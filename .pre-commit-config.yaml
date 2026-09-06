@@ -8,6 +8,10 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # `derive_gcta_bivariate_total`'s `.hsq`/`.log` fixtures are verbatim GCTA output and hand-written test
+      # vectors in GCTA's own layout. GCTA ends every row of its sampling-covariance block and of its
+      # iteration trace with a tab, and the parser those fixtures exercise is tested against exactly what the
+      # tool writes, so they are not whitespace-normalised.
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
         exclude: |
@@ -16,6 +20,7 @@ repos:
               modules/(?!local/).*|
               subworkflows/(?!local/).*|
               nextflow-26-upgrade-evidence/.*|
+              modules/local/derive_gcta_bivariate_total/tests/fixtures/.*\.(hsq|log)$|
               .*\.snap$
           )$
       - id: end-of-file-fixer
@@ -25,6 +30,7 @@ repos:
               modules/(?!local/).*|
               subworkflows/(?!local/).*|
               nextflow-26-upgrade-evidence/.*|
+              modules/local/derive_gcta_bivariate_total/tests/fixtures/.*\.(hsq|log)$|
               .*\.snap$
           )$
   - repo: https://github.com/seqeralabs/nf-lint-pre-commit

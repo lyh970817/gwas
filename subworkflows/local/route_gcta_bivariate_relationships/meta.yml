@@ -1,17 +1,19 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_gcta_bivariate_relationships
-description: Route declared individual-level relationship requests from the shared prepared pair into native GCTA bivariate REML and HEreg outputs
+description: Route declared individual-level relationship requests from the shared prepared pair into native GCTA bivariate REML and HEreg outputs, and derive the genome-wide total the multi-component REML fit does not report
 keywords:
   - gcta
   - bivariate reml
   - haseman-elston regression
   - ldms
   - relationship
+  - genetic correlation
 components:
   - gcta/bivariatereml
   - gcta/bivariateremlldms
   - gcta/bivariatehereg
   - gcta/bivariateheregldms
+  - derive_gcta_bivariate_total
 input:
   - ch_relationships:
       description: Validated relationship requests, one row per selected method
@@ -73,6 +75,16 @@ output:
       description: Native LDMS bivariate HEreg log
       structure: "[map meta, path log]"
       pattern: "*.log"
+      ontologies: []
+  - reml_ldms_total:
+      description: Derived genome-wide genetic correlation of the LDMS bivariate REML fit, with the native per-stratum rows beside it
+      structure: "[map meta, path total]"
+      pattern: "*.total_rg.tsv"
+      ontologies: []
+  - reml_ldms_provenance:
+      description: Record of that derivation, including the parsed parameter order and the sampling covariance it was computed from
+      structure: "[map meta, path provenance]"
+      pattern: "*.provenance.json"
       ontologies: []
 authors:
   - "@andongni"

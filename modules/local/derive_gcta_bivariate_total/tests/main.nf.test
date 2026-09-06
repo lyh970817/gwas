@@ -1,0 +1,650 @@
+nextflow_process {
+
+    name "Test Process DERIVE_GCTA_BIVARIATE_TOTAL"
+    script "../main.nf"
+    process "DERIVE_GCTA_BIVARIATE_TOTAL"
+    config "./nextflow.config"
+
+    tag "modules"
+    tag "modules_local"
+    tag "derive_gcta_bivariate_total"
+
+    // Two kinds of fixture, for two different jobs.
+    //
+    // `synthetic_*` are hand-built test vectors in GCTA's exact bivariate REML layout, with round variance
+    // components and a sampling covariance chosen so the whole derivation is computable on paper. They are
+    // what pins the mathematics: the closed-form pair and the pair that differs from it only in two
+    // off-diagonal entries of the sampling covariance, which is the only thing the delta-method standard
+    // error of the total depends on. `tests/fixtures/README.md` carries the arithmetic.
+    //
+    // `one_stratum`, `two_stratum` and `two_stratum_nocove` are real GCTA 1.94.1 output from the pinned
+    // image, so the parser is exercised against the text GCTA actually writes -- the tab-and-trailing-tab
+    // matrix rows, the option echo, the constrained and bending markers, and the three variance-component
+    // layouts this route can produce.
+    def fixture = { root, name -> "${root}/modules/local/derive_gcta_bivariate_total/tests/fixtures/${name}" }
+
+    // The registry's estimator block for `gcta_bivariate_reml_ldms`, which the route folds into the request
+    // record before this process and which is copied into the sidecar unchanged.
+    def capability = [
+        option_family: 'gcta',
+        estimator_family: 'reml',
+        input_backend: 'ldms_grm_family',
+        component_model: 'ld_maf_stratified',
+        stochastic: false,
+    ]
+
+    def metaText = { nativeArgs = "['--reml-maxit', '500', '--reml-no-constrain']" ->
+        """
+                    [
+                        id: 'gcta_bivariate_reml_ldms--qt_bt',
+                        request_id: 'gcta_bivariate_reml_ldms--qt_bt',
+                        relationship_id: 'qt_bt',
+                        method: 'gcta_bivariate_reml_ldms',
+                        left_analysis_id: 'example_pgen_qt',
+                        right_analysis_id: 'example_pgen_bt',
+                        left_trait_id: 'QT',
+                        right_trait_id: 'BT',
+                        matrix_key: 'e8639c59a4d7',
+                        matrix_settings: [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]],
+                        reml_bivar_prevalence: [0.1],
+                        native_args: ${nativeArgs},
+                        gcta_capability: ${capability.inspect()},
+                    ]
+        """
+    }
+
+    // Copy a fixture pair out and optionally rewrite it. Every corruption below changes exactly one property
+    // the parser asserts, so the message it produces names that property.
+    def stage = { root, outputDir, name, source, edits = [:] ->
+        def caseRoot = new File(outputDir.toString(), "case_${name}")
+        caseRoot.mkdirs()
+        def result = new File(caseRoot, 'native.hsq')
+        def log = new File(caseRoot, 'native.log')
+        result.text = edits.hsq ?: new File(fixture(root, "${source}.hsq")).text
+        log.text = edits.log ?: new File(fixture(root, "${source}.log")).text
+        [result: result, log: log]
+    }
+
+    def inputs = { staged, nativeArgs = "['--reml-maxit', '500', '--reml-no-constrain']" ->
+        """
+        input[0] = [
+            ${metaText(nativeArgs)},
+            file('${staged.result}', checkIfExists: true),
+            file('${staged.log}', checkIfExists: true),
+        ]
+        """
+    }
+
+    def readTable = { path ->
+        def lines = new File(path.toString()).text.split('\n')
+        def header = lines[0].split('\t')
+        lines.drop(1).collect { line -> [header, line.split('\t')].transpose().collectEntries() }
+    }
+
+    def readProvenance = { path -> new groovy.json.JsonSlurper().parse(new File(path.toString())) }
+
+    // The block heading GCTA writes above the sampling variance/covariance matrix, and the label order the
+    // rows carry. Both are measured on the pinned image, not assumed.
+    def heading = 'Sampling variance/covariance of the estimates of variance components:'
+
+    // Rewrite the matrix inside a real log by applying `transform` to the parsed rows.
+    def rewriteMatrix = { root, source, transform ->
+        def lines = new File(fixture(root, "${source}.log")).text.split('\n') as List
+        def start = lines.indexOf(heading) + 1
+        def end = start
+        while (lines[end].trim()) {
+            end += 1
+        }
+        def matrix = lines.subList(start, end).collect { row -> row.trim().split('\\s+').collect { cell -> cell as double } }
+        def rewritten = transform(matrix).collect { row -> row.collect { cell -> String.format('%.6e', cell) }.join('\t') + '\t' }
+        (lines.subList(0, start) + rewritten + lines.subList(end, lines.size())).join('\n') + '\n'
+    }
+
+    test("a hand-computable two-component vector reproduces the closed-form total and its delta-method standard error") {
+
+        when {
+            def staged = stage(projectDir, outputDir, 'closed_form', 'synthetic_diagonal')
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // The primary row is first and the per-component diagnostics follow it.
+                { assert rows*.component == ['total', 'G1', 'G2'] },
+                { assert rows*.origin == ['delta_method', 'native', 'native'] },
+                // sum V(Gk)_tr1 = 1 + 3 = 4, sum V(Gk)_tr2 = 1 + 3 = 4, sum C(Gk)_tr12 = 0.5 + 1.5 = 2,
+                // so rg = 2 / sqrt(4 * 4) = 0.5 exactly.
+                { assert total.left_variance == '4.000000' },
+                { assert total.right_variance == '4.000000' },
+                { assert total.covariance == '2.000000' },
+                { assert total.rg == '0.500000' },
+                // gradient = (-0.5/8, -0.5/8, 1/4) per component and the sampling covariance is 0.01 * I, so
+                // var = 0.01 * 2 * (0.0625^2 + 0.0625^2 + 0.25^2) = 0.00140625 and the SE is exactly 0.0375.
+                { assert total.rg_se == '0.037500' },
+                // Each sum's own SE is the root of its 2x2 sub-block: sqrt(0.01 + 0.01) = 0.141421.
+                { assert total.left_variance_se == '0.141421' },
+                { assert total.right_variance_se == '0.141421' },
+                { assert total.covariance_se == '0.141421' },
+                // The per-component rows are GCTA's own text, not a recomputation of it.
+                { assert rows[1].rg == '0.500000' && rows[1].rg_se == '0.106066' },
+                { assert rows[2].rg == '0.500000' && rows[2].rg_se == '0.035355' },
+                { assert rows*.n_components == ['2', '2', '2'] },
+                { assert rows*.scale == ['observed', 'observed', 'observed'] },
+                { assert provenance.schema_version == '1.1' },
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                { assert provenance.estimator == capability },
+                // Proof that the whole-map literal was decoded rather than read as a string.
+                { assert provenance.result.request_id == 'gcta_bivariate_reml_ldms--qt_bt' },
+                { assert provenance.result.primary_files == ['gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv'] },
+                { assert provenance.component_plan.matrix_key == 'e8639c59a4d7' },
+                { assert provenance.component_plan.settings.ld_bins == 2 },
+                { assert provenance.derivation.total_rg == 'sum(C(Gk)_tr12) / sqrt(sum(V(Gk)_tr1) * sum(V(Gk)_tr2))' },
+                { assert provenance.derivation.standard_error == 'delta_method' },
+                { assert provenance.derivation.sampling_covariance_source == 'native_log' },
+                { assert provenance.derivation.native_layout == 'multi_component' },
+                { assert provenance.derivation.n_components == 2 },
+                { assert provenance.derivation.parameter_order == [
+                    'V(G1)_tr1', 'V(G1)_tr2', 'C(G1)_tr12',
+                    'V(G2)_tr1', 'V(G2)_tr2', 'C(G2)_tr12',
+                    'V(e)_tr1', 'V(e)_tr2', 'C(e)_tr12',
+                ] },
+                { assert provenance.derivation.sampling_covariance.size() == 9 },
+                { assert provenance.derivation.component_cross_check*.se_checked == [true, true] },
+                { assert provenance.derivation.reml_bivar_prevalence == [0.1] },
+                { assert provenance.derivation.scale == [variances: 'observed', correlation: 'scale_invariant'] },
+                { assert provenance.native_arguments == ['--reml-maxit', '500', '--reml-no-constrain'] },
+                { assert provenance.software.tool == 'gcta' },
+                { assert snapshot(sanitizeOutput(process.out)).match() },
+            )
+        }
+    }
+
+    test("the sampling covariance of the estimates changes the derived standard error and nothing else") {
+
+        when {
+            def staged = stage(projectDir, outputDir, 'covariance_matters', 'synthetic_covariance')
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // This vector's variance components are identical to the closed-form case, so every point
+                // estimate is unchanged.
+                { assert total.rg == '0.500000' },
+                { assert total.left_variance == '4.000000' },
+                { assert total.right_variance == '4.000000' },
+                { assert total.covariance == '2.000000' },
+                // Two entries differ: Cov(V(G1)_tr1, C(G1)_tr12) = 0.004 and Cov(C(G1)_tr12, C(G2)_tr12) =
+                // 0.005. By hand, var = 0.00140625 + 2 * (-0.0625) * 0.004 * 0.25 + 2 * 0.25 * 0.005 * 0.25
+                // = 0.00190625, so the SE is sqrt(0.00190625) = 0.043661 rather than 0.037500.
+                //
+                // This is the assertion that fails when the derivation drops the off-diagonal terms (it
+                // returns to 0.037500) and when the gradient of the correlation with respect to the two
+                // variance sums takes the wrong sign (it becomes 0.046435).
+                { assert total.rg_se == '0.043661' },
+                // The summed covariance's own SE moves for the same reason: sqrt(0.01 + 0.01 + 2 * 0.005).
+                { assert total.covariance_se == '0.173205' },
+                { assert total.left_variance_se == '0.141421' },
+                // The within-block entry also moves GCTA's own G1 correlation SE, which the per-component
+                // cross-check reproduces from that block rather than taking on trust.
+                { assert rows[1].rg_se == '0.096177' },
+                { assert rows[2].rg_se == '0.035355' },
+                { assert provenance.classification == 'estimable' },
+                { assert provenance.warnings == [] },
+                { assert provenance.derivation.component_cross_check*.se_checked == [true, true] },
+                { assert snapshot(sanitizeOutput(process.out)).match() },
+            )
+        }
+    }
+
+    test("a real two-stratum GCTA fit is derived from the sampling covariance its log carries") {
+
+        when {
+            def staged = stage(projectDir, outputDir, 'two_stratum', 'two_stratum')
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            def nativeRows = new File(fixture(projectDir, 'two_stratum.hsq')).readLines()
+            assertAll(
+                { assert process.success },
+                { assert rows*.component == ['total', 'G1', 'G2'] },
+                // The per-component rows are GCTA's own text, character for character.
+                { assert [rows[1].left_variance, rows[1].left_variance_se] == nativeRows[1].split('\t').drop(1) },
+                { assert [rows[1].covariance, rows[1].covariance_se] == nativeRows[3].split('\t').drop(1) },
+                { assert [rows[2].right_variance, rows[2].right_variance_se] == nativeRows[5].split('\t').drop(1) },
+                { assert [rows[1].rg, rows[1].rg_se] == nativeRows[16].split('\t').drop(1) },
+                // -0.060487 / sqrt(0.009499 * 0.016897), from the summed native components.
+                { assert total.rg == '-4.774394' },
+                { assert total.rg_se == '34.712390' },
+                { assert total.left_variance == '0.009499' },
+                { assert total.right_variance == '0.016897' },
+                { assert total.covariance == '-0.060487' },
+                // Neither GCTA's `.hsq` nor any other native file carries this matrix: it is in the log alone.
+                { assert !new File(fixture(projectDir, 'two_stratum.hsq')).text.contains(heading) },
+                { assert new File(fixture(projectDir, 'two_stratum.log')).text.count(heading) == 1 },
+                { assert provenance.derivation.sampling_covariance_source == 'native_log' },
+                { assert provenance.derivation.sampling_covariance.size() == 9 },
+                // The rounding bound of a six-decimal standard error against a `%.6e` sampling variance.
+                { assert provenance.derivation.diagonal_check_max_abs_deviation < 1.1e-6 },
+                { assert provenance.derivation.component_cross_check*.se_checked == [true, true] },
+                { assert provenance.derivation.constrained_components == 0 },
+                // GCTA prints this only when it actually bent a variance-covariance matrix to
+                // positive-definiteness, which is when it declares the standard errors unreliable.
+                { assert provenance.derivation.sampling_covariance_bended },
+                { assert provenance.warnings == [
+                    'sampling_covariance_bended_se_unreliable',
+                    'total_genetic_correlation_outside_unit_interval',
+                ] },
+                { assert provenance.classification == 'estimable_with_warning' },
+                { assert provenance.residual_covariance == 'estimated' },
+                // GCTA's `n` is observations, which is twice the individuals for a bivariate fit, so it is
+                // recorded under its own key and never mapped onto a sample count.
+                { assert provenance.derivation.n_observations == 400 },
+                { assert provenance.inputs.samples.retained == 200 },
+                { assert provenance.inputs.samples.left_nonmissing == 200 },
+                { assert provenance.inputs.samples.right_nonmissing == 200 },
+                { assert provenance.inputs.samples.both == null },
+                { assert snapshot(sanitizeOutput(process.out)).match() },
+            )
+        }
+    }
+
+    test("a one-stratum fit is the degenerate case whose total is its single component") {
+
+        when {
+            def staged = stage(projectDir, outputDir, 'one_stratum', 'one_stratum')
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def component = rows.find { row -> row.component == 'G1' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            // The rounding of the three six-decimal inputs propagated through the correlation. An absolute
+            // tolerance is not safe here: the bound spans orders of magnitude with the fitted variances.
+            def a = component.left_variance as double
+            def b = component.right_variance as double
+            def t = total.rg as double
+            def bound = Math.max(1e-4, 5e-7 / Math.sqrt(a * b) + Math.abs(t) * 5e-7 * (1 / (2 * a) + 1 / (2 * b)))
+            assertAll(
+                { assert process.success },
+                { assert rows*.component == ['total', 'G1'] },
+                // Measured on the pinned image: a one-entry `--mgrm` list makes GCTA drop the component
+                // ordinal, so the production one-stratum plan writes `V(G)_*` and `rG`, not `V(G1)_*`.
+                { assert new File(fixture(projectDir, 'one_stratum.hsq')).text.contains('V(G)_tr1') },
+                { assert provenance.derivation.native_layout == 'single_component' },
+                { assert provenance.derivation.n_components == 1 },
+                { assert provenance.derivation.parameter_order == [
+                    'V(G)_tr1', 'V(G)_tr2', 'C(G)_tr12', 'V(e)_tr1', 'V(e)_tr2', 'C(e)_tr12',
+                ] },
+                { assert Math.abs((total.rg as double) - (component.rg as double)) <= bound },
+                // The one-component total's standard error is the same delta-method construction over the
+                // same 3x3 block, so it reproduces GCTA's own to a fraction of a percent.
+                { assert Math.abs((total.rg_se as double) - (component.rg_se as double)) / (component.rg_se as double) < 1e-2 },
+                { assert total.left_variance == component.left_variance },
+                { assert total.covariance == component.covariance },
+                { assert snapshot(sanitizeOutput(process.out)).match() },
+            )
+        }
+    }
+
+    test("a fit run without a residual covariance records why from the native option echo") {
+
+        when {
+            // Deliberately a request whose `native_args` do not name the option: the decision comes from what
+            // GCTA reports it accepted, never from what the pipeline believes it asked for.
+            def staged = stage(projectDir, outputDir, 'nocove', 'two_stratum_nocove')
+            process {
+                inputs(staged, "['--reml-maxit', '500']")
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert rows*.component == ['total', 'G1', 'G2'] },
+                // P = 3K + 2 without the residual covariance parameter.
+                { assert provenance.derivation.parameter_order.size() == 8 },
+                { assert provenance.derivation.sampling_covariance.size() == 8 },
+                { assert provenance.residual_covariance == 'dropped_by_request' },
+                { assert provenance.derivation.residual_covariance_evidence == '--reml-bivar-nocove' },
+                { assert provenance.warnings == ['residual_covariance_absent'] },
+                { assert provenance.classification == 'estimable_with_warning' },
+                { assert provenance.native_arguments == ['--reml-maxit', '500'] },
+                { assert snapshot(sanitizeOutput(process.out)).match() },
+            )
+        }
+    }
+
+    test("an automatic residual-covariance drop is read from the sentence GCTA prints for it") {
+
+        when {
+            def source = new File(fixture(projectDir, 'two_stratum_nocove.log')).text
+            def staged = stage(projectDir, outputDir, 'low_overlap', 'two_stratum_nocove', [
+                log: source.replace(
+                    '--reml-bivar-nocove\n',
+                    'Note: the residual covariance component is ignored because < 10% of individuals were measured for both traits.\n',
+                ),
+            ])
+            process {
+                inputs(staged, "['--reml-maxit', '500']")
+            }
+        }
+
+        then {
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                // GCTA announces both automatic drops in words, and the two are different situations, so
+                // neither is inferred from the other's absence.
+                { assert provenance.residual_covariance == 'dropped_low_overlap' },
+                { assert provenance.derivation.residual_covariance_evidence.contains('< 10% of individuals') },
+            )
+        }
+    }
+
+    test("a residual covariance absent with no native marker is recorded as undetermined rather than guessed") {
+
+        when {
+            def source = new File(fixture(projectDir, 'two_stratum_nocove.log')).text
+            def staged = stage(projectDir, outputDir, 'undetermined', 'two_stratum_nocove', [
+                log: source.replace('--reml-bivar-nocove\n', ''),
+            ])
+            process {
+                inputs(staged, "['--reml-maxit', '500']")
+            }
+        }
+
+        then {
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.residual_covariance == 'absent_reason_undetermined' },
+                { assert provenance.derivation.residual_covariance_evidence == null },
+            )
+        }
+    }
+
+    test("a non-positive summed genetic variance is classified, never raised") {
+
+        when {
+            // A converged fit whose components sum to a non-positive genetic variance answers nothing, but it
+            // is a data outcome of a native run that already succeeded and was published, so it must not turn
+            // a successful run into a failed one.
+            //
+            // Both variances of both components are negated, which is a shape GCTA does produce: its own
+            // per-component guard is the product `V1 * V2 > 0` rather than each factor, so it still prints a
+            // correlation for a component with two negative variances, and every cross-check below still
+            // holds. The genome-wide rule is deliberately stricter, because two negative sums give a real
+            // square root and a meaningless total.
+            def source = new File(fixture(projectDir, 'synthetic_diagonal.hsq')).text
+            def staged = stage(projectDir, outputDir, 'nonestimable', 'synthetic_diagonal', [
+                hsq: source
+                    .replace('V(G1)_tr1\t1.000000', 'V(G1)_tr1\t-1.000000')
+                    .replace('V(G1)_tr2\t1.000000', 'V(G1)_tr2\t-1.000000')
+                    .replace('V(G2)_tr1\t3.000000', 'V(G2)_tr1\t-3.000000')
+                    .replace('V(G2)_tr2\t3.000000', 'V(G2)_tr2\t-3.000000'),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert total.rg == 'NA' },
+                { assert total.rg_se == 'NA' },
+                // The native rows are still published: only the derived total is withheld.
+                { assert rows*.component == ['total', 'G1', 'G2'] },
+                { assert rows[1].rg == '0.500000' },
+                { assert rows[2].rg == '0.500000' },
+                { assert provenance.classification == 'completed_nonestimable' },
+                { assert provenance.warnings == ['total_nonestimable_nonpositive_genetic_variance'] },
+            )
+        }
+    }
+
+    test("a component GCTA held at its constrain floor is exempt from the standard-error cross-check") {
+
+        when {
+            // The shape GCTA produces when it pins a component: all three of its parameters sit at the
+            // constrain floor, which is a fraction of the phenotypic sum of squares, and the correlation's
+            // native standard error is enormous and not reproducible from the near-singular 3x3 block it
+            // came from. The exemption exists for exactly this, and the single-component layout is where it
+            // has to work, because that is what a one-stratum LDMS plan produces.
+            def staged = stage(projectDir, outputDir, 'pinned', 'synthetic_pinned')
+            process {
+                inputs(staged, "['--reml-maxit', '500']")
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                // Without the exemption this run aborts: the block gives 584.052160 against GCTA's own
+                // 140680.566879, which is 140096 outside the max(1e-4, 1e-3 * SE) tolerance.
+                { assert process.success },
+                { assert rows*.component == ['total', 'G1'] },
+                { assert rows[1].rg_se == '140680.566879' },
+                { assert provenance.derivation.constrained_components == 1 },
+                { assert provenance.derivation.component_cross_check*.se_checked == [false] },
+                { assert provenance.warnings.contains('component_se_cross_check_skipped:G1') },
+                { assert provenance.warnings.contains('constrained_components:1') },
+                { assert provenance.warnings.contains('standard_error_unreliable_constrained_fit') },
+                { assert provenance.classification == 'estimable_with_warning' },
+                // The reference the floor is measured against must be the phenotypic variance, not the
+                // largest genetic variance in the fit: that maximum includes the candidate's own parameters,
+                // so on a one-component fit the predicate would be false for every value it could ever take.
+                { assert provenance.derivation.n_components == 1 },
+                { assert new File(fixture(projectDir, 'synthetic_pinned.hsq')).text.contains('Vp_tr1\t0.720143') },
+            )
+        }
+    }
+
+    test("a value GCTA did not compute is classified rather than crashing the writer") {
+
+        when {
+            // Three non-finite shapes at once, because the failure policy is one policy: a non-finite cell in
+            // the native result, a symmetric non-finite pair in the log's sampling covariance, and a
+            // non-finite confined to an `rG` row, which is the shape this GCTA family is recorded producing.
+            // None of them may abort a run whose native result already succeeded and was published.
+            def sourceHsq = new File(fixture(projectDir, 'two_stratum.hsq')).text
+            def staged = stage(projectDir, outputDir, 'non_finite', 'two_stratum', [
+                hsq: sourceHsq.replace('rG1\t-0.524266\t2.210397', 'rG1\t-nan\t-nan'),
+                log: rewriteMatrix(projectDir, 'two_stratum', { matrix ->
+                    def patched = matrix.collect { row -> row.collect() }
+                    patched[0][2] = Double.NaN
+                    patched[2][0] = Double.NaN
+                    return patched
+                }),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def total = rows.find { row -> row.component == 'total' }
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert provenance.warnings.contains('non_finite_native_value') },
+                { assert provenance.classification == 'estimable_with_warning' },
+                // The point estimate still comes from the native variance components, which are real
+                // numbers; only the standard error, which needs the block, is withheld.
+                { assert total.rg == '-4.774394' },
+                { assert total.rg_se == 'NA' },
+                // A derived cell is `NA`, never the literal `nan`.
+                { assert !rows.any { row -> row.origin == 'delta_method' && row.values().any { cell -> cell.toString().toLowerCase().contains('nan') } } },
+                // A native cell is GCTA's own text, so what GCTA printed stands and is named in `warnings`.
+                { assert rows[1].rg == '-nan' },
+                // The record is a real file that parses, and `allow_nan=False` on the writer stayed an
+                // assertion rather than becoming the crash path.
+                { assert new File(process.out.provenance.get(0).get(1).toString()).length() > 0 },
+                { assert provenance.derivation.sampling_covariance[0][2] == null },
+                { assert provenance.derivation.sampling_covariance[2][0] == null },
+                { assert provenance.derivation.total_rg_standard_error == null },
+                // The diagonal check reports a deviation it actually measured, rather than folding a
+                // non-comparable row in as a zero.
+                { assert provenance.derivation.diagonal_check_max_abs_deviation > 0 },
+                { assert provenance.derivation.diagonal_check_max_abs_deviation < 1.1e-6 },
+            )
+        }
+    }
+
+    test("the derivation refuses a log whose sampling covariance block is absent") {
+
+        when {
+            def source = new File(fixture(projectDir, 'two_stratum.log')).text
+            def staged = stage(projectDir, outputDir, 'no_block', 'two_stratum', [log: source.replace(heading + '\n', '')])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains("pair request 'gcta_bivariate_reml_ldms--qt_bt'") },
+                { assert process.stdout.join('\n').contains('carries no') },
+                { assert process.stdout.join('\n').contains('Sampling variance/covariance of the estimates of variance components') },
+            )
+        }
+    }
+
+    test("the derivation refuses a block whose dimension disagrees with the native result") {
+
+        when {
+            def staged = stage(projectDir, outputDir, 'wrong_dimension', 'two_stratum', [
+                log: rewriteMatrix(projectDir, 'two_stratum', { matrix -> matrix.drop(1) }),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains('is 8x[9], but the native result declares 9 variance components') },
+            )
+        }
+    }
+
+    test("the derivation refuses a block whose diagonal does not reproduce the native standard errors") {
+
+        when {
+            def source = new File(fixture(projectDir, 'two_stratum.hsq')).text
+            def staged = stage(projectDir, outputDir, 'diagonal_mismatch', 'two_stratum', [
+                hsq: source.replace('V(G2)_tr1\t0.044429\t0.116382', 'V(G2)_tr1\t0.044429\t0.900000'),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains('does not describe the native result') },
+                { assert process.stdout.join('\n').contains("for 'V(G2)_tr1'") },
+            )
+        }
+    }
+
+    test("the derivation refuses a block whose off-diagonal entries are out of order") {
+
+        when {
+            // Only two off-diagonal entries move, and symmetrically, so the diagonal is untouched and the
+            // diagonal check cannot see this at all. The delta-method standard error of the total is a pure
+            // function of exactly these entries, so the per-component cross-check is what stands between a
+            // mis-ordered matrix and a wrong published number.
+            def staged = stage(projectDir, outputDir, 'offdiagonal_swap', 'two_stratum', [
+                log: rewriteMatrix(projectDir, 'two_stratum', { matrix ->
+                    def swapped = matrix.collect { row -> row.collect() }
+                    swapped[0][1] = matrix[0][2]
+                    swapped[0][2] = matrix[0][1]
+                    swapped[1][0] = matrix[2][0]
+                    swapped[2][0] = matrix[1][0]
+                    return swapped
+                }),
+            ])
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 },
+                { assert process.stdout.join('\n').contains('does not reproduce the standard error GCTA printed for rG1 of component G1') },
+                { assert process.stdout.join('\n').contains('are not in the parameter order this parser assumes') },
+            )
+        }
+    }
+
+    test("stub execution writes both derived files and the versions record") {
+
+        options "-stub"
+
+        when {
+            def staged = stage(projectDir, outputDir, 'stub', 'two_stratum')
+            process {
+                inputs(staged)
+            }
+        }
+
+        then {
+            def rows = readTable(process.out.total.get(0).get(1))
+            def provenance = readProvenance(process.out.provenance.get(0).get(1))
+            assertAll(
+                { assert process.success },
+                { assert process.out.total.size() == 1 },
+                { assert process.out.provenance.size() == 1 },
+                // Same names, same cardinality and the same on-disk schema as a real run: the nullable
+                // `derivation` member is present rather than omitted.
+                { assert new File(process.out.total.get(0).get(1).toString()).name == 'gcta_bivariate_reml_ldms--qt_bt.total_rg.tsv' },
+                { assert rows*.component == ['total'] },
+                { assert rows[0].origin == 'delta_method' },
+                { assert rows[0].rg == 'NA' },
+                { assert provenance.schema_version == '1.1' },
+                { assert provenance.containsKey('derivation') && provenance.derivation == null },
+                { assert new File(process.out.versions.get(0).toString()).text.contains('python:') },
+            )
+        }
+    }
+}

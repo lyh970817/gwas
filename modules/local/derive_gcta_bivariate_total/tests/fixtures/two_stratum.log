@@ -1,0 +1,106 @@
+*******************************************************************
+* Genome-wide Complex Trait Analysis (GCTA)
+* version v1.94.1 Linux
+* Built at Nov 15 2022 21:14:25, by GCC 8.5
+* (C) 2010-present, Yang Lab, Westlake University
+* Please report bugs to Jian Yang <jian.yang@westlake.edu.cn>
+*******************************************************************
+Analysis started at 02:47:33 UTC on Sun Sep 06 2026.
+Hostname: e0f928866b7f
+
+Accepted options:
+--reml-bivar 1 2
+--mgrm ldms_two.mgrm
+--pheno qt_bt.pheno
+--reml-bivar-prevalence 0.1
+--reml-maxit 500
+--reml-no-constrain
+--out ldms_k2_qtbt_nc
+--thread-num 2
+
+Note: the program will be running on 2 threads.
+
+Reading phenotypes from [qt_bt.pheno].
+There are 2 traits specified in the file [qt_bt.pheno].
+Traits 1 and 2 are included in the bivariate analysis.
+Non-missing phenotypes of 200 individuals are included from [qt_bt.pheno].
+200 individuals are in common in these files.
+200 non-missing phenotypes for trait #1 and 200 for trait #2
+87 cases and 113 controls for trait #2
+There are 2 GRM file names specified in the file [ldms_two.mgrm].
+Reading the GRM from the 1th file ...
+Reading IDs of the GRM from [ldms1.grm.id].
+200 IDs are read from [ldms1.grm.id].
+Reading the GRM from [ldms1.grm.bin].
+GRM for 200 individuals are included from [ldms1.grm.bin].
+Reading the GRM from the 2th file ...
+Reading IDs of the GRM from [ldms2.grm.id].
+200 IDs are read from [ldms2.grm.id].
+Reading the GRM from [ldms2.grm.bin].
+GRM for 200 individuals are included from [ldms2.grm.bin].
+Constructing the covariances
+
+Performing bivariate REML analysis ... (Note: may take hours depending on sample size).
+400 observations, 2 fixed effect(s), and 9 variance component(s)(including residual variance).
+Calculating prior values of variance components by EM-REML ...
+Updated prior values:  0.278613 0.0932561 0.0598704  0.277799 0.0934237 0.0594216  0.303076  0.102197 0.0534729
+logL: -80.6492
+Running AI-REML algorithm ...
+Iter.	logL	V(G1)_tr1	V(G1)_tr2	C(G1)_tr12	V(G2)_tr1	V(G2)_tr2	C(G2)_tr12	V(e)_tr1	V(e)_tr2	C(e)_tr12	
+1	-50.95	0.18341	0.04205	0.01635	0.12328	0.04765	-0.02941	0.44047	0.15685	0.10219	
+2	-38.79	0.12933	0.01657	0.00497	0.08857	0.04268	-0.04787	0.51026	0.18140	0.10827	
+Note: to constrain the correlation being from -1 to 1, a genetic (or residual) variance-covariance matrix is bended to be positive definite. In this case, the SE is unreliable.
+3	-35.05	0.09054	0.00054	0.00274	0.07152	0.04253	-0.05515	0.56050	0.19747	0.10628	
+4	-33.36	0.05068	0.00012	0.00245	0.06104	0.04428	-0.05199	0.59852	0.20873	0.10250	
+5	-32.90	0.02047	0.00013	0.00165	0.05446	0.04482	-0.04940	0.62686	0.21781	0.09944	
+6	-32.84	-0.04814	-0.00517	-0.00967	0.04325	0.04282	-0.04303	0.69482	0.23989	0.09213	
+7	-32.99	-0.05044	-0.02487	-0.01501	0.04388	0.04456	-0.04422	0.71530	0.23904	0.09193	
+8	-32.01	-0.03497	-0.03304	-0.01630	0.04514	0.04444	-0.04479	0.71834	0.23508	0.09206	
+9	-31.77	-0.03362	-0.02909	-0.01589	0.04487	0.04434	-0.04461	0.71592	0.23419	0.09174	
+10	-31.79	-0.03447	-0.02741	-0.01621	0.04455	0.04419	-0.04437	0.71525	0.23442	0.09155	
+11	-31.81	-0.03491	-0.02722	-0.01619	0.04446	0.04419	-0.04433	0.71536	0.23456	0.09158	
+12	-31.82	-0.03495	-0.02728	-0.01620	0.04444	0.04418	-0.04431	0.71542	0.23459	0.09159	
+13	-31.82	-0.03493	-0.02730	-0.01619	0.04444	0.04418	-0.04431	0.71544	0.23458	0.09160	
+14	-31.82	-0.03493	-0.02729	-0.01618	0.04443	0.04418	-0.04431	0.71543	0.23458	0.09159	
+15	-31.82	-0.03493	-0.02728	-0.01618	0.04443	0.04418	-0.04430	0.71543	0.23458	0.09159	
+Log-likelihood ratio converged.
+
+Summary result of REML analysis:
+Source	Variance	SE
+V(G1)_tr1	-0.034930	0.148752
+V(G1)_tr2	-0.027281	0.045098
+C(G1)_tr12	-0.016184	0.058360
+V(G2)_tr1	0.044429	0.116382
+V(G2)_tr2	0.044178	0.037410
+C(G2)_tr12	-0.044303	0.046492
+V(e)_tr1	0.715430	0.150174
+V(e)_tr2	0.234577	0.047377
+C(e)_tr12	0.091594	0.060357
+Vp_tr1	0.724929	0.072281
+Vp_tr2	0.251474	0.025608
+V(G1)/Vp_tr1	-0.048184	0.205066
+V(G1)/Vp_tr2	-0.108484	0.178601
+V(G2)/Vp_tr1	0.061288	0.160302
+V(G2)/Vp_tr2	0.175677	0.146077
+The estimate of variance explained on the observed scale is transformed to that on the underlying liability scale:
+Proportion of cases in the sample = 0.435000 for trait #2; User-specified disease prevalence = 0.100000 for trait #2
+V(G1)/Vp_tr2_L	-0.116083	0.191111
+V(G2)/Vp_tr2_L	0.187982	0.156309
+rG1	-0.524266	2.210397
+rG2	-1.000000	1.652983
+
+Sampling variance/covariance of the estimates of variance components:
+2.212725e-02	1.440828e-04	2.422540e-04	-9.097472e-03	-5.090885e-05	3.768473e-04	-1.344574e-02	-1.059378e-04	-8.192359e-04	
+1.440828e-04	2.033816e-03	4.050688e-05	-1.059715e-05	-8.340707e-04	1.889288e-04	-1.311972e-04	-1.311785e-03	-2.998068e-04	
+2.422540e-04	4.050688e-05	3.405910e-03	6.655043e-04	9.918472e-05	-1.374201e-03	-1.108322e-03	-2.090838e-04	-2.147647e-03	
+-9.097472e-03	-1.059715e-05	6.655043e-04	1.354477e-02	5.060736e-05	-4.187714e-04	-3.956587e-03	-5.694784e-05	-4.716734e-04	
+-5.090885e-05	-8.340707e-04	9.918472e-05	5.060736e-05	1.399535e-03	-1.247230e-04	-1.581288e-05	-3.652405e-04	-3.718342e-05	
+3.768473e-04	1.889288e-04	-1.374201e-03	-4.187714e-04	-1.247230e-04	2.161496e-03	-1.287968e-04	-1.451602e-04	-6.156129e-04	
+-1.344574e-02	-1.311972e-04	-1.108322e-03	-3.956587e-03	-1.581288e-05	-1.287968e-04	2.255215e-02	2.024143e-04	1.919305e-03	
+-1.059378e-04	-1.311785e-03	-2.090838e-04	-5.694784e-05	-3.652405e-04	-1.451602e-04	2.024143e-04	2.244599e-03	5.730564e-04	
+-8.192359e-04	-2.998068e-04	-2.147647e-03	-4.716734e-04	-3.718342e-05	-6.156129e-04	1.919305e-03	5.730564e-04	3.642914e-03	
+
+Summary result of REML analysis has been saved in the file [ldms_k2_qtbt_nc.hsq].
+
+Analysis finished at 02:47:33 UTC on Sun Sep 06 2026
+Overall computational time: 0.06 sec.

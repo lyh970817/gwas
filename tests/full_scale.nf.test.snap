@@ -8,6 +8,9 @@
                 "CUSTOM_GCTASTRATIFYLDSCORES": {
                     "r-base": "4.2.1"
                 },
+                "DERIVE_GCTA_BIVARIATE_TOTAL": {
+                    "python": "3.14.5"
+                },
                 "GCTA_BIVARIATEREML": {
                     "gcta": "1.94.1"
                 },
@@ -86,7 +89,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:42:27.579434941",
+        "timestamp": "2026-09-06T04:36:41.619636236",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

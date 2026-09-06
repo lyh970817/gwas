@@ -144,19 +144,33 @@ nextflow_workflow {
                 // Neither branch claims the other's matrix.
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
+                // The derivation runs once per multi-component REML-LDMS request and never for the dense
+                // route, whose single component's native `rG` is already the total.
+                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 // The dense atom retains the request identity while deriving its input basename from the
-                // staged GRM. The LDMS consumer still uses the shared matrix key as its execution identity.
+                // staged GRM. The LDMS consumer still uses the shared matrix key as its execution identity,
+                // while the derivation is addressed by the request whose files it publishes beside.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREML') == ['gcta_bivariate_reml--rel_ab_gcta_bivariate_reml--rel_ab'] },
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEREMLLDMS') == ['key_ldms_family_key_ldms_family'] },
+                { assert TRACE.tags(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == ['gcta_bivariate_reml_ldms--rel_ab'] },
                 // Publication is request-addressed and method-keyed, and is unchanged by the controller scope.
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.hsq").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--rel_ab/native.log").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab/native.hsq").isFile() },
-                { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab").list().sort() == ['native.hsq', 'native.log'] },
+                // The derived files are published beside the native ones and are named so a reader can
+                // never mistake one for the other.
+                { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--rel_ab").list().sort() == ['derived.provenance.json', 'derived.total_rg.tsv', 'native.hsq', 'native.log'] },
                 { assert workflow.out.reml_results.size() == 1 },
                 { assert workflow.out.reml_log.size() == 1 },
                 { assert workflow.out.reml_ldms_results.size() == 1 },
                 { assert workflow.out.reml_ldms_log.size() == 1 },
+                { assert workflow.out.reml_ldms_total.size() == 1 },
+                { assert workflow.out.reml_ldms_provenance.size() == 1 },
+                { assert workflow.out.reml_ldms_total[0][0].id == 'gcta_bivariate_reml_ldms--rel_ab' },
+                // The reuse key and the registry block the derivation needed were invocation state and leave
+                // with the emit, exactly like the sibling native emits.
+                { assert !workflow.out.reml_ldms_total[0][0].containsKey('matrix_key') },
+                { assert !workflow.out.reml_ldms_total[0][0].containsKey('gcta_capability') },
                 // The emitted record is the request, not the prepared pair whose meta carries the relationship
                 // identity. The dense request identity crossed execution unchanged; the matrix reuse key
                 // existed only for invocation attribution and is stripped.
@@ -207,6 +221,8 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
+                // Only the multi-component REML route derives a total: both HEreg routes print one natively.
+                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 // Both dense estimators retain their request identity while addressing the same staged GRM;
                 // both LDMS estimators carry the same matrix key for the shared matrix construction.
                 { assert TRACE.tags(workflow, 'GCTA_BIVARIATEHEREG') == ['gcta_bivariate_he--rel_ab_gcta_bivariate_he--rel_ab'] },
@@ -251,6 +267,8 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
+                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 0 },
+                { assert workflow.out.reml_ldms_total.size() == 0 },
                 { assert workflow.out.hereg_results.size() == 1 },
                 { assert workflow.out.hereg_results[0][0].method == 'gcta_bivariate_he' },
                 { assert workflow.out.hereg_results[0][0].left_analysis_id == 'alpha' && workflow.out.hereg_results[0][0].right_analysis_id == 'beta' },
@@ -333,8 +351,11 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
+                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 { assert workflow.out.reml_ldms_results.size() == 1 },
                 { assert workflow.out.reml_ldms_results[0][0].method == 'gcta_bivariate_reml_ldms' },
+                { assert workflow.out.reml_ldms_total.size() == 1 },
+                { assert workflow.out.reml_ldms_provenance.size() == 1 },
             )
         }
     }
@@ -406,6 +427,7 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 0 },
+                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 0 },
                 { assert workflow.out.reml_results.size() == 0 },
                 { assert workflow.out.reml_log.size() == 0 },
                 { assert workflow.out.hereg_results.size() == 0 },
@@ -414,6 +436,8 @@ nextflow_workflow {
                 { assert workflow.out.reml_ldms_log.size() == 0 },
                 { assert workflow.out.hereg_ldms_results.size() == 0 },
                 { assert workflow.out.hereg_ldms_log.size() == 0 },
+                { assert workflow.out.reml_ldms_total.size() == 0 },
+                { assert workflow.out.reml_ldms_provenance.size() == 0 },
             )
         }
     }

@@ -8,6 +8,9 @@
                 "CUSTOM_GCTASTRATIFYLDSCORES": {
                     "r-base": "4.2.1"
                 },
+                "DERIVE_GCTA_BIVARIATE_TOTAL": {
+                    "python": "3.14.5"
+                },
                 "GCTA_BIVARIATEREMLLDMS": {
                     "gcta": "1.94.1"
                 },
@@ -31,7 +34,18 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T02:38:05.592064685",
+        "timestamp": "2026-09-06T04:25:38.349010816",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "two_stratum_results": {
+        "content": [
+            "Source\tVariance\tSE\nV(G1)_tr1\t-0.034930\t0.148752\nV(G1)_tr2\t-0.027281\t0.045098\nC(G1)_tr12\t-0.016184\t0.058360\nV(G2)_tr1\t0.044429\t0.116382\nV(G2)_tr2\t0.044178\t0.037410\nC(G2)_tr12\t-0.044303\t0.046492\nV(e)_tr1\t0.715430\t0.150174\nV(e)_tr2\t0.234577\t0.047377\nC(e)_tr12\t0.091594\t0.060357\nVp_tr1\t0.724929\t0.072281\nVp_tr2\t0.251474\t0.025608\nV(G1)/Vp_tr1\t-0.048184\t0.205066\nV(G1)/Vp_tr2\t-0.108484\t0.178601\nV(G2)/Vp_tr1\t0.061288\t0.160302\nV(G2)/Vp_tr2\t0.175677\t0.146077\nrG1\t-0.524266\t2.210397\nrG2\t-1.000000\t1.652983\nlogL\t-31.816\nn\t400\n",
+            "request_id\trelationship_id\tmethod\tcomponent\tleft_analysis_id\tright_analysis_id\tleft_trait_id\tright_trait_id\tscale\tleft_variance\tleft_variance_se\tright_variance\tright_variance_se\tcovariance\tcovariance_se\trg\trg_se\torigin\tn_components\ngcta_bivariate_reml_ldms--qt_bt\tqt_bt\tgcta_bivariate_reml_ldms\ttotal\texample_pgen_qt\texample_pgen_bt\tQT\tBT\tobserved\t0.009499\t0.132201\t0.016897\t0.042014\t-0.060487\t0.053094\t-4.774394\t34.712390\tdelta_method\t2\ngcta_bivariate_reml_ldms--qt_bt\tqt_bt\tgcta_bivariate_reml_ldms\tG1\texample_pgen_qt\texample_pgen_bt\tQT\tBT\tobserved\t-0.034930\t0.148752\t-0.027281\t0.045098\t-0.016184\t0.058360\t-0.524266\t2.210397\tnative\t2\ngcta_bivariate_reml_ldms--qt_bt\tqt_bt\tgcta_bivariate_reml_ldms\tG2\texample_pgen_qt\texample_pgen_bt\tQT\tBT\tobserved\t0.044429\t0.116382\t0.044178\t0.037410\t-0.044303\t0.046492\t-1.000000\t1.652983\tnative\t2\n"
+        ],
+        "timestamp": "2026-09-06T04:26:03.139134954",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -40,12 +54,15 @@
     "results": {
         "content": [
             [
+                "derived.provenance.json",
+                "derived.total_rg.tsv",
                 "native.hsq",
                 "native.log"
             ],
-            "Source\tVariance\tSE\nV(G)_tr1\t0.020143\t0.129282\nV(G)_tr2\t0.019367\t0.038739\nC(G)_tr12\t-0.019751\t0.052604\nV(e)_tr1\t0.688726\t0.147072\nV(e)_tr2\t0.214329\t0.043773\nC(e)_tr12\t0.085266\t0.059089\nVp_tr1\t0.708869\t0.071516\nVp_tr2\t0.233696\t0.023665\nV(G)/Vp_tr1\t0.028416\t0.182369\nV(G)/Vp_tr2\t0.082874\t0.165318\nrG\t-1.000000\t5.298639\nlogL\t-58.817\nn\t400\n"
+            "Source\tVariance\tSE\nV(G)_tr1\t0.020143\t0.129282\nV(G)_tr2\t0.019367\t0.038739\nC(G)_tr12\t-0.019751\t0.052604\nV(e)_tr1\t0.688726\t0.147072\nV(e)_tr2\t0.214329\t0.043773\nC(e)_tr12\t0.085266\t0.059089\nVp_tr1\t0.708869\t0.071516\nVp_tr2\t0.233696\t0.023665\nV(G)/Vp_tr1\t0.028416\t0.182369\nV(G)/Vp_tr2\t0.082874\t0.165318\nrG\t-1.000000\t5.298639\nlogL\t-58.817\nn\t400\n",
+            "request_id\trelationship_id\tmethod\tcomponent\tleft_analysis_id\tright_analysis_id\tleft_trait_id\tright_trait_id\tscale\tleft_variance\tleft_variance_se\tright_variance\tright_variance_se\tcovariance\tcovariance_se\trg\trg_se\torigin\tn_components\ngcta_bivariate_reml_ldms--qt_bt\tqt_bt\tgcta_bivariate_reml_ldms\ttotal\texample_pgen_qt\texample_pgen_bt\tQT\tBT\tobserved\t0.020143\t0.129282\t0.019367\t0.038739\t-0.019751\t0.052604\t-0.999990\t5.298659\tdelta_method\t1\ngcta_bivariate_reml_ldms--qt_bt\tqt_bt\tgcta_bivariate_reml_ldms\tG1\texample_pgen_qt\texample_pgen_bt\tQT\tBT\tobserved\t0.020143\t0.129282\t0.019367\t0.038739\t-0.019751\t0.052604\t-1.000000\t5.298639\tnative\t1\n"
         ],
-        "timestamp": "2026-08-30T22:05:48.617093185",
+        "timestamp": "2026-09-06T04:25:38.359438875",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
