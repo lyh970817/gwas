@@ -68,7 +68,7 @@ nextflow_pipeline {
         }
     }
 
-    // The seven names every MPH pair request publishes: the five native files MPH writes for a multi-trait fit
+    // The six names every MPH pair request publishes: the five native files MPH writes for a multi-trait fit
     // and the pipeline's own sidecar. `native.mq.py.csv` is one projected phenotype per individual and stays in
     // the work directory for the reason LDAK's per-individual heritabilities do.
     def PUBLISHED = [
@@ -136,7 +136,7 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
                 // Each request publishes under its own deterministic identity, so neither can overwrite the
-                // other, and both publish the same seven names.
+                // other, and both publish the same six names.
                 { assert requests.list().toList().sort() == ['mph_bivariate_reml', 'mph_bivariate_reml_ldms'] },
                 { assert dense.list().toList().sort() == PUBLISHED },
                 { assert stratified.list().toList().sort() == PUBLISHED },
