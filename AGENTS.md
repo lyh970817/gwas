@@ -108,9 +108,8 @@ the exact boundary.
 depend on it. Use a private copy for modified fixtures. The live resolver mechanisms own exact source
 resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and reporting.
 
-Automatic `.references/test-datasets-gwas` discovery is personal-track behavior. A portable upstream PR
-checkout uses the public remote fallback unless `GWAS_FIXTURE_SOURCE` is explicitly supplied. Run local
-compact-fixture benchmarks on the personal track, or explicitly pin and verify the local source.
-
-The public remote fixture fallback is dead (404); materialize fixtures from the local
-`.references/test-datasets-gwas` resolver or an explicitly pinned `GWAS_FIXTURE_SOURCE`.
+The public remote fixture fallback is dead (404). Materialize fixtures from the local
+`.references/test-datasets-gwas` resolver or an explicitly pinned `GWAS_FIXTURE_SOURCE`; a portable upstream PR
+checkout has no working fallback and needs `GWAS_FIXTURE_SOURCE` supplied. Automatic `.references/test-datasets-gwas`
+discovery is personal-track behavior. Run local compact-fixture benchmarks on the personal track, or explicitly
+pin and verify the local source.
