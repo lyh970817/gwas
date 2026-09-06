@@ -366,7 +366,8 @@ def readPgenState(cohort_id, report_file) {
 }
 
 // The published view record. A PLINK 1 cohort has no `state` because there is nothing to project, and a
-// declared-identity cohort has no `members` because the pipeline deliberately never opens its files.
+// declared-identity cohort has no `members` because its bytes are never digested — its PLINK 2 state is
+// probed all the same, since a declaration asserts an identity and says nothing about what the bundle holds.
 def buildViewRecord(view_meta, members, state, plink1_meta) {
     def plink1 = null
     if (plink1_meta != null) {
