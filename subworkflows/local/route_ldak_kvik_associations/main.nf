@@ -14,7 +14,7 @@ include { buildScientificArtifactKey  } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     take:
-    ch_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], once per analysis
+    ch_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam), val(view_key) ], once per analysis
     ch_phenotypes // channel: [ val(meta2), path(phenotype), path(quant_covariates), path(cat_covariates) ], optional files are []
     ch_extract_policy // channel: [ val(meta3), path(extract), val(subset_policy) ], extract is [] for all/thin_common
 
@@ -40,18 +40,18 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
         }
     ch_predictor_policies = ch_predictor_policies.mix(ch_provided_predictor_policies)
 
-    // The prepared PLINK 1 bundle is currently the pipeline's only LDAK view. Its explicit compatibility
-    // identity is the seam where issue #8 can later supply a durable filtered-view identity without making
-    // this route infer identity from a staged basename or absorb BioFuse policy.
+    // The PLINK 1 view key arrives from preparation as a tuple member. It is the cohort's immutable PLINK 1
+    // view identity — the supplied bundle's own identity for a native PLINK 1 cohort, the hard-call
+    // projection's for a PLINK 2 or VCF one — so this route infers nothing from a staged basename and
+    // absorbs no backend policy.
     //
     // Predictor artifacts are resolved before Step 1 identity. Thin-common requests collapse on genotype
     // view plus the fixed native thinning contract; phenotype, covariates and focal analysis identity are not
     // present at this level.
     def ch_predictor_requests = ch_genotypes
-        .map { meta, bed, bim, fam -> [meta.id, meta, bed, bim, fam] }
+        .map { meta, bed, bim, fam, view_key -> [meta.id, meta, view_key, bed, bim, fam] }
         .join(ch_predictor_policies, failOnDuplicate: true, failOnMismatch: true)
-        .map { _analysis_id, meta, bed, bim, fam, extract, subset_policy, provided_artifact_key ->
-            def view_key = buildCurrentPreparedGenotypeViewKey(meta)
+        .map { _analysis_id, meta, view_key, bed, bim, fam, extract, subset_policy, provided_artifact_key ->
             def predictor_artifact = buildKvikPredictorArtifact(view_key, subset_policy, extract, provided_artifact_key)
             [predictor_artifact.key, meta, view_key, bed, bim, fam, predictor_artifact]
         }
@@ -140,16 +140,6 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-def buildCurrentPreparedGenotypeViewKey(meta) {
-    return buildScientificArtifactKey(
-        [layer: 'compatibility', type: 'prepared_plink1_view'],
-        [
-            contract: 'pending_issue_8',
-            cohort: meta.cohort,
-        ],
-    )
-}
 
 def buildThinCommonKey(view_key, effective_native_options = []) {
     return "thin_common.${buildScientificArtifactKey(

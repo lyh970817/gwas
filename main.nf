@@ -71,12 +71,19 @@ workflow {
     )
 
     publish:
+    genotype_views      = NFCORE_GWAS.out.genotype_views
     gcta_ldms_artifacts = params.save_relatedness_matrices ? NFCORE_GWAS.out.gcta_ldms_artifacts : channel.empty()
     mph_ldms_artifacts  = params.save_relatedness_matrices ? NFCORE_GWAS.out.mph_ldms_artifacts : channel.empty()
     ldms_plan_artifacts = params.save_relatedness_matrices ? NFCORE_GWAS.out.ldms_plan_artifacts : channel.empty()
 }
 
 output {
+    // The view record is written for every cohort, not behind `--save_prepared_genotypes`: it is the
+    // provenance that explains the keys of every published artifact the cohort produced, while the prepared
+    // bundles themselves remain intermediates.
+    genotype_views {
+        path { cohort_id, _record -> "genotypes/${cohort_id}" }
+    }
     gcta_ldms_artifacts {
         path { matrix_meta, _grm_files, _grm_prefixes -> "quality_control/relatedness_matrices/${matrix_meta.key}" }
     }
@@ -125,6 +132,7 @@ workflow NFCORE_GWAS {
 
     emit:
     multiqc_report      = GWAS.out.multiqc_report // channel: [ [ path(report) ] ]
+    genotype_views      = GWAS.out.genotype_views // channel: [ val(cohort_id), path(genotype_view_record) ], one per cohort
     gcta_ldms_artifacts = GWAS.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
     mph_ldms_artifacts  = GWAS.out.mph_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
     ldms_plan_artifacts = GWAS.out.ldms_plan_artifacts // channel: [ val(plan_meta), path(ld_scores), path(strata_manifest), [ path(snp_group_file), ... ] ], one per plan key

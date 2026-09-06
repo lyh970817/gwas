@@ -53,12 +53,15 @@ nextflow_workflow {
         ]"""
     }
 
+    // The native stream is format-polymorphic: primary genotype, variant file, sample file. A PLINK 2 cohort
+    // arrives as pgen/pvar/psam and a PLINK 1 cohort as bed/bim/fam, and REGENIE and fastGWA select their
+    // native flag from the primary member's extension rather than from anything this controller states.
     def plink2Genotypes = { project_dir, meta ->
         """[
             ${meta},
             ${RESOURCE(project_dir, 'cohort.pgen')},
-            ${RESOURCE(project_dir, 'cohort.psam')},
             ${RESOURCE(project_dir, 'cohort.pvar')},
+            ${RESOURCE(project_dir, 'cohort.psam')},
         ]"""
     }
 
@@ -70,6 +73,12 @@ nextflow_workflow {
             ${RESOURCE(project_dir, 'cohort.fam')},
         ]"""
     }
+
+    // The two cohort-scoped view-key channels. The PLINK 1 one is partial by design: it holds an element for
+    // exactly the cohorts that have a PLINK 1 view, which is exactly the set reaching `ch_plink1_genotypes`.
+    def nativeViewKeys = { cohorts -> "channel.of(${cohorts.collect { cohort -> "['${cohort}', 'native_view_${cohort}']" }.join(', ')})" }
+
+    def plink1ViewKeys = { cohorts -> cohorts ? "channel.of(${cohorts.collect { cohort -> "['${cohort}', 'plink1_view_${cohort}']" }.join(', ')})" : 'channel.empty()' }
 
     // The headered REGENIE call shape. The merged covariate design is optional and is folded on with a
     // remainder join, so an analysis simply absent from that stream still reaches the method.
@@ -120,30 +129,32 @@ nextflow_workflow {
                     ${plink1Genotypes(projectDir, "beta")},
                     ${plink1Genotypes(projectDir, "gamma")},
                 )
-                input[2] = channel.of(
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys(['cohort_a'])}
+                input[4] = channel.of(
                     ${phenotype(projectDir, "alpha")},
                     ${phenotype(projectDir, "beta")},
                     ${phenotype(projectDir, "gamma")},
                 )
-                input[3] = channel.of(
+                input[5] = channel.of(
                     ${covariates(projectDir, "alpha")},
                     ${covariates(projectDir, "beta")},
                     ${covariates(projectDir, "gamma")},
                 )
-                input[4] = channel.of(
+                input[6] = channel.of(
                     ${headerlessPhenotype(projectDir, "alpha")},
                     ${headerlessPhenotype(projectDir, "beta")},
                     ${headerlessPhenotype(projectDir, "gamma")},
                 )
-                input[5] = channel.of(${sparseMatrix(projectDir, "gamma")})
-                input[6] = channel.of(
+                input[7] = channel.of(${sparseMatrix(projectDir, "gamma")})
+                input[8] = channel.of(
                     [alpha, []],
                     [beta, ${RESOURCE(projectDir, 'predictors.extract')}],
                     [gamma, []],
                 )
-                input[7] = 200
-                input[8] = 'standard'
-                input[9] = null
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
                 """
             }
         }
@@ -195,17 +206,19 @@ nextflow_workflow {
                     ${plink2Genotypes(projectDir, "beta")},
                 )
                 input[1] = channel.empty()
-                input[2] = channel.of(
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys([])}
+                input[4] = channel.of(
                     ${phenotype(projectDir, "alpha")},
                     ${phenotype(projectDir, "beta")},
                 )
-                input[3] = channel.of(${covariates(projectDir, "alpha")})
-                input[4] = channel.empty()
-                input[5] = channel.empty()
+                input[5] = channel.of(${covariates(projectDir, "alpha")})
                 input[6] = channel.empty()
-                input[7] = 200
-                input[8] = 'standard'
-                input[9] = null
+                input[7] = channel.empty()
+                input[8] = channel.empty()
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
                 """
             }
         }
@@ -249,23 +262,25 @@ nextflow_workflow {
                     ${plink1Genotypes(projectDir, "alpha")},
                     ${plink1Genotypes(projectDir, "beta")},
                 )
-                input[2] = channel.of(
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys(['cohort_a'])}
+                input[4] = channel.of(
                     ${phenotype(projectDir, "alpha")},
                     ${phenotype(projectDir, "beta")},
                 )
-                input[3] = channel.of(
+                input[5] = channel.of(
                     ${covariates(projectDir, "alpha")},
                     ${covariates(projectDir, "beta")},
                 )
-                input[4] = channel.of(
+                input[6] = channel.of(
                     ${headerlessPhenotype(projectDir, "alpha")},
                     ${headerlessPhenotype(projectDir, "beta")},
                 )
-                input[5] = channel.empty()
-                input[6] = channel.of([alpha, []], [beta, []])
-                input[7] = 200
-                input[8] = 'standard'
-                input[9] = null
+                input[7] = channel.empty()
+                input[8] = channel.of([alpha, []], [beta, []])
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
                 """
             }
         }
@@ -314,14 +329,16 @@ nextflow_workflow {
                     ${plink1Genotypes(projectDir, "alpha")},
                     ${plink1Genotypes(projectDir, "relationship")},
                 )
-                input[2] = channel.of(${phenotype(projectDir, "alpha")})
-                input[3] = channel.of(${covariates(projectDir, "alpha")})
-                input[4] = channel.of(${headerlessPhenotype(projectDir, "alpha")})
-                input[5] = channel.of(${sparseMatrix(projectDir, "alpha")})
-                input[6] = channel.of([alpha, []])
-                input[7] = 200
-                input[8] = 'standard'
-                input[9] = null
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys(['cohort_a'])}
+                input[4] = channel.of(${phenotype(projectDir, "alpha")})
+                input[5] = channel.of(${covariates(projectDir, "alpha")})
+                input[6] = channel.of(${headerlessPhenotype(projectDir, "alpha")})
+                input[7] = channel.of(${sparseMatrix(projectDir, "alpha")})
+                input[8] = channel.of([alpha, []])
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
                 """
             }
         }
@@ -357,14 +374,16 @@ nextflow_workflow {
 
                 input[0] = channel.of(${plink2Genotypes(projectDir, "alpha")})
                 input[1] = channel.empty()
-                input[2] = channel.of(${phenotype(projectDir, "alpha")})
-                input[3] = channel.empty()
-                input[4] = channel.of(${headerlessPhenotype(projectDir, "alpha", null, null)})
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys([])}
+                input[4] = channel.of(${phenotype(projectDir, "alpha")})
                 input[5] = channel.empty()
-                input[6] = channel.of([alpha, []])
-                input[7] = 200
-                input[8] = 'standard'
-                input[9] = null
+                input[6] = channel.of(${headerlessPhenotype(projectDir, "alpha", null, null)})
+                input[7] = channel.empty()
+                input[8] = channel.of([alpha, []])
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
                 """
             }
         }
@@ -379,6 +398,111 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 0 },
                 { assert workflow.out.association_results.size() == 0 },
+            )
+        }
+    }
+    test("a cohort with a PLINK 1 view and a cohort without one run in the same execution") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                def kvik    = ${analysisMeta('kvik', ['ldak_kvik'], [cohort: 'cohort_kvik'])}
+                def regenie = ${analysisMeta('regenie_only', ['regenie'], [cohort: 'cohort_regenie'])}
+
+                input[0] = channel.of(
+                    ${plink2Genotypes(projectDir, "kvik")},
+                    ${plink2Genotypes(projectDir, "regenie")},
+                )
+                input[1] = channel.of(${plink1Genotypes(projectDir, "kvik")})
+                input[2] = ${nativeViewKeys(['cohort_kvik', 'cohort_regenie'])}
+                input[3] = ${plink1ViewKeys(['cohort_kvik'])}
+                input[4] = channel.of(
+                    ${phenotype(projectDir, "kvik")},
+                    ${phenotype(projectDir, "regenie")},
+                )
+                input[5] = channel.of(
+                    ${covariates(projectDir, "kvik")},
+                    ${covariates(projectDir, "regenie")},
+                )
+                input[6] = channel.of(${headerlessPhenotype(projectDir, "kvik")})
+                input[7] = channel.empty()
+                input[8] = channel.of([kvik, []])
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
+                """
+            }
+        }
+
+        then {
+            // The PLINK 1 key channel is partial by design: `cohort_regenie` is absent from it. Both routes
+            // must still run, because each is combined only with the key channel that is total for its own
+            // inputs. A single stream carrying a nullable PLINK 1 key would throw here instead.
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2') == ['regenie_only'] },
+                { assert workflow.out.association_results.collect { meta, _sumstats -> "${meta.id}/${meta.method}" }.sort() == ['kvik/ldak_kvik', 'regenie_only/regenie'] },
+            )
+        }
+    }
+
+    test("a native PLINK 1 cohort reaches REGENIE and fastGWA without any PLINK 2 bundle") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                """
+                def alpha = ${analysisMeta('alpha', ['regenie'])}
+                def gamma = ${analysisMeta('gamma', ['gcta_fastgwa'])}
+
+                input[0] = channel.of(
+                    ${plink1Genotypes(projectDir, "alpha")},
+                    ${plink1Genotypes(projectDir, "gamma")},
+                )
+                input[1] = channel.of(
+                    ${plink1Genotypes(projectDir, "alpha")},
+                    ${plink1Genotypes(projectDir, "gamma")},
+                )
+                input[2] = ${nativeViewKeys(['cohort_a'])}
+                input[3] = ${plink1ViewKeys(['cohort_a'])}
+                input[4] = channel.of(
+                    ${phenotype(projectDir, "alpha")},
+                    ${phenotype(projectDir, "gamma")},
+                )
+                input[5] = channel.of(
+                    ${covariates(projectDir, "alpha")},
+                    ${covariates(projectDir, "gamma")},
+                )
+                input[6] = channel.of(${headerlessPhenotype(projectDir, "gamma")})
+                input[7] = channel.of(${sparseMatrix(projectDir, "gamma")})
+                input[8] = channel.of([gamma, []])
+                input[9] = 200
+                input[10] = 'standard'
+                input[11] = null
+                """
+            }
+        }
+
+        then {
+            // Both consumers of the native stream are format-polymorphic, so a cohort supplied as BED/BIM/FAM
+            // reaches them with its own members and no PLINK 2 bundle is ever built for it.
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 1 },
+                { assert workflow.out.association_results.collect { meta, _sumstats -> "${meta.id}/${meta.method}" }.sort() == ['alpha/regenie', 'gamma/gcta_fastgwa'] },
             )
         }
     }

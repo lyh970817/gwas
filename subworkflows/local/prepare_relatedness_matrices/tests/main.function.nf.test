@@ -43,31 +43,11 @@ nextflow_function {
         }
     }
 
-    ['ordered', 'reordered'].each { declaration ->
-        test("the temporary prepared-view compatibility seam is declaration-order independent: ${declaration}") {
-            function "buildPreparedViewCompatibilityKey"
-
-            when {
-                function {
-                    """
-                    input[0] = [cohort: 'example_pgen', genotype_format: 'plink2']
-                    input[1] = ${declaration == 'ordered'
-                        ? "[file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]"
-                        : "[file('example_all.pvar'), file('example_all.pgen'), file('example_all.psam')]"}
-                    """
-                }
-            }
-
-            then {
-                assertAll(
-                    { assert function.success },
-                    // This is an explicitly temporary compatibility identity pending issue #8. Base and child
-                    // artifact keys consume this seam; they do not read staged names themselves.
-                    { assert function.result == 'c40da0aa7623' },
-                )
-            }
-        }
-    }
+    // The view-compatibility key is now an argument rather than something this file derives from staged
+    // names. `c40da0aa7623` is the value the deleted seam produced for the fixture PLINK 2 cohort, and it is
+    // reused verbatim below so that every base, plan and derived key pinned in this file keeps testing the
+    // formula rather than the seam that fed it.
+    def view_key = 'c40da0aa7623'
 
     test("heritability and association selectors retain their native matrix families") {
         function "getRelatednessMatrixKinds"
@@ -162,7 +142,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [sparse_cutoff: 0.025]],
                 ]
-                input[1] = [file('example_all.pvar'), file('example_all.pgen'), file('example_all.psam')]
+                input[1] = '${view_key}'
                 input[2] = 'gcta_sparse'
                 """
             }
@@ -196,7 +176,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [grm_maf: null, grm_extract: []]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'gcta_dense'
                 """
             }
@@ -223,7 +203,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [grm_maf: 0.01, sparse_cutoff: 0.025]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'gcta_sparse'
                 input[3] = [mode: 'equal']
                 input[4] = [mode: 'file', sha256: '3f11acf34ac2ee2c8a8005373a55b7f08cd39014cef30511a4213081f221add3']
@@ -259,7 +239,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [grm_maf: 0.01, grm_extract: []]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'gcta_dense'
                 """
             }
@@ -286,7 +266,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [ldak: [model: 'human_default', power: -0.25, relatedness_filter: false]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'ldak_kinship'
                 """
             }
@@ -313,7 +293,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [ldak: [model: 'human_default', power: '-.2500', relatedness_filter: true]],
                 ]
-                input[1] = [file('example_all.pvar'), file('example_all.pgen'), file('example_all.psam')]
+                input[1] = '${view_key}'
                 input[2] = 'ldak_kinship'
                 """
             }
@@ -343,7 +323,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [ldak: [model: 'custom', power: -0.5, relatedness_filter: false]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'ldak_kinship'
                 input[3] = [mode: 'provided', sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef']
                 """
@@ -411,7 +391,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'gcta_ldms'
                 """
             }
@@ -429,13 +409,13 @@ nextflow_function {
                 // publishes under. A digest is used against the design's preference because nf-test runs one
                 // function per test, so the formula cannot be recomputed from `buildScientificArtifactKey`
                 // and compared inside the same case. Both literals below are functions of the view key
-                // `c40da0aa7623`, itself pinned by the compatibility-seam tests at the top of this file.
+                // supplied as `input[1]`, which the caller now chooses per matrix kind from the cohort's
+                // native or PLINK 1 view identity.
                 //
-                // WS-I redefines `view_compatibility_key`. When it lands, these two literals and that one move
-                // together and are re-pinned in one commit; a change to either ALONE means the plan extraction
-                // or the MPH work moved a published GCTA key, which is the thing this test exists to catch.
+                // A change to either literal ALONE means the plan extraction or the MPH work moved a
+                // published GCTA key, which is the thing this test exists to catch.
                 { assert function.result.base.type == 'gcta_ldms' },
-                { assert function.result.base.view_compatibility_key == 'c40da0aa7623' },
+                { assert function.result.base.view_compatibility_key == view_key },
                 { assert function.result.base.key == 'd4339b608fb2' },
                 { assert function.result.base.plan.key == 'f0c92f5c26dd' },
                 { assert function.result.base.settings == [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]] },
@@ -464,7 +444,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'mph_ldms'
                 """
             }
@@ -495,7 +475,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'mph_ldms'
                 """
             }
@@ -533,7 +513,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 4, ldms_maf_edges: [0, 0.5]]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'mph_ldms'
                 """
             }
@@ -575,7 +555,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0, 0.5]]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'mph_ldms'
                 """
             }
@@ -604,7 +584,7 @@ nextflow_function {
                     genotype_format: 'plink2',
                     method_options: [gcta: [grm_maf: null, grm_extract: []]],
                 ]
-                input[1] = [file('example_all.pgen'), file('example_all.psam'), file('example_all.pvar')]
+                input[1] = '${view_key}'
                 input[2] = 'mph_dense'
                 """
             }
@@ -638,7 +618,6 @@ nextflow_function {
                     key: 'f0c92f5c26dd',
                     settings: [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]],
                     view_compatibility_key: 'c40da0aa7623',
-                    cohort: 'example_pgen',
                 ]
                 """
             }
@@ -655,9 +634,6 @@ nextflow_function {
                     settings: [ld_score_region_kb: 50, ld_bins: 2, maf_edges: [0, 0.5]],
                     view_compatibility_key: 'c40da0aa7623',
                 ] },
-                // The cohort is routing state, not identity: it decides which bundle the plan is built from
-                // and must not travel into the published artifact record.
-                { assert !function.result.containsKey('cohort') },
             )
         }
     }

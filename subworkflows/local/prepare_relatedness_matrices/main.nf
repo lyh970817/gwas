@@ -23,8 +23,10 @@ include { getMethodCapabilities            } from '../validate_gwas_input/method
 workflow PREPARE_RELATEDNESS_MATRICES {
     take:
     ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ], path(ldak_weights) ], [] when absent
-    ch_cohort_genotypes // channel: [ val(cohort_meta), path(pgen), path(psam), path(pvar) ]
+    ch_cohort_native_genotypes // channel: [ val(cohort_meta), path(primary_genotype), path(variant_file), path(sample_file) ], format-polymorphic
     ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], analyses needing PLINK 1
+    ch_cohort_native_view_keys // channel: [ val(cohort_id), val(native_view_key) ], one per cohort
+    ch_cohort_plink1_view_keys // channel: [ val(cohort_id), val(plink1_view_key) ], only cohorts with a PLINK 1 view
     gcta_grm_parts // channel: val(gcta_grm_parts), run/profile GCTA GRM partition count
 
     main:
@@ -39,19 +41,32 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     def autosome_count = 22
 
     // Final consumer requests preserve focal metadata beside an explicit base/derived artifact graph. The
-    // temporary view-compatibility key is the single replacement seam for issue #8; no base or derivative
-    // identity independently reads staged genotype names.
-    def ch_requests = ch_analyses.flatMap { meta, genotype_files, ldak_weights ->
-        getRelatednessMatrixKinds(meta).collect { kind ->
+    // view-compatibility key a request is built against is chosen here, at the caller, from the representation
+    // the kind's builder actually reads: a `plink1` kind is keyed by the cohort's PLINK 1 view, everything
+    // else by its native view. Selecting per kind is what lets the key channel that is total for that kind be
+    // the only one it is combined with — a `plink1` kind on a cohort with no PLINK 1 view cannot arise,
+    // because the same registry predicate produces the demand and the kind.
+    def ch_kind_requests = ch_analyses.flatMap { meta, _genotype_files, ldak_weights ->
+        getRelatednessMatrixKinds(meta).collect { kind -> [meta.cohort, meta, kind, ldak_weights] }
+    }
+
+    def ch_kind_bundles = ch_kind_requests.branch { _cohort_id, _meta, kind, _ldak_weights ->
+        plink1: getMatrixKindContract()[kind].genotype_bundle == 'plink1'
+        native: true
+    }
+
+    def ch_requests = ch_kind_bundles.plink1
+        .combine(ch_cohort_plink1_view_keys, by: 0)
+        .mix(ch_kind_bundles.native.combine(ch_cohort_native_view_keys, by: 0))
+        .map { _cohort_id, meta, kind, ldak_weights, view_compatibility_key ->
             def weights_policy = kind == 'ldak_kinship' ? meta.method_options.ldak.weights_policy : 'equal'
             def weights_identity = kind == 'ldak_kinship' ? getLdakWeightsIdentity(ldak_weights, weights_policy) : [mode: 'equal']
             def gcta_extract = kind in ['gcta_dense', 'gcta_sparse'] && !meta.relationship_id ? meta.method_options.gcta.grm_extract : []
             def extract_identity = kind in ['gcta_dense', 'gcta_sparse'] ? getMethodResourceIdentity(gcta_extract) : [mode: 'all']
-            def request = buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity, extract_identity, gcta_extract)
+            def request = buildRelatednessArtifactRequest(meta, view_compatibility_key, kind, weights_identity, extract_identity, gcta_extract)
             def weights_file = kind == 'ldak_kinship' ? ldak_weights ?: [] : []
             [request.selected_key, meta, request, weights_file]
         }
-    }
 
     // Base construction is reduced independently of final requested form. Sparse cutoffs and LDAK filtering
     // cannot fragment these records because they occur only on child requests.
@@ -63,40 +78,56 @@ workflow PREPARE_RELATEDNESS_MATRICES {
             [key, matrix_meta, base, weights_file, gcta_grm_parts]
         }
 
-    // One PLINK 1 bundle exists per cohort even when several consumers requested it.
-    def ch_plink1_cohorts = ch_plink1_genotypes
+    // Genotypes are paired to a base request by the view identity the request was keyed against, not by
+    // cohort. Two `cohort_id`s over byte-identical files now collapse to one base key at the `unique` above,
+    // so a cohort-keyed pairing would attribute the surviving shared artifact — its tag, its staged filenames
+    // and its trace row — to whichever request the flatMap happened to emit first. The published matrix
+    // directory is already named by the key, so the identity is what the pairing should use.
+    def ch_native_by_view_key = ch_cohort_native_genotypes
+        .map { cohort_meta, primary, variant_file, sample_file -> [cohort_meta.id, primary, variant_file, sample_file] }
+        .combine(ch_cohort_native_view_keys, by: 0)
+        .map { _cohort_id, primary, variant_file, sample_file, view_key -> [view_key, primary, variant_file, sample_file] }
+        .unique { view_key, _primary, _variant_file, _sample_file -> view_key }
+
+    // One PLINK 1 view exists per view identity even when several cohorts or consumers requested it.
+    def ch_plink1_by_view_key = ch_plink1_genotypes
         .map { meta, bed, bim, fam -> [meta.cohort, bed, bim, fam] }
-        .unique { cohort, _bed, _bim, _fam -> cohort }
+        .combine(ch_cohort_plink1_view_keys, by: 0)
+        .map { _cohort_id, bed, bim, fam, view_key -> [view_key, bed, bim, fam] }
+        .unique { view_key, _bed, _bim, _fam -> view_key }
 
-    // Pair GCTA base requests with their prepared PGEN bundle. The compatibility key currently retains the
-    // pre-#8 cohort partition, so every base has one cohort routing record while the identity seam remains
-    // explicit and replaceable.
-    def ch_gcta_base_genotypes = ch_base_requests
-        .filter { _key, _matrix_meta, base, _weights_file, _parts -> base.type in ['gcta_dense', 'gcta_ldms'] }
-        .map { _key, matrix_meta, base, _weights_file, parts -> [base.cohort, matrix_meta, base, parts] }
-        .combine(
-            ch_cohort_genotypes.map { cohort_meta, pgen, psam, pvar -> [cohort_meta.id, pgen, psam, pvar] },
-            by: 0
-        )
-        .map { _cohort_id, matrix_meta, base, parts, pgen, psam, pvar -> [matrix_meta, base, parts, pgen, psam, pvar] }
-
-    def ch_gcta_base_types = ch_gcta_base_genotypes.branch { _matrix_meta, base, _parts, _pgen, _psam, _pvar ->
+    // Branch by base type before pairing. `gcta_ldms` reads PLINK 1 and `gcta_dense` reads the native bundle,
+    // so the two must not be routed through one combined stream: doing that used to force the LDMS builds to
+    // take a native bundle they immediately discarded. The five branches enumerate every base type
+    // `getMatrixKindContract()` can produce — `gcta_sparse` has no branch because it is a derivative of the
+    // `gcta_dense` base rather than a base of its own.
+    def ch_base_by_type = ch_base_requests.branch { _key, _matrix_meta, base, _weights_file, _parts ->
         gcta_dense: base.type == 'gcta_dense'
         gcta_ldms: base.type == 'gcta_ldms'
+        ldak_kinship: base.type == 'ldak_kinship'
+        mph_dense: base.type == 'mph_dense'
+        mph_ldms: base.type == 'mph_ldms'
     }
 
-    // GCTA resolves one manifest entry from the staged PGEN prefix. Matching companion basenames remain a
-    // native caller contract; the staged basename is not part of the scientific base key.
-    def ch_dense_manifests = ch_gcta_base_types.gcta_dense
-        .map { matrix_meta, _base, _parts, pgen, _psam, _pvar -> [matrix_meta, pgen.baseName] }
-        .collectFile { matrix_meta, stem -> ["${matrix_meta.id}.mpfile", "${stem}\n"] }
+    def ch_dense_genotypes = ch_base_by_type.gcta_dense
+        .map { _key, matrix_meta, base, _weights_file, parts -> [base.view_compatibility_key, matrix_meta, base, parts] }
+        .combine(ch_native_by_view_key, by: 0)
+        .map { _view_key, matrix_meta, base, parts, primary, variant_file, sample_file -> [matrix_meta, base, parts, primary, variant_file, sample_file] }
+
+    // GCTA resolves one manifest entry from the staged bundle prefix, and `GCTA_MAKEGRMPART` selects
+    // `--mbfile` or `--mpfile` from that primary member's extension, so one manifest shape serves both
+    // representations. Matching companion basenames remain a native caller contract, enforced at ingress; the
+    // staged basename is not part of the scientific base key.
+    def ch_dense_manifests = ch_dense_genotypes
+        .map { matrix_meta, _base, _parts, primary, _variant_file, _sample_file -> [matrix_meta, primary.baseName] }
+        .collectFile { matrix_meta, stem -> ["${matrix_meta.id}.mfile", "${stem}\n"] }
         .map { manifest -> [manifest.baseName, manifest] }
 
-    def ch_dense_inputs = ch_gcta_base_types.gcta_dense
-        .map { matrix_meta, base, parts, pgen, psam, pvar -> [matrix_meta.id, matrix_meta, base, parts, pgen, psam, pvar] }
+    def ch_dense_inputs = ch_dense_genotypes
+        .map { matrix_meta, base, parts, primary, variant_file, sample_file -> [matrix_meta.id, matrix_meta, base, parts, primary, variant_file, sample_file] }
         .join(ch_dense_manifests, failOnDuplicate: true, failOnMismatch: true)
-        .multiMap { _matrix_id, matrix_meta, base, parts, pgen, psam, pvar, manifest ->
-            genotypes: [matrix_meta, manifest, pgen, pvar, psam]
+        .multiMap { _matrix_id, matrix_meta, base, parts, primary, variant_file, sample_file, manifest ->
+            genotypes: [matrix_meta, manifest, primary, variant_file, sample_file]
             snp_group: [matrix_meta, base.gcta_extract ?: []]
             n_parts: [matrix_meta, parts]
         }
@@ -140,9 +171,9 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         .filter { _key, _matrix_meta, base, _weights_file, _parts -> base.plan }
         .map { _key, _matrix_meta, base, _weights_file, _parts -> [base.plan.key, base.plan] }
         .unique { key, _plan -> key }
-        .map { _key, plan -> [plan.cohort, buildLdmsPlanMeta(plan)] }
-        .combine(ch_plink1_cohorts, by: 0)
-        .multiMap { _cohort, plan_meta, bed, bim, fam ->
+        .map { _key, plan -> [plan.view_compatibility_key, buildLdmsPlanMeta(plan)] }
+        .combine(ch_plink1_by_view_key, by: 0)
+        .multiMap { _view_key, plan_meta, bed, bim, fam ->
             genotypes: [plan_meta, bed, bim, fam]
             region_kb: [plan_meta, plan_meta.settings.ld_score_region_kb]
             ld_bins: [plan_meta, plan_meta.settings.ld_bins]
@@ -160,12 +191,12 @@ workflow PREPARE_RELATEDNESS_MATRICES {
 
     // LDMS remains one base-family artifact. Its reusable product is the ordered GRM family; each native
     // consumer writes its own task-local MGRM control list from the explicit prefix order.
-    def ch_ldms_builds = ch_gcta_base_types.gcta_ldms
-        .map { matrix_meta, base, parts, _pgen, _psam, _pvar -> [base.plan_key, base.cohort, matrix_meta, parts] }
+    def ch_ldms_builds = ch_base_by_type.gcta_ldms
+        .map { _key, matrix_meta, base, _weights_file, parts -> [base.plan_key, base.view_compatibility_key, matrix_meta, parts] }
         .combine(ch_plans_by_key, by: 0)
-        .map { _plan_key, cohort, matrix_meta, parts, strata_manifest, snp_group_files -> [cohort, matrix_meta, parts, strata_manifest, snp_group_files] }
-        .combine(ch_plink1_cohorts, by: 0)
-        .map { _cohort, matrix_meta, parts, strata_manifest, snp_group_files, bed, bim, fam -> [matrix_meta, parts, strata_manifest, snp_group_files, bed, bim, fam] }
+        .map { _plan_key, view_key, matrix_meta, parts, strata_manifest, snp_group_files -> [view_key, matrix_meta, parts, strata_manifest, snp_group_files] }
+        .combine(ch_plink1_by_view_key, by: 0)
+        .map { _view_key, matrix_meta, parts, strata_manifest, snp_group_files, bed, bim, fam -> [matrix_meta, parts, strata_manifest, snp_group_files, bed, bim, fam] }
 
     def ch_ldms_manifests = ch_ldms_builds
         .map { matrix_meta, _parts, _strata_manifest, _snp_group_files, bed, _bim, _fam -> [matrix_meta, bed.baseName] }
@@ -189,21 +220,19 @@ workflow PREPARE_RELATEDNESS_MATRICES {
 
     // MPH matrices are built from the PLINK 1 bundle directly rather than from the prepared PGEN view, and
     // never from a GCTA matrix: the two layouts are mutually unreadable and neither tool rejects the other's.
-    def ch_mph_dense_builds = ch_base_requests
-        .filter { _key, _matrix_meta, base, _weights_file, _parts -> base.type == 'mph_dense' }
-        .map { _key, matrix_meta, base, _weights_file, _parts -> [base.cohort, matrix_meta] }
-        .combine(ch_plink1_cohorts, by: 0)
-        .map { _cohort, matrix_meta, bed, bim, fam -> [matrix_meta, bed, bim, fam] }
+    def ch_mph_dense_builds = ch_base_by_type.mph_dense
+        .map { _key, matrix_meta, base, _weights_file, _parts -> [base.view_compatibility_key, matrix_meta] }
+        .combine(ch_plink1_by_view_key, by: 0)
+        .map { _view_key, matrix_meta, bed, bim, fam -> [matrix_meta, bed, bim, fam] }
 
     PLINK_PREPARE_GRM_MPH(ch_mph_dense_builds, autosome_count)
 
-    def ch_mph_ldms_builds = ch_base_requests
-        .filter { _key, _matrix_meta, base, _weights_file, _parts -> base.type == 'mph_ldms' }
-        .map { _key, matrix_meta, base, _weights_file, _parts -> [base.plan_key, base.cohort, matrix_meta] }
+    def ch_mph_ldms_builds = ch_base_by_type.mph_ldms
+        .map { _key, matrix_meta, base, _weights_file, _parts -> [base.plan_key, base.view_compatibility_key, matrix_meta] }
         .combine(ch_plans_by_key, by: 0)
-        .map { _plan_key, cohort, matrix_meta, strata_manifest, snp_group_files -> [cohort, matrix_meta, strata_manifest, snp_group_files] }
-        .combine(ch_plink1_cohorts, by: 0)
-        .multiMap { _cohort, matrix_meta, strata_manifest, snp_group_files, bed, bim, fam ->
+        .map { _plan_key, view_key, matrix_meta, strata_manifest, snp_group_files -> [view_key, matrix_meta, strata_manifest, snp_group_files] }
+        .combine(ch_plink1_by_view_key, by: 0)
+        .multiMap { _view_key, matrix_meta, strata_manifest, snp_group_files, bed, bim, fam ->
             plan: [matrix_meta, strata_manifest, snp_group_files]
             genotypes: [matrix_meta, bed, bim, fam]
         }
@@ -212,11 +241,10 @@ workflow PREPARE_RELATEDNESS_MATRICES {
 
     // CALCKINS sees only LDAK base requests. Optional filtering/subsetting is supplied as a child request whose
     // parent key selects the completed base, so unrestricted and filtered consumers share construction.
-    def ch_ldak_inputs = ch_base_requests
-        .filter { _key, _matrix_meta, base, _weights_file, _parts -> base.type == 'ldak_kinship' }
-        .map { key, matrix_meta, base, weights_file, _parts -> [base.cohort, key, matrix_meta, base, weights_file] }
-        .combine(ch_plink1_cohorts, by: 0)
-        .map { _cohort, key, matrix_meta, base, weights_file, bed, bim, fam -> [key, matrix_meta, base, weights_file, bed, bim, fam] }
+    def ch_ldak_inputs = ch_base_by_type.ldak_kinship
+        .map { key, matrix_meta, base, weights_file, _parts -> [base.view_compatibility_key, key, matrix_meta, base, weights_file] }
+        .combine(ch_plink1_by_view_key, by: 0)
+        .map { _view_key, key, matrix_meta, base, weights_file, bed, bim, fam -> [key, matrix_meta, base, weights_file, bed, bim, fam] }
         .multiMap { _key, matrix_meta, base, weights_file, bed, bim, fam ->
             genotypes: [matrix_meta, bed, bim, fam, base.settings.power]
             weights: [matrix_meta, weights_file]
@@ -358,19 +386,6 @@ def canonicaliseIdentifier(value) {
 
 def buildRelatednessMatrixKey(identity, settings) {
     return buildScientificArtifactKey(identity, settings)
-}
-
-def buildPreparedViewCompatibilityKey(meta, genotype_files) {
-    def compatibility_identity = [
-        contract: 'pending_issue_8',
-        cohort: meta.cohort,
-        genotype_format: meta.genotype_format,
-        genotypes: genotype_files.collect { genotype_file -> genotype_file.name }.sort(),
-    ]
-    return buildScientificArtifactKey(
-        [layer: 'compatibility', type: 'prepared_genotype_view'],
-        compatibility_identity,
-    )
 }
 
 def buildRelatednessArtifactMeta(artifact) {
@@ -528,8 +543,10 @@ def getRelatednessDerivedSettings(meta, requested_kind) {
     return [:]
 }
 
-def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all'], gcta_extract = []) {
-    def view_compatibility_key = buildPreparedViewCompatibilityKey(meta, genotype_files)
+// The view-compatibility key arrives as an argument rather than being derived here: which of a cohort's two
+// views a request is compatible with is decided by the kind's declared genotype bundle, and only the caller
+// holds both key channels. Nothing in this function reads a staged genotype name.
+def buildRelatednessArtifactRequest(meta, view_compatibility_key, kind, weights_identity = [mode: 'equal'], gcta_extract_identity = [mode: 'all'], gcta_extract = []) {
     def base_type = kind == 'gcta_sparse' ? 'gcta_dense' : kind
     def base_settings = getRelatednessBaseSettings(meta, kind, weights_identity, gcta_extract_identity)
 
@@ -548,7 +565,6 @@ def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity
             ),
             settings: plan_settings,
             view_compatibility_key: view_compatibility_key,
-            cohort: meta.cohort,
         ]
     }
 
@@ -561,7 +577,6 @@ def buildRelatednessArtifactRequest(meta, genotype_files, kind, weights_identity
         key: base_key,
         view_compatibility_key: view_compatibility_key,
         settings: base_settings,
-        cohort: meta.cohort,
     ]
     if (plan) {
         base.plan = plan

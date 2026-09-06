@@ -6,25 +6,6 @@ nextflow_function {
     tag "regenie"
     tag "prediction"
 
-    test("the current prepared-view seam is explicit and cohort-scoped") {
-        function "buildCurrentPreparedGenotypeViewKey"
-
-        when {
-            function {
-                """
-                input[0] = [cohort: 'example_pgen', id: 'analysis_a', trait: 'QT']
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result == '208aa7b97ad5' },
-            )
-        }
-    }
-
     test("the route-local key covers fitted-model scientific inputs") {
         function "buildRegeniePredictionKey"
 

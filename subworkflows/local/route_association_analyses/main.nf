@@ -24,8 +24,10 @@ include { ROUTE_REGENIE_ASSOCIATIONS   } from '../route_regenie_associations'
 
 workflow ROUTE_ASSOCIATION_ANALYSES {
     take:
-    ch_cohort_genotypes // channel: [ val(meta), path(pgen), path(psam), path(pvar) ], the canonical PLINK 2 bundle fanned out one element per genotype request, including the relationship-scoped rows the spine also routes to matrix construction
-    ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], the lazy PLINK 1 derivative, present only for cohorts with a PLINK-1-needing consumer
+    ch_native_genotypes // channel: [ val(meta), path(primary_genotype), path(variant_file), path(sample_file) ], the cohort's native bundle in format-polymorphic member order, fanned out one element per genotype request, including the relationship-scoped rows the spine also routes to matrix construction
+    ch_plink1_genotypes // channel: [ val(meta), path(bed), path(bim), path(fam) ], the PLINK 1 view, present only for requests whose selected method reads PLINK 1
+    ch_cohort_native_view_keys // channel: [ val(cohort_id), val(native_view_key) ], one per cohort
+    ch_cohort_plink1_view_keys // channel: [ val(cohort_id), val(plink1_view_key) ], only cohorts with a PLINK 1 view, which is exactly the set of cohorts reaching ch_plink1_genotypes
     ch_phenotypes // channel: [ val(meta), path(phenotype) ], the headered canonical phenotype of every analysis unit
     ch_covariates // channel: [ val(meta), path(covariates) ], the headered merged covariate design, present only for an analysis unit that declared covariates
     ch_headerless_phenotypes // channel: [ val(meta), path(phenotype), path(quant_covariates), path(cat_covariates) ], headerless serialisations, optional covariates are already []
@@ -43,8 +45,8 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     // one-to-one on the analysis meta, so a missing or duplicated key is a defect and the strict form is what
     // says so. The covariate file is optional, so it joins with `remainder: true` and arrives as `null` for a
     // row that supplied none.
-    def ch_analysis_inputs = ch_cohort_genotypes
-        .filter { meta, _pgen, _psam, _pvar -> !meta.relationship_id }
+    def ch_analysis_inputs = ch_native_genotypes
+        .filter { meta, _primary, _variant_file, _sample_file -> !meta.relationship_id }
         .join(ch_phenotypes, failOnMismatch: true, failOnDuplicate: true)
         .join(ch_covariates, remainder: true)
 
@@ -53,7 +55,13 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     //
     // The local route owns nf-core/gwas scientific identity, cross-analysis fit reuse and output
     // attribution. Upstream-ready REGENIE components remain unaware of the relational input contract.
-    def ch_regenie_analyses = ch_analysis_inputs.filter { meta, _pgen, _psam, _pvar, _phenotype, _covariates -> 'regenie' in meta.association_methods }
+    // The native view key travels as a tuple member rather than in metadata: it is the route's Step 1 reuse
+    // identity, not focal analysis identity, and it must not reach any emitted meta map.
+    def ch_regenie_analyses = ch_analysis_inputs
+        .filter { meta, _primary, _variant_file, _sample_file, _phenotype, _covariates -> 'regenie' in meta.association_methods }
+        .map { meta, primary, variant_file, sample_file, phenotype, covariates -> [meta.cohort, meta, primary, variant_file, sample_file, phenotype, covariates] }
+        .combine(ch_cohort_native_view_keys, by: 0)
+        .map { _cohort_id, meta, primary, variant_file, sample_file, phenotype, covariates, view_key -> [meta, primary, variant_file, sample_file, phenotype, covariates, view_key] }
 
     ROUTE_REGENIE_ASSOCIATIONS(
         ch_regenie_analyses,
@@ -79,7 +87,14 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
 
     // A relationship-scoped row reaches the PLINK 1 derivative too, and it carries no association methods at
     // all, so the selected-method test is guarded rather than assuming the key is present.
-    def ch_kvik_genotypes = ch_plink1_genotypes.filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in (meta.association_methods ?: []) }
+    // Total for its own inputs and needing no null guard: an element of `ch_plink1_genotypes` exists only for
+    // a cohort that has a PLINK 1 view, and every such cohort has an element in `ch_cohort_plink1_view_keys`.
+    // Preparation emits both from the same stream, so the two cannot disagree.
+    def ch_kvik_genotypes = ch_plink1_genotypes
+        .filter { meta, _bed, _bim, _fam -> 'ldak_kvik' in (meta.association_methods ?: []) }
+        .map { meta, bed, bim, fam -> [meta.cohort, meta, bed, bim, fam] }
+        .combine(ch_cohort_plink1_view_keys, by: 0)
+        .map { _cohort_id, meta, bed, bim, fam, view_key -> [meta, bed, bim, fam, view_key] }
 
     ROUTE_LDAK_KVIK_ASSOCIATIONS(
         ch_kvik_genotypes,
@@ -93,14 +108,14 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     // This is deliberately inline: a composition wrapping one module is not an nf-core subworkflow.
     // The module chooses --fastGWA-mlm or --fastGWA-mlm-binary from the boolean phenotype input;
     // conf/modules/gcta.config supplies no arbitrary ext.args, so plain --fastGWA-lr is unreachable.
-    def ch_fastgwa_genotypes = ch_cohort_genotypes.filter { meta, _pgen, _psam, _pvar -> 'gcta_fastgwa' in meta.association_methods }
+    def ch_fastgwa_genotypes = ch_native_genotypes.filter { meta, _primary, _variant_file, _sample_file -> 'gcta_fastgwa' in meta.association_methods }
     def ch_fastgwa_phenotypes = ch_headerless_phenotypes.filter { meta, _phenotype, _quant_covariates, _cat_covariates -> 'gcta_fastgwa' in meta.association_methods }
 
     // fastGWA takes its five native inputs from four separately-keyed streams, so they are rejoined on the
     // analysis identifier and split again with `multiMap` so they cannot drift out of lockstep. The key is a
     // tuple position that never survives the `multiMap`, so it never reaches any metadata.
     def ch_fastgwa_invocations = ch_fastgwa_genotypes
-        .map { meta, pgen, psam, pvar -> [meta.id, [meta, pgen, pvar, psam]] }
+        .map { meta, primary, variant_file, sample_file -> [meta.id, [meta, primary, variant_file, sample_file]] }
         .join(
             ch_fastgwa_phenotypes.map { meta, phenotype, _quant_covariates, _cat_covariates -> [meta.id, [meta, phenotype, meta.is_binary]] },
             by: 0,
