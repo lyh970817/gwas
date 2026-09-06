@@ -654,6 +654,11 @@ nextflow_workflow {
 
     // A `.pvar.zst` needs plink2's `vzs` modifier, which no consumer in this pipeline passes: every one of
     // them derives a bare `--pfile`/`--mpfile` prefix. It is refused at ingress rather than left reachable.
+    //
+    // The file at that path is materialised, not merely named. The schema property carries both `exists` and
+    // the extension pattern under one `errorMessage`, so pointing at a path with nothing behind it would be
+    // refused by `exists` and the assertions below would hold with the pattern reverted — the test would pin
+    // nothing. With the file present, only the pattern can refuse.
     test("a Zstandard-compressed pvar is refused at ingress") {
         tag "genotype_view_id"
 
@@ -661,7 +666,7 @@ nextflow_workflow {
             workflow {
                 """
                 input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'zstd_pvar', { rows ->
-                    rows[0].pvar = rows[0].pvar.toString() + '.zst'
+                    rows[0].pvar = RELATIONAL.copyResource(outputDir, 'example_all.pvar.zst', "${FIXTURES.base(projectDir)}results/fixtures/genotypes/example_all.pvar")
                 })}', checkIfExists: true)
                 input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'zstd_pvar')}', checkIfExists: true)
                 input[2] = null

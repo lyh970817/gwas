@@ -417,8 +417,11 @@ nextflow_pipeline {
             message: 'do not share one basename stem',
         ],
         [
+            // The file is materialised rather than merely named: the schema property carries `exists` and the
+            // extension pattern under one `errorMessage`, so a path with nothing behind it would be refused
+            // by `exists` and this row would pass with the pattern reverted.
             name: 'a Zstandard-compressed variant file',
-            mutate: { rows, output_dir, project_dir -> rows[0].pvar = rows[0].pvar.toString() + '.zst' },
+            mutate: { rows, output_dir, project_dir -> rows[0].pvar = RELATIONAL.copyResource(output_dir, 'invalid_example_all.pvar.zst', "${FIXTURES.base(project_dir)}results/fixtures/genotypes/example_all.pvar") },
             fields: ['pvar'],
             message: "must have extension '.pvar'",
             // nf-schema rejects this at parameter validation, before the per-row resolver runs, so the
