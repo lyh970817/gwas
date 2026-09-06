@@ -26,6 +26,12 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -40,7 +46,109 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:39:56.787763532",
+        "timestamp": "2026-09-06T11:50:04.683968026",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "plink2-genotype-view": {
+        "content": [
+            {
+                "cohort": "example_pgen",
+                "source": {
+                    "format": "plink2",
+                    "identity": {
+                        "mode": "sha256",
+                        "value": "a9b72024106c70f141c3cc41982ce59fbd6a8d32c5fa42b8ecc72953b9af28ec"
+                    },
+                    "members": [
+                        {
+                            "role": "pgen",
+                            "name": "example_all.pgen",
+                            "size": 122021,
+                            "sha256": "a48a6d0ca4f2cf66cd11ee0c391fb2bb38a6f64018654e03b042aa4db317cc62"
+                        },
+                        {
+                            "role": "psam",
+                            "name": "example_all.psam",
+                            "size": 2613,
+                            "sha256": "af45b49120abd0ac2bf0cc01773a706db8d31d581fa650ee2d6ecc9a67bc04b5"
+                        },
+                        {
+                            "role": "pvar",
+                            "name": "example_all.pvar",
+                            "size": 55105,
+                            "sha256": "48cfaba06fa15303c56297de910a92e2d6c5ec76b1bd88dca5601ee1bea63039"
+                        }
+                    ],
+                    "state": {
+                        "max_alleles": 2,
+                        "dosages": false,
+                        "phased": true
+                    }
+                },
+                "native_view": {
+                    "key": "94cc579c9536",
+                    "format": "plink2",
+                    "origin": "supplied",
+                    "settings": {
+                        
+                    }
+                },
+                "plink1": null
+            }
+        ],
+        "timestamp": "2026-09-06T11:42:34.747773464",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "plink1-genotype-view": {
+        "content": [
+            {
+                "cohort": "example_bfile",
+                "source": {
+                    "format": "plink1",
+                    "identity": {
+                        "mode": "sha256",
+                        "value": "f84524b232aac1a8b1f1dcea3ae2ebe2e21e56b335ee4debbaf44ab74799c28b"
+                    },
+                    "members": [
+                        {
+                            "role": "bed",
+                            "name": "example_all.bed",
+                            "size": 110003,
+                            "sha256": "524928cdd30e9f59366ad293bdaa729bcc7f251d962c6333f4555273d70d41a5"
+                        },
+                        {
+                            "role": "bim",
+                            "name": "example_all.bim",
+                            "size": 48444,
+                            "sha256": "ce050e446df03a7209f31f102d304141bd3743c39086eb61bcfbccc5630b9422"
+                        },
+                        {
+                            "role": "fam",
+                            "name": "example_all.fam",
+                            "size": 3800,
+                            "sha256": "018c10d850bced9613e912a61d8ee5ea11b9bda01acab0f6a8bf4001737dca3d"
+                        }
+                    ],
+                    "state": null
+                },
+                "native_view": {
+                    "key": "845046a58b6c",
+                    "format": "plink1",
+                    "origin": "supplied",
+                    "settings": {
+                        
+                    }
+                },
+                "plink1": null
+            }
+        ],
+        "timestamp": "2026-09-06T11:43:02.345273018",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -53,6 +161,12 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -67,7 +181,50 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:39:06.317177334",
+        "timestamp": "2026-09-06T11:49:06.781861265",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "vcf-genotype-view": {
+        "content": [
+            {
+                "cohort": "example_vcf",
+                "source": {
+                    "format": "vcf",
+                    "identity": {
+                        "mode": "sha256",
+                        "value": "5ac7cebf175726dc1e043806a3a04fc934f270a40640709eba67a62d59239779"
+                    },
+                    "members": [
+                        {
+                            "role": "vcf",
+                            "name": "example_all.vcf.gz",
+                            "size": 194357,
+                            "sha256": "c1df433b049553b39a34301532f518bdcf2c581a72741e6adabb00f97390700f"
+                        }
+                    ],
+                    "state": {
+                        "max_alleles": 2,
+                        "dosages": false,
+                        "phased": true
+                    }
+                },
+                "native_view": {
+                    "key": "0ec762a136d0",
+                    "format": "plink2",
+                    "origin": "vcf_import",
+                    "settings": {
+                        "tool_contract": "plink2_2.0.0a.6.9_vcf_import_v1",
+                        "sample_id_policy": "double_id",
+                        "half_call": "error"
+                    }
+                },
+                "plink1": null
+            }
+        ],
+        "timestamp": "2026-09-06T11:43:31.531352055",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -114,8 +271,8 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_MAKEPGEN": {
-                    "plink2": "2.0.0-a.6.9LM"
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -131,7 +288,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:39:31.437144552",
+        "timestamp": "2026-09-06T11:49:34.893341315",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

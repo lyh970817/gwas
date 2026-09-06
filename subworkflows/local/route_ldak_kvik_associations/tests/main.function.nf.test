@@ -7,25 +7,6 @@ nextflow_function {
     tag "kvik"
     tag "prediction"
 
-    test("the current prepared-view seam is explicit and cohort-scoped") {
-        function "buildCurrentPreparedGenotypeViewKey"
-
-        when {
-            function {
-                """
-                input[0] = [cohort: 'example_bfile', id: 'analysis_a', trait: 'QT']
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result == '3f5efb0acc7f' },
-            )
-        }
-    }
-
     test("the thin-common key covers prepared view and effective native options") {
         function "buildThinCommonKey"
 

@@ -85,6 +85,10 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
         )
 
         if (cohort) {
+            // The declared genotype view identity is added as a key only when the cohort declared one, and is
+            // never added as a `null`. Analysis metadata is a task-hash input everywhere downstream, so an
+            // unconditional `genotype_view_id: null` would change every existing analysis's hash and every
+            // pinned snapshot for cohorts that declare nothing.
             def resolved_meta = analysis_meta + [
                 build: cohort.meta.build,
                 ancestry: cohort.meta.ancestry,
@@ -97,7 +101,7 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
                 population_prevalence: settings.population_prevalence,
                 sample_prevalence: settings.sample_prevalence,
                 method_options: method_options_by_analysis[analysis_id],
-            ]
+            ] + (cohort.genotype_view_id ? [genotype_view_id: cohort.genotype_view_id] : [:])
             def validated = [
                 resolved_meta,
                 cohort.genotype_files,

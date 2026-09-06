@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "prepare_pgen_state"
+description: Read the native state of a PLINK 2 bundle with a header-only `--pgen-info` pass
+keywords:
+  - plink2
+  - pgen
+  - multiallelic
+  - dosage
+  - phase
+tools:
+  - "plink2":
+      description: |
+        Whole genome association analysis toolset, PLINK 2. `--pgen-info` reports the maximum allele count of
+        any variant, whether explicitly phased hardcalls are present and whether dosages are present, reading
+        only the bundle headers. The pipeline reads those three facts before deciding whether a PLINK 1
+        hard-call projection of the bundle is admissible and what information that projection would drop.
+      homepage: "https://www.cog-genomics.org/plink/2.0/"
+      documentation: "https://www.cog-genomics.org/plink/2.0/basic_stats#pgen_info"
+      tool_dev_url: "https://github.com/chrchang/plink-ng"
+      doi: "10.1186/s13742-015-0047-8"
+      licence: ["GPL-3.0-or-later"]
+      identifier: "biotools:plink2"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map holding only the cohort identifier, e.g. `[ id:'cohort_pgen' ]`. It is deliberately the
+          narrowest possible metadata: a change in the cohort's view key or projection policy must not
+          re-execute a probe whose answer depends on the bundle alone.
+    - pgen:
+        type: file
+        description: PLINK 2 genotype file, named in format-polymorphic native order (primary member first).
+        pattern: "*.pgen"
+        ontologies:
+          - edam: "http://edamontology.org/format_2330"
+    - pvar:
+        type: file
+        description: PLINK 2 variant file accompanying pgen.
+        pattern: "*.pvar"
+        ontologies:
+          - edam: "http://edamontology.org/format_2330"
+    - psam:
+        type: file
+        description: PLINK 2 sample file accompanying pgen.
+        pattern: "*.psam"
+        ontologies:
+          - edam: "http://edamontology.org/format_2330"
+output:
+  state:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing cohort information, e.g. `[ id:'cohort_pgen' ]`
+      - "${prefix}.pgen_info.log":
+          type: file
+          description: |
+            The plink2 log of the `--pgen-info` pass. It carries the maximum allele count line and one each of
+            the dosage and phase statements, in both their positive and negative spellings, so a caller can
+            distinguish a missing fact from a false one.
+          pattern: "*.pgen_info.log"
+          ontologies:
+            - edam: "http://edamontology.org/format_2330"
+  versions_plink2:
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - plink2:
+          type: string
+          description: The tool name
+      - "plink2 --version 2>&1 | sed 's/^PLINK v//; s/ 64.*$//'":
+          type: eval
+          description: The command used to retrieve the PLINK 2 version
+topics:
+  versions:
+    - - "${task.process}":
+          type: string
+          description: The process the version was collected from
+      - plink2:
+          type: string
+          description: The tool name
+      - "plink2 --version 2>&1 | sed 's/^PLINK v//; s/ 64.*$//'":
+          type: eval
+          description: The command used to retrieve the PLINK 2 version
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

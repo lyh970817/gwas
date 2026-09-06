@@ -1,0 +1,375 @@
+nextflow_function {
+
+    name "Test genotype view identity and conversion policy functions"
+    script "../main.nf"
+    tag "function"
+    tag "genotypes"
+
+    test("the PLINK 1 projection policy states every field that enters the derivative identity") {
+        function "getPlink1ProjectionPolicy"
+
+        then {
+            assertAll(
+                { assert function.success },
+                // The policy is the derivative's identity input, its published provenance and the rendered
+                // `ext.args` all at once, so every field is pinned here rather than left to a comment.
+                { assert function.result == [
+                    tool_contract: 'plink2_2.0.0a.6.9_make_bed_v1',
+                    hard_call_threshold: 0.1,
+                    multiallelic: 'reject',
+                    missing_call_policy: 'dosage_distance_above_threshold_is_missing',
+                    dosage: 'dropped',
+                    phase: 'dropped',
+                    selection: [samples: 'all', variants: 'all', chromosomes: 'all', regions: 'all'],
+                ] },
+                // The version inside the tool contract must be the version the atom is pinned to; otherwise a
+                // container bump would silently keep an identity that claims the old semantics.
+                { assert function.result.tool_contract.contains(
+                    new File("${projectDir}/modules/local/plink2/makebed/environment.yml")
+                        .readLines()
+                        .find { line -> line.contains('plink2=') }
+                        .split('plink2=')
+                        .last()
+                        .trim()
+                ) },
+                // The literal that `conf/modules/genotypes.config` renders cannot drift from the policy.
+                { assert new File("${projectDir}/conf/modules/genotypes.config").text.contains(
+                    '"--hard-call-threshold \${meta.settings.hard_call_threshold}"'
+                ) },
+            )
+        }
+    }
+
+    test("the VCF import policy has exactly the fields the command renders") {
+        function "getVcfImportPolicy"
+
+        then {
+            assertAll(
+                { assert function.success },
+                // Three keys and no more: an unrendered field would be an assumption about a plink2 default
+                // recorded in the identity but never applied to the command.
+                { assert function.result == [
+                    tool_contract: 'plink2_2.0.0a.6.9_vcf_import_v1',
+                    sample_id_policy: 'double_id',
+                    half_call: 'error',
+                ] },
+                { assert new File("${projectDir}/conf/modules/genotypes.config").text.contains(
+                    '"--vcf-half-call \${meta.settings.half_call}"'
+                ) },
+                { assert new File("${projectDir}/conf/modules/genotypes.config").text.contains(
+                    "meta.settings.sample_id_policy == 'double_id' ? '--double-id' : ''"
+                ) },
+            )
+        }
+    }
+
+    test("a supplied PLINK 2 view key is stable and names its source identity") {
+        function "buildGenotypeViewKey"
+
+        when {
+            function {
+                """
+                input[0] = 'plink2'
+                input[1] = 'supplied'
+                input[2] = [mode: 'sha256', value: '${'0' * 64}']
+                input[3] = [:]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == '61f8d14d59ab' },
+            )
+        }
+    }
+
+    test("a declared identity and a content digest of equal value are different views") {
+        function "buildGenotypeViewKey"
+
+        when {
+            function {
+                """
+                input[0] = 'plink2'
+                input[1] = 'supplied'
+                input[2] = [mode: 'declared', value: '${'0' * 64}']
+                input[3] = [:]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // The mode is part of the identity string, so a declared token that happens to equal a
+                // computed digest is not silently treated as the same view.
+                { assert function.result != '61f8d14d59ab' },
+            )
+        }
+    }
+
+    test("the projection key names its parent and the policy that produced it") {
+        function "buildPlink1ProjectionKey"
+
+        when {
+            function {
+                """
+                input[0] = '61f8d14d59ab'
+                input[1] = [
+                    tool_contract: 'plink2_2.0.0a.6.9_make_bed_v1',
+                    hard_call_threshold: 0.1,
+                    multiallelic: 'reject',
+                    missing_call_policy: 'dosage_distance_above_threshold_is_missing',
+                    dosage: 'dropped',
+                    phase: 'dropped',
+                    selection: [samples: 'all', variants: 'all', chromosomes: 'all', regions: 'all'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result == 'f92d466b96a0' },
+                // The derivative is a distinct artifact from the bundle it was projected from, so a consumer
+                // of one can never be handed the other under the same key.
+                { assert function.result != '61f8d14d59ab' },
+            )
+        }
+    }
+
+    test("the cohort-scoped metadata keeps the manifest's format beside the realised one") {
+        function "buildCohortMeta"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    id: 'cohort_vcf',
+                    key: '61f8d14d59ab',
+                    layer: 'view',
+                    artifact_type: 'vcf_pgen_import',
+                    format: 'plink2',
+                    source_format: 'vcf',
+                    origin: 'vcf_import',
+                    source: [mode: 'sha256', value: '${'0' * 64}'],
+                    settings: [:],
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                // Both facts, neither inferred from the other: `genotype_format` keeps the meaning it has in
+                // the manifest and everywhere it is already consumed, `native_format` states what is on disk.
+                { assert function.result == [id: 'cohort_vcf', genotype_format: 'vcf', native_format: 'plink2'] },
+            )
+        }
+    }
+
+    // Every report below is a verbatim `--pgen-info` block from the pinned plink2 image, not a hand-assembled
+    // combination of statements: the dosage family has three mutually exclusive members and only the tool
+    // decides which of them pairs with which hardcall statement.
+    def pgenStates = [
+        [
+            name: 'the biallelic, phased, dosage-free fixture bundle',
+            tag: 'dosage_free',
+            report: "  Variants: 2200\n  Samples: 200\n  REF alleles are all known\n  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  No dosages present\n",
+            expected: [max_alleles: 2, dosages: false, phased: true],
+        ],
+        [
+            name: 'a multiallelic bundle with unphased dosages',
+            tag: 'unphased_dosage',
+            report: "  Maximum allele count for a single variant: 3\n  No hardcalls are explicitly phased\n  Dosage present, none explicitly phased\n",
+            expected: [max_alleles: 3, dosages: true, phased: false],
+        ],
+        [
+            // `plink2 --vcf … dosage=HDS` on phased genotypes — the ordinary product of imputation — reports
+            // a third dosage statement and neither of the other two. A two-way exclusive-or over
+            // 'Dosage present' and 'No dosages present' takes its error branch here and aborts the run.
+            name: 'a bundle with explicitly phased dosages',
+            tag: 'phased_dosage',
+            report: "  Variants: 2\n  Samples: 4\n  REF alleles are all known\n  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  Explicitly phased dosages present\n",
+            expected: [max_alleles: 2, dosages: true, phased: true],
+        ],
+    ]
+
+    pgenStates.each { scenario ->
+        test("the PLINK 2 state reader reports ${scenario.name}") {
+            function "readPgenState"
+
+            when {
+                function {
+                    """
+                    input[0] = 'cohort_probe'
+                    input[1] = file('${RELATIONAL.resource(outputDir, "pgen_info_${scenario.tag}.log", scenario.report)}', checkIfExists: true)
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.success },
+                    // Every spelling of every statement is exercised, not only the fixture's, because
+                    // plink2 states the negatives explicitly and a reader that matched only the positives
+                    // would report `false` for a log whose shape had changed.
+                    { assert function.result == scenario.expected },
+                )
+            }
+        }
+    }
+
+    def malformedStates = [
+        [
+            name: 'a report missing every dosage and phase statement',
+            tag: 'truncated',
+            report: "  Maximum allele count for a single variant: 2\n",
+        ],
+        [
+            // The reader requires exactly one statement of each family, so a report carrying two dosage
+            // statements is a changed log shape and must fail rather than resolve to whichever matched first.
+            name: 'a report carrying two mutually exclusive dosage statements',
+            tag: 'two_dosage_statements',
+            report: "  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  Dosage present, none explicitly phased\n  Explicitly phased dosages present\n",
+        ],
+        [
+            name: 'a report missing the allele count',
+            tag: 'no_allele_count',
+            report: "  Explicitly phased hardcalls present\n  No dosages present\n",
+        ],
+    ]
+
+    malformedStates.each { scenario ->
+        test("${scenario.name} is refused by name rather than read as false") {
+            function "readPgenState"
+
+            when {
+                function {
+                    """
+                    input[0] = 'cohort_${scenario.tag}'
+                    input[1] = file('${RELATIONAL.resource(outputDir, "pgen_info_${scenario.tag}.log", scenario.report)}', checkIfExists: true)
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert !function.success },
+                    { assert function.stdout.join('\n').contains("cohort 'cohort_${scenario.tag}'") },
+                    { assert function.stdout.join('\n').contains('unrecognised state report') },
+                )
+            }
+        }
+    }
+
+    test("a source digest that is not 64 hexadecimal characters is refused by name") {
+        function "readSourceIdentity"
+
+        when {
+            function {
+                """
+                input[0] = 'cohort_bad_digest'
+                input[1] = file('${RELATIONAL.resource(outputDir, 'not_a_digest.sha256', "not-a-digest\n")}', checkIfExists: true)
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !function.success },
+                { assert function.stdout.join('\n').contains("cohort 'cohort_bad_digest'") },
+            )
+        }
+    }
+
+    test("a multiallelic state is refused before any projection is requested") {
+        function "assertProjectable"
+
+        when {
+            function {
+                """
+                input[0] = 'cohort_multi'
+                input[1] = [max_alleles: 3, dosages: false, phased: false]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !function.success },
+                { assert function.stdout.join('\n').contains("cohort 'cohort_multi'") },
+                { assert function.stdout.join('\n').contains('maximum allele count 3') },
+            )
+        }
+    }
+
+    test("an unprobed PLINK 2 bundle is a pipeline defect rather than a silently admitted projection") {
+        function "assertProjectable"
+
+        when {
+            function {
+                """
+                input[0] = 'cohort_unprobed'
+                input[1] = null
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !function.success },
+                { assert function.stdout.join('\n').contains('this is a pipeline defect') },
+            )
+        }
+    }
+
+    test("a biallelic state with dosages is projected rather than refused") {
+        function "assertProjectable"
+
+        when {
+            function {
+                """
+                input[0] = 'cohort_dosage'
+                input[1] = [max_alleles: 2, dosages: true, phased: false]
+                """
+            }
+        }
+
+        then {
+            // plink2's hard-call rule with the explicit threshold is the declared projection semantics; the
+            // loss is recorded in the view record rather than refused.
+            assert function.success
+        }
+    }
+
+    def selectedMethods = [
+        [name: 'a unary row', meta: "[association_methods: ['regenie'], heritability_methods: ['ldak_reml']]", expected: ['regenie', 'ldak_reml']],
+        [name: 'a pair row', meta: "[relationship_id: 'rel_a', method: 'gcta_bivariate_reml_ldms']", expected: ['gcta_bivariate_reml_ldms']],
+        [name: 'a row with neither selector column populated', meta: '[:]', expected: []],
+    ]
+
+    selectedMethods.each { scenario ->
+        test("the selected methods of ${scenario.name} are read without a method literal") {
+            function "getSelectedMethods"
+
+            when {
+                function {
+                    """
+                    input[0] = ${scenario.meta}
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.success },
+                    { assert function.result == scenario.expected },
+                )
+            }
+        }
+    }
+}

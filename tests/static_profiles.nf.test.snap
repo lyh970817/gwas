@@ -9,6 +9,12 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -23,7 +29,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:31:53.906159266",
+        "timestamp": "2026-09-06T13:44:36.027112531",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -60,6 +66,12 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -74,7 +86,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-02T11:32:11.646043671",
+        "timestamp": "2026-09-06T13:44:59.228876238",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -122,6 +134,12 @@
                 "PLINK2_VCF": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -130,7 +148,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-01T02:46:37.093690818",
+        "timestamp": "2026-09-06T13:45:23.648389879",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

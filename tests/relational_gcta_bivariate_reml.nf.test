@@ -60,10 +60,18 @@ nextflow_pipeline {
             def nativeCommand = workFiles(outputDir).find { entry ->
                 entry.name == '.command.sh' && entry.text.contains('--reml-bivar 1 2')
             }
+            def grmCommand = workFiles(outputDir).find { entry ->
+                entry.name == '.command.sh' && entry.text.contains('--make-grm-part')
+            }
             def stableRequestNames = request.listFiles()*.name.sort()
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 1 },
+                // The cohort is supplied as PLINK 2 and the dense GRM builder is format-polymorphic, so it
+                // reads the researcher's own PGEN through `--mpfile` with no conversion in between.
+                { assert grmCommand != null },
+                { assert grmCommand.text.contains('--mpfile') },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                 { assert TRACE.count(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },

@@ -74,7 +74,10 @@ nextflow_pipeline {
                         { assert workflow.success },
                         // The stub run proves the same invocation topology as the real profile without
                         // pretending that placeholder scientific content is suitable for hashing.
-                        { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                        // The profile's cohort is supplied as PLINK 1, which is the representation the
+                        // stratified GCTA route reads, so it passes through with no conversion at all.
+                        { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                        { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 0 },
                         { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 3 },
                         { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 3 },
                         { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 4 },

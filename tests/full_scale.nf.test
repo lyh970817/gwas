@@ -96,7 +96,11 @@ nextflow_pipeline {
                 { assert multiqc_report.text.count('https://doi.org/10.1038/ng.3390') == 1 },
                 { assert multiqc_report.text.count('https://doi.org/10.1038/s41588-019-0530-8') == 1 },
                 { assert multiqc_report.text.count('https://doi.org/10.1016/j.ajhg.2012.10.010') == 1 },
-                { assert !new File("${params.outdir}/genotypes").exists() },
+                // The save controls are off, so no prepared bundle is published — but `genotypes/` is not
+                // empty: every cohort's view record is written there unconditionally, because it is what
+                // explains the reuse keys of everything else the run published.
+                { assert new File("${params.outdir}/genotypes").list().toList() == ['example_cohort'] },
+                { assert new File("${params.outdir}/genotypes/example_cohort").list().toList() == ['example_cohort.genotype_view.json'] },
                 { assert !new File("${params.outdir}/phenotypes").exists() },
                 { assert !new File("${params.outdir}/quality_control/relatedness_matrices").exists() },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },

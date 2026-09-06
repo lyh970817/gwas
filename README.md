@@ -30,7 +30,7 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 ## Pipeline summary
 
 1. Validate linked cohort, analysis, summary-statistics, relationship, reference and request declarations.
-2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input.
+2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input, preserving the supplied representation.
 3. Prepare the selected phenotype and optional quantitative and categorical covariates for the native tools.
 4. Run selected association routes:
    - REGENIE

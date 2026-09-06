@@ -102,6 +102,12 @@ nextflow_pipeline {
 
     // Each focused identity scenario builds its linked inputs locally and loads only deterministic
     // publication/resource settings from its test config.
+    //
+    // The matrix keys a stub run publishes are NOT the keys a real run publishes, and deliberately so: every
+    // key is a function of the cohort's view identity, which is a digest computed in a task, and a stubbed
+    // task writes a stub digest. The stub keys are still deterministic, so they are pinned in their own
+    // right — what they prove is that the identity formula and the artifact graph are unchanged, not that a
+    // stub run reproduces a real run's published directory names.
     executionModes.each { mode ->
         test("filtered and unfiltered analyses select one LDAK base and one subset child${mode.suffix}") {
 
@@ -131,7 +137,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['8a065b80a2cc', 'c1295584da01'],
+                        ['53ac7b3c06f2', 'b03bc1135e82'],
                         ['example_pgen_bt_all', 'example_pgen_bt_unrelated'],
                         [calckins: 1, filter: 1, subgrm: 1],
                     ))
@@ -163,18 +169,18 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_FILTER') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
-                        { assert matrices.list().toList().sort() == ['8a065b80a2cc', 'c1295584da01'] },
-                        { assert new File(matrices, '8a065b80a2cc').list().toList().sort() == [
-                            'ldak_kinship.8a065b80a2cc.grm.adjust',
-                            'ldak_kinship.8a065b80a2cc.grm.bin',
-                            'ldak_kinship.8a065b80a2cc.grm.details',
-                            'ldak_kinship.8a065b80a2cc.grm.id',
+                        { assert matrices.list().toList().sort() == ['26d57d726c2d', '85acd1c43996'] },
+                        { assert new File(matrices, '85acd1c43996').list().toList().sort() == [
+                            'ldak_kinship.85acd1c43996.grm.adjust',
+                            'ldak_kinship.85acd1c43996.grm.bin',
+                            'ldak_kinship.85acd1c43996.grm.details',
+                            'ldak_kinship.85acd1c43996.grm.id',
                         ] },
-                        { assert new File(matrices, 'c1295584da01').list().toList().sort() == [
-                            'ldak_subset.c1295584da01.grm.adjust',
-                            'ldak_subset.c1295584da01.grm.bin',
-                            'ldak_subset.c1295584da01.grm.details',
-                            'ldak_subset.c1295584da01.grm.id',
+                        { assert new File(matrices, '26d57d726c2d').list().toList().sort() == [
+                            'ldak_subset.26d57d726c2d.grm.adjust',
+                            'ldak_subset.26d57d726c2d.grm.bin',
+                            'ldak_subset.26d57d726c2d.grm.details',
+                            'ldak_subset.26d57d726c2d.grm.id',
                         ] },
                         { assert heritability.list().toList().sort() == ['example_pgen_bt_all', 'example_pgen_bt_unrelated'] },
                         { assert value(unrestricted, 'Total_Samples') == '200' },
@@ -216,7 +222,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['8a065b80a2cc', '9a08c479e778', 'b64e1e012020'],
+                        ['53ac7b3c06f2', '967b60866343', 'c4f2dca98413'],
                         ['example_pgen_bt_human', 'example_pgen_bt_custom_model', 'example_pgen_bt_custom_power'],
                         [filter: 0, subgrm: 0],
                     ))
@@ -244,8 +250,10 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 3 },
                         { assert TRACE.count(workflow, 'LDAK_FILTER') == 0 },
                         { assert TRACE.count(workflow, 'LDAK_SUBGRM') == 0 },
-                        // Independently derived from the documented canonical strings with `sha256sum`.
-                        { assert matrices.list().toList().sort() == ['8a065b80a2cc', '9a08c479e778', 'b64e1e012020'] },
+                        // Every matrix key is a function of the cohort's PLINK 1 view identity — a digest of
+                        // the supplied bytes — and the three declared LDAK settings, so three distinct
+                        // parameterisations of one cohort are three published directories.
+                        { assert matrices.list().toList().sort() == ['1822c3872fab', '5602be8753ca', '85acd1c43996'] },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 3 },
                         { assert snapshot(stable_name_matrices, stable_path_matrices).match('distinct-relatedness-matrices') },
                         { assert snapshot(stable_name_heritability, stable_path_heritability).match('distinct-heritability') },
@@ -282,7 +290,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['d1a53656e909'],
+                        ['fa730b07832b'],
                         ['example_pgen_bt_first', 'example_pgen_bt_second'],
                         [filter: 0, subgrm: 0],
                     ))
@@ -311,7 +319,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                         // Independently derived from the generated weight bytes and canonical settings string.
-                        { assert matrices.list().toList() == ['d1a53656e909'] },
+                        { assert matrices.list().toList() == ['b8eaa9b81c1a'] },
                         { assert commands.size() == 1 },
                         { assert commands.first().contains('--weights "example_all.pvar"') },
                         { assert !commands.first().contains('--ignore-weights YES') },
@@ -350,7 +358,7 @@ nextflow_pipeline {
                         workflow,
                         matrices,
                         heritability,
-                        ['bd6b50ced9fd', 'd1a53656e909'],
+                        ['f1cf4615b8dc', 'fa730b07832b'],
                         ['example_pgen_bt_first', 'example_pgen_bt_second'],
                         [filter: 0, subgrm: 0],
                     ))
@@ -379,7 +387,7 @@ nextflow_pipeline {
                         { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 2 },
                         { assert TRACE.count(workflow, 'LDAK_REML') == 2 },
                         // Same basename, different content digests, therefore two independently derived keys.
-                        { assert matrices.list().toList().sort() == ['bd6b50ced9fd', 'd1a53656e909'] },
+                        { assert matrices.list().toList().sort() == ['8040724b071c', 'b8eaa9b81c1a'] },
                         { assert commands.size() == 2 },
                         { assert commands.every { command -> command.contains('--weights "example_all.pvar"') } },
                         { assert commands.every { command -> !command.contains('--ignore-weights YES') } },

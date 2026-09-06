@@ -27,6 +27,12 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
+                "PREPARE_GENOTYPE_SOURCE": {
+                    "python": "3.14.5"
+                },
+                "PREPARE_PGEN_STATE": {
+                    "plink2": "2.0.0-a.6.9LM"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -41,7 +47,7 @@
                 }
             }
         ],
-        "timestamp": "2026-08-30T23:19:37.534893974",
+        "timestamp": "2026-09-06T13:49:47.346237985",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

@@ -106,8 +106,8 @@
             "properties": {
                 "save_prepared_genotypes": {
                     "type": "boolean",
-                    "description": "Save the canonical PLINK 2 genotype bundle prepared for each cohort.",
-                    "help_text": "Prepared bundles are published to `<outdir>/genotypes/<cohort_id>/` so that you can inspect them or reuse them outside the pipeline. Only bundles the pipeline built are saved: a cohort supplied as PLINK 2 `pgen`/`psam`/`pvar` is already canonical and is used exactly as given, so there is nothing to save for it.",
+                    "description": "Save the PLINK 2 PGEN bundle the pipeline imported from a VCF cohort.",
+                    "help_text": "Imported bundles are published to `<outdir>/genotypes/<cohort_id>/` so that you can inspect them or reuse them outside the pipeline. Only bundles the pipeline built are saved: PLINK 1 and PLINK 2 cohorts are used exactly as given, and the on-demand PLINK 1 projection of a PLINK 2 cohort is a work-directory intermediate. The view record `<outdir>/genotypes/<cohort_id>/<cohort_id>.genotype_view.json` is written for every cohort whatever this control is set to.",
                     "fa_icon": "fas fa-download"
                 },
                 "save_normalised_phenotypes": {

@@ -13,8 +13,11 @@ keywords:
 # missing. Function entries are therefore spelled lowercase.
 components:
   - plink_prepare_grm_gcta
+  - plink_prepare_ldms_plan_gcta
   - plink_prepare_grm_ldms_gcta
   - plink_prepare_grm_ldak
+  - plink_prepare_grm_mph
+  - plink_prepare_grm_ldms_mph
   - gcta/makebksparse
   - buildscientificartifactkey
   - canonicalisescientificidentifier
@@ -29,18 +32,24 @@ input:
       pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,weights}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
-  - ch_cohort_genotypes:
-      description: One prepared PLINK 2 bundle per distinct cohort, carrying cohort metadata with meta.id set to the cohort identifier.
-      structure: [map cohort_meta, path pgen, path psam, path pvar]
-      pattern: "*.{pgen,psam,pvar}"
+  - ch_cohort_native_genotypes:
+      description: One native bundle per distinct cohort in format-polymorphic member order (primary genotype, variant file, sample file), carrying cohort metadata with meta.id set to the cohort identifier. The dense GCTA builder selects its native flag from the primary member's extension.
+      structure: [map cohort_meta, path primary_genotype, path variant_file, path sample_file]
+      pattern: "*.{bed,bim,fam,pgen,pvar,psam}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - ch_plink1_genotypes:
-      description: Lazy PLINK 1 derivatives for analyses whose selected route requires them. Analyses on one cohort share one conversion upstream.
+      description: The PLINK 1 view of every analysis whose selected method reads PLINK 1. Analyses on one cohort share one view upstream.
       structure: [map meta, path bed, path bim, path fam]
       pattern: "*.{bed,bim,fam}"
       ontologies:
         - edam: "http://edamontology.org/format_3003"
+  - ch_cohort_native_view_keys:
+      description: One native view key per cohort. A base request whose matrix kind declares the format-polymorphic bundle is keyed against this identity.
+      structure: [val cohort_id, val native_view_key]
+  - ch_cohort_plink1_view_keys:
+      description: One PLINK 1 view key per cohort that has a PLINK 1 view. A base request whose matrix kind declares the PLINK 1 bundle is keyed against this identity; the channel is partial by design, and total for exactly those kinds.
+      structure: [val cohort_id, val plink1_view_key]
   - gcta_grm_parts:
       description: Run/profile partition count used for every GCTA matrix build.
       structure: integer

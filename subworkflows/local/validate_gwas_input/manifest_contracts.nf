@@ -141,6 +141,32 @@ def validateGenotypeGroup(cells, reject) {
     return populated_groups.size() == 1 ? populated_groups.keySet().first() : null
 }
 
+// Every PLINK consumer in the pipeline addresses a fileset by one prefix rather than by three paths:
+// `plink2 --pfile`, `plink2 --bfile`, `regenie --bed`, `gcta --mbfile`/`--mpfile` and every LDAK executable
+// all take the shared basename stem and append the member extensions themselves. The manifest, by contrast,
+// declares each member as an independent `file-path` property, so a trio whose members do not share one stem
+// passes the schema and is only discovered by whichever consumer runs first, each with a different message
+// and none naming the cohort. Rejecting it here is ingress validation of a user-supplied row, and it is the
+// one place that can name the cohort and the differing columns.
+def validateGenotypeBasenameStem(genotype_format, cells, reject) {
+    if (!genotype_format) {
+        return
+    }
+    def columns = getGenotypeGroups()[genotype_format]
+    // A single-member group has no stem to agree on, and an incomplete group has already been rejected by
+    // `validateGenotypeGroup`, so neither is reported a second time here.
+    if (columns.size() < 2 || columns.any { column -> !cells[column] }) {
+        return
+    }
+    def stems = columns.collectEntries { column -> [(column): file(cells[column].toString()).baseName] }
+    if (stems.values().toList().unique().size() > 1) {
+        reject.call(
+            columns,
+            "genotype group '${genotype_format}' members do not share one basename stem (${columns.collect { column -> "${column}='${stems[column]}'" }.join(', ')}); every PLINK, GCTA and REGENIE consumer addresses the fileset by a single prefix, so the three members must be named <stem>.${columns.join(', <stem>.')}",
+        )
+    }
+}
+
 def validateTraitColumns(is_binary, settings, reject) {
     if (is_binary) {
         if (settings.case_value == null) {

@@ -112,11 +112,11 @@ workflow GWAS {
     // Union of the genotype consumers across every request domain
     //
     // One element per analysis unit carrying the genotype files it declared. Every pairwise request is also a
-    // potential consumer of the cohort's lazy PLINK 1 derivative, so it enters this request stream without
-    // inheriting either endpoint's unary method settings. The spine no longer names a matrix kind to decide
-    // that: `PREPARE_COHORT_GENOTYPES` asks the registry which selectors need the derivative, and derives it
-    // only for a cohort that has one. Cohort preparation collapses every request to the distinct cohort
-    // before conversion.
+    // potential consumer of the cohort's PLINK 1 view through its matrix kind's declared genotype bundle, so
+    // it enters this request stream without inheriting either endpoint's unary method settings. The spine
+    // names no matrix kind and no representation to decide that: `PREPARE_COHORT_GENOTYPES` asks the registry
+    // which selectors read PLINK 1, and derives the view only for a cohort that has such a consumer. Cohort
+    // preparation collapses every request to the distinct cohort before any conversion.
     def ch_genotype_requests = ch_analyses.map { meta, genotype_files, _phenotype, _quant_covariates, _cat_covariates, _kvik_extract, _ldak_weights ->
         [meta, genotype_files]
     }
@@ -137,7 +137,7 @@ workflow GWAS {
     )
 
     //
-    // SUBWORKFLOW: Prepare each distinct cohort's genotypes once into the canonical PLINK 2 bundle
+    // SUBWORKFLOW: Prepare each distinct cohort's genotypes once, in the representation it was supplied in
     //
     PREPARE_COHORT_GENOTYPES(ch_genotype_requests)
 
@@ -146,8 +146,10 @@ workflow GWAS {
     //
     PREPARE_RELATEDNESS_MATRICES(
         ch_relatedness_analyses,
-        PREPARE_COHORT_GENOTYPES.out.cohort_genotypes,
+        PREPARE_COHORT_GENOTYPES.out.cohort_native_genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
+        PREPARE_COHORT_GENOTYPES.out.cohort_native_view_keys,
+        PREPARE_COHORT_GENOTYPES.out.cohort_plink1_view_keys,
         params.gcta_grm_parts,
     )
 
@@ -247,8 +249,10 @@ workflow GWAS {
     // reading that row is spine knowledge; which analyses want it, and what its content identity contributes
     // to the Step 1 reuse key, is the controller's. An absent file is [] and stages nothing.
     ROUTE_ASSOCIATION_ANALYSES(
-        PREPARE_COHORT_GENOTYPES.out.genotypes,
+        PREPARE_COHORT_GENOTYPES.out.native_genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
+        PREPARE_COHORT_GENOTYPES.out.cohort_native_view_keys,
+        PREPARE_COHORT_GENOTYPES.out.cohort_plink1_view_keys,
         ch_prepared_phenotype,
         ch_prepared_covariates,
         ch_gcta_phenotypes,
@@ -483,9 +487,21 @@ workflow GWAS {
         file("${projectDir}/assets/methods_description_template.yml", checkIfExists: true),
     )
 
+    // One JSON provenance record per cohort. It is the document that explains every published artifact key a
+    // run produced — which bytes the cohort's identity was taken from, which representation was actually on
+    // disk, and, where a PLINK 1 view was derived, the projection policy and what that policy discarded — so
+    // it is written unconditionally rather than behind a save control. `cohort_views` is its only consumer,
+    // so the late emission of the joined record it is built from affects nothing else.
+    def ch_genotype_view_records = PREPARE_COHORT_GENOTYPES.out.cohort_views
+        .collectFile { cohort_meta, view ->
+            ["${cohort_meta.id}.genotype_view.json", groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(view)) + '\n']
+        }
+        .map { record -> [record.name - '.genotype_view.json', record] }
+
     emit:
     summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
     multiqc_report      = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
+    genotype_views      = ch_genotype_view_records // channel: [ val(cohort_id), path(genotype_view_record) ], one per cohort
     gcta_ldms_artifacts = PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
     mph_ldms_artifacts  = PREPARE_RELATEDNESS_MATRICES.out.mph_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key
     ldms_plan_artifacts = PREPARE_RELATEDNESS_MATRICES.out.ldms_plan_artifacts // channel: [ val(plan_meta), path(ld_scores), path(strata_manifest), [ path(snp_group_file), ... ] ], one per plan key

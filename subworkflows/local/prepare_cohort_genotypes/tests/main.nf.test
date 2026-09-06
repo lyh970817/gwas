@@ -3,103 +3,119 @@ nextflow_workflow {
     name "Test subworkflow PREPARE_COHORT_GENOTYPES"
     script "../main.nf"
     workflow "PREPARE_COHORT_GENOTYPES"
+    config "./nextflow.config"
     tag "subworkflow"
     tag "genotypes"
 
     // The pipeline-level suite can see that a cohort was prepared once because preparation appears in
     // the execution trace. This focused test verifies the other half of the contract directly at the
-    // seam: every analysis unit on that cohort receives the prepared bundle. A `join` would emit one
-    // analysis unit per cohort instead of all of them, and its `failOnDuplicate` form would abort on the
-    // second.
+    // seam: every request on that cohort receives the prepared bundle, in the representation the cohort
+    // was supplied in, and the PLINK 1 view exists exactly where a selected method reads PLINK 1.
 
-    test("every analysis unit on a cohort receives that cohort's bundle") {
+    def fixtures = { project_dir -> "${FIXTURES.base(project_dir)}results/fixtures/genotypes/" }
+
+    def extensions = { members -> members.collect { member -> member.toString().tokenize('.').last() } }
+
+    test("every request on a cohort receives that cohort's native bundle") {
 
         when {
             workflow {
                 """
-                def fixtures = '${FIXTURES.base(projectDir)}results/fixtures/genotypes/'
-                def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
 
                 input[0] = channel.fromList([
-                    [[id: 'vcf_qt1', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt2', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt3', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
-                    [[id: 'vcf_qt4', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
-                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
+                    [[id: 'vcf_qt1', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: ['regenie'], heritability_methods: []], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt2', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: ['regenie'], heritability_methods: []], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt3', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: ['regenie'], heritability_methods: []], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'vcf_qt4', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: ['regenie'], heritability_methods: []], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1', association_methods: ['regenie'], heritability_methods: []], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
                 ])
                 """
             }
         }
 
         then {
+            def cohorts = workflow.out.cohort_native_genotypes.collect { meta, primary, variant_file, sample_file ->
+                [meta, extensions.call([primary, variant_file, sample_file])]
+            }.sort { entry -> entry[0].id }
             assertAll(
                 { assert workflow.success },
-                // Nothing after the first analysis unit on cohort_vcf is dropped, and nothing is
-                // duplicated: one bundle out per analysis unit in, keyed by the focal analysis
-                // identifier rather than by the cohort.
-                { assert workflow.out.genotypes.collect { meta, _pgen, _psam, _pvar -> meta.id }.sort() ==
+                // Nothing after the first request on cohort_vcf is dropped, and nothing is duplicated: one
+                // bundle out per request in, keyed by the focal request identifier rather than by the cohort.
+                { assert workflow.out.native_genotypes.collect { meta, _primary, _variant_file, _sample_file -> meta.id }.sort() ==
                     ['plink1_qt', 'vcf_qt1', 'vcf_qt2', 'vcf_qt3', 'vcf_qt4'] },
                 // The cohort side is a reduction of that same set: two distinct cohorts, two bundles.
-                { assert workflow.out.cohort_genotypes.collect { meta, _pgen, _psam, _pvar -> meta.id }.sort() ==
-                    ['cohort_plink1', 'cohort_vcf'] },
-                // Four analysis units on cohort_vcf, one conversion.
+                { assert cohorts.collect { meta, _members -> meta.id } == ['cohort_plink1', 'cohort_vcf'] },
+                // Representation is preserved. `genotype_format` keeps the manifest's meaning while
+                // `native_format` states what is actually on disk, so the two differ only for the VCF cohort.
+                { assert cohorts.collect { meta, _members -> meta.genotype_format } == ['plink1', 'vcf'] },
+                { assert cohorts.collect { meta, _members -> meta.native_format } == ['plink1', 'plink2'] },
+                // Format-polymorphic member order at the native emit: primary, variant file, sample file.
+                { assert cohorts.find { meta, _members -> meta.id == 'cohort_plink1' }[1] == ['bed', 'bim', 'fam'] },
+                { assert cohorts.find { meta, _members -> meta.id == 'cohort_vcf' }[1] == ['pgen', 'pvar', 'psam'] },
+                // Four requests on cohort_vcf, one import. The PLINK 1 cohort is never converted.
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 2 },
+                // Only the imported PGEN is probed; a PLINK 1 cohort has nothing to project.
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert workflow.out.plink1_genotypes.isEmpty() },
+                { assert workflow.out.cohort_plink1_view_keys.isEmpty() },
+                { assert workflow.out.cohort_native_view_keys.size() == 2 },
             )
         }
     }
 
-    test("all three genotype encodings converge on the same canonical bundle") {
+    test("a native PLINK 1 cohort reaches every consumer without conversion") {
 
         when {
             workflow {
                 """
-                def fixtures = '${FIXTURES.base(projectDir)}results/fixtures/genotypes/'
-                def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])
 
                 input[0] = channel.fromList([
-                    [[id: 'plink2_qt', cohort: 'cohort_plink2', genotype_format: 'plink2'], bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])],
-                    [[id: 'plink1_qt', cohort: 'cohort_plink1', genotype_format: 'plink1'], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
-                    [[id: 'vcf_qt', cohort: 'cohort_vcf', genotype_format: 'vcf'], bundle.call(['example_all.vcf.gz'])],
+                    [[id: 'ldak_kvik', cohort: 'cohort_plink1', genotype_format: 'plink1', association_methods: ['ldak_kvik'], heritability_methods: []], genotypes],
+                    [[id: 'ldak_reml', cohort: 'cohort_plink1', genotype_format: 'plink1', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                    [[id: 'regenie', cohort: 'cohort_plink1', genotype_format: 'plink1', association_methods: ['regenie'], heritability_methods: []], genotypes],
                 ])
                 """
             }
         }
 
         then {
-            // A canonical bundle is a PLINK 2 fileset whose three members share one basename: every
-            // downstream component derives its `--pfile` prefix from that basename, so a bundle that
-            // did not satisfy this would not be usable by any route.
-            def shapes = workflow.out.cohort_genotypes.collect { meta, pgen, psam, pvar ->
-                [meta.id, [pgen, psam, pvar].collect { member -> member.tokenize('/').last() }]
-            }
+            def view = workflow.out.cohort_views.first()[1]
             assertAll(
                 { assert workflow.success },
-                { assert shapes.size() == 3 },
-                { assert shapes.every { _cohort, members ->
-                    members.collect { member -> member.tokenize('.').last() } == ['pgen', 'psam', 'pvar']
+                // No conversion of any kind: this is the criterion a mounted VCZ trio also relies on.
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                { assert TRACE.count(workflow, 'PLINK2_VCF') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 0 },
+                // Both streams hand out the researcher's own files, under the researcher's own names.
+                { assert workflow.out.plink1_genotypes.collect { meta, _bed, _bim, _fam -> meta.id }.sort() == ['ldak_kvik', 'ldak_reml'] },
+                { assert workflow.out.plink1_genotypes.every { _meta, bed, bim, fam ->
+                    [bed, bim, fam].collect { member -> member.toString().tokenize('/').last() } == ['example_all.bed', 'example_all.bim', 'example_all.fam']
                 } },
-                { assert shapes.every { _cohort, members ->
-                    members.collect { member -> member.substring(0, member.lastIndexOf('.')) }.unique().size() == 1
+                { assert workflow.out.native_genotypes.every { _meta, primary, variant_file, sample_file ->
+                    extensions.call([primary, variant_file, sample_file]) == ['bed', 'bim', 'fam']
                 } },
-                // Every analysis unit is served, one from each encoding.
-                { assert workflow.out.genotypes.collect { meta, _pgen, _psam, _pvar -> meta.id }.sort() ==
-                    ['plink1_qt', 'plink2_qt', 'vcf_qt'] },
-                // The PLINK 2 cohort is already canonical, so it is passed through rather than
-                // converted: only the other two encodings run a conversion.
-                { assert TRACE.count(workflow, 'PLINK2_MAKEPGEN') == 1 },
-                { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
+                // The supplied bundle is its own PLINK 1 view, so the two keys are one key.
+                { assert view.plink1.origin == 'supplied' },
+                { assert view.plink1.parent_key == null },
+                { assert view.plink1.information_loss == [] },
+                { assert view.plink1.key == view.native_view.key },
+                { assert view.source.state == null },
+                { assert workflow.out.cohort_native_view_keys.first()[1] == workflow.out.cohort_plink1_view_keys.first()[1] },
             )
         }
     }
 
-    test("only PLINK 1 consumers receive one shared cohort derivative") {
+    test("a PLINK 2 cohort with PLINK 1 consumers is projected exactly once") {
 
         when {
             workflow {
                 """
-                def fixtures = '${FIXTURES.base(projectDir)}results/fixtures/genotypes/'
-                def bundle = { names -> names.collect { name -> file(fixtures + name, checkIfExists: true) } }
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
                 def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
 
                 input[0] = channel.fromList([
@@ -115,26 +131,401 @@ nextflow_workflow {
 
         then {
             def derivatives = workflow.out.plink1_genotypes.collect { meta, bed, bim, fam ->
-                [
-                    meta,
-                    [bed, bim, fam].collect { member -> member.tokenize('/').last() },
-                ]
+                [meta, [bed, bim, fam].collect { member -> member.toString().tokenize('/').last() }]
             }
+            def view = workflow.out.cohort_views.first()[1]
             assertAll(
                 { assert workflow.success },
-                // The derivative is analysis-facing and retains focal identity. GCTA GREML-LDMS joins
-                // both LDAK route families at this seam, while unrelated methods receive no bundle.
+                // The view is request-facing and retains focal identity. GCTA GREML-LDMS joins both LDAK
+                // families at this seam, while REGENIE and dense GREML receive no PLINK 1 bundle at all.
                 { assert derivatives.collect { meta, _members -> meta.id }.sort() == ['gcta_greml_ldms', 'ldak_kvik', 'ldak_reml'] },
-                { assert derivatives.every { meta, _members -> meta.cohort == 'cohort_plink2' } },
-                // Each derivative is a complete PLINK 1 fileset with one shared basename.
-                { assert derivatives.every { _meta, members ->
-                    members.collect { member -> member.tokenize('.').last() } == ['bed', 'bim', 'fam']
-                } },
-                { assert derivatives.every { _meta, members ->
-                    members.collect { member -> member.substring(0, member.lastIndexOf('.')) }.unique().size() == 1
-                } },
-                // All three consumers reuse one cohort conversion.
+                { assert derivatives.every { _meta, members -> members == ['cohort_plink2.bed', 'cohort_plink2.bim', 'cohort_plink2.fam'] } },
+                // Three consumers, one projection. The native bundle is untouched and still PGEN.
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert workflow.out.native_genotypes.size() == 5 },
+                { assert workflow.out.native_genotypes.every { _meta, primary, variant_file, sample_file ->
+                    extensions.call([primary, variant_file, sample_file]) == ['pgen', 'pvar', 'psam']
+                } },
+                // The derivative's identity names its parent and the policy that produced it, and states
+                // what that policy discarded.
+                { assert view.plink1.origin == 'hard_call_projection' },
+                { assert view.plink1.parent_key == view.native_view.key },
+                { assert view.plink1.settings.hard_call_threshold == 0.1 },
+                { assert view.plink1.settings.tool_contract == 'plink2_2.0.0a.6.9_make_bed_v1' },
+                { assert view.plink1.information_loss == ['dosage', 'phase', 'multiallelic_state'] },
+                { assert view.source.state == [max_alleles: 2, dosages: false, phased: true] },
+                { assert view.source.identity.mode == 'sha256' },
+                { assert view.source.members.collect { member -> member.role } == ['pgen', 'psam', 'pvar'] },
+            )
+        }
+    }
+
+    test("a PLINK 2 cohort with no PLINK 1 consumer is never projected") {
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
+
+                input[0] = channel.fromList([
+                    [[id: 'regenie', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], genotypes],
+                    [[id: 'gcta_greml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['gcta_greml']], genotypes],
+                ])
+                """
+            }
+        }
+
+        then {
+            def view = workflow.out.cohort_views.first()[1]
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                { assert workflow.out.plink1_genotypes.isEmpty() },
+                { assert workflow.out.cohort_plink1_view_keys.isEmpty() },
+                { assert view.plink1 == null },
+                // The state is probed for every PLINK 2 cohort, projected or not, so the published record
+                // carries it whatever the cohort's consumers happen to be.
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert view.source.state == [max_alleles: 2, dosages: false, phased: true] },
+            )
+        }
+    }
+
+    test("a VCF cohort with PLINK 1 consumers is imported once and projected once") {
+
+        when {
+            workflow {
+                """
+                def genotypes = [ file('${fixtures.call(projectDir)}example_all.vcf.gz', checkIfExists: true) ]
+
+                input[0] = channel.fromList([
+                    [[id: 'ldak_reml', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                    [[id: 'regenie', cohort: 'cohort_vcf', genotype_format: 'vcf', association_methods: ['regenie'], heritability_methods: []], genotypes],
+                ])
+                """
+            }
+        }
+
+        then {
+            def view = workflow.out.cohort_views.first()[1]
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                // `source.format` is the manifest's own column, kept verbatim so that no consumer has to
+                // invert the import mapping to recover what the researcher supplied.
+                { assert view.source.format == 'vcf' },
+                { assert view.source.members.collect { member -> member.role } == ['vcf'] },
+                { assert view.native_view.format == 'plink2' },
+                { assert view.native_view.origin == 'vcf_import' },
+                { assert view.native_view.settings.keySet().sort() == ['half_call', 'sample_id_policy', 'tool_contract'] },
+                { assert view.native_view.settings.half_call == 'error' },
+            )
+        }
+    }
+
+    test("a declared view identity is used as supplied and the files are never digested") {
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+
+                input[0] = channel.fromList([
+                    [[id: 'bare', cohort: 'cohort_bare', genotype_format: 'plink1', genotype_view_id: '52d1d326413775cd', association_methods: [], heritability_methods: ['ldak_reml']], bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])],
+                    [[id: 'namespaced', cohort: 'cohort_namespaced', genotype_format: 'plink2', genotype_view_id: 'biofuse:52d1d326413775cd', association_methods: [], heritability_methods: ['ldak_reml']], bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])],
+                ])
+                """
+            }
+        }
+
+        then {
+            def views = workflow.out.cohort_views.collectEntries { cohort_meta, view -> [(cohort_meta.id): view] }
+            assertAll(
+                { assert workflow.success },
+                // A declared identity is the whole point of a mounted view: the pipeline never opens the
+                // files to learn what they are.
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
+                { assert views['cohort_bare'].source.identity == [mode: 'declared', value: '52d1d326413775cd'] },
+                { assert views['cohort_namespaced'].source.identity == [mode: 'declared', value: 'biofuse:52d1d326413775cd'] },
+                { assert views.every { _cohort_id, view -> view.source.members == null } },
+                // The PLINK 2 cohort of the pair is still probed, because its projection is real work whose
+                // admissibility the declaration says nothing about.
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert views['cohort_namespaced'].source.state == [max_alleles: 2, dosages: false, phased: true] },
+                { assert views['cohort_bare'].source.state == null },
+            )
+        }
+    }
+
+    test("two cohort identifiers over identical bytes share one view identity") {
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.bed', 'example_all.bim', 'example_all.fam'])
+
+                input[0] = channel.fromList([
+                    [[id: 'left', cohort: 'cohort_left', genotype_format: 'plink1', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                    [[id: 'right', cohort: 'cohort_right', genotype_format: 'plink1', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                ])
+                """
+            }
+        }
+
+        then {
+            def keys = workflow.out.cohort_native_view_keys.collect { _cohort_id, key -> key }
+            assertAll(
+                { assert workflow.success },
+                // Equality is content equality: the identity folds the member roles and digests, not the
+                // cohort identifier and not the file names, so both cohorts key every downstream artifact
+                // the same way and share one build of it.
+                { assert keys.size() == 2 },
+                { assert keys.unique().size() == 1 },
+            )
+        }
+    }
+
+    test("a pair request reaches the PLINK 1 view through its matrix kind, not through a spine literal") {
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
+
+                input[0] = channel.fromList([
+                    [[id: 'pair_ldms', cohort: 'cohort_plink2', genotype_format: 'plink2', relationship_id: 'rel_ldms', method: 'gcta_bivariate_reml_ldms'], genotypes],
+                    [[id: 'pair_dense', cohort: 'cohort_plink2', genotype_format: 'plink2', relationship_id: 'rel_dense', method: 'gcta_bivariate_reml'], genotypes],
+                ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // `gcta_bivariate_reml_ldms` carries the stratified matrix kind, which declares the PLINK 1
+                // bundle; `gcta_bivariate_reml` carries the dense kind, which declares the polymorphic one.
+                { assert workflow.out.plink1_genotypes.collect { meta, _bed, _bim, _fam -> meta.id } == ['pair_ldms'] },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert workflow.out.native_genotypes.size() == 2 },
+            )
+        }
+    }
+
+    test("a multiallelic PLINK 2 cohort is refused before any projection runs") {
+
+        setup {
+            run("PLINK2_VCF", alias: "MULTIALLELIC_PGEN") {
+                script "../../../../modules/local/plink2/vcf/main.nf"
+                process {
+                    """
+                    input[0] = [
+                        [ id:'cohort_multi', settings: [tool_contract: 'plink2_2.0.0a.6.9_vcf_import_v1', sample_id_policy: 'double_id', half_call: 'error'] ],
+                        file('${RELATIONAL.multiallelicVcf(outputDir, 'multiallelic_prep.vcf')}', checkIfExists: true),
+                    ]
+                    """
+                }
+            }
+        }
+
+        when {
+            workflow {
+                """
+                input[0] = MULTIALLELIC_PGEN.out.pgen.map { _meta, pgen, psam, pvar ->
+                    [[id: 'ldak_reml', cohort: 'cohort_multi', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], [pgen, psam, pvar]]
+                }
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                // The refusal names the cohort and the measured allele count, which plink2's own `--make-bed`
+                // error does neither, and it happens before the projection task is created.
+                { assert workflow.stdout.join('\n').contains("cohort 'cohort_multi'") },
+                { assert workflow.stdout.join('\n').contains('maximum allele count 3') },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+            )
+        }
+    }
+
+    test("a multiallelic PLINK 2 cohort whose identity was declared is refused too") {
+
+        setup {
+            run("PLINK2_VCF", alias: "MULTIALLELIC_PGEN") {
+                script "../../../../modules/local/plink2/vcf/main.nf"
+                process {
+                    """
+                    input[0] = [
+                        [ id:'cohort_multi', settings: [tool_contract: 'plink2_2.0.0a.6.9_vcf_import_v1', sample_id_policy: 'double_id', half_call: 'error'] ],
+                        file('${RELATIONAL.multiallelicVcf(outputDir, 'multiallelic_declared.vcf')}', checkIfExists: true),
+                    ]
+                    """
+                }
+            }
+        }
+
+        when {
+            workflow {
+                """
+                input[0] = MULTIALLELIC_PGEN.out.pgen.map { _meta, pgen, psam, pvar ->
+                    [[id: 'ldak_reml', cohort: 'cohort_multi', genotype_format: 'plink2', genotype_view_id: '52d1d326413775cd', association_methods: [], heritability_methods: ['ldak_reml']], [pgen, psam, pvar]]
+                }
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                // A declared identity says nothing about whether the bundle can be projected, so the probe
+                // still runs and the refusal is reached on this route too.
+                { assert workflow.stdout.join('\n').contains("cohort 'cohort_multi'") },
+                { assert workflow.stdout.join('\n').contains('maximum allele count 3') },
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+            )
+        }
+    }
+
+    test("a multiallelic VCF cohort is refused after import and before projection") {
+
+        when {
+            workflow {
+                """
+                input[0] = channel.fromList([
+                    [[id: 'ldak_reml', cohort: 'cohort_multi_vcf', genotype_format: 'vcf', association_methods: [], heritability_methods: ['ldak_reml']],
+                     [file('${RELATIONAL.multiallelicVcf(outputDir, 'multiallelic_vcf_cohort.vcf')}', checkIfExists: true)]],
+                ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert !workflow.success },
+                // This is the case a probe gated on the *supplied* format could not see: plink2 imports a
+                // multiallelic VCF to PGEN without complaint, so the fact is only knowable after the import.
+                { assert workflow.stdout.join('\n').contains("cohort 'cohort_multi_vcf'") },
+                { assert workflow.stdout.join('\n').contains('maximum allele count 3') },
+                { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+            )
+        }
+    }
+
+    test("a PLINK 2 cohort carrying phased dosages is prepared and projected rather than refused") {
+
+        setup {
+            run("PLINK2_VCF", alias: "PHASED_DOSAGE_PGEN") {
+                script "../../../../modules/local/plink2/vcf/main.nf"
+                process {
+                    """
+                    input[0] = [
+                        [ id:'cohort_phased_dosage' ],
+                        file('${RELATIONAL.phasedDosageVcf(outputDir, 'phased_dosage_cohort.vcf')}', checkIfExists: true),
+                    ]
+                    """
+                }
+            }
+        }
+
+        when {
+            workflow {
+                """
+                input[0] = PHASED_DOSAGE_PGEN.out.pgen.flatMap { _meta, pgen, psam, pvar ->
+                    [
+                        [[id: 'regenie', cohort: 'cohort_phased_dosage', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], [pgen, psam, pvar]],
+                        [[id: 'ldak_reml', cohort: 'cohort_phased_dosage', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], [pgen, psam, pvar]],
+                    ]
+                }
+                """
+            }
+        }
+
+        then {
+            def view = workflow.out.cohort_views.first()[1]
+            assertAll(
+                { assert workflow.success },
+                // A phased-dosage PGEN is the ordinary product of imputation and a dosage-native REGENIE
+                // input. It must reach its consumers, and its hard-call projection must be produced with the
+                // loss recorded rather than refused.
+                { assert view.source.state == [max_alleles: 2, dosages: true, phased: true] },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert workflow.out.plink1_genotypes.collect { meta, _bed, _bim, _fam -> meta.id } == ['ldak_reml'] },
+                { assert view.plink1.information_loss.contains('dosage') },
+            )
+        }
+    }
+
+    test("a mixed run emits both native view keys although only one cohort is projected") {
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
+                def chr1 = bundle.call(['example_chr1.pgen', 'example_chr1.psam', 'example_chr1.pvar'])
+
+                input[0] = channel.fromList([
+                    [[id: 'regenie_only', cohort: 'cohort_regenie', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], genotypes],
+                    [[id: 'kvik_only', cohort: 'cohort_kvik', genotype_format: 'plink2', association_methods: ['ldak_kvik'], heritability_methods: []], chr1],
+                ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // Both native keys are emitted although only one cohort has a projection, which is what
+                // keeps a REGENIE-only cohort's Step 1 fit from waiting on an unrelated cohort's whole-genome
+                // hard-call projection.
+                { assert workflow.out.cohort_native_view_keys.size() == 2 },
+                { assert workflow.out.cohort_plink1_view_keys.size() == 1 },
+                { assert workflow.out.cohort_plink1_view_keys.first()[0] == 'cohort_kvik' },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+            )
+        }
+    }
+
+    test("stub preparation of a PLINK 2 cohort with demand keeps the same trace topology") {
+
+        options "-stub"
+
+        when {
+            workflow {
+                """
+                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
+                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
+
+                input[0] = channel.fromList([
+                    [[id: 'ldak_reml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
+                    [[id: 'regenie', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], genotypes],
+                ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert workflow.out.plink1_genotypes.size() == 1 },
+                { assert workflow.out.cohort_views.size() == 1 },
             )
         }
     }

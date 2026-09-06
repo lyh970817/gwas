@@ -31,20 +31,23 @@ The cohort manifest owns reusable genotype facts. The analysis manifest owns one
 
 ### Cohort manifest fields
 
-| Column         | Required | Description                                                                                                             |
-| -------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `cohort_id`    | Yes      | Unique, whitespace-free cohort identifier and analysis-manifest foreign key.                                            |
-| `genome_build` | Yes      | `GRCh37` or `GRCh38`; selects build-specific harmonisation resources.                                                   |
-| `ancestry`     | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`. |
-| `pgen`         | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                  |
-| `psam`         | By group | PLINK 2 sample file.                                                                                                    |
-| `pvar`         | By group | PLINK 2 variant file ending in `.pvar` or `.pvar.zst`.                                                                  |
-| `bed`          | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                     |
-| `bim`          | By group | PLINK 1 variant file.                                                                                                   |
-| `fam`          | By group | PLINK 1 sample file.                                                                                                    |
-| `vcf`          | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                            |
+| Column             | Required | Description                                                                                                                                                                                                                              |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cohort_id`        | Yes      | Unique, whitespace-free cohort identifier and analysis-manifest foreign key.                                                                                                                                                             |
+| `genome_build`     | Yes      | `GRCh37` or `GRCh38`; selects build-specific harmonisation resources.                                                                                                                                                                    |
+| `ancestry`         | Yes      | Case-sensitive provenance label beginning with a letter or digit and containing only letters, digits, `_`, `.`, or `-`.                                                                                                                  |
+| `pgen`             | By group | PLINK 2 genotype file; supply the complete `pgen`/`psam`/`pvar` group.                                                                                                                                                                   |
+| `psam`             | By group | PLINK 2 sample file.                                                                                                                                                                                                                     |
+| `pvar`             | By group | PLINK 2 variant file ending in `.pvar`. A Zstandard-compressed `.pvar.zst` is not accepted: it requires PLINK 2's `vzs` modifier, which the PLINK 2, GCTA and REGENIE consumers here do not pass.                                        |
+| `bed`              | By group | PLINK 1 genotype file; supply the complete `bed`/`bim`/`fam` group.                                                                                                                                                                      |
+| `bim`              | By group | PLINK 1 variant file.                                                                                                                                                                                                                    |
+| `fam`              | By group | PLINK 1 sample file.                                                                                                                                                                                                                     |
+| `vcf`              | By group | One `.vcf`, `.vcf.gz`, or `.vcf.bgz` file; an index is not a manifest field.                                                                                                                                                             |
+| `genotype_view_id` | No       | Immutable identity of the supplied genotype view: 16–64 lowercase hexadecimal characters, optionally prefixed by a backend namespace such as `biofuse:`. When absent, the pipeline digests the supplied bytes once per cohort in a task. |
 
-Populate exactly one complete genotype representation on each row. PLINK 1 and VCF cohorts are converted once to canonical PLINK 2; PLINK 2 cohorts pass through.
+Populate exactly one complete genotype representation on each row, and give the members of a multi-file group one shared basename stem — every PLINK, GCTA and REGENIE consumer addresses a fileset by a single prefix.
+
+The supplied representation is preserved. A PLINK 1 or PLINK 2 cohort is used exactly as given and nothing is converted for it; a VCF cohort is imported once to PLINK 2 PGEN. A PLINK 1 BED/BIM/FAM view is derived from a PGEN cohort once, and only when a selected method reads PLINK 1 — the LDAK estimators, LDAK-KVIK, the LD- and MAF-stratified GCTA routes and the MPH routes. That projection takes hard calls at an explicit `--hard-call-threshold 0.1`, refuses a multiallelic source naming the cohort, and drops dosage and phase; every cohort's `genotypes/<cohort_id>/<cohort_id>.genotype_view.json` records which of these applied to it.
 
 ### Analysis manifest fields
 
@@ -163,27 +166,29 @@ Summary pair request IDs use the same rule:
 
 Every selector carries only capabilities that validation, routing, reporting or GWASLab adaptation actively consumes. Selection stays explicit: the pipeline never substitutes one estimator for another according to sample size, memory, trait type or a failed task.
 
-| Method group                  | Estimator family           | Input backend            | Component model   | Stochastic | Trait support                         | Prevalence contract                   |
-| ----------------------------- | -------------------------- | ------------------------ | ----------------- | ---------- | ------------------------------------- | ------------------------------------- |
-| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes   | None              | No         | Quantitative and binary               | Not consumed                          |
-| `gcta_fastgwa`                | Mixed linear model         | Sparse GRM               | Single            | No         | Quantitative and binary               | Not consumed                          |
-| `ldak_kvik`                   | Mixed linear model         | Direct PLINK 1 genotypes | Single            | Yes        | Quantitative and binary               | Not consumed                          |
-| `gcta_greml`                  | REML                       | Dense GRM                | Single            | No         | Quantitative and binary               | Population value consumed             |
-| `gcta_greml_ldms`             | REML                       | LDMS GRM family          | LD/MAF stratified | No         | Quantitative and binary               | Population value consumed             |
-| `ldak_reml`                   | REML                       | LDAK kinship             | Single            | No         | Quantitative and binary               | Population value consumed             |
-| `ldak_he`                     | Moment HE                  | LDAK kinship             | Single            | Yes        | Quantitative and binary               | Not consumed                          |
-| `ldak_pcgc`                   | PCGC                       | LDAK kinship             | Single            | Yes        | Binary only                           | Population value required             |
-| `ldak_fast_he`                | Moment HE (randomised)     | Direct PLINK 1 genotypes | Single            | Yes        | Quantitative only (route policy)      | Not consumed                          |
-| `ldak_fast_pcgc`              | PCGC (randomised)          | Direct PLINK 1 genotypes | Single            | Yes        | Binary only                           | Population value required             |
-| `mph_reml`                    | REML (randomised trace)    | MPH GRM                  | Single            | Yes        | Quantitative only                     | Not consumed                          |
-| `mph_reml_ldms`               | REML (randomised trace)    | MPH GRM family           | LD/MAF stratified | Yes        | Quantitative only                     | Not consumed                          |
-| GCTA bivariate REML           | REML                       | Dense or LDMS GRM        | Single or LD/MAF  | No         | Quantitative and binary               | Population value consumed             |
-| GCTA bivariate HE             | Moment HE                  | Dense or LDMS GRM        | Single or LD/MAF  | No         | Quantitative only; no pair covariates | Not consumed                          |
-| MPH bivariate REML            | REML (randomised trace)    | MPH GRM or GRM family    | Single or LD/MAF  | Yes        | Quantitative only                     | Not consumed                          |
-| `ldsc_h2`, `ldsc_rg`          | LD-score regression        | Summary statistics       | Single            | No         | Quantitative and binary               | Population and sample values consumed |
-| `ldak_sumher`, `ldak_sumcors` | Summary tagging regression | Summary statistics       | Tagging bundle    | No         | Quantitative and binary               | Population and sample values consumed |
+| Method group                  | Estimator family           | Input backend                        | Component model   | Stochastic | Trait support                         | Prevalence contract                   | Genotype bundle                       |
+| ----------------------------- | -------------------------- | ------------------------------------ | ----------------- | ---------- | ------------------------------------- | ------------------------------------- | ------------------------------------- |
+| `regenie`                     | Whole-genome regression    | Direct PLINK genotypes (BED or PGEN) | None              | No         | Quantitative and binary               | Not consumed                          | PLINK (BED or PGEN)                   |
+| `gcta_fastgwa`                | Mixed linear model         | Sparse GRM                           | Single            | No         | Quantitative and binary               | Not consumed                          | PLINK (BED or PGEN)                   |
+| `ldak_kvik`                   | Mixed linear model         | Direct PLINK 1 genotypes             | Single            | Yes        | Quantitative and binary               | Not consumed                          | PLINK 1                               |
+| `gcta_greml`                  | REML                       | Dense GRM                            | Single            | No         | Quantitative and binary               | Population value consumed             | PLINK (BED or PGEN)                   |
+| `gcta_greml_ldms`             | REML                       | LDMS GRM family                      | LD/MAF stratified | No         | Quantitative and binary               | Population value consumed             | PLINK 1                               |
+| `ldak_reml`                   | REML                       | LDAK kinship                         | Single            | No         | Quantitative and binary               | Population value consumed             | PLINK 1                               |
+| `ldak_he`                     | Moment HE                  | LDAK kinship                         | Single            | Yes        | Quantitative and binary               | Not consumed                          | PLINK 1                               |
+| `ldak_pcgc`                   | PCGC                       | LDAK kinship                         | Single            | Yes        | Binary only                           | Population value required             | PLINK 1                               |
+| `ldak_fast_he`                | Moment HE (randomised)     | Direct PLINK 1 genotypes             | Single            | Yes        | Quantitative only (route policy)      | Not consumed                          | PLINK 1                               |
+| `ldak_fast_pcgc`              | PCGC (randomised)          | Direct PLINK 1 genotypes             | Single            | Yes        | Binary only                           | Population value required             | PLINK 1                               |
+| `mph_reml`                    | REML (randomised trace)    | MPH GRM                              | Single            | Yes        | Quantitative only                     | Not consumed                          | PLINK 1                               |
+| `mph_reml_ldms`               | REML (randomised trace)    | MPH GRM family                       | LD/MAF stratified | Yes        | Quantitative only                     | Not consumed                          | PLINK 1                               |
+| GCTA bivariate REML           | REML                       | Dense or LDMS GRM                    | Single or LD/MAF  | No         | Quantitative and binary               | Population value consumed             | PLINK (BED or PGEN); PLINK 1 for LDMS |
+| GCTA bivariate HE             | Moment HE                  | Dense or LDMS GRM                    | Single or LD/MAF  | No         | Quantitative only; no pair covariates | Not consumed                          | PLINK (BED or PGEN); PLINK 1 for LDMS |
+| MPH bivariate REML            | REML (randomised trace)    | MPH GRM or GRM family                | Single or LD/MAF  | Yes        | Quantitative only                     | Not consumed                          | PLINK 1                               |
+| `ldsc_h2`, `ldsc_rg`          | LD-score regression        | Summary statistics                   | Single            | No         | Quantitative and binary               | Population and sample values consumed | —                                     |
+| `ldak_sumher`, `ldak_sumcors` | Summary tagging regression | Summary statistics                   | Tagging bundle    | No         | Quantitative and binary               | Population and sample values consumed | —                                     |
 
-Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`. A direct-genotype route requests no matrix at all: `ldak_fast_he` and `ldak_fast_pcgc` read the cohort's PLINK 1 derivative and build nothing under `quality_control/`.
+The genotype bundle is the representation the estimator's own executable, or its matrix builder, reads, and it is what decides whether a cohort needs a PLINK 1 view derived for it: a run selecting only `PLINK (BED or PGEN)` methods never projects one, whatever representation the cohort was supplied in. `—` marks a summary estimator, which reads no genotypes at all.
+
+Matrix-backed routes reuse a compatible matrix across requests and publish it only under `--save_relatedness_matrices`. A direct-genotype route requests no matrix at all: `ldak_fast_he` and `ldak_fast_pcgc` read the cohort's PLINK 1 view and build nothing under `quality_control/`.
 
 A stochastic estimator randomises rather than enumerating, so two runs of the same input disagree unless the run is seeded. What varies differs by route. `ldak_fast_he` and `ldak_fast_pcgc` approximate the whole estimate, so both the heritability and its standard error move. `mph_reml`, `mph_reml_ldms` and the two MPH pair routes randomise only the trace terms of an otherwise exact REML fit, but that is enough to move their point estimate as well as its standard error. Each of these routes has a pipeline seed control — `ldak.fast_seed` and `mph.seed` — and leaving the LDAK one unset keeps the tool's own unseeded default and is warned about, because LDAK records no seed and the estimate cannot be reproduced afterwards. `mph.seed` is not warned about, because MPH's own unset default is the fixed seed `0` and it echoes it. For every MPH route a seed is necessary but not sufficient: see the option tables below. `ldak_he`, `ldak_pcgc` and `ldak_kvik` are stochastic only in their standard errors — their point estimates are reproducible — and the pipeline exposes no seed option for them yet, so repeated runs of those routes will report slightly different standard errors.
 
@@ -448,7 +453,7 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 
 The three opt-in save controls are:
 
-- `--save_prepared_genotypes`: publish PLINK 2 bundles that the pipeline converted under `genotypes/<cohort_id>/`.
+- `--save_prepared_genotypes`: publish the PLINK 2 PGEN bundle the pipeline imported from a VCF cohort, under `genotypes/<cohort_id>/`. `genotypes/<cohort_id>/<cohort_id>.genotype_view.json` is written for every cohort regardless of this control.
 - `--save_normalised_phenotypes`: publish headered prepared phenotype and covariate files under `phenotypes/<analysis_id>/`. The parameter name is retained for compatibility.
 - `--save_relatedness_matrices`: publish each reusable GCTA, LDAK or MPH base or derived matrix artifact once under `quality_control/relatedness_matrices/<key>/`, and each LD-by-MAF component plan once under `quality_control/ldms_component_plans/<plan_key>/`.
 
