@@ -232,6 +232,68 @@ nextflow_pipeline {
     }
 
 
+    test("two PLINK 2 cohorts over the same bytes share one projected view and one matrix, deterministically") {
+        tag "resume"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "shared_projection", { rows ->
+                    rows[0] = RELATIONAL.cohort('example_pgen')
+                    def twin = RELATIONAL.cohort('example_pgen')
+                    twin.cohort_id = 'example_pgen_twin'
+                    rows << twin
+                })
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "shared_projection", { rows ->
+                    def template = rows[0]
+                    rows.clear()
+                    ['example_pgen', 'example_pgen_twin'].each { cohort ->
+                        def analysis = new LinkedHashMap(template)
+                        analysis.analysis_id = "${cohort}_projected_qt"
+                        analysis.cohort_id = cohort
+                        analysis.association_methods = ''
+                        analysis.heritability_methods = 'ldak_reml'
+                        rows << analysis
+                    }
+                })
+            }
+        }
+
+        then {
+            // Unlike the PLINK 1 twin above, these two cohorts are PROJECTED: each is hard-call projected
+            // under its own cohort id, so the two bundles the shared view can be paired with are
+            // byte-identical files under different names, produced by two tasks racing in parallel. Nextflow
+            // hashes a path input by its source path, so a first-arrival reduction would give the shared
+            // matrix a task hash that depends on which projection finished first — and an unchanged resume
+            // would rebuild it. The two resumed runs are what prove the choice is deterministic.
+            def leftRecord = new groovy.json.JsonSlurper().parse(new File("${params.outdir}/genotypes/example_pgen/example_pgen.genotype_view.json"))
+            def rightRecord = new groovy.json.JsonSlurper().parse(new File("${params.outdir}/genotypes/example_pgen_twin/example_pgen_twin.genotype_view.json"))
+            def firstResume = RESUME.rerun(outputDir, [:])
+            def secondResume = RESUME.rerun(outputDir, [:])
+            assertAll(
+                { assert workflow.success },
+                { assert leftRecord.native_view.key == rightRecord.native_view.key },
+                { assert leftRecord.plink1.key == rightRecord.plink1.key },
+                // One shared matrix build, however many cohorts asked for it. The published directory is not
+                // asserted because `--save_relatedness_matrices` is off in this profile; the build count is
+                // the claim, and the key-addressed directory name is pinned by relatedness_matrix_ldak.
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
+                // The projection itself is still per cohort: the two bundles differ in name only, and
+                // collapsing them would need an identity-derived output name, which would rename the
+                // published bundle of every VCF cohort as well.
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 2 },
+                // The shared matrix and everything downstream of it resume, twice over.
+                { assert RESUME.statuses(firstResume, 'LDAK_CALCKINS') == ['CACHED'] },
+                { assert RESUME.statuses(firstResume, 'LDAK_REML') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(secondResume, 'LDAK_CALCKINS') == ['CACHED'] },
+                { assert RESUME.hashes(secondResume, 'LDAK_CALCKINS') == RESUME.hashes(firstResume, 'LDAK_CALCKINS') },
+                { assert getAllFilesFromDir("${params.outdir}/heritability", relative: true, includeDir: true)
+                    .collect { path -> path.toString() }
+                    .any { path -> path.contains('example_pgen_twin_projected_qt') } },
+            )
+        }
+    }
+
     test("the genotype cache boundary is the view identity, not the file names") {
         tag "resume"
 
@@ -328,13 +390,13 @@ nextflow_pipeline {
     def invalidRepresentations = [
         [
             name: 'no genotype representation',
-            mutate: { rows -> ['pgen', 'psam', 'pvar'].each { field -> rows[0][field] = '' } },
+            mutate: { rows, output_dir, project_dir -> ['pgen', 'psam', 'pvar'].each { field -> rows[0][field] = '' } },
             fields: ['pgen', 'psam', 'pvar', 'bed', 'bim', 'fam', 'vcf'],
             message: 'no genotype group is populated',
         ],
         [
             name: 'more than one genotype representation',
-            mutate: { rows ->
+            mutate: { rows, output_dir, project_dir ->
                 rows[0].bed = rows[0].pgen.toString().replaceFirst(/\.pgen$/, '.bed')
                 rows[0].bim = rows[0].pvar.toString().replaceFirst(/\.pvar$/, '.bim')
                 rows[0].fam = rows[0].psam.toString().replaceFirst(/\.psam$/, '.fam')
@@ -344,19 +406,19 @@ nextflow_pipeline {
         ],
         [
             name: 'an incomplete multi-file representation',
-            mutate: { rows -> rows[0].psam = '' },
+            mutate: { rows, output_dir, project_dir -> rows[0].psam = '' },
             fields: ['psam'],
             message: "genotype group 'plink2' is only partly populated",
         ],
         [
             name: 'a genotype group whose members do not share one basename stem',
-            mutate: { rows -> rows[0].pvar = rows[0].pvar.toString().replace('example_all.pvar', 'example_chr1.pvar') },
+            mutate: { rows, output_dir, project_dir -> rows[0].pvar = rows[0].pvar.toString().replace('example_all.pvar', 'example_chr1.pvar') },
             fields: ['pgen', 'psam', 'pvar'],
             message: 'do not share one basename stem',
         ],
         [
             name: 'a Zstandard-compressed variant file',
-            mutate: { rows -> rows[0].pvar = rows[0].pvar.toString() + '.zst' },
+            mutate: { rows, output_dir, project_dir -> rows[0].pvar = rows[0].pvar.toString() + '.zst' },
             fields: ['pvar'],
             message: "must have extension '.pvar'",
             // nf-schema rejects this at parameter validation, before the per-row resolver runs, so the
@@ -365,7 +427,7 @@ nextflow_pipeline {
         ],
         [
             name: 'a genotype view identity that is not a hexadecimal digest',
-            mutate: { rows -> rows[0].genotype_view_id = '/mnt/views/example' },
+            mutate: { rows, output_dir, project_dir -> rows[0].genotype_view_id = '/mnt/views/example' },
             fields: ['genotype_view_id'],
             message: '16 to 64 lowercase hexadecimal characters',
             schema_level: true,
@@ -378,7 +440,7 @@ nextflow_pipeline {
             when {
                 params {
                     outdir = "$outputDir"
-                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "invalid_genotypes_${index}", invalid.mutate)
+                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "invalid_genotypes_${index}", { rows -> invalid.mutate(rows, outputDir, projectDir) })
                     analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "invalid_genotypes_${index}")
                 }
             }

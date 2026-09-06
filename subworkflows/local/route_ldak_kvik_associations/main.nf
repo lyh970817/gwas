@@ -59,8 +59,15 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     def ch_thin_common_inputs = ch_predictor_requests
         .filter { _predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, predictor_artifact -> predictor_artifact.policy == 'thin_common' }
         .unique { predictor_artifact_key, _meta, _view_key, _bed, _bim, _fam, _predictor_artifact -> predictor_artifact_key }
-        .map { predictor_artifact_key, meta, _view_key, bed, bim, fam, _predictor_artifact ->
-            def thin_meta = [id: "${meta.cohort}.ldak_thin_common.${predictor_artifact_key}", predictor_artifact_key: predictor_artifact_key]
+        .map { predictor_artifact_key, _meta, _view_key, bed, bim, fam, _predictor_artifact ->
+            // The predictor artifact key already folds the genotype view and the fixed thinning contract, so
+            // it is unique on its own — and it must be the whole identity. The `unique` above collapses every
+            // cohort sharing one PLINK 1 view onto one element, so naming the artifact after the surviving
+            // element's cohort would put an arbitrary cohort into this task's hash, its output filenames and,
+            // through the predictor file staged into Step 1, every fit that consumes it. A change in arrival
+            // order would then invalidate all of them. This is the same reason `base.cohort` was removed from
+            // the relatedness artifact identity, and the Step 1 fit meta below is cohort-free for it too.
+            def thin_meta = [id: "ldak_thin_common.${predictor_artifact_key}", predictor_artifact_key: predictor_artifact_key]
             [thin_meta, bed, bim, fam]
         }
     LDAK_THINCOMMON(ch_thin_common_inputs)

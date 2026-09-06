@@ -83,18 +83,37 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // so a cohort-keyed pairing would attribute the surviving shared artifact — its tag, its staged filenames
     // and its trace row — to whichever request the flatMap happened to emit first. The published matrix
     // directory is already named by the key, so the identity is what the pairing should use.
+    //
+    // Collapsing several cohorts onto one view therefore has to choose one of their bundles, and the choice
+    // must not be first-to-arrive. The bundles are byte-identical but they are distinct files — a PGEN or VCF
+    // cohort is projected and imported under its own cohort id, so two cohorts sharing a view produce two
+    // parallel tasks writing differently named outputs — and Nextflow hashes a path input by its source path.
+    // A first-arrival `unique` would therefore give the shared matrix a different task hash depending on
+    // which producer finished first, so an unchanged `-resume` could rebuild every shared matrix, and the
+    // GCTA manifest stem would name an arbitrary cohort. Grouping and taking the lowest cohort id makes the
+    // survivor a function of the manifest instead of of the scheduler. The cost is that the reduction waits
+    // for every cohort's preparation to complete rather than streaming; preparation is one short task per
+    // cohort and they run in parallel, so this delays the first matrix build by at most the slowest single
+    // preparation, and never serialises them.
     def ch_native_by_view_key = ch_cohort_native_genotypes
         .map { cohort_meta, primary, variant_file, sample_file -> [cohort_meta.id, primary, variant_file, sample_file] }
         .combine(ch_cohort_native_view_keys, by: 0)
-        .map { _cohort_id, primary, variant_file, sample_file, view_key -> [view_key, primary, variant_file, sample_file] }
-        .unique { view_key, _primary, _variant_file, _sample_file -> view_key }
+        .map { cohort_id, primary, variant_file, sample_file, view_key -> [view_key, cohort_id, primary, variant_file, sample_file] }
+        .groupTuple(by: 0)
+        .map { view_key, cohort_ids, primaries, variant_files, sample_files ->
+            [view_key] + selectLowestCohort(cohort_ids, [primaries, variant_files, sample_files])
+        }
 
-    // One PLINK 1 view exists per view identity even when several cohorts or consumers requested it.
+    // One PLINK 1 view exists per view identity even when several cohorts or consumers requested it. Several
+    // requests on one cohort reach this stream as identical elements, so they are reduced per cohort first
+    // and only distinct cohorts are ever compared.
     def ch_plink1_by_view_key = ch_plink1_genotypes
         .map { meta, bed, bim, fam -> [meta.cohort, bed, bim, fam] }
+        .unique { cohort_id, _bed, _bim, _fam -> cohort_id }
         .combine(ch_cohort_plink1_view_keys, by: 0)
-        .map { _cohort_id, bed, bim, fam, view_key -> [view_key, bed, bim, fam] }
-        .unique { view_key, _bed, _bim, _fam -> view_key }
+        .map { cohort_id, bed, bim, fam, view_key -> [view_key, cohort_id, bed, bim, fam] }
+        .groupTuple(by: 0)
+        .map { view_key, cohort_ids, beds, bims, fams -> [view_key] + selectLowestCohort(cohort_ids, [beds, bims, fams]) }
 
     // Branch by base type before pairing. `gcta_ldms` reads PLINK 1 and `gcta_dense` reads the native bundle,
     // so the two must not be routed through one combined stream: doing that used to force the LDMS builds to
@@ -375,6 +394,15 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+// Choose one cohort's bundle members when several cohorts share one genotype view. The cohort id is the only
+// stable ordering available — the members are byte-identical and their paths are what must not decide — so
+// the lowest one wins, which makes the choice a function of the manifest rather than of task completion
+// order. `members` is the per-member list of lists in tuple order; the answer is one member per list.
+def selectLowestCohort(cohort_ids, members) {
+    def chosen = cohort_ids.indexOf(cohort_ids.min())
+    return members.collect { member -> member[chosen] }
+}
 
 def canonicaliseDeclaredValue(value) {
     return canonicaliseScientificValue(value)
