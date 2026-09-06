@@ -171,16 +171,30 @@ nextflow_function {
         }
     }
 
+    // Every report below is a verbatim `--pgen-info` block from the pinned plink2 image, not a hand-assembled
+    // combination of statements: the dosage family has three mutually exclusive members and only the tool
+    // decides which of them pairs with which hardcall statement.
     def pgenStates = [
         [
             name: 'the biallelic, phased, dosage-free fixture bundle',
+            tag: 'dosage_free',
             report: "  Variants: 2200\n  Samples: 200\n  REF alleles are all known\n  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  No dosages present\n",
             expected: [max_alleles: 2, dosages: false, phased: true],
         ],
         [
-            name: 'a multiallelic bundle with dosages and no phase',
+            name: 'a multiallelic bundle with unphased dosages',
+            tag: 'unphased_dosage',
             report: "  Maximum allele count for a single variant: 3\n  No hardcalls are explicitly phased\n  Dosage present, none explicitly phased\n",
             expected: [max_alleles: 3, dosages: true, phased: false],
+        ],
+        [
+            // `plink2 --vcf … dosage=HDS` on phased genotypes — the ordinary product of imputation — reports
+            // a third dosage statement and neither of the other two. A two-way exclusive-or over
+            // 'Dosage present' and 'No dosages present' takes its error branch here and aborts the run.
+            name: 'a bundle with explicitly phased dosages',
+            tag: 'phased_dosage',
+            report: "  Variants: 2\n  Samples: 4\n  REF alleles are all known\n  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  Explicitly phased dosages present\n",
+            expected: [max_alleles: 2, dosages: true, phased: true],
         ],
     ]
 
@@ -192,7 +206,7 @@ nextflow_function {
                 function {
                     """
                     input[0] = 'cohort_probe'
-                    input[1] = file('${RELATIONAL.resource(outputDir, "pgen_info_${scenario.expected.max_alleles}.log", scenario.report)}', checkIfExists: true)
+                    input[1] = file('${RELATIONAL.resource(outputDir, "pgen_info_${scenario.tag}.log", scenario.report)}', checkIfExists: true)
                     """
                 }
             }
@@ -200,33 +214,55 @@ nextflow_function {
             then {
                 assertAll(
                     { assert function.success },
-                    // Both spellings of each statement are exercised, not only the fixture's, because plink2
-                    // states the negatives explicitly and a reader that matched only the positives would
-                    // report `false` for a log whose shape had changed.
+                    // Every spelling of every statement is exercised, not only the fixture's, because
+                    // plink2 states the negatives explicitly and a reader that matched only the positives
+                    // would report `false` for a log whose shape had changed.
                     { assert function.result == scenario.expected },
                 )
             }
         }
     }
 
-    test("a state report missing a statement is refused by name rather than read as false") {
-        function "readPgenState"
+    def malformedStates = [
+        [
+            name: 'a report missing every dosage and phase statement',
+            tag: 'truncated',
+            report: "  Maximum allele count for a single variant: 2\n",
+        ],
+        [
+            // The reader requires exactly one statement of each family, so a report carrying two dosage
+            // statements is a changed log shape and must fail rather than resolve to whichever matched first.
+            name: 'a report carrying two mutually exclusive dosage statements',
+            tag: 'two_dosage_statements',
+            report: "  Maximum allele count for a single variant: 2\n  Explicitly phased hardcalls present\n  Dosage present, none explicitly phased\n  Explicitly phased dosages present\n",
+        ],
+        [
+            name: 'a report missing the allele count',
+            tag: 'no_allele_count',
+            report: "  Explicitly phased hardcalls present\n  No dosages present\n",
+        ],
+    ]
 
-        when {
-            function {
-                """
-                input[0] = 'cohort_truncated'
-                input[1] = file('${RELATIONAL.resource(outputDir, 'pgen_info_truncated.log', "  Maximum allele count for a single variant: 2\n")}', checkIfExists: true)
-                """
+    malformedStates.each { scenario ->
+        test("${scenario.name} is refused by name rather than read as false") {
+            function "readPgenState"
+
+            when {
+                function {
+                    """
+                    input[0] = 'cohort_${scenario.tag}'
+                    input[1] = file('${RELATIONAL.resource(outputDir, "pgen_info_${scenario.tag}.log", scenario.report)}', checkIfExists: true)
+                    """
+                }
             }
-        }
 
-        then {
-            assertAll(
-                { assert !function.success },
-                { assert function.stdout.join('\n').contains("cohort 'cohort_truncated'") },
-                { assert function.stdout.join('\n').contains('unrecognised state report') },
-            )
+            then {
+                assertAll(
+                    { assert !function.success },
+                    { assert function.stdout.join('\n').contains("cohort 'cohort_${scenario.tag}'") },
+                    { assert function.stdout.join('\n').contains('unrecognised state report') },
+                )
+            }
         }
     }
 

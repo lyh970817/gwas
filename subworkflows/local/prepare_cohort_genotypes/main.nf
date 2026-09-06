@@ -342,20 +342,27 @@ def readSourceMembers(cohort_id, members_file) {
         }
 }
 
-// Every fact is matched into a local and then reported. plink2 states the negatives explicitly ("No dosages
-// present", "No hardcalls are explicitly phased"), so a missing statement means the log shape changed rather
-// than that the fact is false, and the two cases must not be confused.
+// Every fact is matched into a local and then reported. plink2 states the negatives explicitly, so a missing
+// statement means the log shape changed rather than that the fact is false, and the two cases must not be
+// confused: exactly one statement of each family must appear, and anything else is refused by name.
+//
+// The dosage family has THREE mutually exclusive members on the pinned image, not two. A bundle holding
+// phased dosages — the ordinary product of `plink2 --vcf … dosage=HDS` on phased imputation output — reports
+// "Explicitly phased dosages present" and neither of the other two, so a two-way exclusive-or would take the
+// error branch on a perfectly well-formed report and abort the run.
 def readPgenState(cohort_id, report_file) {
     def text = report_file.text
     def alleles = (text =~ /Maximum allele count for a single variant: (\d+)/)
-    def dosage_present = text.contains('Dosage present')
-    def dosage_absent = text.contains('No dosages present')
-    def phase_present = text.contains('Explicitly phased hardcalls present')
-    def phase_absent = text.contains('No hardcalls are explicitly phased')
-    if (!alleles || dosage_present == dosage_absent || phase_present == phase_absent) {
-        error("[nf-core/gwas] ERROR: cohort '${cohort_id}': plink2 --pgen-info wrote an unrecognised state report to ${report_file}; expected an allele-count line and one each of the dosage and phase statements.")
+    def dosage_statements = ['No dosages present', 'Dosage present', 'Explicitly phased dosages present'].findAll { statement -> text.contains(statement) }
+    def phase_statements = ['No hardcalls are explicitly phased', 'Explicitly phased hardcalls present'].findAll { statement -> text.contains(statement) }
+    if (!alleles || dosage_statements.size() != 1 || phase_statements.size() != 1) {
+        error("[nf-core/gwas] ERROR: cohort '${cohort_id}': plink2 --pgen-info wrote an unrecognised state report to ${report_file}; expected an allele-count line, exactly one of 'No dosages present', 'Dosage present' and 'Explicitly phased dosages present', and exactly one of 'No hardcalls are explicitly phased' and 'Explicitly phased hardcalls present'.")
     }
-    return [max_alleles: alleles[0][1] as Integer, dosages: dosage_present, phased: phase_present]
+    return [
+        max_alleles: alleles[0][1] as Integer,
+        dosages: dosage_statements.first() != 'No dosages present',
+        phased: phase_statements.first() == 'Explicitly phased hardcalls present',
+    ]
 }
 
 // The published view record. A PLINK 1 cohort has no `state` because there is nothing to project, and a

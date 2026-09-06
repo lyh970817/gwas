@@ -3,6 +3,7 @@ nextflow_workflow {
     name "Test subworkflow PREPARE_COHORT_GENOTYPES"
     script "../main.nf"
     workflow "PREPARE_COHORT_GENOTYPES"
+    config "./nextflow.config"
     tag "subworkflow"
     tag "genotypes"
 
@@ -419,6 +420,51 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
                 { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+            )
+        }
+    }
+
+    test("a PLINK 2 cohort carrying phased dosages is prepared and projected rather than refused") {
+
+        setup {
+            run("PLINK2_VCF", alias: "PHASED_DOSAGE_PGEN") {
+                script "../../../../modules/local/plink2/vcf/main.nf"
+                process {
+                    """
+                    input[0] = [
+                        [ id:'cohort_phased_dosage' ],
+                        file('${RELATIONAL.phasedDosageVcf(outputDir, 'phased_dosage_cohort.vcf')}', checkIfExists: true),
+                    ]
+                    """
+                }
+            }
+        }
+
+        when {
+            workflow {
+                """
+                input[0] = PHASED_DOSAGE_PGEN.out.pgen.flatMap { _meta, pgen, psam, pvar ->
+                    [
+                        [[id: 'regenie', cohort: 'cohort_phased_dosage', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], [pgen, psam, pvar]],
+                        [[id: 'ldak_reml', cohort: 'cohort_phased_dosage', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], [pgen, psam, pvar]],
+                    ]
+                }
+                """
+            }
+        }
+
+        then {
+            def view = workflow.out.cohort_views.first()[1]
+            assertAll(
+                { assert workflow.success },
+                // A phased-dosage PGEN is the ordinary product of imputation and a dosage-native REGENIE
+                // input. It must reach its consumers, and its hard-call projection must be produced with the
+                // loss recorded rather than refused.
+                { assert view.source.state == [max_alleles: 2, dosages: true, phased: true] },
+                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
+                { assert workflow.out.plink1_genotypes.collect { meta, _bed, _bim, _fam -> meta.id } == ['ldak_reml'] },
+                { assert view.plink1.information_loss.contains('dosage') },
             )
         }
     }

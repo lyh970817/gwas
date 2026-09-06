@@ -653,6 +653,25 @@ class RELATIONAL {
         return resource(outputDir, name, lines.join('\n') + '\n')
     }
 
+    // A minimal four-sample VCF carrying phased genotypes and a dosage field. Imported with plink2's
+    // `dosage=HDS` or `dosage=DS` modifier it yields a PGEN whose `--pgen-info` reports "Explicitly phased
+    // dosages present" — a third dosage statement that appears instead of, not beside, the two the pipeline
+    // used to look for. It is the ordinary product of imputation output, so a cohort supplied in that state
+    // must run; it is written here rather than shipped as a fixture because it is two variants of synthetic
+    // text with no scientific content.
+    static String phasedDosageVcf(Object outputDir, String name) {
+        def lines = [
+            '##fileformat=VCFv4.2',
+            '##contig=<ID=1>',
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+            '##FORMAT=<ID=DS,Number=1,Type=Float,Description="Dosage">',
+            ['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT', 'S1', 'S2', 'S3', 'S4'].join('\t'),
+            ['1', '100', 'b1', 'A', 'T', '.', 'PASS', '.', 'GT:DS', '0|1:1.0', '0|0:0.3', '1|1:1.7', '0|1:0.5'].join('\t'),
+            ['1', '200', 'b2', 'A', 'G', '.', 'PASS', '.', 'GT:DS', '0|1:0.9', '0|0:0.05', '0|0:0.15', '1|1:1.85'].join('\t'),
+        ]
+        return resource(outputDir, name, lines.join('\n') + '\n')
+    }
+
     // A byte-for-byte copy of a fixture file under a new name. `resource` writes text, which corrupts a
     // binary member such as a `.pgen`, so a test that needs a renamed-but-identical bundle uses this.
     static String copyResource(Object outputDir, String name, Object source) {

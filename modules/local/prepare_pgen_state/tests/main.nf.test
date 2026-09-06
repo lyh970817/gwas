@@ -77,6 +77,46 @@ nextflow_process {
         }
     }
 
+    test("phased dosages - the probe reports the third dosage statement rather than either of the other two") {
+
+        setup {
+            run("PLINK2_VCF", alias: "PHASED_DOSAGE_PGEN") {
+                script "../../plink2/vcf/main.nf"
+                process {
+                    """
+                    input[0] = [
+                        [ id:'phased_dosage' ],
+                        file('${RELATIONAL.phasedDosageVcf(outputDir, 'phased_dosage_state.vcf')}', checkIfExists: true),
+                    ]
+                    """
+                }
+            }
+        }
+
+        when {
+            process {
+                """
+                input[0] = PHASED_DOSAGE_PGEN.out.pgen.map { meta, pgen, psam, pvar -> [ meta, pgen, pvar, psam ] }
+                """
+            }
+        }
+
+        then {
+            def report = path(process.out.state.get(0).get(1)).text
+            assertAll(
+                { assert process.success },
+                // The dosage family has three mutually exclusive members, not two. This is the third, and it
+                // appears INSTEAD of the other two rather than beside them, so a reader that recognised only
+                // 'Dosage present' and 'No dosages present' would see neither and treat a well-formed report
+                // as a changed log shape.
+                { assert report.contains('Explicitly phased dosages present') },
+                { assert !report.contains('No dosages present') },
+                { assert !report.contains('Dosage present,') },
+                { assert report.contains('Explicitly phased hardcalls present') },
+            )
+        }
+    }
+
     test("example_all - stub") {
 
         options "-stub"
