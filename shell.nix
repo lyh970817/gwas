@@ -8,6 +8,15 @@ let
   # 26.04 needs because the v2 parser is now the default, so pin upstream directly
   # and keep this in step with NFT_VER in .github/workflows/nf-test.yml.
   nfTestVersion = "0.9.5";
+  # The nf-tower core plugin version that `nextflowVersion` resolves. Nextflow ships the core plugin
+  # set inside its own distribution -- `META-INF/plugins-info.txt` in nextflow-<ver>-one.jar, echoed as
+  # the `core-plugins:` line of any .nextflow.log -- so this is a property of the pinned Nextflow and
+  # must be updated with it. It exists because NXF_OFFLINE aborts the run outright when a required
+  # plugin is absent, and nf-tower is required: measured on a cache holding only nf-schema@2.8.0, an
+  # offline run dies with `Plugin with id nf-tower not found in any repository`. Matching the exact
+  # version matters -- a glob would accept a stale nf-tower-1.11.2 as proof that 1.28.2 is cached.
+  # Drift is safe in one direction only: a wrong pin makes the probe answer "cold" and run online.
+  nfTowerVersion = "1.28.2";
 
   nextflowCli = pkgs.stdenvNoCC.mkDerivation {
     pname = "nextflow";
@@ -93,26 +102,128 @@ PY
     '';
   };
 
+  # JVM flags for the short-lived Nextflow processes nf-test launches. Every test *case* is a fresh
+  # `nextflow run` that lives a handful of seconds compiling Groovy and never reaches C2, so C1-only
+  # startup is the single highest-leverage setting in the suite. Nextflow's own launcher agrees in
+  # principle -- it hands `-XX:TieredStopAtLevel=1` to every command except `run` and `node` -- and
+  # withholding it from `run` is right for a production pipeline and pure overhead for a test case.
+  # Measured 277.4s -> 216.4s (1.28x) on a 31-case containerless file; see issue #113.
+  #
+  # NXF_JVM_ARGS rather than NXF_OPTS: NXF_OPTS is also spliced into the launcher's `java -version`
+  # probe and into the classpath-resolution command line, whereas NXF_JVM_ARGS reaches only the final
+  # JVM. Verified to arrive there: a deliberately bogus flag aborts the launched JVM, and
+  # `-XX:+PrintCommandLineFlags` reports TieredStopAtLevel=1 active. The launcher appends NXF_JVM_ARGS
+  # after everything else, so these values also override a heap set through NXF_OPTS (the form
+  # `docs/usage.md` recommends for production); only an explicit NXF_JVM_ARGS changes the test heap.
+  #
+  # The heap cap is scoped to the test wrapper on purpose. It is right-sized for the compact fixture --
+  # the JVM's own ergonomic default here is a ~3.1 GB maximum heap -- and it is what makes six
+  # concurrent shards fit in memory. It is not production guidance and must not be copied into
+  # `docs/usage.md`.
+  nfTestJvmArgs = "-XX:TieredStopAtLevel=1 -Xss2m -Xms256m -Xmx1024m";
+
   nfTestCli = pkgs.writeShellApplication {
     name = "nf-test";
-    runtimeInputs = [ pkgs.jdk17_headless nextflowCli ];
+    runtimeInputs = [ pkgs.jdk17_headless pkgs.coreutils pkgs.gnused nextflowCli ];
     text = ''
       # Pin any nextflow bootstrap nf-test performs; no manual NXF_VER needed.
       export NXF_VER="${nextflowVersion}"
+
+      # Applies to every test launch, including the ones nf-test-parallel makes. An explicit
+      # NXF_JVM_ARGS still wins, so a one-off can measure or override it.
+      export NXF_JVM_ARGS="''${NXF_JVM_ARGS:-${nfTestJvmArgs}}"
+
+      # Every fixture-backed test resolves its inputs from GWAS_TEST_FIXTURES, and there is no working
+      # remote fallback: the published bundle 404s. An unset variable used to produce a run that looked
+      # healthy and then failed every fixture-backed case on schema validation -- 211 of 776 in one
+      # merge-gate run, three hours in. Materialize it here, exactly as tests/fixtures/nf-test.sh does
+      # for a focused run, so the variable is never the thing that is missing. Only `nf-test test`
+      # needs it, and materialization is a content-addressed no-op once the bundle is cached.
+      if [[ "''${1:-}" == test && -z "''${GWAS_TEST_FIXTURES:-}" && -x tests/fixtures/materialize.sh ]]; then
+        fixture_profile=docker
+        fixture_args=("$@")
+        for (( index = 0; index < ''${#fixture_args[@]}; index++ )); do
+          case "''${fixture_args[index]}" in
+            --profile=*)
+              fixture_profile="''${fixture_args[index]#--profile=}"
+              ;;
+            --profile)
+              if (( index + 1 < ''${#fixture_args[@]} )); then
+                fixture_profile="''${fixture_args[index + 1]}"
+              fi
+              ;;
+          esac
+        done
+        fixture_profile="''${fixture_profile#+}"
+        if ! fixture_root="$(tests/fixtures/materialize.sh --profile "$fixture_profile")"; then
+          echo "nf-test: fixture materialization failed; refusing to run without GWAS_TEST_FIXTURES" >&2
+          exit 1
+        fi
+        export GWAS_TEST_FIXTURES="$fixture_root"
+        echo "nf-test: GWAS_TEST_FIXTURES=$fixture_root" >&2
+      fi
+
+      # nextflow.config includes ''${custom_config_base}/nfcore_custom.config on every launch unless
+      # NXF_OFFLINE is set, which costs a raw.githubusercontent.com round trip plus the Groovy parse of
+      # ~80 institutional profile blocks per test case -- about 3.0s of a launch, only ~0.85s of it
+      # network. Verified: with NXF_OFFLINE=true the include resolves to /dev/null, `Available config
+      # profiles` drops from ~180 entries to the pipeline's own 18, and the plugin repository becomes
+      # the local one. Nothing under tests/ reads that remote config.
+      #
+      # It does NOT degrade gracefully on a cold cache -- a missing plugin aborts the run outright
+      # rather than triggering a download -- so enable it only once the plugins are present, and let an
+      # online run warm the cache otherwise. Both the declared nf-schema and the nf-tower core plugin
+      # Nextflow resolves alongside it have to be there. The value must be the literal string `true`:
+      # Nextflow compares against 'true' while nf-core's config test uses Groovy truth, so `false`
+      # would disable the include and still leave Nextflow doing all of its online work.
+      #
+      # Deliberately not paired with NXF_DISABLE_CHECK_LATEST_VERSION: that measured at baseline on its
+      # own (62.2s vs ~61s), so it buys nothing and should not be re-added.
+      if [[ -z "''${NXF_OFFLINE:-}" && -f nextflow.config ]]; then
+        plugin_dir="''${NXF_PLUGINS_DIR:-$HOME/.nextflow/plugins}"
+        schema="$(sed -n "s/^[[:space:]]*id[[:space:]]*'nf-schema@\([^']*\)'.*/\1/p" nextflow.config | head -1)"
+        if [[ -n "$schema" && -d "$plugin_dir/nf-schema-$schema" && -d "$plugin_dir/nf-tower-${nfTowerVersion}" ]]; then
+          export NXF_OFFLINE=true
+        else
+          echo "nf-test: Nextflow plugin cache cold, running online to warm it" >&2
+        fi
+      else
+        if [[ ! -f nextflow.config ]]; then
+          echo "nf-test: not at the repository root, so NXF_OFFLINE was left alone" >&2
+        fi
+      fi
+
       exec java -jar "${nfTestJar}/share/nf-test/nf-test.jar" "$@"
     '';
   };
 
-  # nf-test has no in-run concurrency in 0.9.3-0.9.5; its only split is
-  # `--shard i/n`, which divides test files across separate processes. The suite
-  # is bound by per-test wall clock -- container start plus tool runtime -- not
-  # by CPU or memory, so running shards side by side scales close to linearly.
-  # A 3-way split measured 2.955x (795s -> 269s) on `modules/local/ldak/`.
+  # nf-test has no in-run concurrency in 0.9.3-0.9.5; its only split is `--shard i/n`, which divides
+  # test *cases* (not files) across separate processes, round-robin by default.
+  #
+  # The default is six, and the reason it can be six is the heap cap in nfTestJvmArgs above.
+  #
+  # What the suite is bound by comes from issue #113's whole-suite attribution: ~79% of wall clock is
+  # Nextflow bootstrap and real tool compute is ~10%, so shards contend for memory rather than CPU.
+  # An earlier note here claimed 2.955x for a 3-way split on `modules/local/ldak/`; #113 measures the
+  # same 3-way split at 1.62x once the whole suite is in scope, with the degradation landing entirely
+  # on the Groovy bootstrap phases while task execution is unaffected.
+  #
+  # Three against six was then measured here directly, on a fixed 51-case slice spanning module
+  # process, subworkflow function/workflow and pipeline tests, both sides already tuned and offline,
+  # run 3-6-6-3 to cancel drift: mean 696.3s at k=3 against 554.0s at k=6, so **1.257x**. Six is
+  # faster, but far less than doubling, for two reasons visible in the shard logs: per-case cost rose
+  # 1.544x (29.40s -> 45.40s mean) going 3 to 6, and round-robin over only 51 cases left one straggler
+  # shard at 520.6s while the other five finished in 349-371s. A 51-case slice cannot show what a
+  # full suite would; #113's own six-shard figure (3.89x at 1.44x per-case degradation) is against a
+  # *serial* tuned run, not against three shards, and is the basis for preferring six here.
+  # Both of these were measured with another suite running on the same box, which inflates the
+  # per-case degradation, so treat 1.257x as a floor. Raise the count past six only after measuring;
+  # the constraint is RAM, so a box with less of it should pass a smaller count as the first argument.
   nfTestParallel = pkgs.writeShellApplication {
     name = "nf-test-parallel";
-    runtimeInputs = [ nfTestCli pkgs.coreutils pkgs.gnused ];
+    runtimeInputs = [ nfTestCli pkgs.coreutils ];
     text = ''
-      shards=3
+      shards=6
       if [[ "''${1:-}" =~ ^[0-9]+$ ]]; then
         shards="$1"
         shift
@@ -131,22 +242,21 @@ PY
       profile="''${NFT_PROFILE:-+docker}"
       shard_root=".nf-test-shards"
 
-      # NXF_OFFLINE skips Nextflow's plugin-registry and version round trips and
-      # is worth ~15% per run. It does NOT degrade gracefully on a cold cache --
-      # a missing plugin aborts the run outright rather than triggering a
-      # download -- so enable it only once the declared plugin is present, and
-      # let an online run warm the cache otherwise. Deliberately not paired with
-      # NXF_DISABLE_CHECK_LATEST_VERSION: that measured at baseline on its own
-      # (62.2s vs ~61s), so it buys nothing and should not be re-added.
-      if [[ -z "''${NXF_OFFLINE:-}" ]]; then
-        plugin_dir="''${NXF_PLUGINS_DIR:-$HOME/.nextflow/plugins}"
-        schema="$(sed -n "s/^[[:space:]]*id[[:space:]]*'nf-schema@\([^']*\)'.*/\1/p" nextflow.config | head -1)"
-        if [[ -n "$schema" && -d "$plugin_dir/nf-schema-$schema" ]]; then
-          export NXF_OFFLINE=true
-        else
-          echo "nf-test-parallel: plugin cache cold, running online to warm it" >&2
+      # Materialize once here rather than letting six shards each do it: the bundle is
+      # content-addressed and flock-guarded so concurrent calls would be safe, just wasteful. Aborting
+      # before any shard starts is the point -- a broad run that discovers a fixture problem per shard
+      # wastes the whole run.
+      if [[ -z "''${GWAS_TEST_FIXTURES:-}" && -x tests/fixtures/materialize.sh ]]; then
+        if ! fixture_root="$(tests/fixtures/materialize.sh --profile "''${profile#+}")"; then
+          echo "nf-test-parallel: fixture materialization failed; no shard was started" >&2
+          exit 1
         fi
+        export GWAS_TEST_FIXTURES="$fixture_root"
       fi
+      echo "nf-test-parallel: GWAS_TEST_FIXTURES=''${GWAS_TEST_FIXTURES:-<unset>}"
+
+      # The JVM tuning and the warm-cache-guarded NXF_OFFLINE now live in the nf-test wrapper this
+      # calls, so every shard inherits them and a plain `nf-test` run gets them too.
 
       rm -rf "''${shard_root:?}"/shard-*
       mkdir -p "$shard_root"
@@ -261,6 +371,10 @@ pkgs.mkShell {
   ];
   shellHook = ''
     export NXF_VER="${nextflowVersion}"
+    # NXF_JVM_ARGS is deliberately NOT exported here. Every test launch already inherits it from the
+    # nf-test wrapper above, which is the only `nf-test` on this shell's PATH, so nothing is missed;
+    # exporting it shell-wide would additionally apply a C1-only JIT and a 1 GB heap to a bare
+    # `nextflow run`, where both are wrong -- a long production run wants C2 and its own heap.
     if [[ $- == *i* && -z "''${DIRENV_IN_ENVRC:-}" && "''${SHELL:-}" != */bash ]]; then
       exec bash
     fi
