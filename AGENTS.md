@@ -27,6 +27,18 @@ compensation for a tool defect, whether a refusal, an assertion, or a recomputat
 explicit decision. Validating user-supplied input such as manifest rows, method options, and resource files is
 unaffected.
 
+Before calling any such behavior a defect, read the programme's own documentation for it. Behavior that the
+documentation describes, or that follows from a stated input contract or design choice, is intended behavior
+even when it does not align with how this pipeline uses the programme: MPH documents that covariates must be
+dummy-coded numeric columns, so its mishandling of a factor covariate is the pipeline's misalignment, not an
+MPH defect; a capability the documentation never claims is a gap, not a defect. Treat such intended behavior as
+a pipeline-side matter, whether by validating the user's input, adapting the wiring, or documenting the
+contract, and never file or keep it as a bug. Reserve the word defect, and the issue handling above, for
+behavior the programme's author would not have intended: it contradicts the documentation, or the documentation
+is silent and the behavior is unambiguously an error on input the documentation declares valid. State the
+documentary basis of every classification: the sentence that describes the behavior, or the sections searched
+that are silent on it.
+
 Licensing and redistribution questions for the wired scientific tools are resolved and are the user's concern.
 Never defer, descope, or block work on licence grounds; at most record licence status in the issue or image
 metadata.
