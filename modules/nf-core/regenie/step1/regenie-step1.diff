@@ -1,0 +1,96 @@
+Changes in component 'nf-core/regenie/step1'
+Changes in 'regenie/step1/main.nf':
+--- modules/nf-core/regenie/step1/main.nf
++++ modules/nf-core/regenie/step1/main.nf
+@@ -43,11 +43,23 @@
+     """
+ 
+     stub:
++    def args = task.ext.args ?: ''
+     def input_prefix = plink_genotype_file.baseName
+     def prefix = task.ext.prefix ?: input_prefix
++    // A multi-phenotype Step 1 fits every column named by `--phenoColList` and emits one LOCO per column
++    // together with a `_pred.list` line naming that column, so a stub reporting one prediction would void
++    // every `-stub` assertion about a multi-phenotype fit. The column list is optionally single-quoted on
++    // the command line. Without the option the stub keeps its single-prediction shape.
++    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
++    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : []
++    def loco_files = (1..(pheno_columns.size() ?: 1)).collect { index -> "${prefix}_${index}.loco.gz" }
++    def loco_lines = loco_files.collect { loco -> "echo \"\" | gzip > ${loco}" }.join('\n    ')
++    def pred_list_line = pheno_columns
++        ? "printf '${[pheno_columns, loco_files].transpose().collect { column, loco -> "${column} ${loco}" }.join('\\n')}\\n' > ${prefix}_pred.list"
++        : "touch ${prefix}_pred.list"
+     """
+-    touch ${prefix}_pred.list
+-    echo "" | gzip > ${prefix}_1.loco.gz
++    ${pred_list_line}
++    ${loco_lines}
+     touch ${prefix}.log
+     """
+ }
+
+'modules/nf-core/regenie/step1/environment.yml' is unchanged
+'modules/nf-core/regenie/step1/meta.yml' is unchanged
+Changes in 'regenie/step1/tests/main.nf.test':
+--- modules/nf-core/regenie/step1/tests/main.nf.test
++++ modules/nf-core/regenie/step1/tests/main.nf.test
+@@ -333,4 +333,55 @@
+ 
+     }
+ 
++    test("homo_sapiens popgen - multiple phenotype columns - stub") {
++
++        options "-stub"
++
++        when {
++            params {
++                module_args = "--phenoColList 'TraitA,TraitB'"
++            }
++            process {
++                """
++                input[0] = [
++                    [ id:'plink_simulated' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
++                ]
++
++                input[1] = [
++                    [ id:'plink_simulated' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe', checkIfExists: true)
++                ]
++
++                input[2] = [
++                    [ id:'plink_simulated' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_covariates.txt', checkIfExists: true)
++                ]
++
++                input[3] = 256
++                """
++            }
++        }
++
++        then {
++            // A real Step 1 over two phenotype columns emits one LOCO file per column, numbered in
++            // REGENIE's own order, and a `_pred.list` naming each column beside its own file. The stub
++            // reproduces that cardinality and those names. The assertions are keyed on the numbering and
++            // the column names rather than on a full basename, because `ext.prefix` is the caller's.
++            def locoNames = process.out.loco.get(0).get(1).collect { loco -> path(loco).getFileName().toString() }
++            def predictionLines = path(process.out.predictions.get(0).get(1)).readLines()
++            assertAll(
++                { assert process.success },
++                { assert locoNames.size() == 2 },
++                { assert locoNames.count { name -> name.endsWith('_1.loco.gz') } == 1 },
++                { assert locoNames.count { name -> name.endsWith('_2.loco.gz') } == 1 },
++                { assert predictionLines.collect { line -> line.tokenize(' ').first() } == ['TraitA', 'TraitB'] },
++                { assert predictionLines.collect { line -> line.tokenize(' ').last() } == locoNames.sort() },
++            )
++        }
++
++    }
++
+ }
+
+'modules/nf-core/regenie/step1/tests/main.nf.test.snap' is unchanged
+'modules/nf-core/regenie/step1/tests/nextflow.config' is unchanged
+************************************************************

@@ -46,10 +46,17 @@ process REGENIE_STEP2 {
     stub:
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: meta.id
-    def pheno_match = args =~ /--phenoColList\s+(\S+)/
-    def pheno_suffix = pheno_match.find() ? "_${pheno_match.group(1)}" : ''
+    // REGENIE splits its Step 2 results one file per `--phenoColList` column, so a stub that derives a single
+    // suffix from the raw capture reports one-phenotype cardinality for a multi-phenotype invocation and
+    // silently voids every `-stub` assertion about it. The column list is optionally single-quoted on the
+    // command line. Without the option the stub keeps its single unsuffixed result.
+    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
+    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : []
+    def result_lines = (pheno_columns ?: [''])
+        .collect { column -> "echo \"\" | gzip > ${prefix}${column ? '_' + column : ''}.regenie.gz" }
+        .join('\n    ')
     """
-    echo "" | gzip > ${prefix}${pheno_suffix}.regenie.gz
+    ${result_lines}
     touch ${prefix}.log
     """
 }

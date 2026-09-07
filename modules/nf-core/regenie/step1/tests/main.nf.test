@@ -333,4 +333,55 @@ nextflow_process {
 
     }
 
+    test("homo_sapiens popgen - multiple phenotype columns - stub") {
+
+        options "-stub"
+
+        when {
+            params {
+                module_args = "--phenoColList 'TraitA,TraitB'"
+            }
+            process {
+                """
+                input[0] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
+                ]
+
+                input[1] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe', checkIfExists: true)
+                ]
+
+                input[2] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_covariates.txt', checkIfExists: true)
+                ]
+
+                input[3] = 256
+                """
+            }
+        }
+
+        then {
+            // A real Step 1 over two phenotype columns emits one LOCO file per column, numbered in
+            // REGENIE's own order, and a `_pred.list` naming each column beside its own file. The stub
+            // reproduces that cardinality and those names. The assertions are keyed on the numbering and
+            // the column names rather than on a full basename, because `ext.prefix` is the caller's.
+            def locoNames = process.out.loco.get(0).get(1).collect { loco -> path(loco).getFileName().toString() }
+            def predictionLines = path(process.out.predictions.get(0).get(1)).readLines()
+            assertAll(
+                { assert process.success },
+                { assert locoNames.size() == 2 },
+                { assert locoNames.count { name -> name.endsWith('_1.loco.gz') } == 1 },
+                { assert locoNames.count { name -> name.endsWith('_2.loco.gz') } == 1 },
+                { assert predictionLines.collect { line -> line.tokenize(' ').first() } == ['TraitA', 'TraitB'] },
+                { assert predictionLines.collect { line -> line.tokenize(' ').last() } == locoNames.sort() },
+            )
+        }
+
+    }
+
 }

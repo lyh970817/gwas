@@ -1,0 +1,91 @@
+Changes in component 'nf-core/regenie/step2'
+Changes in 'regenie/step2/main.nf':
+--- modules/nf-core/regenie/step2/main.nf
++++ modules/nf-core/regenie/step2/main.nf
+@@ -46,10 +46,17 @@
+     stub:
+     def args = task.ext.args ?: ''
+     def prefix = task.ext.prefix ?: meta.id
+-    def pheno_match = args =~ /--phenoColList\s+(\S+)/
+-    def pheno_suffix = pheno_match.find() ? "_${pheno_match.group(1)}" : ''
++    // REGENIE splits its Step 2 results one file per `--phenoColList` column, so a stub that derives a single
++    // suffix from the raw capture reports one-phenotype cardinality for a multi-phenotype invocation and
++    // silently voids every `-stub` assertion about it. The column list is optionally single-quoted on the
++    // command line. Without the option the stub keeps its single unsuffixed result.
++    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
++    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : []
++    def result_lines = (pheno_columns ?: [''])
++        .collect { column -> "echo \"\" | gzip > ${prefix}${column ? '_' + column : ''}.regenie.gz" }
++        .join('\n    ')
+     """
+-    echo "" | gzip > ${prefix}${pheno_suffix}.regenie.gz
++    ${result_lines}
+     touch ${prefix}.log
+     """
+ }
+
+'modules/nf-core/regenie/step2/environment.yml' is unchanged
+'modules/nf-core/regenie/step2/meta.yml' is unchanged
+Changes in 'regenie/step2/tests/main.nf.test':
+--- modules/nf-core/regenie/step2/tests/main.nf.test
++++ modules/nf-core/regenie/step2/tests/main.nf.test
+@@ -431,4 +431,55 @@
+ 
+     }
+ 
++    test("homo_sapiens popgen - multiple phenotype columns - stub") {
++
++        options "-stub"
++
++        when {
++            params {
++                module_args = "--phenoColList 'TraitA,TraitB'"
++            }
++            process {
++                """
++                input[0] = [
++                    [ id:'batch' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
++                ]
++
++                input[1] = REGENIE_STEP1_QUANTITATIVE.out.predictions.join(REGENIE_STEP1_QUANTITATIVE.out.loco)
++
++                input[2] = [
++                    [ id:'plink_simulated' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe', checkIfExists: true)
++                ]
++
++                input[3] = [
++                    [ id:'plink_simulated' ],
++                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_covariates.txt', checkIfExists: true)
++                ]
++
++                input[4] = 400
++                """
++            }
++        }
++
++        then {
++            // REGENIE splits Step 2 results one file per phenotype column, named `<prefix>_<column>`, and
++            // writes one log per invocation. That is the cardinality attribution downstream depends on.
++            // The assertion is keyed on the column suffix rather than on a full basename, because
++            // `ext.prefix` is the caller's.
++            def resultNames = process.out.results.get(0).get(1).collect { result -> path(result).getFileName().toString() }
++            assertAll(
++                { assert process.success },
++                { assert resultNames.size() == 2 },
++                { assert resultNames.count { name -> name.endsWith('_TraitA.regenie.gz') } == 1 },
++                { assert resultNames.count { name -> name.endsWith('_TraitB.regenie.gz') } == 1 },
++                { assert process.out.log.size() == 1 },
++            )
++        }
++
++    }
++
+ }
+
+'modules/nf-core/regenie/step2/tests/main.nf.test.snap' is unchanged
+'modules/nf-core/regenie/step2/tests/nextflow.config' is unchanged
+************************************************************
