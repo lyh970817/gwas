@@ -187,7 +187,11 @@ nextflow_pipeline {
                     def stable_path_harmonised = RELATIONAL.gzipTextHashes("${params.outdir}/summary_statistics")
                     assertAll(
                         { assert workflow.success },
-                        { assert TRACE.tags(workflow, 'REGENIE_STEP2').sort() == analysisIds },
+                        // A REGENIE task is named by the batch it runs. Trait type is not batchable, so
+                        // these two analyses hold two batches; the analysis identity is restored on the way
+                        // out, which the published layout and the harmonisation tags below pin.
+                        { assert TRACE.tags(workflow, 'REGENIE_STEP2').unique().size() == 2 },
+                        { assert TRACE.tags(workflow, 'REGENIE_STEP2').every { tag -> tag ==~ /^regenie\.[0-9a-f]{12}$/ } },
                         { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds.collect { id -> "${id}--regenie" }.sort() },
                         { assert step1.size() == 2 },
                         { assert step2.size() == 2 },
@@ -196,7 +200,10 @@ nextflow_pipeline {
                         { assert step2.find { command -> command.contains('--bt') }.contains('--firth') },
                         { assert step2.find { command -> command.contains('--bt') }.contains('--approx') },
                         { assert step2.find { command -> command.contains('--bt') }.contains('--pThresh 0.01') },
-                        { assert generated.every { command -> command.contains('--phenoColList PHENO') } },
+                        // The native phenotype columns are the analysis identifiers, which is what makes a
+                        // batched invocation's outputs attributable, and the list is single-quoted on the
+                        // command line as the shell-side half of the column-name defence.
+                        { assert analysisIds.every { id -> generated.count { command -> command.contains("--phenoColList '${id}'") } == 2 } },
                         { assert generated.every { command -> !command.contains('--minMAC') } },
                         { assert snapshot(stable_name_native, stable_path_native).match('traits-native') },
                         { assert snapshot(stable_name_harmonised, stable_path_harmonised).match('traits-harmonised') },
@@ -237,8 +244,11 @@ nextflow_pipeline {
                 def assertions = [
                     { assert workflow.success },
                     { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                    // One fit for both, and two tests: the second analysis differs only in `min_mac`,
+                    // which is invocation-global for Step 2 but does not enter the Step 1 fit at all.
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
-                    { assert TRACE.tags(workflow, 'REGENIE_STEP2').sort() == analysisIds },
+                    { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
+                    { assert TRACE.tags(workflow, 'REGENIE_STEP2').unique().size() == 2 },
                     { assert analysisIds.every { id -> new File("${params.outdir}/association/regenie/${id}/${id}.regenie.gz").isFile() } },
                     { assert analysisIds.every { id -> new File("${params.outdir}/summary_statistics/${id}--regenie/${id}--regenie.gwaslab.tsv.gz").isFile() } },
                 ]
@@ -349,21 +359,35 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 2 },
+                // The two analyses are compatible in every setting that reaches the native command, so
+                // they are one fit batch and one test batch: one Step 1 and one Step 2 for both.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
-                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                 { assert RESUME.statuses(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(unchangedRun.trace, 'PREPARE_REGENIE_PHENOTYPES') == ['CACHED'] },
                 { assert RESUME.statuses(unchangedRun.trace, 'REGENIE_STEP1') == ['CACHED'] },
-                { assert RESUME.statuses(unchangedRun.trace, 'REGENIE_STEP2') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(unchangedRun.trace, 'REGENIE_STEP2') == ['CACHED'] },
+                // A Step 2-only option change leaves the batch phenotype file and the fit untouched, and
+                // splits the single test batch into two. Both Step 2 tasks are new work: the batch that
+                // ran before covered both analyses and no longer exists, which is the cost of batching
+                // and is documented as such.
                 { assert RESUME.statuses(step2Run.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'CACHED'] },
+                { assert RESUME.statuses(step2Run.trace, 'PREPARE_REGENIE_PHENOTYPES') == ['CACHED'] },
                 { assert RESUME.statuses(step2Run.trace, 'REGENIE_STEP1') == ['CACHED'] },
-                { assert RESUME.statuses(step2Run.trace, 'REGENIE_STEP2') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.statuses(step2Run.trace, 'REGENIE_STEP2') == ['COMPLETED', 'COMPLETED'] },
                 { assert RESUME.hashes(step2Run.trace, 'PREPARE_PHENOTYPE_INPUTS') == RESUME.hashes(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(step2Run.trace, 'PREPARE_REGENIE_PHENOTYPES') == RESUME.hashes(unchangedRun.trace, 'PREPARE_REGENIE_PHENOTYPES') },
                 { assert RESUME.hashes(step2Run.trace, 'REGENIE_STEP1') == RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP1') },
                 { assert RESUME.hashes(step2Run.trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP2') },
+                // A member's phenotype content re-fits the whole batch, because the batch is one native
+                // invocation over one shared phenotype file.
                 { assert RESUME.statuses(phenotypeRun.trace, 'PREPARE_PHENOTYPE_INPUTS') == ['CACHED', 'COMPLETED'] },
-                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP1') == ['CACHED', 'COMPLETED'] },
-                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP2') == ['CACHED', 'COMPLETED'] },
+                { assert RESUME.statuses(phenotypeRun.trace, 'PREPARE_REGENIE_PHENOTYPES') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP1') == ['COMPLETED'] },
+                { assert RESUME.statuses(phenotypeRun.trace, 'REGENIE_STEP2') == ['COMPLETED'] },
                 { assert RESUME.hashes(phenotypeRun.trace, 'PREPARE_PHENOTYPE_INPUTS') != RESUME.hashes(unchangedRun.trace, 'PREPARE_PHENOTYPE_INPUTS') },
+                { assert RESUME.hashes(phenotypeRun.trace, 'PREPARE_REGENIE_PHENOTYPES') != RESUME.hashes(unchangedRun.trace, 'PREPARE_REGENIE_PHENOTYPES') },
                 { assert RESUME.hashes(phenotypeRun.trace, 'REGENIE_STEP1') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP1') },
                 { assert RESUME.hashes(phenotypeRun.trace, 'REGENIE_STEP2') != RESUME.hashes(unchangedRun.trace, 'REGENIE_STEP2') },
                 { assert unchangedRun.outputIdentities == expectedOutputs },

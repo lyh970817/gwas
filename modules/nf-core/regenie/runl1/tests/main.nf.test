@@ -373,4 +373,62 @@ nextflow_process {
 
     }
 
+    test("homo_sapiens popgen - multiple phenotype columns - stub") {
+
+        options "-stub"
+
+        when {
+            params {
+                module_args = "--phenoColList 'TraitA,TraitB'"
+            }
+            process {
+                """
+                input[0] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
+                ]
+
+                input[1] = REGENIE_SPLITL0.out.master
+                    .combine(REGENIE_SPLITL0.out.snplists)
+                    .combine(REGENIE_RUNL0.out.l0_predictions.map { it[1] }.collect())
+                    .map { values ->
+                        [ values[0], values[1], values[3], values.drop(4).flatten() ]
+                    }
+
+                input[2] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe', checkIfExists: true)
+                ]
+
+                input[3] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_covariates.txt', checkIfExists: true)
+                ]
+
+                input[4] = 100
+                """
+            }
+        }
+
+        then {
+            // The L1 stage completes a multi-phenotype fit: one LOCO file per column, and a `_pred.list`
+            // naming each column rather than the placeholder `Y1`. The assertions are keyed on the
+            // numbering and the column names rather than on a full basename, because `ext.prefix` is the
+            // caller's.
+            def locoNames = process.out.loco.get(0).get(1).collect { loco -> path(loco).getFileName().toString() }
+            def predictionLines = path(process.out.predictions.get(0).get(1)).readLines()
+            assertAll(
+                { assert process.success },
+                { assert locoNames.size() == 2 },
+                { assert locoNames.count { name -> name.endsWith('_1.loco.gz') } == 1 },
+                { assert locoNames.count { name -> name.endsWith('_2.loco.gz') } == 1 },
+                { assert predictionLines.collect { line -> line.tokenize(' ').first() } == ['TraitA', 'TraitB'] },
+                { assert predictionLines.collect { line -> line.tokenize(' ').last() } == locoNames.sort() },
+            )
+        }
+
+    }
+
 }

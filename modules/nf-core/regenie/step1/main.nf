@@ -43,11 +43,23 @@ process REGENIE_STEP1 {
     """
 
     stub:
+    def args = task.ext.args ?: ''
     def input_prefix = plink_genotype_file.baseName
     def prefix = task.ext.prefix ?: input_prefix
+    // A multi-phenotype Step 1 fits every column named by `--phenoColList` and emits one LOCO per column
+    // together with a `_pred.list` line naming that column, so a stub reporting one prediction would void
+    // every `-stub` assertion about a multi-phenotype fit. The column list is optionally single-quoted on
+    // the command line. Without the option the stub keeps its single-prediction shape.
+    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
+    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : []
+    def loco_files = (1..(pheno_columns.size() ?: 1)).collect { index -> "${prefix}_${index}.loco.gz" }
+    def loco_lines = loco_files.collect { loco -> "echo \"\" | gzip > ${loco}" }.join('\n    ')
+    def pred_list_line = pheno_columns
+        ? "printf '${[pheno_columns, loco_files].transpose().collect { column, loco -> "${column} ${loco}" }.join('\\n')}\\n' > ${prefix}_pred.list"
+        : "touch ${prefix}_pred.list"
     """
-    touch ${prefix}_pred.list
-    echo "" | gzip > ${prefix}_1.loco.gz
+    ${pred_list_line}
+    ${loco_lines}
     touch ${prefix}.log
     """
 }

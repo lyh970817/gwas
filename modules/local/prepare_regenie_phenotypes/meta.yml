@@ -1,0 +1,63 @@
+name: prepare_regenie_phenotypes
+description: Merge the prepared phenotypes of one REGENIE fit batch into the single multi-column phenotype file the batched invocation reads
+keywords:
+  - regenie
+  - phenotype
+  - batch
+  - gwas
+  - preparation
+tools:
+  - python:
+      description: Python programming language runtime; the adapter uses the standard library only
+      homepage: https://www.python.org/
+      documentation: https://docs.python.org/3/
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map describing the REGENIE fit batch.
+          Expected keys:
+            - id (string): Fit batch identifier, used as the output prefix.
+    - phenotypes:
+        type: file
+        description: |
+          The prepared `FID IID PHENO` phenotype of every batch member, in the same order as
+          `analysis_ids`. The pairing is positional and is the caller's contract: the file basename is
+          never read as identity. Declared `arity: '1..*'` so a one-member batch stages a single-element
+          list rather than a bare path.
+        pattern: "*.pheno"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - analysis_ids:
+        type: list
+        description: |
+          The analysis identifier of every batch member, in the same order as `phenotypes`. Each becomes
+          a phenotype column name, which is what REGENIE names its per-column Step 2 output files after.
+output:
+  phenotype:
+    - - meta:
+          type: map
+          description: Metadata map propagated from input
+      - "${prefix}.pheno":
+          type: file
+          description: |
+            One tab-delimited table with the header `FID IID <analysis_id> ...`, carrying the first
+            member's row order and every member's values verbatim. The module fails rather than write a
+            table whose members list different sample rows or different non-missing samples, because
+            REGENIE mean-imputes across the whole invocation and an unequal batch would change a member's
+            result. Both are properties the caller's batch key already groups on, so a failure here means
+            the caller's grouping and this merge disagreed rather than that the input was wrong.
+          pattern: "*.pheno"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions:
+    - versions.yml:
+        type: file
+        description: File containing software versions
+        pattern: "versions.yml"
+        ontologies:
+          - edam: "http://edamontology.org/format_3750" # YAML
+authors:
+  - "@andongni"
+maintainers:
+  - "@andongni"

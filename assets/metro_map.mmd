@@ -68,6 +68,7 @@ graph LR
     subgraph association [Association methods and summary ingress]
         %%metro entry: left | regenie, gcta, ldak, summary
         %%metro exit: right | regenie, gcta, ldak, summary
+        regenie_batch[Batch compatible phenotypes]
         regenie_step1[REGENIE Step 1]
         regenie_step2[REGENIE Step 2]
         gcta_grm[Dense GCTA base GRM]
@@ -78,7 +79,8 @@ graph LR
         kvik_step2[LDAK-KVIK Step 2]
         gwaslab[GWASLab harmonisation]
 
-        _analysis_ready -->|regenie| regenie_step1
+        _analysis_ready -->|regenie| regenie_batch
+        regenie_batch -->|regenie| regenie_step1
         regenie_step1 -->|regenie| regenie_step2
         makebed -->|gcta| gcta_grm
         gcta_grm -->|gcta| gcta_sparse

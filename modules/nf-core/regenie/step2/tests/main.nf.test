@@ -431,4 +431,55 @@ nextflow_process {
 
     }
 
+    test("homo_sapiens popgen - multiple phenotype columns - stub") {
+
+        options "-stub"
+
+        when {
+            params {
+                module_args = "--phenoColList 'TraitA,TraitB'"
+            }
+            process {
+                """
+                input[0] = [
+                    [ id:'batch' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bed', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
+                ]
+
+                input[1] = REGENIE_STEP1_QUANTITATIVE.out.predictions.join(REGENIE_STEP1_QUANTITATIVE.out.loco)
+
+                input[2] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_quantitative_phenoname.phe', checkIfExists: true)
+                ]
+
+                input[3] = [
+                    [ id:'plink_simulated' ],
+                    file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated_covariates.txt', checkIfExists: true)
+                ]
+
+                input[4] = 400
+                """
+            }
+        }
+
+        then {
+            // REGENIE splits Step 2 results one file per phenotype column, named `<prefix>_<column>`, and
+            // writes one log per invocation. That is the cardinality attribution downstream depends on.
+            // The assertion is keyed on the column suffix rather than on a full basename, because
+            // `ext.prefix` is the caller's.
+            def resultNames = process.out.results.get(0).get(1).collect { result -> path(result).getFileName().toString() }
+            assertAll(
+                { assert process.success },
+                { assert resultNames.size() == 2 },
+                { assert resultNames.count { name -> name.endsWith('_TraitA.regenie.gz') } == 1 },
+                { assert resultNames.count { name -> name.endsWith('_TraitB.regenie.gz') } == 1 },
+                { assert process.out.log.size() == 1 },
+            )
+        }
+
+    }
+
 }
