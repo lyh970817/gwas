@@ -43,8 +43,10 @@ output:
           description: |
             One tab-delimited table with the header `FID IID <analysis_id> ...`, carrying the first
             member's row order and every member's values verbatim. The module fails rather than write a
-            table whose members cover different samples or different non-missing samples, because REGENIE
-            mean-imputes across the whole invocation and an unequal batch would change a member's result.
+            table whose members list different sample rows or different non-missing samples, because
+            REGENIE mean-imputes across the whole invocation and an unequal batch would change a member's
+            result. Both are properties the caller's batch key already groups on, so a failure here means
+            the caller's grouping and this merge disagreed rather than that the input was wrong.
           pattern: "*.pheno"
           ontologies:
             - edam: "http://edamontology.org/format_3475" # TSV

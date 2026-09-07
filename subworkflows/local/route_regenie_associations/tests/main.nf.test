@@ -30,7 +30,12 @@ nextflow_workflow {
     def PHENOTYPES = [
         alpha: 'FID\tIID\tPHENO\nF1\tI1\t1.5\nF1\tI2\t2.5\nF2\tI3\t3.5\n',
         beta: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\t8.5\nF2\tI3\t7.5\n',
+        // Same rows as `alpha`, one of them unobserved.
         gamma: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\tNA\nF2\tI3\t7.5\n',
+        // The same individuals `gamma` observes, exported without the unobserved row: equal non-missing
+        // sets, unequal row sets. This is the pair a non-missing-only key would batch and the batch task
+        // would then refuse.
+        delta: 'FID\tIID\tPHENO\nF1\tI1\t4.5\nF2\tI3\t6.5\n',
     ]
 
     def COVARIATES = 'FID\tIID\tage\nF1\tI1\t10\nF1\tI2\t20\nF2\tI3\t30\n'
@@ -176,6 +181,45 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
                 { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'gamma'] },
+            )
+        }
+    }
+
+    test("equal non-missing samples over unequal sample rows are fitted separately, not refused") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'sample_rows')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'gamma', PHENOTYPES.gamma)},
+                    ${analysisRow(root, staged, 'delta', PHENOTYPES.delta)},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // These two observe exactly the same individuals, so a key that grouped on the non-missing
+                // set alone would put them in one batch -- and `PREPARE_REGENIE_PHENOTYPES` would abort the
+                // whole run, because a batch is one table over one row set and theirs differ. The row
+                // digest separates them instead, and both analyses produce a result.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['delta', 'gamma'] },
             )
         }
     }

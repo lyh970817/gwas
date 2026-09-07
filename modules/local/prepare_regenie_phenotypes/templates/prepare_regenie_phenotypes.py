@@ -10,13 +10,20 @@ Each input is one member's prepared phenotype, written by `PREPARE_PHENOTYPE_INP
 `FID IID PHENO` layout with `NA` for a missing value. The columns are re-headed with the members'
 analysis identifiers and merged into one table.
 
-The merge asserts the property the batch key already claims: every member covers the same samples and
-the same non-missing samples. It is not a formality. REGENIE mean-imputes missing observations across
-the whole invocation, so a member whose missingness differs from its batch-mates would be fitted
-against a different sample set than it would be alone, and the batched result for that member would
-stop reproducing the per-analysis result. Measured on regenie 4.1.2: a trait with 20 missing samples
-gave BETA 0.0623 fitted alone and 0.0736 batched with a complete sibling, while the complete sibling
-was unchanged. So an unequal batch is a wrong answer, not an inefficiency, and it stops here.
+The merge asserts exactly the two sample properties the caller's batch key groups on, and no more:
+every member lists the same rows, and the same subset of those rows is non-missing. Neither is a
+formality. REGENIE mean-imputes missing observations across the whole invocation, so a member whose
+missingness differs from its batch-mates would be fitted against a different sample set than it would
+be alone, and the batched result for that member would stop reproducing the per-analysis result.
+Measured on regenie 4.1.2: a trait with 20 missing samples gave BETA 0.0623 fitted alone and 0.0736
+batched with a complete sibling, while the complete sibling was unchanged. The same reasoning is why a
+row set may not simply be NA-filled up to the batch's union: an absent row is outside that member's
+analysed set, while an NA row is inside it and gets imputed. So an unequal batch is a wrong answer, not
+an inefficiency, and it stops here rather than being papered over.
+
+Both checks are re-assertions rather than new refusals. Analyses that disagree on either property carry
+different compatibility keys and are fitted in separate batches, so reaching a failure below means the
+caller's grouping and this merge disagreed, which is a defect in the pipeline and not in the manifest.
 
 Standard library only, deliberately: the inputs run to a few thousand rows at most, so a dataframe
 dependency would add container weight and a second version to report for no gain.
@@ -112,8 +119,8 @@ for analysis_id, path in list(zip(ANALYSIS_IDS, PHENOTYPE_FILES))[1:]:
     if present != reference_present:
         fail(
             "analysis '{}' covers {} sample(s) but batch member '{}' covers {}; a batch shares one "
-            "phenotype file, so every member must cover the same samples. Only in '{}': {}. Only in "
-            "'{}': {}".format(
+            "phenotype file, so every member must cover the same samples. Set regenie_batch_size to 1 to "
+            "fit them on their own. Only in '{}': {}. Only in '{}': {}".format(
                 analysis_id,
                 len(present),
                 ANALYSIS_IDS[0],
@@ -128,7 +135,8 @@ for analysis_id, path in list(zip(ANALYSIS_IDS, PHENOTYPE_FILES))[1:]:
         fail(
             "analysis '{}' has {} non-missing observation(s) but batch member '{}' has {}; REGENIE "
             "mean-imputes missing observations across the whole invocation, so members whose "
-            "missingness differs must not share one fit. Only in '{}': {}. Only in '{}': {}".format(
+            "missingness differs must not share one fit. Set regenie_batch_size to 1 to fit them on "
+            "their own. Only in '{}': {}. Only in '{}': {}".format(
                 analysis_id,
                 len(observed),
                 ANALYSIS_IDS[0],

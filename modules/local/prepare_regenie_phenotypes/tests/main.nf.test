@@ -159,11 +159,13 @@ nextflow_process {
             name: 'a member covering different samples',
             beta: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\t8.5\nF9\tI9\t7.5\n',
             message: 'must cover the same samples',
+            names_batch_size: true,
         ],
         [
             name: 'a member with different missingness',
             beta: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\tNA\nF2\tI3\t7.5\n',
             message: 'members whose missingness differs must not share one fit',
+            names_batch_size: true,
         ],
         [
             name: 'a member that is not in the prepared layout',
@@ -197,6 +199,10 @@ nextflow_process {
                     { assert process.failed },
                     { assert process.stdout.join('\n').contains("REGENIE batch 'regenie.invalid'") },
                     { assert process.stdout.join('\n').contains(scenario.message) },
+                    // Both sample-agreement refusals name the escape hatch, as the route's own Step 1
+                    // coverage guard does. Reaching either means the caller's grouping and this merge
+                    // disagreed, and running the analyses alone is what gets the user moving again.
+                    { assert !scenario.names_batch_size || process.stdout.join('\n').contains('regenie_batch_size to 1') },
                 )
             }
         }

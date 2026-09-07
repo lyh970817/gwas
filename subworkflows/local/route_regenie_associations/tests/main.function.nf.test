@@ -29,8 +29,9 @@ nextflow_function {
                 input[0] = 'prepared_view_a'
                 input[1] = false
                 input[2] = file(fixtures + 'example.qcovar', checkIfExists: true)
-                input[3] = 'a1b2c3d4e5f6'
-                input[4] = 1000
+                input[3] = 'f6e5d4c3b2a1'
+                input[4] = 'a1b2c3d4e5f6'
+                input[5] = 1000
                 """
             }
         }
@@ -38,7 +39,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == '5867469c7ee2' },
+                { assert function.result == '7dd0a7306d61' },
             )
         }
     }
@@ -52,8 +53,9 @@ nextflow_function {
                 input[0] = 'prepared_view_a'
                 input[1] = false
                 input[2] = []
-                input[3] = 'a1b2c3d4e5f6'
-                input[4] = 1000
+                input[3] = 'f6e5d4c3b2a1'
+                input[4] = 'a1b2c3d4e5f6'
+                input[5] = 1000
                 """
             }
         }
@@ -61,7 +63,7 @@ nextflow_function {
         then {
             assertAll(
                 { assert function.success },
-                { assert function.result == 'b91185818c60' },
+                { assert function.result == '8af2adf50968' },
             )
         }
     }
@@ -192,7 +194,11 @@ nextflow_function {
                 // The content digest stays the full-strength file digest the route has always used; the
                 // sample-set digest is the canonical-text digest every other route key is built from.
                 { assert function.result.content ==~ /^[0-9a-f]{64}$/ },
+                { assert function.result.sample_rows == 'ddee5050446e' },
                 { assert function.result.sample_set == '260164361f56' },
+                // The two sample digests are genuinely different questions about the same file: this one
+                // lists three rows and observes two of them.
+                { assert function.result.sample_rows != function.result.sample_set },
             )
         }
     }
@@ -215,6 +221,36 @@ nextflow_function {
                 // The same sample set as the case above, from different values: which is exactly the pair
                 // that must share a fit, and exactly the pair whose batch key must still differ.
                 { assert function.result.sample_set == '260164361f56' },
+                { assert function.result.sample_rows == 'ddee5050446e' },
+            )
+        }
+    }
+
+    // The regression that made the compatibility key carry the row set as well. Dropping an all-NA row
+    // leaves the non-missing set untouched, so grouping on that alone would batch this file with the two
+    // above -- and `PREPARE_REGENIE_PHENOTYPES` would then refuse the batch and abort the run, because a
+    // batch is one table over one row set. The row digest is what keeps them in separate batches, so both
+    // analyses run.
+    test("dropping an all-missing row changes the row identity while the non-missing set is untouched") {
+        function "readPhenotypeIdentity"
+
+        when {
+            def prepared = resource(outputDir, 'identity/trimmed.pheno', 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF2\tI3\t7.5\n')
+            function {
+                """
+                input[0] = file('${prepared}', checkIfExists: true)
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result.sample_set == '260164361f56' },
+                { assert function.result.sample_rows != 'ddee5050446e' },
+                // With only observed rows present the two questions coincide, which is the degenerate
+                // case and exactly why the previous file's two digests had to differ.
+                { assert function.result.sample_rows == '260164361f56' },
             )
         }
     }

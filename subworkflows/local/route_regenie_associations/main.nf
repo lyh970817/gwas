@@ -36,7 +36,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
         def step1_bsize = meta.method_options.regenie.step1_bsize
         def identity = readPhenotypeIdentity(phenotype)
         [
-            compatibility: buildRegenieFitCompatibilityKey(view_key, meta.is_binary, covariates ?: [], identity.sample_set, step1_bsize),
+            compatibility: buildRegenieFitCompatibilityKey(view_key, meta.is_binary, covariates ?: [], identity.sample_rows, identity.sample_set, step1_bsize),
             meta: meta,
             primary: primary,
             variant_file: variant_file,
@@ -72,8 +72,10 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 
     // The one multi-column phenotype file the batch shares. Its columns are named by `analysis_id`, which
     // is what REGENIE names its per-column Step 2 output files after, and therefore what makes the native
-    // outputs attributable. The module re-asserts inside the task that the members really do share one
-    // sample set, so a mistaken grouping fails by name instead of changing a member's science.
+    // outputs attributable. The module re-asserts inside the task exactly the two sample properties the
+    // compatibility key groups on -- the same row set and the same non-missing subset of it -- so a
+    // mistaken grouping fails by name instead of changing a member's science. It asserts nothing the key
+    // does not already claim: a batch the key forms is a batch the module accepts.
     PREPARE_REGENIE_PHENOTYPES(
         ch_fit_batches.map { _fit_batch_key, fit_meta, members ->
             [fit_meta, members.collect { member -> member.phenotype }, members.collect { member -> member.meta.id }]
@@ -180,27 +182,43 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// Two identities are read out of one prepared phenotype. The content digest distinguishes batch members
-// from each other and is what makes a changed trait re-fit its batch. The non-missing sample-set digest
-// decides whether two analyses may share a fit at all: REGENIE mean-imputes missing observations across a
-// whole invocation, so members whose missingness differs would each be fitted against a sample set they
-// would not have alone. This is a grouping decision, not the guarantee -- `PREPARE_REGENIE_PHENOTYPES`
-// re-checks the property inside the task and fails the batch by name if the grouping was ever wrong,
-// so a misread here costs a loud failure rather than a different scientific answer.
+// Three identities are read out of one prepared phenotype, and each answers a different question.
 //
-// Both reads happen in the Groovy head-node runtime, as the route's phenotype digest already did before
-// batching. A prepared phenotype is bounded by the cohort's sample count, so this stays a small bounded
-// cost per analysis; a genotype file, which is not, is digested in a task and never here.
+// The content digest distinguishes batch members from each other and is what makes a changed trait re-fit
+// its batch.
+//
+// The two sample digests both decide whether analyses may share a fit, and they are deliberately separate
+// because the batch's shared phenotype file has to satisfy both. `sample_set` covers the *non-missing*
+// rows: REGENIE mean-imputes missing observations across a whole invocation, so members whose missingness
+// differs would each be fitted against a sample set they would not have alone. `sample_rows` covers
+// *every* row the prepared phenotype lists, missing ones included, because the batch is written as one
+// table over one row set. Equal non-missing sets do not imply equal row sets -- each analysis manifest row
+// names its own phenotype file, so a trait exported NA-padded to the whole cohort and a trait exported as
+// only the measured subset can observe exactly the same individuals -- and NA-filling the difference is
+// not a free choice either: an absent row is outside that member's analysed set, while an NA row is inside
+// it and gets imputed, so the two are not interchangeable under an invocation-global fit.
+//
+// Both are grouping decisions rather than guarantees. `PREPARE_REGENIE_PHENOTYPES` re-checks exactly these
+// two properties inside the task, so a misread here costs a loud named failure rather than a different
+// scientific answer, and analyses that disagree on either one are simply fitted in separate batches.
+//
+// All three reads happen in the Groovy head-node runtime, as the route's phenotype digest already did
+// before batching. A prepared phenotype is bounded by the cohort's sample count, so this stays a small
+// bounded cost per analysis; a genotype file, which is not, is digested in a task and never here.
 def readPhenotypeIdentity(phenotype) {
-    def observed = file(phenotype)
+    def rows = file(phenotype)
         .readLines()
         .drop(1)
         .collect { line -> line.split('\t') }
-        .findAll { fields -> fields.size() > 2 && fields[2].trim() != 'NA' }
+        .findAll { fields -> fields.size() > 2 }
+    def present = rows.collect { fields -> "${fields[0]}\t${fields[1]}" }.sort()
+    def observed = rows
+        .findAll { fields -> fields[2].trim() != 'NA' }
         .collect { fields -> "${fields[0]}\t${fields[1]}" }
         .sort()
     return [
         content: digestFileBytes(phenotype),
+        sample_rows: digestIdentityText(present.join('\n')),
         sample_set: digestIdentityText(observed.join('\n')),
     ]
 }
@@ -209,13 +227,17 @@ def readPhenotypeIdentity(phenotype) {
 // shared by every member of a fit batch. The genotype view key arrives from preparation as a tuple
 // member: it is the cohort's immutable native view identity, so two cohorts holding byte-identical
 // genotypes share one fit and a changed bundle gets its own. `--bt` is invocation-global and REGENIE
-// refuses a binary column as a quantitative trait, so trait type separates batches. Focal and downstream
-// metadata stay out. Per-member content is deliberately absent: it belongs to the batch key below.
-def buildRegenieFitCompatibilityKey(view_key, is_binary, covariates, sample_set_digest, step1_bsize) {
+// refuses a binary column as a quantitative trait, so trait type separates batches. Both phenotype
+// sample digests are here, and they are exactly the two properties `PREPARE_REGENIE_PHENOTYPES` asserts
+// when it writes the batch: the key must claim everything the task requires, or the route would form a
+// batch the task then refuses. Focal and downstream metadata stay out. Per-member content is deliberately
+// absent: it belongs to the batch key below.
+def buildRegenieFitCompatibilityKey(view_key, is_binary, covariates, sample_rows_digest, sample_set_digest, step1_bsize) {
     def identity = [
         genotype_view: view_key,
         is_binary: is_binary,
         covariates: covariates ? digestFileBytes(covariates) : 'absent',
+        phenotype_rows: sample_rows_digest,
         phenotype_samples: sample_set_digest,
         step1_bsize: step1_bsize,
         adapter_contract: 'regenie_4.1.2_step1_batch_v1',
