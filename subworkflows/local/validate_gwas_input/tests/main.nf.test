@@ -585,6 +585,110 @@ nextflow_workflow {
         }
     }
 
+    // A REGENIE analysis unit's `analysis_id` is not only a pipeline label: batching makes it a native
+    // REGENIE phenotype column name, a `--phenoColList` token on a command line, and the stem REGENIE names
+    // the result file after. The manifest pattern `^\S+$` is much wider than those roles allow, so the
+    // narrower class is enforced at ingress where the message can name the manifest field.
+    def rejectedRegenieAnalysisIds = [
+        [name: 'a leading dash, which REGENIE would read as an option', token: '-example'],
+        [name: 'a comma, which would split one analysis into two columns', token: 'exam,ple'],
+        [name: 'a command substitution', token: 'example\$(id)'],
+        [name: 'a backtick', token: 'example`id`'],
+        [name: 'a glob', token: 'example*'],
+        [name: 'the phenotype file key column FID', token: 'FID'],
+        [name: 'the phenotype file key column IID', token: 'IID'],
+    ]
+
+    rejectedRegenieAnalysisIds.eachWithIndex { scenario, index ->
+        test("${scenario.name} is refused as a REGENIE analysis_id") {
+            tag "regenie_column_name"
+
+            when {
+                workflow {
+                    """
+                    input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, "rejected_regenie_id_${index}")}', checkIfExists: true)
+                    input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, "rejected_regenie_id_${index}", { rows ->
+                        rows[0].analysis_id = scenario.token
+                        rows[0].association_methods = 'regenie'
+                        rows[0].heritability_methods = ''
+                    })}', checkIfExists: true)
+                    input[2] = null
+                    input[3] = null
+                    input[4] = null
+                    input[5] = null
+                    """
+                }
+            }
+
+            then {
+                def report = VALIDATION.report(outputDir, workflow.stdout)
+                assertAll(
+                    { assert !workflow.success },
+                    { assert report.contains("field 'analysis_id'") },
+                    { assert report.contains('native REGENIE phenotype column name') },
+                )
+            }
+        }
+    }
+
+    test("an analysis_id in the safe column-name class is accepted for REGENIE") {
+        tag "regenie_column_name"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'accepted_regenie_id')}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'accepted_regenie_id', { rows ->
+                    rows[0].analysis_id = 'a.b-c_1'
+                    rows[0].association_methods = 'regenie'
+                    rows[0].heritability_methods = ''
+                })}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.analyses[0][0].id == 'a.b-c_1' },
+            )
+        }
+    }
+
+    test("an analysis_id outside that class is accepted when no REGENIE method is selected") {
+        tag "regenie_column_name"
+
+        when {
+            workflow {
+                """
+                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'unconstrained_id')}', checkIfExists: true)
+                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'unconstrained_id', { rows ->
+                    rows[0].analysis_id = '-example'
+                    rows[0].association_methods = 'gcta_fastgwa'
+                    rows[0].heritability_methods = ''
+                })}', checkIfExists: true)
+                input[2] = null
+                input[3] = null
+                input[4] = null
+                input[5] = null
+                """
+            }
+        }
+
+        then {
+            // The rule is a REGENIE contract, not a global tightening of the manifest pattern: an
+            // identifier only has to be a native column name for the routes that make it one.
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.analyses[0][0].id == '-example' },
+            )
+        }
+    }
+
     // Two rows sharing a `cohort_id` are one cohort, so their declared identities must agree. Without the
     // identity in the compared definition the second row would be discarded silently and the run would key
     // every shared artifact on whichever row happened to be read first.

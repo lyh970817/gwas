@@ -111,10 +111,13 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                 { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == expected },
-                // The four rows share phenotype bytes, covariates and `is_binary`, so the REGENIE Step 1
-                // reuse key collapses them onto one fit that all four Step 2 runs consume.
+                // The four rows share a cohort, covariates, `is_binary` and one sample set, and none of
+                // them sets a Step 2 option, so they are one compatible batch: one prepared batch
+                // phenotype file, one fit and one test for all four, whose four native results are
+                // attributed back to the four analyses below.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
-                { assert TRACE.count(workflow, 'REGENIE_STEP2') == expected.size() },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                 { assert new File("${params.outdir}/association/regenie").list().toList().sort() == expected },
             )
         }

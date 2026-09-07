@@ -4,20 +4,20 @@
 // Every constituent process reports directly to the run-wide versions topic, so this subworkflow emits no versions.
 
 // MODULE: Local to the pipeline
-include { PREPARE_REGENIE_PHENOTYPES     } from '../../../modules/local/prepare_regenie_phenotypes/main'
+include { PREPARE_REGENIE_PHENOTYPES       } from '../../../modules/local/prepare_regenie_phenotypes/main'
 
 // SUBWORKFLOW: Upstream-ready REGENIE composition used inside a pipeline-local route
-include { PLINK_FIT_REGENIE              } from '../plink_fit_regenie/main'
+include { PLINK_FIT_REGENIE                } from '../plink_fit_regenie/main'
 
 // MODULE: Installed directly from nf-core/modules
-include { REGENIE_STEP2                  } from '../../../modules/nf-core/regenie/step2/main'
+include { REGENIE_STEP2                    } from '../../../modules/nf-core/regenie/step2/main'
 
 // FUNCTION: Local to the pipeline
 include { canonicaliseScientificIdentifier } from '../utils_nfcore_gwas_pipeline'
-include { canonicaliseScientificValue    } from '../utils_nfcore_gwas_pipeline'
-include { digestFileBytes                } from '../utils_nfcore_gwas_pipeline'
-include { digestIdentityText             } from '../utils_nfcore_gwas_pipeline'
-include { buildCanonicalPredictionKey    } from '../utils_nfcore_gwas_pipeline'
+include { canonicaliseScientificValue      } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes                  } from '../utils_nfcore_gwas_pipeline'
+include { digestIdentityText               } from '../utils_nfcore_gwas_pipeline'
+include { buildCanonicalPredictionKey      } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_REGENIE_ASSOCIATIONS {
     take:
@@ -129,13 +129,14 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
             .collect { _policy, policy_members ->
                 def policy = getRegenieStep2Policy(policy_members.first().meta)
                 def member_ids = policy_members.collect { member -> member.meta.id }
+                // `method_options` carries the effective Step 2 settings rather than one member's raw
+                // option map: they are what `conf/modules/regenie.config` renders, and they are identical
+                // across the sub-batch by construction, so the invocation metadata says exactly what the
+                // rendered command will contain.
                 def test_meta = [
                     id: "regenie.${buildRegenieTestBatchKey(fit_batch_key, policy, member_ids)}",
                     is_binary: fit_meta.is_binary,
                     phenotype_columns: member_ids,
-                    // The effective Step 2 settings rather than one member's raw option map: they are what
-                    // `conf/modules/regenie.config` renders, and they are identical across the sub-batch by
-                    // construction, so the invocation metadata says exactly what the command will contain.
                     method_options: [regenie: policy],
                 ]
                 [fit_batch_key, test_meta, policy_members]

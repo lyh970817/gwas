@@ -73,6 +73,8 @@ Native association output is published by method and then analysis. The native t
 
 [REGENIE](https://rgcgithub.github.io/regenie/) fits a whole-genome prediction model in Step 1 and tests variants in Step 2. Standard Step 1 is the default because it is the simplest execution path; `--regenie_step1_mode chunked` and `--regenie_step1_jobs` use split-L0/run-L0/run-L1 when a large cohort needs work divided into smaller jobs. `--regenie_lowmem` defaults to `true` so temporary prediction blocks stay in the task work directory rather than memory.
 
+REGENIE fits and tests many phenotypes in one invocation, so analyses that agree on everything the native command depends on are batched together rather than run one at a time. See [Phenotype batching](usage.md#phenotype-batching) in the usage documentation for which analyses batch and what that means for `-resume`. Batching does not change what is published: each analysis keeps its own directory and its own result file below.
+
 - `association/regenie/<analysis_id>/`
   - `<analysis_id>.regenie.gz`: Native, space-delimited REGENIE Step 2 association result.
 
@@ -80,7 +82,7 @@ Native association output is published by method and then analysis. The native t
 
 For binary traits, the per-analysis `regenie.firth`, `regenie.firth_approx` and `regenie.firth_p_threshold` method options default to approximate Firth correction below `0.01`. `regenie.min_mac` defaults to `null`, retaining REGENIE's own versioned minimum-MAC policy unless an analysis explicitly overrides it.
 
-The published Step 2 file is native output with the fixed `_PHENO` token removed from its name. Step 1 predictions, chunk-planning files, temporary low-memory predictions and logs remain in the work directory. Resumed Step 1 reuse therefore requires preserving the Nextflow cache and work outputs.
+The published Step 2 file is native output. REGENIE names each result after the phenotype column that produced it, and the pipeline names those columns by `analysis_id`, so the native `<batch>_<analysis_id>.regenie.gz` is published as `<analysis_id>.regenie.gz` under that analysis's own directory. The batch phenotype file, Step 1 predictions, chunk-planning files, temporary low-memory predictions and logs remain in the work directory. Resumed Step 1 reuse therefore requires preserving the Nextflow cache and work outputs.
 
 ### GCTA fastGWA-MLM
 
