@@ -106,8 +106,12 @@ the exact boundary.
 depend on it. Use a private copy for modified fixtures. The live resolver mechanisms own exact source
 resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and reporting.
 
-The public remote fixture fallback is dead (404). Materialize fixtures from the local
-`.references/test-datasets-gwas` resolver or an explicitly pinned `GWAS_FIXTURE_SOURCE`; a portable upstream PR
-checkout has no working fallback and needs `GWAS_FIXTURE_SOURCE` supplied. Automatic `.references/test-datasets-gwas`
+The public remote fixture fallback is dead (404), and is no longer reachable as a fallback: an unset
+`GWAS_TEST_FIXTURES` now fails immediately instead of resolving dead URLs. Every nf-test invocation runs with
+`GWAS_TEST_FIXTURES` set from `tests/fixtures/materialize.sh`, and the dev-shell `nf-test` and
+`nf-test-parallel` wrappers materialize it automatically when it is unset, aborting rather than starting a run
+without it. Materialize fixtures from the local `.references/test-datasets-gwas` resolver or an explicitly
+pinned `GWAS_FIXTURE_SOURCE`; a portable upstream PR checkout has no working fallback and needs
+`GWAS_FIXTURE_SOURCE` supplied. Automatic `.references/test-datasets-gwas`
 discovery is personal-track behavior. Run local compact-fixture benchmarks on the personal track, or explicitly
 pin and verify the local source.
