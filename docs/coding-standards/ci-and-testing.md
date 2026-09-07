@@ -52,6 +52,9 @@ failed mechanism evidence rather than hand-policing mechanically repairable form
 ## Local suite scope
 
 - **[MUST]** Use focused tests while iterating and the sharded suite for broad validation.
+- **[SHOULD]** A narrowed branch tier may select by the test type a file declares. Select a tier from the test
+  files rather than from a diff base, which reports success after silently selecting nothing. A branch tier
+  never replaces the complete suite as the merge gate, and it must not be used to remove or weaken a test.
 - **[MUST]** When tests, snapshot labels, or snapshot-producing assertions are removed or renamed, run the
   affected test files unsharded and check for obsolete snapshot entries.
 - **[MUST]** Run the complete unsharded suite only for unbounded snapshot scope, an explicit release or
