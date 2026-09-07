@@ -185,7 +185,12 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
 // decides whether two analyses may share a fit at all: REGENIE mean-imputes missing observations across a
 // whole invocation, so members whose missingness differs would each be fitted against a sample set they
 // would not have alone. This is a grouping decision, not the guarantee -- `PREPARE_REGENIE_PHENOTYPES`
-// re-checks the property inside the task and fails the batch by name if the grouping was ever wrong.
+// re-checks the property inside the task and fails the batch by name if the grouping was ever wrong,
+// so a misread here costs a loud failure rather than a different scientific answer.
+//
+// Both reads happen in the Groovy head-node runtime, as the route's phenotype digest already did before
+// batching. A prepared phenotype is bounded by the cohort's sample count, so this stays a small bounded
+// cost per analysis; a genotype file, which is not, is digested in a task and never here.
 def readPhenotypeIdentity(phenotype) {
     def observed = file(phenotype)
         .readLines()
