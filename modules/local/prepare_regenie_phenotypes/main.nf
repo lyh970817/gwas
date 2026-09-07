@@ -10,14 +10,16 @@ process PREPARE_REGENIE_PHENOTYPES {
     input:
     // The prepared phenotypes of every batch member, in the same order as `analysis_ids`. The positional
     // pairing is the caller's contract: the file basename is never read as identity, because two analyses
-    // may legitimately be prepared from files with the same name.
+    // may legitimately be prepared from files with the same name. Staging is therefore indexed rather than
+    // by name -- `phenotypes/*` would abort the task with an input file name collision on exactly the
+    // batch this module exists to build, two members whose prepared files happen to share a basename.
     //
     // `arity: '1..*'` is load-bearing rather than decorative. Without it a one-member batch stages a bare
     // `java.nio.file.Path`, which implements `Iterable<Path>` over its *name elements*, so any `collect`
     // over the staged value would silently iterate path segments instead of files. A batch of one is the
     // common case: an analysis with no compatible sibling. The repository guards the same hazard at
     // `subworkflows/local/plink_fit_regenie/main.nf:63,87`.
-    tuple val(meta), path(phenotypes, stageAs: 'phenotypes/*', arity: '1..*'), val(analysis_ids)
+    tuple val(meta), path(phenotypes, stageAs: 'phenotypes/member*.pheno', arity: '1..*'), val(analysis_ids)
 
     output:
     tuple val(meta), path("${prefix}.pheno"), emit: phenotype

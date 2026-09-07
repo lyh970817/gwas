@@ -49,6 +49,32 @@ nextflow_process {
         }
     }
 
+    test("two members prepared from files with the same basename still batch") {
+        when {
+            def first = members(outputDir, 'collision_left', [shared: COMPLETE_A])
+            def second = members(outputDir, 'collision_right', [shared: COMPLETE_B])
+            process {
+                """
+                input[0] = [
+                    [id: 'regenie.collision'],
+                    [file('${first[0]}', checkIfExists: true), file('${second[0]}', checkIfExists: true)],
+                    ['alpha', 'beta'],
+                ]
+                """
+            }
+        }
+
+        then {
+            def phenotype = new File(process.out.phenotype.get(0).get(1).toString())
+            assertAll(
+                { assert process.success },
+                // Identity is the caller's positional pairing, never the file name: two members prepared
+                // under one basename would collide at staging if the files were staged by name.
+                { assert phenotype.text == 'FID\tIID\talpha\tbeta\nF1\tI1\t1.5\t9.5\nF1\tI2\t2.5\t8.5\nF2\tI3\t3.5\t7.5\n' },
+            )
+        }
+    }
+
     test("a single-member batch is written through the same list seam") {
         when {
             def staged = members(outputDir, 'single', [alpha: COMPLETE_A])

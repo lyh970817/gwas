@@ -7,6 +7,7 @@ include {
     validateHeritabilityTraitSupport ;
     validateMethodConditionedColumns ;
     validateMethodSelectors ;
+    validateRegeniePhenotypeColumnNames ;
     validateTraitColumns
 } from './manifest_contracts'
 include { getMethodCapabilities            } from './method_registry'
@@ -72,6 +73,7 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
         def association_methods = tokenizeMethodSelector(analysis_meta.association_methods)
         def heritability_methods = tokenizeMethodSelector(analysis_meta.heritability_methods)
         validateMethodSelectors(association_methods, heritability_methods, reject, relationship_rows ? true : false)
+        validateRegeniePhenotypeColumnNames(analysis_id, association_methods, reject)
         def routes = getMethodRoutes(association_methods, heritability_methods)
         def settings = getAnalysisSettings(analysis_meta)
         def is_binary = analysis_meta.trait_type == 'binary'

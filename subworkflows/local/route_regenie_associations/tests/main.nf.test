@@ -1,0 +1,361 @@
+nextflow_workflow {
+
+    name "Test REGENIE association route"
+    script "../main.nf"
+    workflow "ROUTE_REGENIE_ASSOCIATIONS"
+    tag "subworkflow"
+    tag "association"
+    tag "regenie"
+    tag "batching"
+
+    // Every case is stubbed, so the staged genotypes only have to exist. What is under test is which
+    // analyses share a native invocation and how the native outputs of a shared invocation find their way
+    // back to the analysis that asked for them. The phenotype and covariate files are real, because the
+    // route reads them to decide compatibility: the grouping is what these cases exercise.
+    def CASES = { outputDir, name -> new File(outputDir.toString(), "case_${name}") }
+
+    def resource = { root, name, content ->
+        def written = new File(root, name)
+        written.parentFile.mkdirs()
+        written.text = content
+        return written
+    }
+
+    def genotypes = { root ->
+        return ['pgen', 'pvar', 'psam'].collect { extension -> resource(root, "cohort.${extension}", "stub\n") }
+    }
+
+    // Two prepared phenotypes over the same samples with the same missingness: the pair that may share one
+    // fit. `gamma` differs only in which samples are non-missing, so it never may.
+    def PHENOTYPES = [
+        alpha: 'FID\tIID\tPHENO\nF1\tI1\t1.5\nF1\tI2\t2.5\nF2\tI3\t3.5\n',
+        beta: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\t8.5\nF2\tI3\t7.5\n',
+        gamma: 'FID\tIID\tPHENO\nF1\tI1\t9.5\nF1\tI2\tNA\nF2\tI3\t7.5\n',
+    ]
+
+    def COVARIATES = 'FID\tIID\tage\nF1\tI1\t10\nF1\tI2\t20\nF2\tI3\t30\n'
+
+    def analysisMeta = { analysis_id, options = [:] ->
+        return """[
+            id: '${analysis_id}',
+            cohort: 'cohort_a',
+            trait: 'TRAIT_${analysis_id}',
+            is_binary: ${options.is_binary ?: false},
+            association_methods: ['regenie'],
+            heritability_methods: [],
+            method_options: [
+                regenie: [
+                    step1_bsize: ${options.step1_bsize ?: 100},
+                    firth: ${options.firth ?: false},
+                    firth_approx: ${options.firth_approx ?: false},
+                    firth_p_threshold: 0.05,
+                    min_mac: ${options.min_mac ?: 'null'},
+                ],
+            ],
+        ]"""
+    }
+
+    def analysisRow = { root, staged, analysis_id, phenotype, options = [:] ->
+        def covariates = options.covariates == false ? '[]' : "file('${resource(root, "${analysis_id}.covar", COVARIATES)}', checkIfExists: true)"
+        return """[
+            ${analysisMeta(analysis_id, options)},
+            file('${staged[0]}', checkIfExists: true),
+            file('${staged[1]}', checkIfExists: true),
+            file('${staged[2]}', checkIfExists: true),
+            file('${resource(root, "${analysis_id}.pheno", phenotype)}', checkIfExists: true),
+            ${covariates},
+            '${options.view_key ?: 'native_view_cohort_a'}',
+        ]"""
+    }
+
+    test("two compatible analyses share one fit, one test and one phenotype file") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'compatible')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta)},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                // One invocation, two attributed results, each carrying the requesting analysis's own
+                // metadata. No batch key or private invocation identity survives the emit.
+                { assert workflow.out.results.size() == 2 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'beta'] },
+                { assert workflow.out.results.every { meta, _results -> !meta.containsKey('phenotype_columns') } },
+                { assert workflow.out.results.collect { meta, results -> file(results).name } .sort() == ['alpha', 'beta'].collect { id -> "${TRACE.tags(workflow, 'REGENIE_STEP2').first()}_${id}.regenie.gz" }.sort() },
+            )
+        }
+    }
+
+    test("a single-member batch stages one file rather than a path walked by its segments") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'single')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)})
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert workflow.out.results.size() == 1 },
+                // A bare `java.nio.file.Path` iterated over its name elements would surface here as a list
+                // of path segments rather than one result file.
+                { assert workflow.out.results.first()[1].toString().endsWith('_alpha.regenie.gz') },
+            )
+        }
+    }
+
+    test("a difference in missingness prevents a shared fit") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'missingness')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'gamma', PHENOTYPES.gamma)},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // REGENIE mean-imputes across a whole invocation, so batching these two would change the
+                // analysed sample set of the complete trait's sibling. They are separated at the key.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'gamma'] },
+            )
+        }
+    }
+
+    test("a covariate difference prevents a shared fit") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'covariates')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta, [covariates: false])},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+            )
+        }
+    }
+
+    test("a trait-type difference prevents a shared fit") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'trait_type')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta, [is_binary: true])},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // `--bt` is invocation-global and REGENIE refuses a binary column analysed as a QT.
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+            )
+        }
+    }
+
+    test("a Step 2 option difference splits the test batch while the fit stays shared") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'step2_policy')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta, [min_mac: 5])},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // `--minMAC` is invocation-global, so the two analyses cannot share one Step 2 command --
+                // but Step 2 accepts a `--phenoColList` subset of `--pred`, so they still share the fit.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2').unique().size() == 2 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'beta'] },
+            )
+        }
+    }
+
+    test("the batch size caps how many compatible analyses share one invocation") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'batch_size')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta)},
+                )
+                input[1] = 200
+                input[2] = 'standard'
+                input[3] = null
+                input[4] = 1
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                // `regenie_batch_size = 1` restores exactly the pre-batching cardinality, which is what
+                // makes it the escape hatch for a batch REGENIE cannot fit as a whole.
+                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'beta'] },
+            )
+        }
+    }
+
+    test("chunked Step 1 fits the batch through the split-L0 family") {
+
+        options "-stub"
+
+        when {
+            params {
+                outdir = "$outputDir"
+            }
+            workflow {
+                def root = CASES(outputDir, 'chunked')
+                def staged = genotypes(root)
+                """
+                input[0] = channel.of(
+                    ${analysisRow(root, staged, 'alpha', PHENOTYPES.alpha)},
+                    ${analysisRow(root, staged, 'beta', PHENOTYPES.beta)},
+                )
+                input[1] = 200
+                input[2] = 'chunked'
+                input[3] = 2
+                input[4] = 20
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 0 },
+                { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_RUNL0') == 2 },
+                { assert TRACE.count(workflow, 'REGENIE_RUNL1') == 1 },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
+                { assert workflow.out.results.collect { meta, _results -> meta.id }.sort() == ['alpha', 'beta'] },
+            )
+        }
+    }
+}
