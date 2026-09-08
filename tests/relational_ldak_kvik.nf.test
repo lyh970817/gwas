@@ -399,81 +399,16 @@ nextflow_pipeline {
         }
     }
 
+    // The pipeline-level sentinel for the LDAK option family. Every other rule in it is asserted, message
+    // and attribution included, by
+    // subworkflows/local/validate_gwas_input/tests/method_options_ldak.function.nf.test; this one is kept
+    // because it is a two-option consistency rule on the KVIK route and only a pipeline run can show that the
+    // refusal precedes every LDAK task.
     def invalidOptions = [
-        [
-            name: 'unknown option',
-            options: [ldak: [mystery: true]],
-            expected: ["option 'ldak.mystery'", 'unknown option'],
-        ],
-        [
-            name: 'invalid model',
-            options: [ldak: [model: 'animal']],
-            expected: ["option 'ldak.model'", "'human_default' or 'custom'"],
-        ],
-        [
-            name: 'human model with custom power',
-            options: [ldak: [power: -0.5]],
-            expected: ["option 'ldak.power'", "model 'human_default' fixes power at -0.25"],
-        ],
-        [
-            name: 'invalid weights policy',
-            options: [ldak: [weights_policy: 'automatic']],
-            expected: ["option 'ldak.weights_policy'", "'equal', 'default' or 'provided'"],
-        ],
-        [
-            name: 'KVIK irrelevant equal weights policy',
-            options: [ldak: [weights_policy: 'equal']],
-            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
-        ],
-        [
-            name: 'KVIK irrelevant default weights policy',
-            options: [ldak: [weights_policy: 'default']],
-            expected: ["option 'ldak.weights_policy'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
-        ],
-        [
-            name: 'provided weights without resource',
-            options: [ldak: [weights_policy: 'provided']],
-            expected: ["option 'ldak.weights'", "weights_policy is 'provided'"],
-        ],
-        [
-            name: 'irrelevant weights resource for equal policy',
-            options: [ldak: [weights_policy: 'equal', weights: '/definitely/missing/weights.txt']],
-            expected: ["option 'ldak.weights'", "only accepted when weights_policy is 'provided'"],
-        ],
-        [
-            name: 'KVIK irrelevant provided weights',
-            options: [ldak: [weights_policy: 'provided', weights: { projectDir, outputDir -> RELATIONAL.resource(outputDir, 'weights.txt', 'rs1 1\n') }]],
-            expected: ["option 'ldak.weights'", 'consumed by LDAK kinship and direct-genotype heritability methods only'],
-        ],
         [
             name: 'provided predictor subset without resource',
             options: [ldak: [kvik_step1_subset: 'provided']],
             expected: ["option 'ldak.predictor_extract'", "kvik_step1_subset is 'provided'"],
-        ],
-        [
-            name: 'irrelevant predictor resource for all policy',
-            options: [ldak: [kvik_step1_subset: 'all', predictor_extract: '/definitely/missing/predictors.in']],
-            expected: ["option 'ldak.predictor_extract'", "only accepted when kvik_step1_subset is 'provided'"],
-        ],
-        [
-            name: 'missing predictor resource',
-            options: [ldak: [kvik_step1_subset: 'provided', predictor_extract: '/definitely/missing/predictors.in']],
-            expected: ["option 'ldak.predictor_extract'", 'does not exist'],
-        ],
-        [
-            name: 'invalid predictor policy',
-            options: [ldak: [kvik_step1_subset: 'random']],
-            expected: ["option 'ldak.kvik_step1_subset'", "'all', 'thin_common' or 'provided'"],
-        ],
-        [
-            name: 'KVIK irrelevant relatedness filtering',
-            options: [ldak: [relatedness_filter: true]],
-            expected: ["option 'ldak.relatedness_filter'", 'consumed by LDAK kinship methods only'],
-        ],
-        [
-            name: 'operational tuning in document',
-            options: [ldak: [threads: 2]],
-            expected: ["option 'ldak.threads'", 'run/profile configuration'],
         ],
     ]
 
@@ -509,6 +444,8 @@ nextflow_pipeline {
                     { assert TRACE.count(workflow, 'LDAK_THINCOMMON') == 0 },
                     { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 0 },
                     { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
+                    // Stronger than the three named zero-counts above: nothing at all was submitted.
+                    { assert workflow.trace.tasks().isEmpty() },
                 )
             }
         }

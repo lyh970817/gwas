@@ -390,29 +390,15 @@ nextflow_pipeline {
         }
     }
 
+    // Three refusals, kept at pipeline level for three different reasons. The stem mismatch is the sentinel for
+    // the cohort/genotype contract family: every other rule in it (an unpopulated group, a second group, an
+    // incomplete group, a duplicate cohort definition) is asserted with its full attribution by
+    // subworkflows/local/validate_gwas_input/tests/resolve_input.function.nf.test, and only a pipeline run can
+    // show that the refusal precedes PREPARE_GENOTYPE_SOURCE, PLINK2_VCF and PLINK2_MAKEBED. The other two are
+    // nf-schema keyword classes, which cannot be function-tested at all because `validateParameters` is a
+    // plugin entry point: one `pattern` on a `format: file-path` property with `exists`, and one `pattern` on a
+    // plain string property.
     def invalidRepresentations = [
-        [
-            name: 'no genotype representation',
-            mutate: { rows, output_dir, project_dir -> ['pgen', 'psam', 'pvar'].each { field -> rows[0][field] = '' } },
-            fields: ['pgen', 'psam', 'pvar', 'bed', 'bim', 'fam', 'vcf'],
-            message: 'no genotype group is populated',
-        ],
-        [
-            name: 'more than one genotype representation',
-            mutate: { rows, output_dir, project_dir ->
-                rows[0].bed = rows[0].pgen.toString().replaceFirst(/\.pgen$/, '.bed')
-                rows[0].bim = rows[0].pvar.toString().replaceFirst(/\.pvar$/, '.bim')
-                rows[0].fam = rows[0].psam.toString().replaceFirst(/\.psam$/, '.fam')
-            },
-            fields: ['bed'],
-            message: 'a second genotype group is populated',
-        ],
-        [
-            name: 'an incomplete multi-file representation',
-            mutate: { rows, output_dir, project_dir -> rows[0].psam = '' },
-            fields: ['psam'],
-            message: "genotype group 'plink2' is only partly populated",
-        ],
         [
             name: 'a genotype group whose members do not share one basename stem',
             mutate: { rows, output_dir, project_dir -> rows[0].pvar = rows[0].pvar.toString().replace('example_all.pvar', 'example_chr1.pvar') },
@@ -463,11 +449,16 @@ nextflow_pipeline {
                     { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_VCF') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
+                    // Stronger than the four named zero-counts above: nothing at all was submitted.
+                    { assert workflow.trace.tasks().isEmpty() },
                 )
             }
         }
     }
 
+    // The sentinel for the nf-schema samplesheet path: keyword class `additionalProperties: false`. The
+    // pipeline-level route through `validateParameters` is the one a user hits; the workflow-level twin through
+    // `samplesheetToList` only differs under `--validate_params false`.
     test("vcf_index is rejected because it is absent from the cohort contract") {
 
         when {
@@ -490,34 +481,7 @@ nextflow_pipeline {
                 { assert report.contains("field 'vcf_index'") },
                 { assert report.contains('False schema always fails') },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-            )
-        }
-    }
-
-    test("a conflicting duplicate cohort definition fails before task submission") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "conflicting_duplicate_cohort", { rows ->
-                    def duplicate = new LinkedHashMap(rows[0])
-                    duplicate.ancestry = 'AFR'
-                    rows << duplicate
-                })
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "conflicting_duplicate_cohort")
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains(params.cohort_manifest.toString()) },
-                { assert report.contains("row 3 (cohort_id 'example_pgen')") },
-                { assert report.contains("field 'cohort_id'") },
-                { assert report.contains("duplicate cohort_id 'example_pgen' conflicts with row 2") },
-                { assert report.contains("field 'ancestry'") },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
+                { assert workflow.trace.tasks().isEmpty() },
             )
         }
     }
