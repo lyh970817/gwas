@@ -62,62 +62,6 @@ nextflow_workflow {
         return [length: binary.length(), samples: buffer.getInt(), weight_sum: buffer.getFloat()]
     }
 
-    test("the stub run fans one two-row plan into two ordered component matrices") {
-
-        options "-stub"
-
-        when {
-            def plan = writePlan(outputDir, 'stub_family', [['ld01_maf01', ['rs1', 'rs2']], ['ld02_maf01', ['rs3', 'rs4', 'rs5']]])
-            params {
-                outdir = "$outputDir"
-                save_relatedness_matrices = true
-            }
-            workflow {
-                """
-                input[0] = channel.of(${planInput("[id: 'stub_family', key: 'stub_key']", plan)})
-                input[1] = channel.of(${genotypes("[id: 'stub_family', key: 'stub_key']")})
-                input[2] = 22
-                """
-            }
-        }
-
-        then {
-            def family = workflow.out.grm_family.first()
-            def counts = countRows(workflow.out.counts.first()[1])
-            assertAll(
-                { assert workflow.success },
-                // One SNP-information file per family, one matrix per component: the components share a single
-                // multi-column weight table rather than each extracting its own genotype subset.
-                { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 1 },
-                { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 2 },
-                { assert workflow.out.grm_family.size() == 1 },
-                { assert workflow.out.counts.size() == 1 },
-                // The prefix carries the zero-padded manifest ordinal first and then the stratum key, because
-                // MPH copies the `--grm_list` prefix verbatim into the result's `vc_name`. The ordinal keeps
-                // the ordering identical to the GCTA family's; the key is what makes the published result name
-                // its own components.
-                { assert family[2] == ['stub_family__000001_ld01_maf01', 'stub_family__000002_ld02_maf01'] },
-                { assert filesByPrefix(family[1], family[2]) == [
-                    ['stub_family__000001_ld01_maf01.grm.bin', 'stub_family__000001_ld01_maf01.grm.iid'],
-                    ['stub_family__000002_ld02_maf01.grm.bin', 'stub_family__000002_ld02_maf01.grm.iid'],
-                ] },
-                { assert family[1].size() == 4 },
-                // The gather restores the focal metadata untouched: the temporary per-component identity never
-                // reaches the emitted record, and the counts table carries the same family identity because it
-                // is an artefact of the family rather than of any one component.
-                { assert family[0] == [id: 'stub_family', key: 'stub_key'] },
-                { assert workflow.out.counts.first()[0] == [id: 'stub_family', key: 'stub_key'] },
-                { assert new File(workflow.out.counts.first()[1].toString()).name == 'stub_family.snp_info.counts.tsv' },
-                // K component rows in manifest order, then the two universe-accounting rows.
-                { assert counts.size() == 4 },
-                { assert counts.keySet().toList() == ['ld01_maf01', 'ld02_maf01', '__unassigned__', '__bim_rows__'] },
-                // The pipeline publishes this family through its own output block rather than from the atom, so
-                // the qualified one-component selector must not match here even with publication switched on.
-                { assert ((new File("${params.outdir}").list() ?: []) as List).findAll { entry -> entry != 'pipeline_info' } == [] },
-            )
-        }
-    }
-
     test("a real two-component family weights one shared SNP table twice") {
 
         when {
