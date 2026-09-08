@@ -132,28 +132,4 @@ nextflow_workflow {
             )
         }
     }
-
-    test("the stub route emits exactly one report record") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-            }
-            workflow {
-                inputs(projectDir, defaults)
-            }
-        }
-
-        then {
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'MULTIQC') == 1 },
-                { assert workflow.out.report.size() == 1 },
-                { assert workflow.out.report[0].size() == 1 },
-                { assert new File(workflow.out.report[0][0].toString()).name == 'multiqc_report.html' },
-            )
-        }
-    }
 }

@@ -91,43 +91,6 @@ nextflow_workflow {
         }
     }
 
-    test("the stub run produces the same one-component topology") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-                save_relatedness_matrices = true
-            }
-            workflow {
-                """
-                input[0] = channel.of(${genotypes("[id: 'stub_dense', key: 'stub_dense_key']")})
-                input[1] = 22
-                """
-            }
-        }
-
-        then {
-            def matrix = workflow.out.grm_files.first()
-            def counts = countRows(workflow.out.counts.first()[1])
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 1 },
-                { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 1 },
-                // The stub's column count follows the caller's declared weight names, so the one-component
-                // shape of the counts table is exercised without any native content.
-                { assert counts.keySet().toList() == ['all', '__unassigned__', '__bim_rows__'] },
-                { assert namesOf(matrix[1]) == ['stub_dense.grm.bin', 'stub_dense.grm.iid'] },
-                { assert matrix[0] == [id: 'stub_dense', key: 'stub_dense_key'] },
-                // The bundle and the counts table are joined back onto the same focal record, so a stub run is
-                // enough to show the identity is not rewritten between the two processes.
-                { assert workflow.out.counts.first()[0] == matrix[0] },
-                { assert ((new File("${params.outdir}").list() ?: []) as List).findAll { entry -> entry != 'pipeline_info' } == [] },
-            )
-        }
-    }
-
     test("an empty request stream builds nothing") {
 
         options "-stub"

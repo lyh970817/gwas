@@ -143,6 +143,9 @@ nextflow_workflow {
                 // Three consumers, one projection. The native bundle is untouched and still PGEN.
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
                 { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
+                // One cohort, so one digest and one view record however many requests name it.
+                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
+                { assert workflow.out.cohort_views.size() == 1 },
                 { assert workflow.out.native_genotypes.size() == 5 },
                 { assert workflow.out.native_genotypes.every { _meta, primary, variant_file, sample_file ->
                     extensions.call([primary, variant_file, sample_file]) == ['pgen', 'pvar', 'psam']
@@ -318,45 +321,10 @@ nextflow_workflow {
         }
     }
 
-    test("a multiallelic PLINK 2 cohort is refused before any projection runs") {
-
-        setup {
-            run("PLINK2_VCF", alias: "MULTIALLELIC_PGEN") {
-                script "../../../../modules/local/plink2/vcf/main.nf"
-                process {
-                    """
-                    input[0] = [
-                        [ id:'cohort_multi', settings: [tool_contract: 'plink2_2.0.0a.6.9_vcf_import_v1', sample_id_policy: 'double_id', half_call: 'error'] ],
-                        file('${RELATIONAL.multiallelicVcf(outputDir, 'multiallelic_prep.vcf')}', checkIfExists: true),
-                    ]
-                    """
-                }
-            }
-        }
-
-        when {
-            workflow {
-                """
-                input[0] = MULTIALLELIC_PGEN.out.pgen.map { _meta, pgen, psam, pvar ->
-                    [[id: 'ldak_reml', cohort: 'cohort_multi', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], [pgen, psam, pvar]]
-                }
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert !workflow.success },
-                // The refusal names the cohort and the measured allele count, which plink2's own `--make-bed`
-                // error does neither, and it happens before the projection task is created.
-                { assert workflow.stdout.join('\n').contains("cohort 'cohort_multi'") },
-                { assert workflow.stdout.join('\n').contains('maximum allele count 3') },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
-                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
-            )
-        }
-    }
-
+    // The digest-route twin of the case below is not written separately: the rule itself is asserted at
+    // function level (`main.function.nf.test`, where `assertProjectable` refuses a maximum allele count of 3),
+    // and the declared-identity case's trace claim is the strict superset -- it proves the probe still runs
+    // when the declared identity skips digesting, which the digest route cannot show.
     test("a multiallelic PLINK 2 cohort whose identity was declared is refused too") {
 
         setup {
@@ -496,36 +464,6 @@ nextflow_workflow {
                 { assert workflow.out.cohort_plink1_view_keys.size() == 1 },
                 { assert workflow.out.cohort_plink1_view_keys.first()[0] == 'cohort_kvik' },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
-            )
-        }
-    }
-
-    test("stub preparation of a PLINK 2 cohort with demand keeps the same trace topology") {
-
-        options "-stub"
-
-        when {
-            workflow {
-                """
-                def bundle = { names -> names.collect { name -> file('${fixtures.call(projectDir)}' + name, checkIfExists: true) } }
-                def genotypes = bundle.call(['example_all.pgen', 'example_all.psam', 'example_all.pvar'])
-
-                input[0] = channel.fromList([
-                    [[id: 'ldak_reml', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: [], heritability_methods: ['ldak_reml']], genotypes],
-                    [[id: 'regenie', cohort: 'cohort_plink2', genotype_format: 'plink2', association_methods: ['regenie'], heritability_methods: []], genotypes],
-                ])
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
-                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
-                { assert workflow.out.plink1_genotypes.size() == 1 },
-                { assert workflow.out.cohort_views.size() == 1 },
             )
         }
     }

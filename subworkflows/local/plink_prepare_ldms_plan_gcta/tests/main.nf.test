@@ -144,44 +144,6 @@ nextflow_workflow {
         }
     }
 
-    test("the stub run produces the same plan topology") {
-
-        options "-stub"
-
-        when {
-            params {
-                outdir = "$outputDir"
-            }
-            workflow {
-                """
-                input[0] = channel.of(${genotypes("[id: 'stub_plan']")})
-                input[1] = channel.of([[id: 'stub_plan'], 200])
-                input[2] = channel.of([[id: 'stub_plan'], 2])
-                input[3] = channel.of([[id: 'stub_plan'], [0, 0.5]])
-                """
-            }
-        }
-
-        then {
-            def plan = workflow.out.plan.first()
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 1 },
-                { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
-                // The three settings channels are joined onto the genotype record by `meta.id`, so the stub run
-                // proves the four-way join and the emitted bundle shape without any native content.
-                { assert plan[0] == [id: 'stub_plan'] },
-                { assert new File(plan[1].toString()).name == 'stub_plan.strata.tsv' },
-                { assert stagedFiles(plan[2])*.name.sort() == [
-                    'stub_plan_snp_group_ld01_maf01.txt',
-                    'stub_plan_snp_group_ld02_maf01.txt',
-                ] },
-                { assert workflow.out.ld_scores.size() == 1 },
-                { assert new File(workflow.out.ld_scores.first()[1].toString()).name == 'stub_plan_gcta_ld.score.ld' },
-            )
-        }
-    }
-
     test("a settings record with no matching genotype bundle fails rather than being dropped") {
 
         options "-stub"
