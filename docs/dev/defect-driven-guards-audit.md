@@ -491,7 +491,9 @@ to this module, so it is filed here rather than after 8.5.
 | 35 | `tests/nextflow.config`: `MPH_MAKEGRM\|MPH_REML` container override, cpus/memory not pinned, with a comment | Prose only. |
 
 On seeds, for the record: `tests/nextflow.config` does **not** pin an MPH seed; the route test does
-(`tests/heritability_mph_reml.nf.test:45,110`). Issue #67.
+(`tests/heritability_mph_reml.nf.test:36`, the `mph: [seed: 7]` method option, and `:108`, the assertion
+that every rendered REML command carries `--seed 7`). Line numbers refreshed after the validation-rejection
+collapse removed the `executionModes` loop from that file. Issue #67.
 
 ### 8.6 Two corrections recorded during filing
 
