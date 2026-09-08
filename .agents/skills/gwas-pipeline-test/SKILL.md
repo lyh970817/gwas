@@ -70,7 +70,8 @@ fixtures itself, for use outside the dev shell.
 For broad validation, confirm `GWAS_TEST_FIXTURES` is exported (above) before starting anything long, then
 use `nf-test-parallel --verbose` when the development shell provides it; it prints the fixture root it is
 using as its first line, so check that line rather than assuming. Select another
-profile with `NFT_PROFILE`. The shard count defaults to `min(6, max(1, floor(MemTotal_GB / 4)))` read from
+profile with `NFT_PROFILE`, and `NFT_SHARD_ROOT` to put the shard work dirs and logs outside the synced
+repository folder (default `.nf-test-shards`). The shard count defaults to `min(6, max(1, floor(MemTotal_GB / 4)))` read from
 `/proc/meminfo`, because the ceiling is the box's memory rather than its cores: each shard runs a heap-capped
 nf-test JVM, a Nextflow head JVM and their Docker tasks. Six shards therefore need at least 24 GB, and this
 machine (12.5 GB) derives 3 — running six here exhausted memory and froze the box mid-suite. The wrapper

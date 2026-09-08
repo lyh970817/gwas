@@ -262,7 +262,13 @@ PY
       fi
 
       profile="''${NFT_PROFILE:-+docker}"
-      shard_root=".nf-test-shards"
+
+      # Shard work dirs and logs are large, short-lived and rewritten constantly. Inside the
+      # repository folder a file-sync daemon indexes every one of them while the suite runs, which
+      # costs I/O the shards are already contending for. NFT_SHARD_ROOT moves the whole shard root
+      # somewhere unsynced (a scratchpad, /tmp) without changing anything else about the run; the
+      # default keeps the in-repo path that .gitignore already covers.
+      shard_root="''${NFT_SHARD_ROOT:-.nf-test-shards}"
 
       # Materialize once here rather than letting six shards each do it: the bundle is
       # content-addressed and flock-guarded so concurrent calls would be safe, just wasteful. Aborting
