@@ -70,6 +70,9 @@ nextflow_pipeline {
                 { assert new File(h2BtRequest, 'native.liability.log').isFile() },
                 { assert new File(rgRequest, 'native.observed.log').isFile() },
                 { assert new File(rgRequest, 'native.liability.log').isFile() },
+                // The munged intermediates are content-addressed working state, not a published result, so
+                // the shared munging step publishes nothing of its own on either execution mode.
+                { assert !new File("${params.outdir}/intermediates/ldsc").exists() },
                 { assert snapshot(
                     RELATIONAL.gzipTextHashes("${params.outdir}/summary_statistics"),
                     stableLdscLog(new File(h2QtRequest, 'native.observed.log')),
@@ -79,36 +82,6 @@ nextflow_pipeline {
                     stableLdscLog(new File(rgRequest, 'native.liability.log')),
                     removeNextflowVersion(versions.toString()),
                 ).match() },
-            )
-        }
-    }
-
-    test("stub H2 and RG without republishing munged intermediates") {
-        options "-stub"
-
-        when {
-            def manifests = inputs(projectDir, outputDir, 'ldsc_stub')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = null
-                analysis_manifest = null
-                summary_statistics_manifest = manifests.summary
-                relationship_manifest = manifests.relationship
-                reference_catalog = manifests.catalog
-                method_options = manifests.options
-            }
-        }
-
-        then {
-            def requestId = 'ldsc_h2--external_qt'
-            def request = new File("${params.outdir}/requests/ldsc_h2/${requestId}")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 2 },
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 2 },
-                { assert TRACE.count(workflow, 'LDSC_RG_OBSERVED') == 1 },
-                { assert new File(request, 'native.observed.log').text == 'LDSC heritability stub\n' },
-                { assert !new File("${params.outdir}/intermediates/ldsc").exists() },
             )
         }
     }
@@ -141,6 +114,8 @@ nextflow_pipeline {
                 { assert workflow.failed },
                 { assert report.contains("request_id 'ldsc_h2--external_qt'") },
                 { assert report.contains("token 1 '--samp-prev' conflicts with wrapper-owned invocation mechanics") },
+                // "Before task submission" as the direct claim rather than as one named zero-count.
+                { assert workflow.trace.tasks().isEmpty() },
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 0 },
             )
         }

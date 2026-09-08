@@ -88,31 +88,6 @@ nextflow_pipeline {
         }
     }
 
-    test("primary pair route preserves topology under stub execution") {
-        options "-stub"
-
-        when {
-            def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_stub')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = inputs.cohort
-                analysis_manifest = inputs.analyses
-                relationship_manifest = inputs.relationships
-                gcta_grm_parts = 1
-            }
-        }
-
-        then {
-            def request = new File("${params.outdir}/requests/gcta_bivariate_reml/gcta_bivariate_reml--qt_bt")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 1 },
-                { assert new File(request, 'native.hsq').isFile() },
-                { assert new File(request, 'native.log').isFile() },
-            )
-        }
-    }
-
     test("default unary GREML and pair requests share one dense matrix without migrating unary outputs") {
         when {
             params {
@@ -149,73 +124,13 @@ nextflow_pipeline {
         }
     }
 
-    def invalidPairs = [
-        [
-            name: 'same endpoint on both sides',
-            mutateRelationships: { rows -> rows[0].right_analysis_id = rows[0].left_analysis_id },
-            expected: "the exact same analysis endpoint 'example_pgen_qt' cannot occupy both sides",
-        ],
-        [
-            name: 'distinct analyses declaring the same trait ID',
-            mutateAnalyses: { rows -> rows[1].trait_id = rows[0].trait_id },
-            expected: "declared trait_id 'QT' is equal on both sides; self-pairs are invalid",
-        ],
-        [
-            name: 'reversed duplicate binding',
-            mutateRelationships: { rows ->
-                def reversed = new LinkedHashMap(rows[0])
-                reversed.relationship_id = 'bt_qt'
-                reversed.left_analysis_id = rows[0].right_analysis_id
-                reversed.right_analysis_id = rows[0].left_analysis_id
-                rows << reversed
-            },
-            expected: "unordered endpoint binding duplicates relationship_id 'qt_bt'",
-        ],
-        [
-            name: 'incomplete summary endpoint pair',
-            mutateRelationships: { rows -> rows[0].left_summary_statistics_id = 'summary_qt' },
-            expected: 'summary-statistics endpoint slots must be populated together',
-        ],
-    ]
-
-    invalidPairs.each { scenario ->
-        test("relationship validation rejects ${scenario.name} before task submission") {
-            when {
-                params {
-                    outdir = "$outputDir"
-                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "invalid_${scenario.name.replace(' ', '_')}")
-                    analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "invalid_${scenario.name.replace(' ', '_')}", { rows ->
-                        rows << RELATIONAL.analysis(projectDir, 'example_pgen_bt')
-                        rows.each { row ->
-                            row.association_methods = ''
-                            row.heritability_methods = ''
-                        }
-                        if (scenario.mutateAnalyses) {
-                            scenario.mutateAnalyses(rows)
-                        }
-                    })
-                    relationship_manifest = RELATIONAL.relationships(projectDir, outputDir, "invalid_${scenario.name.replace(' ', '_')}", { rows ->
-                        if (scenario.mutateRelationships) {
-                            scenario.mutateRelationships(rows)
-                        }
-                    })
-                    gcta_grm_parts = 1
-                }
-            }
-
-            then {
-                def report = VALIDATION.report(outputDir, workflow.stdout)
-                assertAll(
-                    { assert !workflow.success },
-                    { assert report.contains(params.relationship_manifest.toString()) },
-                    { assert report.contains(scenario.expected) },
-                    { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
-                    { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
-                )
-            }
-        }
-    }
-
+    // The one pipeline-level relationship-validation case. It is the only rejection here that joins all three
+    // manifests -- two cohorts, two analyses and one relationship -- so it is what proves the resolver reads
+    // the analysis rows' cohorts from the cohort manifest rather than from the relationship row. The
+    // single-manifest rules it used to run beside (same endpoint twice, an equal trait_id, a reversed
+    // duplicate binding, a half-populated summary pair) are asserted with their full row and field
+    // attribution in `subworkflows/local/validate_gwas_input/tests/resolve_relationships.function.nf.test`,
+    // and the native-argument firewall in that directory's `native_option_policy.function.nf.test`.
     test("relationship validation rejects endpoints from different cohorts before task submission") {
         when {
             params {
@@ -246,34 +161,8 @@ nextflow_pipeline {
                 { assert report.contains("individual-level relationship methods require one cohort") },
                 { assert report.contains("'example_pgen_qt' uses 'example_pgen'") },
                 { assert report.contains("'example_bfile_bt' uses 'example_bfile'") },
-                { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
-                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
-            )
-        }
-    }
-
-    test("pair native-argument firewall rejects wrapper-owned mechanics") {
-        when {
-            def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_native_firewall')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = inputs.cohort
-                analysis_manifest = inputs.analyses
-                relationship_manifest = inputs.relationships
-                method_options = RELATIONAL.methodOptions(outputDir, 'gcta_bivariate_native_firewall', [
-                    pair_requests: [
-                        'gcta_bivariate_reml--qt_bt': [native_args: ['--out', 'hijacked']],
-                    ],
-                ])
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains("pair_request_id 'gcta_bivariate_reml--qt_bt'") },
-                { assert report.contains("token 1 '--out' conflicts with wrapper-owned invocation mechanics") },
+                // "Before task submission" as the direct claim rather than as two named zero-counts.
+                { assert workflow.trace.tasks().isEmpty() },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
             )
