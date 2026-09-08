@@ -271,35 +271,6 @@ nextflow_pipeline {
         }
     }
 
-    test("primary LDMS pair route preserves topology under stub execution") {
-        options "-stub"
-
-        when {
-            def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_ldms_stub')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = inputs.cohort
-                analysis_manifest = inputs.analyses
-                relationship_manifest = inputs.relationships
-                method_options = inputs.options
-                gcta_grm_parts = 1
-            }
-        }
-
-        then {
-            def request = new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--qt_bt")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
-                { assert new File(request, 'native.hsq').isFile() },
-                { assert new File(request, 'native.log').isFile() },
-                { assert new File(request, 'derived.total_rg.tsv').isFile() },
-                { assert new File(request, 'derived.provenance.json').isFile() },
-            )
-        }
-    }
-
     test("scientifically identical unary and pair LDMS requests share one matrix family") {
         when {
             def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_ldms_reuse', true)

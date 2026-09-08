@@ -234,62 +234,7 @@ nextflow_pipeline {
         }
     }
 
-    def invalidOptions = [
-        [
-            name: 'invalid scalar type',
-            value: 'close',
-            reason: 'number between 0 and 1',
-            associationMethod: 'gcta_fastgwa',
-            heritabilityMethod: '',
-        ],
-        [
-            name: 'out of range value',
-            value: 1.01,
-            reason: 'number between 0 and 1',
-            associationMethod: 'gcta_fastgwa',
-            heritabilityMethod: '',
-        ],
-        [
-            name: 'unselected fastGWA option',
-            value: 0.025,
-            reason: "consumed by 'gcta_fastgwa' only",
-            associationMethod: '',
-            heritabilityMethod: 'gcta_greml',
-        ],
-    ]
-
-    invalidOptions.each { scenario ->
-        test("method-options rejects ${scenario.name} before matrix construction") {
-            when {
-                params {
-                    outdir = "$outputDir"
-                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "gcta_sparse_${scenario.name.replace(' ', '_')}")
-                    analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "gcta_sparse_${scenario.name.replace(' ', '_')}", { rows ->
-                        rows[0].association_methods = scenario.associationMethod
-                        rows[0].heritability_methods = scenario.heritabilityMethod
-                    })
-                    method_options = RELATIONAL.methodOptions(
-                        outputDir,
-                        "gcta_sparse_${scenario.name.replace(' ', '_')}",
-                        [example_pgen_qt: [gcta: [sparse_cutoff: scenario.value]]],
-                    )
-                    gcta_grm_parts = 1
-                }
-            }
-
-            then {
-                def report = VALIDATION.report(outputDir, workflow.stdout)
-                assertAll(
-                    { assert !workflow.success },
-                    { assert report.contains(params.method_options.toString()) },
-                    { assert report.contains("analysis_id 'example_pgen_qt'") },
-                    { assert report.contains("option 'gcta.sparse_cutoff'") },
-                    { assert report.contains(scenario.reason) },
-                    { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
-                    { assert TRACE.count(workflow, 'GCTA_MAKEBKSPARSE') == 0 },
-                    { assert TRACE.count(workflow, 'GCTA_FASTGWA') == 0 },
-                )
-            }
-        }
-    }
+    // The `gcta.sparse_cutoff` refusals this file used to drive are asserted, message and attribution alike,
+    // by `subworkflows/local/validate_gwas_input/tests/method_options_gcta.function.nf.test`; the family's
+    // pipeline sentinel is `relational_gcta_greml.nf.test`.
 }
