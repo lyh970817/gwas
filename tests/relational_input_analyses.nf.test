@@ -64,179 +64,10 @@ nextflow_pipeline {
         }
     }
 
-    def invalidAnalysisScenarios = [
-        [
-            name: "binary analysis without a case source code",
-            fixture: "binary_without_case",
-            source: "example_pgen_bt",
-            mutate: { row -> row.case_value = '' },
-            field: "field 'case_value'",
-            message: "must declare the value used for cases",
-        ],
-        [
-            name: "binary analysis without a control source code",
-            fixture: "binary_without_control",
-            source: "example_pgen_bt",
-            mutate: { row -> row.control_value = '' },
-            field: "field 'control_value'",
-            message: "must declare the value used for controls",
-        ],
-        [
-            name: "binary analysis with identical case and control source codes",
-            fixture: "binary_identical_codes",
-            source: "example_pgen_bt",
-            mutate: { row -> row.case_value = row.control_value },
-            field: "fields 'case_value', 'control_value'",
-            message: "must be distinct",
-        ],
-        [
-            name: "quantitative analysis with a case source code",
-            fixture: "quantitative_with_case",
-            mutate: { row -> row.case_value = '2' },
-            field: "field 'case_value'",
-            message: "no meaning on a quantitative trait",
-        ],
-        [
-            name: "quantitative analysis with a control source code",
-            fixture: "quantitative_with_control",
-            mutate: { row -> row.control_value = '1' },
-            field: "field 'control_value'",
-            message: "no meaning on a quantitative trait",
-        ],
-        [
-            name: "quantitative analysis with population prevalence",
-            fixture: "quantitative_with_prevalence",
-            mutate: { row -> row.population_prevalence = '0.3' },
-            field: "field 'population_prevalence'",
-            message: "no meaning on a quantitative trait",
-        ],
-        [
-            name: "analysis selecting no method",
-            fixture: "analysis_without_method",
-            mutate: { row ->
-                row.association_methods = ''
-                row.heritability_methods = ''
-            },
-            field: "fields 'association_methods', 'heritability_methods'",
-            message: "row selects no method",
-        ],
-        [
-            name: "analysis selecting an unknown association method",
-            fixture: "unknown_association_method",
-            mutate: { row -> row.association_methods = 'plink3' },
-            field: "field 'association_methods'",
-            message: "unknown method 'plink3'",
-            accepted: "accepted values are 'regenie', 'gcta_fastgwa', 'ldak_kvik'",
-        ],
-        [
-            name: "analysis selecting an unknown heritability method",
-            fixture: "unknown_heritability_method",
-            mutate: { row ->
-                row.association_methods = ''
-                row.heritability_methods = 'greml3'
-            },
-            field: "field 'heritability_methods'",
-            message: "unknown method 'greml3'",
-            accepted: "accepted values are 'gcta_greml', 'gcta_greml_ldms', 'ldak_reml', 'ldak_he', 'ldak_pcgc', 'ldak_fast_he', 'ldak_fast_pcgc'",
-        ],
-        [
-            name: "analysis repeating an association method",
-            fixture: "duplicate_association_method",
-            mutate: { row -> row.association_methods = 'regenie,regenie' },
-            field: "field 'association_methods'",
-            message: "method 'regenie' listed more than once",
-        ],
-        [
-            name: "analysis repeating a heritability method",
-            fixture: "duplicate_heritability_method",
-            mutate: { row ->
-                row.association_methods = ''
-                row.heritability_methods = 'gcta_greml,gcta_greml'
-            },
-            field: "field 'heritability_methods'",
-            message: "method 'gcta_greml' listed more than once",
-        ],
-        [
-            name: "PCGC analysis without required population prevalence",
-            fixture: "pcgc_without_prevalence",
-            source: "example_pgen_bt",
-            mutate: { row -> row.heritability_methods = 'ldak_pcgc' },
-            field: "field 'population_prevalence'",
-            message: "method(s) ldak_pcgc always estimate on the liability scale and require a population prevalence",
-        ],
-        [
-            name: "binary REGENIE analysis with unconsumed population prevalence",
-            fixture: "regenie_with_prevalence",
-            source: "example_pgen_bt",
-            mutate: { row -> row.population_prevalence = '0.3' },
-            field: "field 'population_prevalence'",
-            message: "none of the selected estimators consumes it",
-        ],
-        [
-            name: "analysis selecting the retired plink2 association method",
-            fixture: "retired_plink2_selector",
-            mutate: { row -> row.association_methods = 'plink2' },
-            field: "field 'association_methods'",
-            message: "unknown method 'plink2'",
-            accepted: "accepted values are 'regenie', 'gcta_fastgwa', 'ldak_kvik'",
-        ],
-    ]
-
-    invalidAnalysisScenarios.each { scenario ->
-        test(scenario.name) {
-
-            when {
-                params {
-                    outdir = "$outputDir"
-                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, scenario.fixture)
-                    analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, scenario.fixture, { rows ->
-                        rows.clear()
-                        rows << RELATIONAL.analysis(projectDir, scenario.source ?: 'example_pgen_qt')
-                        scenario.mutate(rows[0])
-                    })
-                }
-            }
-
-            then {
-                def report = VALIDATION.report(outputDir, workflow.stdout)
-                assertAll(
-                    { assert !workflow.success },
-                    { assert report.contains(params.analysis_manifest.toString()) },
-                    { assert report.contains("row 2 (analysis_id '${scenario.source ?: 'example_pgen_qt'}')") },
-                    { assert report.contains(scenario.field) },
-                    { assert report.contains(scenario.message) },
-                    { assert !scenario.accepted || report.contains(scenario.accepted) },
-                    { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-                )
-            }
-        }
-    }
-
-    test("sample prevalence is rejected for a quantitative analysis") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "quantitative_sample_prevalence")
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "quantitative_sample_prevalence", { rows ->
-                    rows[0].sample_prevalence = 0.4
-                })
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains(params.analysis_manifest.toString()) },
-                { assert report.contains("row 2 (analysis_id 'example_pgen_qt')") },
-                { assert report.contains("field 'sample_prevalence'") },
-                { assert report.contains('sample prevalence has no meaning on a quantitative trait') },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-            )
-        }
-    }
-
+    // The pipeline-level sentinel for the analysis-manifest contracts. Every other rule in that family is
+    // asserted, message and attribution included, by resolve_input.function.nf.test; this case is kept because
+    // it is the cross-manifest link — an analysis row resolved against the cohort manifest — and because only a
+    // pipeline run can prove the refusal happens before any task is submitted.
     test("an analysis naming an undefined cohort fails before task submission") {
 
         when {
@@ -258,63 +89,17 @@ nextflow_pipeline {
                 { assert report.contains("field 'cohort_id'") },
                 { assert report.contains("undefined cohort_id 'missing_cohort'") },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
+                // Stronger than any list of named zero-counts: nothing at all was submitted.
+                { assert workflow.trace.tasks().isEmpty() },
             )
         }
     }
 
-    test("an identical duplicate cohort definition fails before task submission") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "duplicate_cohort", { rows ->
-                    rows << new LinkedHashMap(rows[0])
-                })
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "duplicate_cohort")
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains(params.cohort_manifest.toString()) },
-                { assert report.contains("row 3 (cohort_id 'example_pgen')") },
-                { assert report.contains("field 'cohort_id'") },
-                { assert report.contains("duplicate cohort_id 'example_pgen'") },
-                { assert report.contains('identical definition on row 2') },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-            )
-        }
-    }
-
-    test("a duplicate analysis identity fails before task submission") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "duplicate_analysis")
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "duplicate_analysis", { rows ->
-                    def duplicate = new LinkedHashMap(rows[0])
-                    duplicate.trait_id = 'QT2'
-                    rows << duplicate
-                })
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains(params.analysis_manifest.toString()) },
-                { assert report.contains("row 3 (analysis_id 'example_pgen_qt')") },
-                { assert report.contains("field 'analysis_id'") },
-                { assert report.contains("duplicate analysis_id 'example_pgen_qt', already declared on row 2") },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-            )
-        }
-    }
-
+    // The pipeline-level sentinel for manifest pairing. The rule lives in the VALIDATE_GWAS_INPUT workflow body
+    // rather than in a resolver, so it has no function form at all; this case additionally proves that a null
+    // --analysis_manifest passes nf-schema and that the pairing check fires before samplesheetToList. Its
+    // mirror image, an analysis manifest with no cohort manifest, is a workflow-level case in
+    // subworkflows/local/validate_gwas_input/tests/main.nf.test.
     test("a cohort manifest without an analysis manifest is rejected") {
         tag "manifest_pairing"
 
@@ -332,28 +117,7 @@ nextflow_pipeline {
                 { assert !workflow.success },
                 { assert report.contains('--analysis_manifest is missing; linked manifests require both') },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
-            )
-        }
-    }
-
-    test("an analysis manifest without a cohort manifest is rejected") {
-        tag "manifest_pairing"
-
-        when {
-            params {
-                outdir = "$outputDir"
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "analysis_only")
-                cohort_manifest = null
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
-            assertAll(
-                { assert !workflow.success },
-                { assert report.contains('--analysis_manifest') },
-                { assert report.contains('--cohort_manifest is missing; linked manifests require both') },
-                { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
+                { assert workflow.trace.tasks().isEmpty() },
             )
         }
     }
