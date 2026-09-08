@@ -218,15 +218,37 @@ PY
   # *serial* tuned run, not against three shards, and is the basis for preferring six here.
   # Both of these were measured with another suite running on the same box, which inflates the
   # per-case degradation, so treat 1.257x as a floor. Raise the count past six only after measuring;
-  # the constraint is RAM, so a box with less of it should pass a smaller count as the first argument.
+  # the constraint is RAM, which is why the default below is derived from it rather than fixed at six.
   nfTestParallel = pkgs.writeShellApplication {
     name = "nf-test-parallel";
-    runtimeInputs = [ nfTestCli pkgs.coreutils ];
+    runtimeInputs = [ nfTestCli pkgs.coreutils pkgs.gnused ];
     text = ''
-      shards=6
+      shards=""
       if [[ "''${1:-}" =~ ^[0-9]+$ ]]; then
         shards="$1"
         shift
+      fi
+
+      # Shards contend for memory rather than cores: each one runs an nf-test JVM plus a Nextflow head
+      # JVM capped by nfTestJvmArgs, with its Docker tasks on top, and about 4 GB per shard is what that
+      # costs in practice. Six shards therefore need roughly 24 GB; six of them on this 12.5 GB box
+      # exhausted memory and froze the machine mid-suite, which is why the default is derived from
+      # MemTotal instead of being fixed at six. An explicit first argument still wins, in either
+      # direction, so a measurement can still ask for more than the derived count.
+      memory_derived=""
+      if [[ -z "$shards" ]]; then
+        mem_kb=0
+        if [[ -r /proc/meminfo ]]; then
+          mem_kb="$(sed -n 's/^MemTotal:[[:space:]]*\([0-9]*\).*/\1/p' /proc/meminfo)"
+        fi
+        shards=$(( ''${mem_kb:-0} / 1024 / 1024 / 4 ))
+        if (( shards > 6 )); then
+          shards=6
+        fi
+        if (( shards < 1 )); then
+          shards=1
+        fi
+        memory_derived=1
       fi
 
       if (( shards < 1 )); then
@@ -261,6 +283,9 @@ PY
       rm -rf "''${shard_root:?}"/shard-*
       mkdir -p "$shard_root"
 
+      if [[ -n "$memory_derived" ]]; then
+        echo "nf-test-parallel: $shards shards (memory-derived; pass an explicit count to override)"
+      fi
       echo "nf-test-parallel: $shards shards, profile $profile"
 
       pids=()

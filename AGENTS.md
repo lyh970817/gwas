@@ -127,3 +127,8 @@ pinned `GWAS_FIXTURE_SOURCE`; a portable upstream PR checkout has no working fal
 `GWAS_FIXTURE_SOURCE` supplied. Automatic `.references/test-datasets-gwas`
 discovery is personal-track behavior. Run local compact-fixture benchmarks on the personal track, or explicitly
 pin and verify the local source.
+
+`nf-test-parallel` derives its default shard count from `MemTotal` as `min(6, max(1, floor(GB / 4)))`, because
+shards contend for memory rather than cores: six shards need at least 24 GB, and this machine derives 3. Pass
+an explicit count as the first argument to override it in either direction, and do not raise it past the
+derived value while anything else heavy is running on the box.

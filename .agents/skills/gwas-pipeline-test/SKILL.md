@@ -68,12 +68,15 @@ nf-test test tests/<route>.nf.test --profile +docker
 fixtures itself, for use outside the dev shell.
 
 For broad validation, confirm `GWAS_TEST_FIXTURES` is exported (above) before starting anything long, then
-use `nf-test-parallel 6 --verbose` when the development shell provides it; it prints the fixture root it is
+use `nf-test-parallel --verbose` when the development shell provides it; it prints the fixture root it is
 using as its first line, so check that line rather than assuming. Select another
-profile with `NFT_PROFILE`. Six is the default because each launched JVM is heap-capped; the ceiling is the
-box's memory rather than its cores, so pass a smaller count as the first argument when something else is
-already using the machine. Otherwise run all six native shards with
-`nf-test test --profile=+docker --shard i/6`, distinct `NFT_WORKDIR` values, and aggregated exit statuses.
+profile with `NFT_PROFILE`. The shard count defaults to `min(6, max(1, floor(MemTotal_GB / 4)))` read from
+`/proc/meminfo`, because the ceiling is the box's memory rather than its cores: each shard runs a heap-capped
+nf-test JVM, a Nextflow head JVM and their Docker tasks. Six shards therefore need at least 24 GB, and this
+machine (12.5 GB) derives 3 — running six here exhausted memory and froze the box mid-suite. The wrapper
+announces a derived count as `nf-test-parallel: N shards (memory-derived; pass an explicit count to
+override)`; an explicit first argument wins in either direction. Otherwise run the native shards with
+`nf-test test --profile=+docker --shard i/N`, distinct `NFT_WORKDIR` values, and aggregated exit statuses.
 
 ## Run the branch tier
 
@@ -82,7 +85,7 @@ tier instead of the whole suite:
 
 ```console
 export GWAS_TEST_FIXTURES=$(tests/fixtures/materialize.sh --profile docker)
-nf-test-parallel 6 --filter=process,workflow,function --verbose
+nf-test-parallel --filter=process,workflow,function --verbose
 ```
 
 `--filter` selects on the test type each file declares, so the same command selects the same cases on any
