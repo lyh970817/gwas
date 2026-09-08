@@ -15,7 +15,7 @@ Two variables, and they are not interchangeable:
 - **`GWAS_TEST_FIXTURES`** is the materialized, checksum-verified runtime root the tests read
   (`tests/lib/FIXTURES.groovy`, `conf/route_profile_resolver.config`). Every fixture-backed test needs it.
   It is not an optional override.
-- **`GWAS_FIXTURE_SOURCE`** is the canonical source `tests/fixtures/materialize.sh` builds that root *from*.
+- **`GWAS_FIXTURE_SOURCE`** is the canonical source `tests/fixtures/materialize.sh` builds that root _from_.
   Leave it unset to let the script discover `.references/test-datasets-gwas`, including through its
   worktrees; set it to pin an unmerged source without committing a machine-specific path.
 
