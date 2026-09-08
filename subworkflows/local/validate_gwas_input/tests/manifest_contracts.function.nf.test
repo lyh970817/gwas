@@ -17,7 +17,7 @@ nextflow_function {
                 input[0] = '${RELATIONAL.resource(
                     outputDir,
                     'repeated_headers/cohorts.csv',
-                    'cohort_id,genome_build,ancestry,pgen,psam,pvar,pgen\\nexample_pgen,GRCh37,EUR,a.pgen,a.psam,a.pvar,b.pgen\\n',
+                    'cohort_id,genome_build,ancestry,pgen,psam,pvar,pgen\nexample_pgen,GRCh37,EUR,a.pgen,a.psam,a.pvar,b.pgen\n',
                 )}'
                 input[1] = 'Cohort manifest'
                 """
