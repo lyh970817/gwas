@@ -269,101 +269,11 @@ nextflow_pipeline {
         }
     }
 
-    test("HEreg relationship routes preserve topology under stub execution") {
-        options "-stub"
-
-        when {
-            def inputs = quantitativePair(projectDir, outputDir, 'gcta_bivariate_he_stub', 'gcta_bivariate_he')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = inputs.cohort
-                analysis_manifest = inputs.analyses
-                relationship_manifest = inputs.relationships
-                method_options = inputs.options
-                gcta_grm_parts = 1
-            }
-        }
-
-        then {
-            def request = new File("${params.outdir}/requests/gcta_bivariate_he/gcta_bivariate_he--qt_qt2")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 1 },
-                { assert new File(request, 'native.HEreg').isFile() },
-                { assert new File(request, 'native.log').isFile() },
-            )
-        }
-    }
-
-    def rejectedRequests = [
-        [
-            name: 'a binary endpoint',
-            binaryPair: true,
-            expected: 'support two quantitative endpoints only',
-        ],
-        [
-            name: 'declared pair covariates',
-            mutateRelationships: { rows -> rows[0].pair_quant_covariates = "${FIXTURES.UPSTREAM}results/fixtures/pheno_cov/example.qcovar" },
-            expected: 'have no native covariate parameter',
-        ],
-        [
-            name: 'a wrapper-owned native operation',
-            pairOptions: ['gcta_bivariate_he--qt_qt2': [native_args: ['--HEreg-bivar', '1', '3']]],
-            expected: 'conflicts with wrapper-owned invocation mechanics',
-        ],
-    ]
-
-    rejectedRequests.each { scenario ->
-        test("HEreg validation rejects ${scenario.name} before task submission") {
-            when {
-                def name = "gcta_bivariate_he_reject_${scenario.name.replace(' ', '_')}"
-                def analyses = RELATIONAL.analyses(projectDir, outputDir, name, { rows ->
-                    def second = RELATIONAL.analysis(projectDir, 'example_pgen_bt')
-                    if (!scenario.binaryPair) {
-                        second.analysis_id = 'example_pgen_qt2'
-                        second.trait_id = 'QT2'
-                        second.trait_type = 'quantitative'
-                        second.control_value = ''
-                        second.case_value = ''
-                    }
-                    else {
-                        second.population_prevalence = 0.1
-                    }
-                    rows << second
-                    rows.each { row ->
-                        row.association_methods = ''
-                        row.heritability_methods = ''
-                    }
-                })
-                def relationships = RELATIONAL.relationships(projectDir, outputDir, name, { rows ->
-                    rows[0].relationship_id = scenario.binaryPair ? 'qt_bt' : 'qt_qt2'
-                    rows[0].right_analysis_id = scenario.binaryPair ? 'example_pgen_bt' : 'example_pgen_qt2'
-                    rows[0].relationship_methods = 'gcta_bivariate_he'
-                    rows[0].pair_quant_covariates = ''
-                    rows[0].pair_cat_covariates = ''
-                    if (scenario.mutateRelationships) {
-                        scenario.mutateRelationships(rows)
-                    }
-                })
-                params {
-                    outdir = "$outputDir"
-                    cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, name)
-                    analysis_manifest = analyses
-                    relationship_manifest = relationships
-                    method_options = RELATIONAL.methodOptions(outputDir, name, [analyses: [:], pair_requests: scenario.pairOptions ?: [:]])
-                    gcta_grm_parts = 1
-                }
-            }
-
-            then {
-                def report = VALIDATION.report(outputDir, workflow.stdout)
-                assertAll(
-                    { assert !workflow.success },
-                    { assert report.contains(scenario.expected) },
-                    { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
-                    { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 0 },
-                )
-            }
-        }
-    }
+    // The two HEreg ingress refusals this file used to run -- a binary endpoint under a quantitative-only
+    // selector, and declared pair covariates on a selector with no native covariate parameter -- are rules of
+    // `resolveRelationships` and are asserted with their full row and field attribution in
+    // `subworkflows/local/validate_gwas_input/tests/resolve_relationships.function.nf.test`. The wrapper-owned
+    // `--HEreg-bivar` refusal is the reserved-token rule of the GCTA pair firewall, already asserted in that
+    // directory's `native_option_policy.function.nf.test`. The relationship family's pipeline sentinel is
+    // `tests/relational_gcta_bivariate_reml.nf.test`.
 }
