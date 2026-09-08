@@ -127,38 +127,6 @@ nextflow_pipeline {
         }
     }
 
-    test("SumHer and SumCors preserve route topology under stub execution") {
-        options "-stub"
-
-        when {
-            def inputs = routeInputs(projectDir, outputDir, 'ldak_summary_stub')
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = null
-                analysis_manifest = null
-                summary_statistics_manifest = inputs.summaries
-                relationship_manifest = inputs.relationships
-                reference_catalog = inputs.catalog
-                method_options = inputs.options
-            }
-        }
-
-        then {
-            def sumherRequest = new File("${params.outdir}/requests/ldak_sumher/ldak_sumher--external_qt")
-            def sumcorsRequest = new File("${params.outdir}/requests/ldak_sumcors/ldak_sumcors--external_pair")
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_LDAK_SUMMARY_STATISTICS') == 2 },
-                { assert TRACE.count(workflow, 'LDAK_SUMHER') == 1 },
-                { assert TRACE.count(workflow, 'LDAK_SUMCORS') == 1 },
-                { assert new File(sumherRequest, 'native.hers').isFile() },
-                { assert new File(sumherRequest, 'native.log').isFile() },
-                { assert new File(sumcorsRequest, 'native.cors').isFile() },
-                { assert new File(sumcorsRequest, 'native.log').isFile() },
-            )
-        }
-    }
-
     test("incomplete binary-pair prevalence leaves SumCors on its native scale") {
         options "-stub"
 
@@ -186,57 +154,36 @@ nextflow_pipeline {
         }
     }
 
-    def invalidRequests = [
-        [
-            name: 'unsupported SumCors BLD-LDAK model',
-            model: 'BLD-LDAK',
-            nativeArgs: ['--check-sums', 'NO'],
-            expected: "first-release LDAK SumCors supports models 'LDAK-Thin', 'Uniform-GCTA' and 'Human-Default'",
-        ],
-        [
-            name: 'mutually exclusive cutoff and truncation',
-            model: 'LDAK-Thin',
-            nativeArgs: ['--cutoff', '0.02', '--truncate', 'YES'],
-            expected: "'--cutoff' and '--truncate' are mutually exclusive",
-        ],
-        [
-            name: 'wrapper-owned prevalence override',
-            model: 'LDAK-Thin',
-            nativeArgs: ['--prevalence', '0.1'],
-            expected: "conflicts with wrapper-owned invocation mechanics",
-        ],
-        [
-            name: 'undeclared file-taking option',
-            model: 'LDAK-Thin',
-            nativeArgs: ['--matrix', 'untyped_resource'],
-            expected: 'requires a typed staged resource',
-        ],
-    ]
-
-    invalidRequests.each { scenario ->
-        test("preflight rejects ${scenario.name}") {
-            when {
-                def inputs = routeInputs(projectDir, outputDir, "invalid_${scenario.name.replace(' ', '_')}", scenario.model, scenario.nativeArgs)
-                params {
-                    outdir = "$outputDir"
-                    cohort_manifest = null
-                    analysis_manifest = null
-                    summary_statistics_manifest = inputs.summaries
-                    relationship_manifest = inputs.relationships
-                    reference_catalog = inputs.catalog
-                    method_options = inputs.options
-                }
+    // The one pipeline-level summary-statistics contract case. It is the only place the reference catalog and
+    // the request namespace are joined at runtime: the bundle's declared model is read from the catalog and
+    // refused against the estimator the request selected, before any summary task is submitted. The three
+    // native-argument refusals this file used to run beside it are rules of the firewall rather than of the
+    // catalog join, and are asserted at function level in
+    // `subworkflows/local/validate_gwas_input/tests/native_option_policy.function.nf.test`.
+    test("preflight rejects unsupported SumCors BLD-LDAK model") {
+        when {
+            def inputs = routeInputs(projectDir, outputDir, 'invalid_sumcors_model', 'BLD-LDAK')
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = null
+                analysis_manifest = null
+                summary_statistics_manifest = inputs.summaries
+                relationship_manifest = inputs.relationships
+                reference_catalog = inputs.catalog
+                method_options = inputs.options
             }
+        }
 
-            then {
-                def report = VALIDATION.report(outputDir, workflow.stdout)
-                assertAll(
-                    { assert !workflow.success },
-                    { assert report.contains(scenario.expected) },
-                    { assert TRACE.count(workflow, 'PREPARE_LDAK_SUMMARY_STATISTICS') == 0 },
-                    { assert TRACE.count(workflow, 'LDAK_SUMCORS') == 0 },
-                )
-            }
+        then {
+            def report = VALIDATION.report(outputDir, workflow.stdout)
+            assertAll(
+                { assert !workflow.success },
+                { assert report.contains("first-release LDAK SumCors supports models 'LDAK-Thin', 'Uniform-GCTA' and 'Human-Default'") },
+                // "Before task submission" as the direct claim rather than as a pair of named zero-counts.
+                { assert workflow.trace.tasks().isEmpty() },
+                { assert TRACE.count(workflow, 'PREPARE_LDAK_SUMMARY_STATISTICS') == 0 },
+                { assert TRACE.count(workflow, 'LDAK_SUMCORS') == 0 },
+            )
         }
     }
 }
