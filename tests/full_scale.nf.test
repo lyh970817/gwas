@@ -50,7 +50,7 @@ nextflow_pipeline {
             def stable_path_summary_statistics = RELATIONAL.gzipTextHashes(summary_statistics.toString())
             def input_pvar = null
             new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
-                if (input_pvar == null && entry.isFile() && entry.name == 'example_cohort.pvar') {
+                if (input_pvar == null && entry.isFile() && entry.name == 'example_all.pvar') {
                     input_pvar = entry
                 }
             }
