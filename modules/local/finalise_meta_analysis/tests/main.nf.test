@@ -10,7 +10,7 @@ nextflow_process {
 
     def writeTable = { outputDir, name, text ->
         def target = new File(outputDir.toString(), name)
-        target.text = text.stripIndent().trim() + '\n'
+        target.text = text.readLines().collect { line -> line.trim() }.findAll { line -> line }.join('\n') + '\n'
         target
     }
     def inputs = { outputDir ->
