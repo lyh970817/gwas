@@ -26,7 +26,7 @@ workflow ROUTE_REGENIE_ASSOCIATIONS {
     def ch_requests = ch_analyses.map { meta, primary, variant_file, sample_file, phenotype, covariates, view_key ->
         def step1_bsize = meta.method_options.regenie.step1_bsize
         def prediction_key = buildRegeniePredictionKey(view_key, meta.is_binary, phenotype, covariates ?: [], step1_bsize)
-        def fit_meta = [id: "regenie.${prediction_key}", is_binary: meta.is_binary]
+        def fit_meta = [id: "regenie.${prediction_key}", is_binary: meta.is_binary, cat_covariate_names: meta.cat_covariate_names]
         [prediction_key, meta, fit_meta, primary, variant_file, sample_file, phenotype, covariates ?: [], step1_bsize]
     }
 
