@@ -125,7 +125,7 @@ def resolveRequestNamespace(method_options, document, namespace, primary_request
             reference_bundle_id: bundle ? bundle.id : null,
             reference_family: bundle ? bundle.family : null,
             reference_metadata: bundle
-                ? bundle.subMap(['id', 'family', 'genome_build', 'ancestry', 'variant_id_system', 'model', 'role_names', 'declared_checksums'])
+                ? bundle.subMap(['id', 'family', 'genome_build', 'ancestry', 'variant_id_system', 'model', 'role_names'])
                 : null,
             reference_validation: bundle ? 'structural_availability_only' : null,
         ]

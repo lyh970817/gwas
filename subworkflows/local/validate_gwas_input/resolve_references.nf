@@ -44,9 +44,7 @@ def readReferenceCatalog(reference_catalog) {
             def required = family == 'ldsc'
                 ? ['genome_build', 'ancestry', 'variant_id_system', 'hapmap3_snplist', 'reference_ld_scores', 'regression_weights']
                 : ['genome_build', 'ancestry', 'variant_id_system', 'model', 'tagging_file']
-            def optional = family == 'ldsc'
-                ? ['hapmap3_sha256', 'reference_ld_scores_sha256', 'regression_weights_sha256']
-                : ['tagging_sha256']
+            def optional = []
             def unknown = definition.keySet().findAll { field -> !(field in required + optional) }
             if (unknown) {
                 fail.call(bundle_id, unknown.first().toString(), "unknown field; accepted fields are ${(required + optional).join(', ')}")
@@ -91,7 +89,6 @@ def readReferenceCatalog(reference_catalog) {
                 variant_id_system: definition.variant_id_system,
                 model: family == 'ldak' ? definition.model : null,
                 role_names: role_fields.collectEntries { field -> [(field): resources[field].name] },
-                declared_checksums: optional.collectEntries { field -> [(field): definition[field] ?: null] },
                 resources: resources,
             ]
         }
