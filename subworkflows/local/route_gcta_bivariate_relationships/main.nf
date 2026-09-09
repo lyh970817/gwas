@@ -16,16 +16,12 @@
 // no params, no workflow and no projectDir.
 
 // MODULES: Installed directly from nf-core/modules
-include { GCTA_BIVARIATEREML          } from '../../../modules/nf-core/gcta/bivariatereml/main'
-include { GCTA_BIVARIATEREMLLDMS      } from '../../../modules/nf-core/gcta/bivariateremlldms/main'
+include { GCTA_BIVARIATEREML      } from '../../../modules/nf-core/gcta/bivariatereml/main'
+include { GCTA_BIVARIATEREMLLDMS  } from '../../../modules/nf-core/gcta/bivariateremlldms/main'
 
 // MODULE: Local to the pipeline
-include { DERIVE_GCTA_BIVARIATE_TOTAL } from '../../../modules/local/derive_gcta_bivariate_total/main'
-include { GCTA_BIVARIATEHEREG         } from '../../../modules/local/gcta/bivariatehereg/main'
-include { GCTA_BIVARIATEHEREGLDMS     } from '../../../modules/local/gcta/bivariateheregldms/main'
-
-// FUNCTION: Local to the pipeline
-include { getMethodCapabilities       } from '../validate_gwas_input/method_registry'
+include { GCTA_BIVARIATEHEREG     } from '../../../modules/local/gcta/bivariatehereg/main'
+include { GCTA_BIVARIATEHEREGLDMS } from '../../../modules/local/gcta/bivariateheregldms/main'
 
 workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     take:
@@ -152,42 +148,6 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     )
 
     //
-    // MODULE: pipeline-owned genome-wide total for the multi-component REML-LDMS fit
-    //
-    // `gcta --reml-bivar --mgrm` reports a genetic correlation per component and no genome-wide total, which
-    // is the primary result a multi-component analysis is asked for. The complete sampling
-    // variance/covariance matrix a valid delta-method standard error needs is written to the native log and
-    // to no other file, so the log is joined back to the `.hsq` of the same task on the request identity and
-    // both are handed to the derivation, which refuses any block whose dimension or parameter order
-    // disagrees with the result rather than guessing (#34).
-    //
-    // The request identity is restored as `id` here because the derived files are request-addressed, while
-    // the matrix reuse key stays available for the provenance record and is stripped at emit like every
-    // other emit of this controller. The registry's estimator block travels with it so the sidecar states
-    // the estimator from the registry rather than from a literal repeated here.
-    def capabilities = getMethodCapabilities()
-
-    def ch_reml_ldms_native = GCTA_BIVARIATEREMLLDMS.out.bivariate_results
-        .map { meta, result -> [meta.request_id, meta, result] }
-        .join(
-            GCTA_BIVARIATEREMLLDMS.out.log_file.map { meta, log -> [meta.request_id, log] },
-            failOnDuplicate: true,
-            failOnMismatch: true,
-        )
-        .map { _request_id, meta, result, log ->
-            [
-                meta + [
-                    id: meta.request_id,
-                    gcta_capability: capabilities[meta.method].subMap(['option_family', 'estimator_family', 'input_backend', 'component_model', 'stochastic']),
-                ],
-                result,
-                log,
-            ]
-        }
-
-    DERIVE_GCTA_BIVARIATE_TOTAL(ch_reml_ldms_native)
-
-    //
     // MODULE: primary GCTA bivariate HEreg-LDMS relationship request
     //
     // The multi-component moment fit emits its own native component and total results.
@@ -202,16 +162,14 @@ workflow ROUTE_GCTA_BIVARIATE_RELATIONSHIPS {
     )
 
     emit:
-    reml_results         = GCTA_BIVARIATEREML.out.bivariate_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
-    reml_log             = GCTA_BIVARIATEREML.out.log_file.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
-    hereg_results        = GCTA_BIVARIATEHEREG.out.hereg_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
-    hereg_log            = GCTA_BIVARIATEHEREG.out.log.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
-    reml_ldms_results    = GCTA_BIVARIATEREMLLDMS.out.bivariate_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
-    reml_ldms_log        = GCTA_BIVARIATEREMLLDMS.out.log_file.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
-    hereg_ldms_results   = GCTA_BIVARIATEHEREGLDMS.out.hereg_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
-    hereg_ldms_log       = GCTA_BIVARIATEHEREGLDMS.out.log.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
-    reml_ldms_total      = DERIVE_GCTA_BIVARIATE_TOTAL.out.total.map { meta, total -> [stripMatrixReuseIdentity(meta), total] } // channel: [ val(meta), path(derived.total_rg.tsv) ]
-    reml_ldms_provenance = DERIVE_GCTA_BIVARIATE_TOTAL.out.provenance.map { meta, provenance -> [stripMatrixReuseIdentity(meta), provenance] } // channel: [ val(meta), path(derived.provenance.json) ]
+    reml_results       = GCTA_BIVARIATEREML.out.bivariate_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
+    reml_log           = GCTA_BIVARIATEREML.out.log_file.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    hereg_results      = GCTA_BIVARIATEHEREG.out.hereg_results.map { meta, result -> [stripMatrixReuseIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
+    hereg_log          = GCTA_BIVARIATEHEREG.out.log.map { meta, log -> [stripMatrixReuseIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    reml_ldms_results  = GCTA_BIVARIATEREMLLDMS.out.bivariate_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.hsq) ]
+    reml_ldms_log      = GCTA_BIVARIATEREMLLDMS.out.log_file.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    hereg_ldms_results = GCTA_BIVARIATEHEREGLDMS.out.hereg_results.map { meta, result -> [stripNativeMatrixIdentity(meta), result] } // channel: [ val(meta), path(native.HEreg) ]
+    hereg_ldms_log     = GCTA_BIVARIATEHEREGLDMS.out.log.map { meta, log -> [stripNativeMatrixIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
 }
 
 /*
@@ -231,9 +189,8 @@ def resolveLdmsRouteMeta(matrix_meta, pair_meta) {
 }
 
 // Dense inputs carry the matrix reuse key for attribution, but it is not part of the emitted request record.
-// The registry block the derivation records in its sidecar is route-local in the same way and leaves with it.
 def stripMatrixReuseIdentity(meta) {
-    return meta.findAll { key, _value -> !(key in ['matrix_key', 'gcta_capability']) }
+    return meta.findAll { key, _value -> key != 'matrix_key' }
 }
 
 // LDMS execution uses the matrix reuse key as its task-local output identity. Drop that key and restore the

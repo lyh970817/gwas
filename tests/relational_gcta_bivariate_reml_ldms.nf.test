@@ -27,7 +27,7 @@ nextflow_pipeline {
                 // in either the constrained or the unconstrained configuration (the constrained fit exhausts
                 // 500 iterations, the unconstrained one reports a non-invertible X'V^-1X). The one-stratum
                 // case above keeps the covariate-bearing coverage; this case declares a covariate-free
-                // relationship so a genuinely multi-component fit exists to derive a total from.
+                // relationship so a genuinely multi-component fit reaches its native per-stratum result.
                 rows[0].pair_quant_covariates = ''
                 rows[0].pair_cat_covariates = ''
             }
@@ -48,7 +48,7 @@ nextflow_pipeline {
                     ldms_maf_edges: [0, 0.5],
                     // A 200-sample two-stratum fit reaches the boundary under GCTA's constrained default and
                     // exhausts the iteration cap, so the multi-component case fits unconstrained. That is a
-                    // user-selectable native choice and it is recorded in the derived provenance.
+                    // user-selectable native choice rendered into the fit unchanged.
                     native_args: strata > 1
                         ? ['--reml-maxit', '500', '--reml-no-constrain']
                         : ['--reml-maxit', '500'],
@@ -61,12 +61,6 @@ nextflow_pipeline {
             relationships: relationships,
             options: RELATIONAL.methodOptions(outputDir, name, options),
         ]
-    }
-
-    def readTable = { file ->
-        def lines = file.text.split('\n')
-        def header = lines[0].split('\t')
-        lines.drop(1).collect { line -> [header, line.split('\t')].transpose().collectEntries() }
     }
 
     def workFiles = { outputDir ->
@@ -99,15 +93,6 @@ nextflow_pipeline {
                 entry.name == '.command.sh' && entry.text.contains('--mgrm') && entry.text.contains('--reml-bivar 1 2')
             }
             def stableRequestNames = request.listFiles()*.name.sort()
-            def derived = readTable(new File(request, 'derived.total_rg.tsv'))
-            def provenance = new groovy.json.JsonSlurper().parse(new File(request, 'derived.provenance.json'))
-            def a = derived[1].left_variance as double
-            def b = derived[1].right_variance as double
-            def t = derived[0].rg as double
-            def degenerateBound = Math.max(
-                1e-4,
-                5e-7 / Math.sqrt(Math.abs(a * b)) + Math.abs(t) * 5e-7 * (1 / (2 * Math.abs(a)) + 1 / (2 * Math.abs(b))),
-            )
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 1 },
@@ -117,41 +102,19 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREML') == 0 },
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 { assert new File(request, 'native.hsq').isFile() },
                 { assert new File(request, 'native.log').isFile() },
-                // The derived files sit beside the native ones and are named so neither can be read as the
-                // other. The native result is republished byte for byte.
-                { assert new File(request, 'derived.total_rg.tsv').isFile() },
-                { assert new File(request, 'derived.provenance.json').isFile() },
+                { assert stableRequestNames == ['native.hsq', 'native.log'] },
                 { assert nativeCommand != null },
                 { assert nativeCommand.text.contains('--reml-bivar-prevalence 0.1') },
                 { assert nativeCommand.text.contains('--reml-maxit 500') },
-                { assert derived*.component == ['total', 'G1'] },
-                { assert derived[0].origin == 'delta_method' && derived[1].origin == 'native' },
-                { assert derived[0].n_components == '1' },
-                // A one-stratum plan is the degenerate case: the total is the single component. The bound is
-                // the rounding of the three six-decimal native inputs propagated through the correlation,
-                // because a fixed absolute tolerance is not safe at compact-fixture variance magnitudes.
-                { assert Math.abs((derived[0].rg as double) - (derived[1].rg as double)) <= degenerateBound },
-                // GCTA reported bending a variance-covariance matrix to positive-definiteness on this fit,
-                // which is its own statement that the standard errors are unreliable. Without carrying that
-                // through, the run would publish a delta-method standard error classified `estimable` for a
-                // fit GCTA itself called unreliable.
-                { assert provenance.warnings.contains('sampling_covariance_bended_se_unreliable') },
-                { assert provenance.classification == 'estimable_with_warning' },
-                { assert provenance.derivation.sampling_covariance_source == 'native_log' },
-                { assert provenance.derivation.n_components == 1 },
-                { assert provenance.derivation.reml_bivar_prevalence == [0.1] },
-                { assert provenance.result.method == 'gcta_bivariate_reml_ldms' },
-                { assert provenance.component_plan.matrix_key != null },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
-                { assert snapshot(stableRequestNames, new File(request, 'native.hsq').text, new File(request, 'derived.total_rg.tsv').text).match('results') },
+                { assert snapshot(stableRequestNames, new File(request, 'native.hsq').text).match('results') },
             )
         }
     }
 
-    test("a two-stratum component plan publishes a derived genome-wide total beside the per-stratum result") {
+    test("a two-stratum component plan publishes native per-stratum correlations") {
         when {
             def inputs = pairInputs(projectDir, outputDir, 'gcta_bivariate_ldms_two_stratum', false, 2)
             params {
@@ -167,58 +130,24 @@ nextflow_pipeline {
         then {
             def request = new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--qt_bt")
             def nativeResult = new File(request, 'native.hsq')
-            def derived = readTable(new File(request, 'derived.total_rg.tsv'))
-            def provenance = new groovy.json.JsonSlurper().parse(new File(request, 'derived.provenance.json'))
-            def total = derived.find { row -> row.component == 'total' }
-            def components = derived.findAll { row -> row.component != 'total' }
-            // The identity the derivation exists to compute, recomputed here from the published per-stratum
-            // rows alone. The tolerance is the rounding of six-decimal inputs, not a fudge factor.
-            def expected = components.sum { row -> row.covariance as double } / Math.sqrt(
-                (components.sum { row -> row.left_variance as double })
-                    * (components.sum { row -> row.right_variance as double })
-            )
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
-                // Two strata, so two per-stratum matrices and a genuinely multi-component fit: a one-stratum
-                // plan cannot tell a correct total from a broken one, because there the single component is
-                // the total.
+                // Two strata produce two per-stratum matrices and two native correlations.
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
-                // GCTA numbers the components and prints no total of its own: that is the gap (#34).
                 { assert nativeResult.text.contains('rG1') && nativeResult.text.contains('rG2') },
                 { assert !nativeResult.readLines().any { line -> line.startsWith('rG\t') } },
                 { assert !nativeResult.text.contains('Sampling variance/covariance') },
-                { assert derived*.component == ['total', 'G1', 'G2'] },
-                { assert derived*.origin == ['delta_method', 'native', 'native'] },
-                { assert total.n_components == '2' },
-                { assert total.scale == 'observed' },
-                { assert Math.abs((total.rg as double) - expected) < 1e-5 },
-                { assert total.rg_se != 'NA' },
-                // The per-stratum rows are GCTA's own numbers, republished unchanged.
-                { assert nativeResult.readLines().find { line -> line.startsWith('rG1\t') }.split('\t').drop(1) == [components[0].rg, components[0].rg_se] },
-                { assert nativeResult.readLines().find { line -> line.startsWith('rG2\t') }.split('\t').drop(1) == [components[1].rg, components[1].rg_se] },
-                // The sampling covariance is parsed out of the native log, which is the only file carrying it.
-                { assert provenance.derivation.sampling_covariance_source == 'native_log' },
-                { assert provenance.derivation.parameter_order.size() == 9 },
-                { assert provenance.derivation.sampling_covariance.size() == 9 },
-                { assert provenance.derivation.diagonal_check_max_abs_deviation < 1.1e-6 },
-                { assert provenance.derivation.component_cross_check*.component == ['G1', 'G2'] },
-                { assert provenance.derivation.constrained_components == 0 },
-                { assert provenance.derivation.n_observations == 400 },
-                { assert provenance.inputs.samples.retained == 200 },
-                { assert provenance.native_arguments == ['--reml-maxit', '500', '--reml-no-constrain'] },
-                { assert provenance.estimator.component_model == 'ld_maf_stratified' },
                 // GCTA's REML is deterministic and takes no seed, so the published text is snapshot-stable.
                 // The magnitudes on a 200-sample fixture are not scientifically meaningful, which is why the
-                // assertions above are layout and arithmetic rather than a claimed estimate.
-                { assert snapshot(nativeResult.text, new File(request, 'derived.total_rg.tsv').text).match('two_stratum_results') },
+                // assertions above concern its native layout rather than a claimed estimate.
+                { assert snapshot(nativeResult.text).match('two_stratum_results') },
             )
         }
     }
 
-    test("changing a native argument reruns the fit and its derived total while the plan and matrices stay cached") {
+    test("changing a native argument reruns the fit while the plan and matrices stay cached") {
 
         tag "gcta_bivariate_reml_ldms_resume"
 
@@ -264,9 +193,6 @@ nextflow_pipeline {
                 { assert RESUME.statuses(rerun, 'GCTA_MAKEGRMPART').unique() == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'PREPARE_BIVARIATE_TRAITS') == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'GCTA_BIVARIATEREMLLDMS') == ['COMPLETED'] },
-                // The derivation is downstream of the fit's own output, so a rerun of the fit reruns it and
-                // nothing else has to be told about the change.
-                { assert RESUME.statuses(rerun, 'DERIVE_GCTA_BIVARIATE_TOTAL') == ['COMPLETED'] },
             )
         }
     }
@@ -293,9 +219,6 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_REMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
-                // The derivation is addressed by the pair request, so a shared matrix family does not make
-                // the unary GREML-LDMS request schedule one too.
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 { assert unary.isFile() },
                 { assert pair.isFile() },
             )
