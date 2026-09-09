@@ -57,7 +57,9 @@ workflow ROUTE_GRM_HERITABILITY {
     def ch_ldak_inputs = ch_ldak_kinship_matrices
         .join(ch_headerless_phenotypes, failOnDuplicate: true)
         .join(ch_adjustment_covariates, remainder: true)
-        .filter { record -> record.size() == 8 && record[1] != null }
+        // A covariate-only join record (no matrix for this analysis) carries null in position 1; drop it
+        // here rather than downstream. The arity test guarded the same case by shape.
+        .filter { record -> record[1] != null }
         .flatMap { meta, parent_key, grm_files, keep, phenotype, quant_covariates, cat_covariates, adjustment_covariates ->
             [
                 [method: 'ldak_reml', estimator: 'reml'],
@@ -95,6 +97,9 @@ workflow ROUTE_GRM_HERITABILITY {
     // LDAK records the covariate filename in the adjusted artifact's native `.root` contract. Every consumer
     // of one byte-identical adjustment artifact must therefore stage the same representative input file that
     // constructed it, rather than a focal-analysis copy with another basename.
+    // Programme-level compensation, approved 2026-09-09: .grm.root records the --covar path as typed and
+    // --he/--pcgc exit 1 on any other path (LDAK 6 and 6.3, #54). Retire if LDAK stops checking the root
+    // path or --check-root NO is adopted as policy.
     def ch_adjustment_reference_covariates = ch_adjustment_consumers
         .map { key, _meta, _request, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates, adjustment_covariates, _estimator ->
             [key, adjustment_covariates]

@@ -223,6 +223,7 @@ nextflow_workflow {
                 """
                 def alpha = ${analysisMeta('alpha', ['ldak_reml', 'ldak_he', 'ldak_pcgc'], true, 0.1)}
                 def beta  = ${analysisMeta('beta', ['ldak_he', 'ldak_pcgc'], true, 0.1)}
+                def gamma = ${analysisMeta('gamma', ['gcta_greml'])}
 
                 input[0] = channel.empty()
                 input[1] = channel.empty()
@@ -234,7 +235,12 @@ nextflow_workflow {
                     ${phenotype(projectDir, "alpha", 'analysis_alpha.pheno', 'analysis.qcovar', 'analysis.covar')},
                     ${phenotype(projectDir, "beta", 'analysis_beta.pheno', 'analysis.qcovar')},
                 )
-                input[4] = channel.of([alpha, ${RESOURCE(projectDir, 'analysis.adjust.qcovar')}])
+                // A non-LDAK analysis contributes covariates without an LDAK matrix. Its right-only
+                // remainder must be dropped while alpha's match and beta's left-only remainder survive.
+                input[4] = channel.of(
+                    [alpha, ${RESOURCE(projectDir, 'analysis.adjust.qcovar')}],
+                    [gamma, ${RESOURCE(projectDir, 'analysis.adjust.qcovar')}],
+                )
                 """
             }
         }
@@ -277,7 +283,9 @@ nextflow_workflow {
                 input[1] = channel.empty()
                 input[2] = channel.empty()
                 input[3] = channel.of(${phenotype(projectDir, "alpha", 'analysis_alpha.pheno')})
-                input[4] = channel.empty()
+                // Exercise an exclusively right-only remainder, where the join has no left record
+                // from which to infer tuple arity. It must not create an estimator invocation.
+                input[4] = channel.of([alpha, ${RESOURCE(projectDir, 'analysis.adjust.qcovar')}])
                 """
             }
         }

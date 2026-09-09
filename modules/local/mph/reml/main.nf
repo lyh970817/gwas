@@ -29,6 +29,7 @@ process MPH_REML {
     tuple val(meta), path("${prefix}.mq.py.csv"), emit: projected_phenotypes
     tuple val(meta), path("${prefix}.mq.cor.csv"), emit: correlations, optional: true
     tuple val(meta), path("${prefix}.log"), emit: log
+    // MPH has no --version; the bare binary prints its banner and exits 1 (#56), tolerated by || true.
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
 
     script:
@@ -56,6 +57,8 @@ process MPH_REML {
         ${args} \\
         2>&1 | tee "${prefix}.log"
 
+    # Programme-level compensation, approved 2026-09-09. Retire when an MPH release returns a non-zero
+    # exit on failure.
     # MPH's `main()` catches most thrown errors, prints them and returns 0 (issue #55), so the exit status
     # is not the contract. A GRM prefix that resolves to nothing, a missing `--output_file` and a missing
     # `--trait_names` all exit 0; the first two write no `mq.*` file at all and the third writes only the log. The result file
