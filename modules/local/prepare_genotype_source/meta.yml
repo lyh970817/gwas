@@ -29,7 +29,7 @@ input:
           The members of one supplied genotype bundle in manifest-group order. Staged under `source/`, so
           nothing written here can reach the researcher's own files through a staged symlink. The caller owns
           the order; this module derives only each member's role from its extension.
-        pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,vcf.bgz}"
+        pattern: "*.{pgen,psam,pvar,bed,bim,fam}"
         ontologies:
           - edam: "http://edamontology.org/format_2330"
 output:

@@ -76,9 +76,7 @@ nextflow_process {
         }
 
         then {
-            // The native refusal is what the pipeline's own pre-projection check exists to improve on: this
-            // message names a temporary output file and no cohort, so a researcher reading it in a run over
-            // several cohorts cannot tell which one is at fault.
+            // PLINK 2 owns the multiallelic input contract for a PLINK 1 projection.
             assertAll(
                 { assert !process.success },
                 { assert process.stdout.join('\n').contains('cannot contain multiallelic variants') ||

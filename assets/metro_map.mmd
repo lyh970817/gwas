@@ -1,7 +1,6 @@
 %%metro title: nf-core/gwas
 %%metro style: light
 %%metro file: plink1_in | BED | PLINK 1 bundle (BED/BIM/FAM)
-%%metro file: vcf_in | VCF | VCF/VCF.GZ
 %%metro file: phenotype_in | TSV | Phenotype
 %%metro file: covariates_in | TSV | Covariates
 %%metro file: plink2_in | PGEN | PLINK 2 bundle (PGEN/PVAR/PSAM)
@@ -9,8 +8,7 @@
 %%metro file: external_summary_in | TSV.GZ | External summary statistics
 %%metro file: gwaslab_out | TSV.GZ | GWASLab-standard summary statistics
 %%metro file: multiqc_out | HTML | MultiQC
-%%metro off_track: makebed
-%%metro off_track: pgen_state
+%%metro off_track: ldms_plan
 %%metro line: regenie | REGENIE | #2db572
 %%metro line: gcta | GCTA | #756bb1
 %%metro line: ldak | LDAK | #e6550d
@@ -34,26 +32,20 @@ graph LR
     subgraph preparation [Inputs and preparation]
         %%metro exit: right | regenie, gcta, ldak, mph, summary
         plink1_in[ ]
-        vcf_in[ ]
         phenotype_in[ ]
         covariates_in[ ]
         plink2_in[ ]
         manifests_in[ ]
         external_summary_in[ ]
-        vcf_import[PLINK 2 VCF import]
-        pgen_state[PLINK 2 --pgen-info]
         prepare_phenotypes[Prepare phenotype and covariate inputs]
         prepare_pair_traits[Prepare relationship traits]
-        makebed[PLINK 1 view: supplied, or PLINK 2 --make-bed on demand]
+        makebed[PLINK 1 view]
         ldms_plan[LD-by-MAF component plan]
         _genotypes_ready[hidden]
         _analysis_ready[hidden]
 
         plink1_in -->|regenie,gcta,ldak,mph| _genotypes_ready
-        vcf_in -->|regenie,gcta,ldak,mph| vcf_import
-        vcf_import -->|regenie,gcta,ldak,mph| pgen_state
-        plink2_in -->|regenie,gcta,ldak,mph| pgen_state
-        pgen_state -->|regenie,gcta,ldak,mph| _genotypes_ready
+        plink2_in -->|regenie,gcta,ldak,mph| _genotypes_ready
         _genotypes_ready -->|gcta,ldak,mph| makebed
         makebed -->|gcta,mph| ldms_plan
 

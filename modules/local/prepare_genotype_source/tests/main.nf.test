@@ -83,33 +83,6 @@ nextflow_process {
         }
     }
 
-    test("example_all - a compressed VCF yields one row whose role drops the compression suffix") {
-
-        when {
-            process {
-                """
-                input[0] = [
-                    [ id:'cohort_vcf', genotype_format:'vcf' ],
-                    [ file('${fixtures.call(projectDir)}example_all.vcf.gz', checkIfExists: true) ],
-                ]
-                """
-            }
-        }
-
-        then {
-            def members = rows(process.out.source_members.get(0).get(1))
-            assertAll(
-                { assert process.success },
-                // The role is the representation, not the transport, so `.vcf.gz` and a bare `.vcf` holding
-                // the same bytes would both be recorded as a `vcf` member.
-                { assert members.size() == 1 },
-                { assert members.first()[0] == 'vcf' },
-                { assert members.first()[1] == 'example_all.vcf.gz' },
-                { assert members.first()[3] == sha256("${fixtures.call(projectDir)}example_all.vcf.gz") },
-            )
-        }
-    }
-
     test("example_all - the bundle identity ignores member names") {
 
         when {

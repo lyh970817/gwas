@@ -16,7 +16,7 @@ PREFIX = ${prefix_literal}
 PROCESS_NAME = ${task_process_literal}
 
 # A member's role is its extension with any compression suffix removed: `pgen`, `psam`, `pvar`, `bed`, `bim`,
-# `fam` or `vcf`. Deriving it here rather than passing it in keeps a copy of the manifest's genotype-group
+# or `fam`. Deriving it here rather than passing it in keeps a copy of the manifest's genotype-group
 # contract out of this module; the caller owns the order the members arrive in.
 COMPRESSION_SUFFIXES = (".gz", ".bgz", ".zst")
 CHUNK_BYTES = 1 << 20

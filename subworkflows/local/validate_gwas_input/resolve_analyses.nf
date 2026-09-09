@@ -85,6 +85,12 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
         )
 
         if (cohort) {
+            // REGENIE needs the user's categorical column names to expand the combined covariate file.
+            def cat_covariate_names = []
+            if (cells.cat_covariates) {
+                def header = file(cells.cat_covariates).readLines().find { header_line -> header_line.trim() }
+                cat_covariate_names = (header.contains('\t') ? header.split('\t', -1) : header.trim().split(/\s+/)).drop(2)
+            }
             // The declared genotype view identity is added as a key only when the cohort declared one, and is
             // never added as a `null`. Analysis metadata is a task-hash input everywhere downstream, so an
             // unconditional `genotype_view_id: null` would change every existing analysis's hash and every
@@ -96,6 +102,7 @@ def resolveAnalyses(analysis_rows, analysis_columns, analysis_manifest, cohort_m
                 heritability_methods: heritability_methods,
                 genotype_format: cohort.genotype_format,
                 is_binary: is_binary,
+                cat_covariate_names: cat_covariate_names,
                 case_value: settings.case_value == null ? null : settings.case_value.toString(),
                 control_value: settings.control_value == null ? null : settings.control_value.toString(),
                 population_prevalence: settings.population_prevalence,

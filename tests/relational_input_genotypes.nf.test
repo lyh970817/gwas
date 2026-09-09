@@ -7,13 +7,12 @@ nextflow_pipeline {
     tag "relational"
     tag "genotypes"
 
-    // Representation is preserved: only a VCF cohort is converted at all, and only into PGEN. `regenie_flag`
+    // Supplied BED and PGEN representations are preserved. `regenie_flag`
     // is the native flag REGENIE must derive from the primary member it was handed, which is what proves the
     // cohort reached it in its own representation rather than through a conversion.
     def encodings = [
-        plink2: [cohort: 'example_pgen', imports: 0, probes: 1, regenie_flag: '--pgen', native_format: 'plink2'],
-        plink1: [cohort: 'example_bfile', imports: 0, probes: 0, regenie_flag: '--bed', native_format: 'plink1'],
-        vcf: [cohort: 'example_vcf', imports: 1, probes: 1, regenie_flag: '--pgen', native_format: 'plink2'],
+        plink2: [cohort: 'example_pgen', regenie_flag: '--pgen', native_format: 'plink2'],
+        plink1: [cohort: 'example_bfile', regenie_flag: '--bed', native_format: 'plink1'],
     ]
 
     // Every `.command.sh` a run wrote, so a native flag can be asserted against the command the task actually
@@ -61,10 +60,8 @@ nextflow_pipeline {
                     { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
                     // No cohort is converted to reach REGENIE, and no cohort is projected: REGENIE reads
                     // whatever representation it was given.
-                    { assert TRACE.count(workflow, 'PLINK2_VCF') == fixture.imports },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                     { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
-                    { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == fixture.probes },
                     // REGENIE derives its own native flag from the primary member it was staged, so this is
                     // the assertion that the representation survived the whole route.
                     { assert commands(outputDir).any { command -> command.contains('regenie') && command.contains("${fixture.regenie_flag} ") } },
@@ -77,46 +74,6 @@ nextflow_pipeline {
                     { assert snapshot(removeNextflowVersion(versions.toString())).match("${encoding}-versions") },
                 )
             }
-        }
-    }
-
-    test("one VCF cohort is converted once and fans out to every linked analysis") {
-
-        when {
-            params {
-                outdir = "$outputDir"
-                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, "vcf_fanout", { rows ->
-                    rows[0] = RELATIONAL.cohort('example_vcf')
-                })
-                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, "vcf_fanout", { rows ->
-                    def template = rows[0]
-                    rows.clear()
-                    (1..4).each { index ->
-                        def analysis = new LinkedHashMap(template)
-                        analysis.analysis_id = "example_vcf_qt${index}"
-                        analysis.cohort_id = 'example_vcf'
-                        analysis.trait_id = "QT${index}"
-                        rows << analysis
-                    }
-                })
-            }
-        }
-
-        then {
-            def expected = (1..4).collect { index -> "example_vcf_qt${index}" }
-            assertAll(
-                { assert workflow.success },
-                { assert TRACE.count(workflow, 'PLINK2_VCF') == 1 },
-                { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 1 },
-                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 1 },
-                { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
-                { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == expected },
-                // The four rows share phenotype bytes, covariates and `is_binary`, so the REGENIE Step 1
-                // reuse key collapses them onto one fit that all four Step 2 runs consume.
-                { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
-                { assert TRACE.count(workflow, 'REGENIE_STEP2') == expected.size() },
-                { assert new File("${params.outdir}/association/regenie").list().toList().sort() == expected },
-            )
         }
     }
 
@@ -149,7 +106,7 @@ nextflow_pipeline {
                 { assert rendered.any { command -> command.contains('--bfile') && command.contains('example_pgen') } },
                 { assert view.plink1.origin == 'hard_call_projection' },
                 { assert view.plink1.parent_key == view.native_view.key },
-                { assert view.plink1.information_loss == ['dosage', 'phase', 'multiallelic_state'] },
+                { assert view.plink1.information_loss == ['dosage', 'phase'] },
             )
         }
     }
@@ -279,8 +236,7 @@ nextflow_pipeline {
                 // the claim, and the key-addressed directory name is pinned by relatedness_matrix_ldak.
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 1 },
                 // The projection itself is still per cohort: the two bundles differ in name only, and
-                // collapsing them would need an identity-derived output name, which would rename the
-                // published bundle of every VCF cohort as well.
+                // collapsing them would need an identity-derived output name.
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 2 },
                 // The shared matrix and everything downstream of it resume, twice over.
                 { assert RESUME.statuses(firstResume, 'LDAK_CALCKINS') == ['CACHED'] },
@@ -367,7 +323,6 @@ nextflow_pipeline {
                 { assert workflow.success },
                 // (1) unchanged
                 { assert RESUME.statuses(unchanged, 'PREPARE_GENOTYPE_SOURCE') == ['CACHED'] },
-                { assert RESUME.statuses(unchanged, 'PREPARE_PGEN_STATE') == ['CACHED'] },
                 { assert RESUME.statuses(unchanged, 'PLINK2_MAKEBED') == ['CACHED'] },
                 { assert RESUME.statuses(unchanged, 'REGENIE_STEP1') == ['CACHED'] },
                 { assert RESUME.statuses(unchanged, 'LDAK_CALCKINS') == ['CACHED'] },
@@ -391,7 +346,7 @@ nextflow_pipeline {
     // the cohort/genotype contract family: every other rule in it (an unpopulated group, a second group, an
     // incomplete group, a duplicate cohort definition) is asserted with its full attribution by
     // subworkflows/local/validate_gwas_input/tests/resolve_input.function.nf.test, and only a pipeline run can
-    // show that the refusal precedes PREPARE_GENOTYPE_SOURCE, PLINK2_VCF and PLINK2_MAKEBED. The other two are
+    // show that the refusal precedes PREPARE_GENOTYPE_SOURCE and PLINK2_MAKEBED. The other two are
     // nf-schema keyword classes, which cannot be function-tested at all because `validateParameters` is a
     // plugin entry point: one `pattern` on a `format: file-path` property with `exists`, and one `pattern` on a
     // plain string property.
@@ -444,9 +399,8 @@ nextflow_pipeline {
                     { assert report.contains(invalid.message) },
                     { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == 0 },
                     { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
-                    { assert TRACE.count(workflow, 'PLINK2_VCF') == 0 },
                     { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
-                    // Stronger than the four named zero-counts above: nothing at all was submitted.
+                    // Stronger than the three named zero-counts above: nothing at all was submitted.
                     { assert workflow.trace.tasks().isEmpty() },
                 )
             }
@@ -456,7 +410,7 @@ nextflow_pipeline {
     // The sentinel for the nf-schema samplesheet path: keyword class `additionalProperties: false`. The
     // pipeline-level route through `validateParameters` is the one a user hits; the workflow-level twin through
     // `samplesheetToList` only differs under `--validate_params false`.
-    test("vcf_index is rejected because it is absent from the cohort contract") {
+    test("an unknown cohort column is rejected by the schema") {
 
         when {
             params {

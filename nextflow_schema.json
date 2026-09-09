@@ -20,7 +20,7 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to the cohort manifest declaring cohort-owned genotype facts.",
-                    "help_text": "Supply together with `analysis_manifest`. Each unique `cohort_id` declares one complete PLINK 2, PLINK 1 or VCF genotype representation.",
+                    "help_text": "Supply together with `analysis_manifest`. Each unique `cohort_id` declares one complete PLINK 2 or PLINK 1 genotype representation.",
                     "fa_icon": "fas fa-users"
                 },
                 "analysis_manifest": {
@@ -104,12 +104,6 @@
             "description": "Publish intermediates that are otherwise kept out of the results directory.",
             "help_text": "Intermediates are unpublished by default so that a large run does not fill your storage with files you did not ask for. Each save control turns one family of intermediates back on.",
             "properties": {
-                "save_prepared_genotypes": {
-                    "type": "boolean",
-                    "description": "Save the PLINK 2 PGEN bundle the pipeline imported from a VCF cohort.",
-                    "help_text": "Imported bundles are published to `<outdir>/genotypes/<cohort_id>/` so that you can inspect them or reuse them outside the pipeline. Only bundles the pipeline built are saved: PLINK 1 and PLINK 2 cohorts are used exactly as given, and the on-demand PLINK 1 projection of a PLINK 2 cohort is a work-directory intermediate. The view record `<outdir>/genotypes/<cohort_id>/<cohort_id>.genotype_view.json` is written for every cohort whatever this control is set to.",
-                    "fa_icon": "fas fa-download"
-                },
                 "save_normalised_phenotypes": {
                     "type": "boolean",
                     "description": "Save the phenotype and covariate inputs prepared for each analysis unit.",

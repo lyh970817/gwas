@@ -38,7 +38,7 @@ Pairwise outputs instead use the deterministic request ID `<method>--<relationsh
 
 Together, the result prefix, retained cohort and analysis manifests, optional method-options document, and `pipeline_info/` artifacts identify the analysis, cohort, trait, genome build, method, scientific settings, pipeline version and producing tool version. Preserve them with an archived result.
 
-Analysis attribution applies under `association/` and `heritability/individual/`; summary attribution applies under `summary_statistics/` and summary-level request outputs. Genotype views and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id` and carries each cohort's view record plus any PGEN bundle imported from a VCF, while `quality_control/relatedness_matrices/` and `quality_control/ldms_component_plans/` are attributed to their own reuse keys and may each serve several analysis rows — including rows on different `cohort_id`s whose genotypes are byte-identical.
+Analysis attribution applies under `association/` and `heritability/individual/`; summary attribution applies under `summary_statistics/` and summary-level request outputs. Genotype views and relatedness matrices are deliberately shared artifacts rather than trait-method results: `genotypes/` is attributed to `cohort_id` and carries each cohort's view record, while `quality_control/relatedness_matrices/` and `quality_control/ldms_component_plans/` are attributed to their own reuse keys and may each serve several analysis rows — including rows on different `cohort_id`s whose genotypes are byte-identical.
 
 ## Pipeline overview
 
@@ -346,14 +346,10 @@ The manifest's row order is the component order of every matrix family and every
 <details markdown="1">
 <summary>Output files</summary>
 
-Preparation preserves the representation a cohort was supplied in. A PLINK 1 or PLINK 2 cohort is used exactly as given, so nothing is built for it and nothing appears under `genotypes/` for it but its view record. [PLINK 2](https://www.cog-genomics.org/plink/2.0/) imports a VCF cohort once into a PGEN bundle, and derives one shared PLINK 1 BED/BIM/FAM view of a PGEN cohort when — and only when — a selected method reads PLINK 1. That projection is a work-directory intermediate and is never published: what is published instead is the record of how it was made.
+Preparation preserves the representation a cohort was supplied in. A PLINK 1 or PLINK 2 cohort is used exactly as given, so nothing is built for it and nothing appears under `genotypes/` for it but its view record. [PLINK 2](https://www.cog-genomics.org/plink/2.0/) derives one shared PLINK 1 BED/BIM/FAM view of a PGEN cohort when — and only when — a selected method reads PLINK 1. That projection is a work-directory intermediate and is never published: what is published instead is the record of how it was made.
 
 - `genotypes/<cohort_id>/`
-  - `<cohort_id>.genotype_view.json`: The cohort's genotype view record, always written. `source` names the manifest's own format, the view identity (a `declared` token or a `sha256` digest of the supplied bytes), the per-member basenames, sizes and digests where the pipeline computed them, and the probed PLINK 2 state (maximum allele count, whether dosages are present, whether hardcalls are explicitly phased). `native_view` names the representation actually on disk, its reuse key and any import policy. `plink1` names the PLINK 1 view: for a PLINK 1 cohort it is the supplied bundle itself and discards nothing, for a projected one it names its parent view, the full projection policy and the `information_loss` that policy accepts — `dosage`, `phase` and `multiallelic_state`. It is `null` for a cohort with no PLINK 1 consumer.
-- `genotypes/<cohort_id>/` (with `--save_prepared_genotypes`)
-  - `<cohort_id>.pgen`: PLINK 2 genotype data imported from a VCF cohort.
-  - `<cohort_id>.psam`: PLINK 2 sample information imported from a VCF cohort.
-  - `<cohort_id>.pvar`: PLINK 2 variant information imported from a VCF cohort.
+  - `<cohort_id>.genotype_view.json`: The cohort's genotype view record, always written. `source` names the manifest's own format, the view identity (a `declared` token or a `sha256` digest of the supplied bytes), and the per-member basenames, sizes and digests where the pipeline computed them. `native_view` names the representation actually on disk and its reuse key. `plink1` names the PLINK 1 view: for a PLINK 1 cohort it is the supplied bundle itself and discards nothing, for a projected one it names its parent view, the full projection policy and the `information_loss` that policy accepts — `dosage` and `phase`. It is `null` for a cohort with no PLINK 1 consumer.
 
 </details>
 

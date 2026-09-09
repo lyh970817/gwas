@@ -4,7 +4,6 @@ def getGenotypeGroups() {
     return [
         plink2: ['pgen', 'psam', 'pvar'],
         plink1: ['bed', 'bim', 'fam'],
-        vcf: ['vcf'],
     ]
 }
 
@@ -112,7 +111,7 @@ def validateGenotypeGroup(cells, reject) {
     def groups = getGenotypeGroups()
     def populated_groups = groups.findAll { _name, columns -> columns.any { column -> cells[column] } }
     if (!populated_groups) {
-        reject.call(groups.values().flatten(), 'no genotype group is populated, supply exactly one of pgen/psam/pvar, bed/bim/fam or vcf')
+        reject.call(groups.values().flatten(), 'no genotype group is populated, supply exactly one of pgen/psam/pvar or bed/bim/fam')
     }
     else if (populated_groups.size() > 1) {
         populated_groups
@@ -121,7 +120,7 @@ def validateGenotypeGroup(cells, reject) {
             .tail()
             .each { name ->
                 def populated_column = groups[name].find { column -> cells[column] }
-                reject.call(populated_column, 'a second genotype group is populated on this row, supply exactly one of pgen/psam/pvar, bed/bim/fam or vcf')
+                reject.call(populated_column, 'a second genotype group is populated on this row, supply exactly one of pgen/psam/pvar or bed/bim/fam')
             }
     }
     else {
