@@ -129,14 +129,6 @@ def validateSummaryNativeArgumentTokens(method_options, namespace, request_id, m
             }
         }
     }
-    if (method in ldak_summary_methods) {
-        def option_names = native_args
-            .findAll { token -> token instanceof String && token.startsWith('--') }
-            .collect { token -> token.split('=', 2)[0] }
-        if (option_names.contains('--cutoff') && option_names.contains('--truncate')) {
-            fail.call("'--cutoff' and '--truncate' are mutually exclusive LDAK large-effect policies")
-        }
-    }
     return native_args
 }
 

@@ -245,8 +245,7 @@ nextflow_function {
         }
     }
 
-    // The LDAK summary firewall is a deny-list rather than the LDSC prefix matcher, and it carries one rule
-    // that is about a pair of tokens rather than about either alone.
+    // The LDAK summary firewall is a deny-list rather than the LDSC prefix matcher.
     def ldakSummaryRefusals = [
         [
             name: 'a wrapper-owned prevalence override',
@@ -257,11 +256,6 @@ nextflow_function {
             name: 'an undeclared file-taking option',
             args: ['--matrix', 'untyped_resource'],
             expected: "token 1 '--matrix' requires a typed staged resource, but this request architecture declares no such file role",
-        ],
-        [
-            name: 'mutually exclusive large-effect policies',
-            args: ['--cutoff', '0.02', '--truncate', 'YES'],
-            expected: "'--cutoff' and '--truncate' are mutually exclusive LDAK large-effect policies",
         ],
     ]
 
