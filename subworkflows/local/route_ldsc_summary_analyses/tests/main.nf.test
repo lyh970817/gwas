@@ -121,20 +121,15 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 2 },
                 { assert TRACE.tags(workflow, 'LDSC_MUNGESUMSTATS').unique().size() == 2 },
                 // Each request gets its own native invocation.
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 2 },
-                { assert TRACE.count(workflow, 'LDSC_RG_OBSERVED') == 1 },
-                // No endpoint is binary, so neither liability alias is reached.
-                { assert TRACE.count(workflow, 'LDSC_H2_LIABILITY') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_RG_LIABILITY') == 0 },
-                { assert workflow.out.h2_observed_log.size() == 2 },
-                { assert workflow.out.rg_observed_log.size() == 1 },
-                { assert workflow.out.h2_liability_log.size() == 0 },
-                { assert workflow.out.rg_liability_log.size() == 0 },
-                { assert workflow.out.h2_observed_log.collect { meta, _log -> meta.request_id }.sort() == ['ldsc_h2--qt1', 'ldsc_h2--qt2'] },
-                { assert workflow.out.rg_observed_log[0][0].request_id == 'ldsc_rg--qt1_qt2' },
-                { assert workflow.out.h2_observed_log.every { meta, _log -> !meta.containsKey('munging_keys') } },
-                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--qt1/native.observed.log").isFile() },
-                { assert new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--qt1_qt2/native.observed.log").isFile() },
+                { assert TRACE.count(workflow, 'LDSC_H2') == 2 },
+                { assert TRACE.count(workflow, 'LDSC_RG') == 1 },
+                { assert workflow.out.h2_log.size() == 2 },
+                { assert workflow.out.rg_log.size() == 1 },
+                { assert workflow.out.h2_log.collect { meta, _log -> meta.request_id }.sort() == ['ldsc_h2--qt1', 'ldsc_h2--qt2'] },
+                { assert workflow.out.rg_log[0][0].request_id == 'ldsc_rg--qt1_qt2' },
+                { assert workflow.out.h2_log.every { meta, _log -> !meta.containsKey('munging_keys') } },
+                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--qt1/native.log").isFile() },
+                { assert new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--qt1_qt2/native.log").isFile() },
                 // Munged intermediates are never republished.
                 { assert !new File("${params.outdir}/intermediates").exists() },
             )
@@ -172,15 +167,15 @@ nextflow_workflow {
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 2 },
                 { assert TRACE.tags(workflow, 'LDSC_MUNGESUMSTATS').unique().size() == 2 },
                 // Request identity never collapses: every request keeps its own native run.
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 3 },
-                { assert workflow.out.h2_observed_log.collect { meta, _log -> meta.request_id }.sort() == ['ldsc_h2--alternate_bytes', 'ldsc_h2--duplicate_bytes', 'ldsc_h2--primary'] },
-                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--duplicate_bytes/native.observed.log").isFile() },
-                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--alternate_bytes/native.observed.log").isFile() },
+                { assert TRACE.count(workflow, 'LDSC_H2') == 3 },
+                { assert workflow.out.h2_log.collect { meta, _log -> meta.request_id }.sort() == ['ldsc_h2--alternate_bytes', 'ldsc_h2--duplicate_bytes', 'ldsc_h2--primary'] },
+                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--duplicate_bytes/native.log").isFile() },
+                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--alternate_bytes/native.log").isFile() },
             )
         }
     }
 
-    test("an H2 endpoint declaring a complete prevalence pair adds the liability invocation") {
+    test("each H2 request runs once with prevalence selecting its native scale") {
 
         options "-stub"
 
@@ -209,19 +204,17 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 3 },
-                // Observed scale is always retained; only the complete binary declaration is run twice.
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 3 },
-                { assert TRACE.count(workflow, 'LDSC_H2_LIABILITY') == 1 },
+                // Every request runs once; only the complete binary declaration selects liability conversion.
+                { assert TRACE.count(workflow, 'LDSC_H2') == 3 },
                 // Nothing on the RG side is constructed when no pair request selects it.
-                { assert TRACE.count(workflow, 'LDSC_RG_OBSERVED') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_RG_LIABILITY') == 0 },
-                { assert workflow.out.rg_observed_log.size() == 0 },
-                { assert workflow.out.rg_liability_log.size() == 0 },
-                { assert new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--complete/native.liability.log").isFile() },
-                { assert !new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--incomplete/native.liability.log").exists() },
-                { assert !new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--quantitative/native.liability.log").exists() },
-                { assert workflow.out.h2_observed_log.size() == 3 },
-                { assert workflow.out.h2_liability_log.size() == 1 },
+                { assert TRACE.count(workflow, 'LDSC_RG') == 0 },
+                { assert workflow.out.rg_log.size() == 0 },
+                { assert workflow.out.h2_log.size() == 3 },
+                { assert workflow.out.h2_log.collectEntries { meta, _log -> [(meta.request_id): meta.native_scale] } == ['ldsc_h2--complete': 'liability', 'ldsc_h2--incomplete': 'observed', 'ldsc_h2--quantitative': 'observed'] },
+                { assert workflow.out.h2_log.find { meta, _log -> meta.request_id == 'ldsc_h2--complete' }[0].effective_sample_prevalence == [0.4] },
+                { assert workflow.out.h2_log.find { meta, _log -> meta.request_id == 'ldsc_h2--complete' }[0].effective_population_prevalence == [0.1] },
+                { assert workflow.out.h2_log.findAll { meta, _log -> meta.native_scale == 'observed' }.every { meta, _log -> meta.effective_sample_prevalence == [] && meta.effective_population_prevalence == [] } },
+                { assert ['complete', 'incomplete', 'quantitative'].every { id -> new File("${params.outdir}/requests/ldsc_h2/ldsc_h2--${id}/native.log").isFile() } },
             )
         }
     }
@@ -259,18 +252,18 @@ nextflow_workflow {
                 // Eight endpoint references over four summaries and one HapMap3 list: four mungings.
                 // The forward and reversed requests reuse the same two, so orientation is not an identity.
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 4 },
-                { assert TRACE.count(workflow, 'LDSC_RG_OBSERVED') == 4 },
+                { assert TRACE.count(workflow, 'LDSC_RG') == 4 },
                 // A pair is converted only when at least one endpoint is binary and every binary endpoint
                 // supplies both prevalences: 'mixed' qualifies, 'partial' and the two quantitative do not.
-                { assert TRACE.count(workflow, 'LDSC_RG_LIABILITY') == 1 },
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 0 },
-                { assert new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--mixed/native.liability.log").isFile() },
-                { assert !new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--partial/native.liability.log").exists() },
-                { assert !new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--forward/native.liability.log").exists() },
+                { assert TRACE.count(workflow, 'LDSC_H2') == 0 },
                 // Each request keeps its declared orientation in the native-result metadata.
-                { assert workflow.out.rg_observed_log.size() == 4 },
-                { assert workflow.out.rg_observed_log.collect { meta, _log -> [meta.left_summary_statistics_id, meta.right_summary_statistics_id] }.sort() == [['external_bt1', 'external_bt2'], ['external_bt1', 'external_qt1'], ['external_qt1', 'external_qt2'], ['external_qt2', 'external_qt1']].sort() },
-                { assert workflow.out.rg_liability_log.size() == 1 },
+                { assert workflow.out.rg_log.size() == 4 },
+                { assert workflow.out.rg_log.collectEntries { meta, _log -> [(meta.request_id): meta.native_scale] } == ['ldsc_rg--mixed': 'liability', 'ldsc_rg--partial': 'observed', 'ldsc_rg--forward': 'observed', 'ldsc_rg--reversed': 'observed'] },
+                { assert workflow.out.rg_log.find { meta, _log -> meta.request_id == 'ldsc_rg--mixed' }[0].effective_sample_prevalence == [0.4, 'nan'] },
+                { assert workflow.out.rg_log.find { meta, _log -> meta.request_id == 'ldsc_rg--mixed' }[0].effective_population_prevalence == [0.1, 'nan'] },
+                { assert workflow.out.rg_log.findAll { meta, _log -> meta.native_scale == 'observed' }.every { meta, _log -> meta.effective_sample_prevalence == [] && meta.effective_population_prevalence == [] } },
+                { assert ['mixed', 'partial', 'forward', 'reversed'].every { id -> new File("${params.outdir}/requests/ldsc_rg/ldsc_rg--${id}/native.log").isFile() } },
+                { assert workflow.out.rg_log.collect { meta, _log -> [meta.left_summary_statistics_id, meta.right_summary_statistics_id] }.sort() == [['external_bt1', 'external_bt2'], ['external_bt1', 'external_qt1'], ['external_qt1', 'external_qt2'], ['external_qt2', 'external_qt1']].sort() },
             )
         }
     }
@@ -298,14 +291,10 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDSC_MUNGESUMSTATS') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_H2_OBSERVED') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_H2_LIABILITY') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_RG_OBSERVED') == 0 },
-                { assert TRACE.count(workflow, 'LDSC_RG_LIABILITY') == 0 },
-                { assert workflow.out.h2_observed_log.size() == 0 },
-                { assert workflow.out.h2_liability_log.size() == 0 },
-                { assert workflow.out.rg_observed_log.size() == 0 },
-                { assert workflow.out.rg_liability_log.size() == 0 },
+                { assert TRACE.count(workflow, 'LDSC_H2') == 0 },
+                { assert TRACE.count(workflow, 'LDSC_RG') == 0 },
+                { assert workflow.out.h2_log.size() == 0 },
+                { assert workflow.out.rg_log.size() == 0 },
             )
         }
     }
