@@ -1,57 +1,4 @@
 {
-    "vcf-association": {
-        "content": [
-            [
-                "regenie",
-                "regenie/example_vcf_relational_qt",
-                "regenie/example_vcf_relational_qt/example_vcf_relational_qt.regenie.gz"
-            ],
-            [
-                "regenie/example_vcf_relational_qt/example_vcf_relational_qt.regenie.gz:md5,05fb502ea44e27f996066a1cfbf051c0"
-            ]
-        ],
-        "timestamp": "2026-09-02T11:39:56.780469666",
-        "meta": {
-            "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
-        }
-    },
-    "vcf-versions": {
-        "content": [
-            {
-                "GWASLAB_HARMONIZE": {
-                    "gwaslab": "4.1.9",
-                    "python": "3.12.13"
-                },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PREPARE_GENOTYPE_SOURCE": {
-                    "python": "3.14.5"
-                },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
-                "PREPARE_PHENOTYPE_INPUTS": {
-                    "python": "3.14.5"
-                },
-                "REGENIE_STEP1": {
-                    "regenie": "4.1.2"
-                },
-                "REGENIE_STEP2": {
-                    "regenie": "4.1.2"
-                },
-                "Workflow": {
-                    "nf-core/gwas": "v1.0.0dev"
-                }
-            }
-        ],
-        "timestamp": "2026-09-10T00:20:40.892906233",
-        "meta": {
-            "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
-        }
-    },
     "plink2-genotype-view": {
         "content": [
             {
@@ -81,25 +28,18 @@
                             "size": 55105,
                             "sha256": "48cfaba06fa15303c56297de910a92e2d6c5ec76b1bd88dca5601ee1bea63039"
                         }
-                    ],
-                    "state": {
-                        "max_alleles": 2,
-                        "dosages": false,
-                        "phased": true
-                    }
+                    ]
                 },
                 "native_view": {
                     "key": "94cc579c9536",
                     "format": "plink2",
                     "origin": "supplied",
-                    "settings": {
-                        
-                    }
+                    "settings": {}
                 },
                 "plink1": null
             }
         ],
-        "timestamp": "2026-09-06T11:42:34.747773464",
+        "timestamp": "2026-09-10T03:55:35.239474776",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -134,21 +74,18 @@
                             "size": 3800,
                             "sha256": "018c10d850bced9613e912a61d8ee5ea11b9bda01acab0f6a8bf4001737dca3d"
                         }
-                    ],
-                    "state": null
+                    ]
                 },
                 "native_view": {
                     "key": "845046a58b6c",
                     "format": "plink1",
                     "origin": "supplied",
-                    "settings": {
-                        
-                    }
+                    "settings": {}
                 },
                 "plink1": null
             }
         ],
-        "timestamp": "2026-09-06T11:43:02.345273018",
+        "timestamp": "2026-09-10T03:55:59.411889739",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -164,9 +101,6 @@
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
                 },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -181,50 +115,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-10T00:19:48.981216487",
-        "meta": {
-            "nf-test": "0.9.5",
-            "nextflow": "26.04.6"
-        }
-    },
-    "vcf-genotype-view": {
-        "content": [
-            {
-                "cohort": "example_vcf",
-                "source": {
-                    "format": "vcf",
-                    "identity": {
-                        "mode": "sha256",
-                        "value": "5ac7cebf175726dc1e043806a3a04fc934f270a40640709eba67a62d59239779"
-                    },
-                    "members": [
-                        {
-                            "role": "vcf",
-                            "name": "example_all.vcf.gz",
-                            "size": 194357,
-                            "sha256": "c1df433b049553b39a34301532f518bdcf2c581a72741e6adabb00f97390700f"
-                        }
-                    ],
-                    "state": {
-                        "max_alleles": 2,
-                        "dosages": false,
-                        "phased": true
-                    }
-                },
-                "native_view": {
-                    "key": "0ec762a136d0",
-                    "format": "plink2",
-                    "origin": "vcf_import",
-                    "settings": {
-                        "tool_contract": "plink2_2.0.0a.6.9_vcf_import_v1",
-                        "sample_id_policy": "double_id",
-                        "half_call": "error"
-                    }
-                },
-                "plink1": null
-            }
-        ],
-        "timestamp": "2026-09-06T11:43:31.531352055",
+        "timestamp": "2026-09-10T03:55:35.251177612",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
