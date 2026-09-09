@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: route_ldsc_summary_analyses
-description: Route summary-scale LDSC requests through shared content-addressed munging into native observed- and liability-scale logs
+description: Route summary-scale LDSC requests through shared content-addressed munging into one native log per request
 keywords:
   - ldsc
   - munge
@@ -30,25 +30,15 @@ input:
       pattern: "*.gwaslab.tsv.gz"
       ontologies: []
 output:
-  - h2_observed_log:
-      description: Native observed-scale LDSC H2 log
+  - h2_log:
+      description: Native LDSC H2 log on the scale selected by endpoint prevalence
       structure: "[map meta, path log]"
-      pattern: "*.observed.log"
+      pattern: "native.log"
       ontologies: []
-  - h2_liability_log:
-      description: Native liability-scale LDSC H2 log when selected by endpoint prevalence
+  - rg_log:
+      description: Native LDSC RG log with the scale selected by ordered endpoint prevalences
       structure: "[map meta, path log]"
-      pattern: "*.liability.log"
-      ontologies: []
-  - rg_observed_log:
-      description: Native observed-scale LDSC RG log
-      structure: "[map meta, path log]"
-      pattern: "*.observed.log"
-      ontologies: []
-  - rg_liability_log:
-      description: Native liability-scale LDSC RG log when selected by endpoint prevalence
-      structure: "[map meta, path log]"
-      pattern: "*.liability.log"
+      pattern: "native.log"
       ontologies: []
 authors:
   - "@andongni"

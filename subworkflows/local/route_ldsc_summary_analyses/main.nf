@@ -7,15 +7,13 @@
 // subworkflow emits no versions, and it reads no params, no workflow and no projectDir.
 
 // MODULES: Upstream-ready components used inside a pipeline-local route
-include { LDSC_H2 as LDSC_H2_LIABILITY } from '../../../modules/local/ldsc/h2/main'
-include { LDSC_H2 as LDSC_H2_OBSERVED  } from '../../../modules/local/ldsc/h2/main'
-include { LDSC_MUNGESUMSTATS           } from '../../../modules/local/ldsc/mungesumstats/main'
-include { LDSC_RG as LDSC_RG_LIABILITY } from '../../../modules/local/ldsc/rg/main'
-include { LDSC_RG as LDSC_RG_OBSERVED  } from '../../../modules/local/ldsc/rg/main'
+include { LDSC_H2            } from '../../../modules/local/ldsc/h2/main'
+include { LDSC_MUNGESUMSTATS } from '../../../modules/local/ldsc/mungesumstats/main'
+include { LDSC_RG            } from '../../../modules/local/ldsc/rg/main'
 
 // FUNCTION: Local to the pipeline
-include { digestFileBytes              } from '../utils_nfcore_gwas_pipeline'
-include { digestIdentityText           } from '../utils_nfcore_gwas_pipeline'
+include { digestFileBytes    } from '../utils_nfcore_gwas_pipeline'
+include { digestIdentityText } from '../utils_nfcore_gwas_pipeline'
 
 workflow ROUTE_LDSC_SUMMARY_ANALYSES {
     take:
@@ -66,49 +64,30 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
 
     def ch_ldsc_munged = LDSC_MUNGESUMSTATS.out.munged_sumstats.map { meta, munged_sumstats -> [meta.munging_key, meta, munged_sumstats] }
 
-    // Unary request identity and request-owned LD/weight resources are joined only after munging. Observed
-    // scale is always retained. A second native invocation is made only when a binary endpoint declares both
-    // population and sample prevalence, because native LDSC emits liability rather than observed H2 when
-    // those values are supplied.
+    // Each request runs once, with native liability conversion only when the binary endpoint declares
+    // both prevalences. Request identity and LD/weight resources are joined after shared munging.
     def ch_ldsc_h2_invocations = ch_h2_requests
         .map { meta, hapmap3_snplist, reference_ld_scores, regression_weights, _tagging_file ->
             [getLdscMungingKey(meta.summary_statistics_id, hapmap3_snplist), meta, reference_ld_scores, regression_weights]
         }
         .combine(ch_ldsc_munged, by: 0)
-
-    def ch_ldsc_h2_observed = ch_ldsc_h2_invocations.multiMap { key, meta, reference_ld_scores, regression_weights, _munging_meta, munged_sumstats ->
-        def route_meta = meta + [munging_keys: [key], native_scale: 'observed']
-        sumstats: [route_meta, munged_sumstats]
-        reference_ld_scores: [[id: meta.reference_bundle_id], reference_ld_scores]
-        regression_weights: [[id: meta.reference_bundle_id], regression_weights]
-    }
-
-    LDSC_H2_OBSERVED(
-        ch_ldsc_h2_observed.sumstats,
-        ch_ldsc_h2_observed.reference_ld_scores,
-        ch_ldsc_h2_observed.regression_weights,
-    )
-
-    def ch_ldsc_h2_liability = ch_ldsc_h2_invocations
-        .filter { _key, meta, _reference_ld_scores, _regression_weights, _munging_meta, _munged_sumstats ->
-            meta.is_binary && meta.population_prevalence != null && meta.sample_prevalence != null
-        }
         .multiMap { key, meta, reference_ld_scores, regression_weights, _munging_meta, munged_sumstats ->
+            def liability = meta.is_binary && meta.population_prevalence != null && meta.sample_prevalence != null
             def route_meta = meta + [
                 munging_keys: [key],
-                native_scale: 'liability',
-                effective_population_prevalence: [meta.population_prevalence],
-                effective_sample_prevalence: [meta.sample_prevalence],
+                native_scale: liability ? 'liability' : 'observed',
+                effective_population_prevalence: liability ? [meta.population_prevalence] : [],
+                effective_sample_prevalence: liability ? [meta.sample_prevalence] : [],
             ]
             sumstats: [route_meta, munged_sumstats]
             reference_ld_scores: [[id: meta.reference_bundle_id], reference_ld_scores]
             regression_weights: [[id: meta.reference_bundle_id], regression_weights]
         }
 
-    LDSC_H2_LIABILITY(
-        ch_ldsc_h2_liability.sumstats,
-        ch_ldsc_h2_liability.reference_ld_scores,
-        ch_ldsc_h2_liability.regression_weights,
+    LDSC_H2(
+        ch_ldsc_h2_invocations.sumstats,
+        ch_ldsc_h2_invocations.reference_ld_scores,
+        ch_ldsc_h2_invocations.regression_weights,
     )
 
     // Pair requests preserve declared left/right order. Both endpoint munging keys are resolved against the
@@ -127,33 +106,13 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
 
     def ch_ldsc_rg_invocations = ch_ldsc_rg_left
         .combine(ch_ldsc_munged, by: 0)
-        .map { right_key, left_key, meta, reference_ld_scores, regression_weights, left_sumstats, _right_munging_meta, right_sumstats ->
-            [meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats]
-        }
-
-    def ch_ldsc_rg_observed = ch_ldsc_rg_invocations.multiMap { meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats ->
-        def route_meta = meta + [munging_keys: [left_key, right_key], native_scale: 'observed']
-        sumstats: [route_meta, left_sumstats, right_sumstats]
-        reference_ld_scores: [[id: meta.reference_bundle_id], reference_ld_scores]
-        regression_weights: [[id: meta.reference_bundle_id], regression_weights]
-    }
-
-    LDSC_RG_OBSERVED(
-        ch_ldsc_rg_observed.sumstats,
-        ch_ldsc_rg_observed.reference_ld_scores,
-        ch_ldsc_rg_observed.regression_weights,
-    )
-
-    def ch_ldsc_rg_liability = ch_ldsc_rg_invocations
-        .filter { meta, _left_key, _right_key, _reference_ld_scores, _regression_weights, _left_sumstats, _right_sumstats ->
+        .multiMap { right_key, left_key, meta, reference_ld_scores, regression_weights, left_sumstats, _right_munging_meta, right_sumstats ->
             def has_binary = meta.left_is_binary || meta.right_is_binary
             def complete = [
                 [binary: meta.left_is_binary, population: meta.left_population_prevalence, sample: meta.left_sample_prevalence],
                 [binary: meta.right_is_binary, population: meta.right_population_prevalence, sample: meta.right_sample_prevalence],
             ].every { endpoint -> !endpoint.binary || (endpoint.population != null && endpoint.sample != null) }
-            has_binary && complete
-        }
-        .multiMap { meta, left_key, right_key, reference_ld_scores, regression_weights, left_sumstats, right_sumstats ->
+            def liability = has_binary && complete
             def population = [
                 meta.left_is_binary ? meta.left_population_prevalence : 'nan',
                 meta.right_is_binary ? meta.right_population_prevalence : 'nan',
@@ -164,26 +123,24 @@ workflow ROUTE_LDSC_SUMMARY_ANALYSES {
             ]
             def route_meta = meta + [
                 munging_keys: [left_key, right_key],
-                native_scale: 'liability',
-                effective_population_prevalence: population,
-                effective_sample_prevalence: sample,
+                native_scale: liability ? 'liability' : 'observed',
+                effective_population_prevalence: liability ? population : [],
+                effective_sample_prevalence: liability ? sample : [],
             ]
             sumstats: [route_meta, left_sumstats, right_sumstats]
             reference_ld_scores: [[id: meta.reference_bundle_id], reference_ld_scores]
             regression_weights: [[id: meta.reference_bundle_id], regression_weights]
         }
 
-    LDSC_RG_LIABILITY(
-        ch_ldsc_rg_liability.sumstats,
-        ch_ldsc_rg_liability.reference_ld_scores,
-        ch_ldsc_rg_liability.regression_weights,
+    LDSC_RG(
+        ch_ldsc_rg_invocations.sumstats,
+        ch_ldsc_rg_invocations.reference_ld_scores,
+        ch_ldsc_rg_invocations.regression_weights,
     )
 
     emit:
-    h2_observed_log  = LDSC_H2_OBSERVED.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.observed.log) ]
-    h2_liability_log = LDSC_H2_LIABILITY.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.liability.log) ], optional by request
-    rg_observed_log  = LDSC_RG_OBSERVED.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.observed.log) ]
-    rg_liability_log = LDSC_RG_LIABILITY.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.liability.log) ], optional by request
+    h2_log = LDSC_H2.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
+    rg_log = LDSC_RG.out.log.map { meta, log -> [stripRoutingIdentity(meta), log] } // channel: [ val(meta), path(native.log) ]
 }
 
 /*

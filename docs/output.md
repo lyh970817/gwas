@@ -216,15 +216,13 @@ Two things about these results are worth stating plainly. A seed makes an MPH fi
 [LDSC](https://github.com/CBIIT/ldsc) consumes each GWASLab summary through one content-addressed HapMap3 munging step. Unary H2 and ordered pairwise RG requests reuse that munged result when the summary identity, adapter contract and HapMap3 bytes are identical. Munged summaries are workflow intermediates and are not published.
 
 - `requests/ldsc_h2/<request_id>/`
-  - `native.observed.log`: Complete native observed-scale LDSC H2 log.
-  - `native.liability.log`: Optional native liability-scale log for a binary summary declaring both sample and population prevalence.
+  - `native.log`: Complete native LDSC H2 log, on the liability scale for a binary summary declaring both sample and population prevalence, otherwise on the observed scale.
 - `requests/ldsc_rg/<request_id>/`
-  - `native.observed.log`: Complete native observed-scale LDSC RG log.
-  - `native.liability.log`: Optional native liability-scale log when every binary endpoint declares both prevalence values.
+  - `native.log`: Complete native LDSC RG log, with liability conversion when at least one endpoint is binary and every binary endpoint declares both prevalence values.
 
 </details>
 
-The pipeline presents every requested LDSC invocation without converting its log into a common heritability, covariance or correlation family. Observed-scale LDSC is always retained. Liability-scale output is added only when all binary endpoints in the request declare both prevalence values; quantitative endpoints use LDSC's native `nan` placeholder in a mixed RG invocation.
+The pipeline presents every requested LDSC invocation without converting its log into a common heritability, covariance or correlation family. Each request runs once. Prevalence flags select native liability conversion only when at least one endpoint is binary and all binary endpoints in the request declare both prevalence values; otherwise the run uses the observed scale. Quantitative endpoints use LDSC's native `nan` placeholder in a mixed RG invocation.
 
 ## Pairwise GCTA bivariate REML and HEreg
 

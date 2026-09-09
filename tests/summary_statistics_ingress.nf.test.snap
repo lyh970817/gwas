@@ -6,16 +6,12 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "LDSC_H2_OBSERVED": {
-                    "ldsc": "3.0.2",
-                    "ldsc_native": "3.0.1",
-                    "ldsc_source_revision": "6c673952cee74bd5c57aef1555a03b1c015399a0",
+                "LDSC_H2": {
+                    "ldsc": "6c673952cee74bd5c57aef1555a03b1c015399a0",
                     "python": "3.9.13"
                 },
                 "LDSC_MUNGESUMSTATS": {
-                    "ldsc": "3.0.2",
-                    "ldsc_native": "3.0.1",
-                    "ldsc_source_revision": "6c673952cee74bd5c57aef1555a03b1c015399a0",
+                    "ldsc": "6c673952cee74bd5c57aef1555a03b1c015399a0",
                     "python": "3.9.13"
                 },
                 "Workflow": {
