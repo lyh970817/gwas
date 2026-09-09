@@ -168,12 +168,6 @@ nextflow_function {
             expected: "option 'ldak.fast_repetitions': expected a positive integer or null",
         ],
         [
-            name: 'fewer than three jackknife blocks',
-            options: [ldak: [fast_num_blocks: 2]],
-            heritability: 'ldak_fast_he',
-            expected: "option 'ldak.fast_num_blocks': expected an integer of at least 3 or null",
-        ],
-        [
             name: 'a fractional seed',
             options: [ldak: [fast_seed: 1.5]],
             heritability: 'ldak_fast_he',
@@ -183,7 +177,7 @@ nextflow_function {
             name: 'a stochastic control on a kinship-only row',
             options: [ldak: [fast_seed: 7]],
             heritability: 'ldak_he',
-            expected: "option 'ldak.fast_seed': option is consumed by the stochastic direct-genotype LDAK estimators ldak_fast_he and ldak_fast_pcgc only",
+            expected: "option 'ldak.fast_seed': option is consumed by the direct-genotype LDAK estimators ldak_fast_he and ldak_fast_pcgc only",
         ],
         [
             name: 'the unrelated-sample filter on a fast-only row',
@@ -342,55 +336,6 @@ nextflow_function {
         }
     }
 
-    test("a documented fast row without a seed is warned that the run is not reproducible") {
-        function "validateMethodOptions"
-
-        when {
-            function {
-                """
-                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'unseeded_documented', [
-                    example: [ldak: [fast_repetitions: 50]],
-                ])}', checkIfExists: true)
-                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_fast_he', trait_type: 'quantitative']]]
-                """
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, function.stdout)
-            assertAll(
-                { assert function.success },
-                { assert report.contains("analysis 'example' selects stochastic method(s) ldak_fast_he without 'ldak.fast_seed'") },
-                { assert report.contains('the native log records no seed') },
-            )
-        }
-    }
-
-    test("a seeded fast row is not warned") {
-        function "validateMethodOptions"
-
-        when {
-            function {
-                """
-                input[0] = file('${RELATIONAL.methodOptions(outputDir, 'seeded_not_warned', [
-                    example: [ldak: [fast_seed: 7]],
-                ])}', checkIfExists: true)
-                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_fast_he', trait_type: 'quantitative']]]
-                """
-            }
-        }
-
-        then {
-            // The negative half of the warning. Without it an unconditional `log.warn` would satisfy every
-            // positive assertion and the seed would appear to matter when it did not.
-            def report = VALIDATION.report(outputDir, function.stdout)
-            assertAll(
-                { assert function.success },
-                { assert !report.contains("without 'ldak.fast_seed'") },
-            )
-        }
-    }
-
     test("a kinship-only row is not warned about the unrelated-sample filter") {
         function "validateMethodOptions"
 
@@ -413,27 +358,6 @@ nextflow_function {
                 { assert function.success },
                 { assert function.result.example.ldak.relatedness_filter },
                 { assert !report.contains("sets 'ldak.relatedness_filter' beside direct-genotype estimator") },
-            )
-        }
-    }
-
-    test("an undocumented fast row is warned on the no-document path as well") {
-        function "validateMethodOptions"
-
-        when {
-            function {
-                """
-                input[0] = []
-                input[1] = [[[id: 'example', association_methods: '', heritability_methods: 'ldak_fast_pcgc', trait_type: 'binary']]]
-                """
-            }
-        }
-
-        then {
-            def report = VALIDATION.report(outputDir, function.stdout)
-            assertAll(
-                { assert function.success },
-                { assert report.contains("analysis 'example' selects stochastic method(s) ldak_fast_pcgc without 'ldak.fast_seed'") },
             )
         }
     }

@@ -159,7 +159,7 @@ workflow ROUTE_GRM_HERITABILITY {
         .filter { _meta, estimator, _grm_files, _keep, _phenotype, _quant_covariates, _cat_covariates -> estimator == 'he' }
         .multiMap { meta, _estimator, grm_files, keep, phenotype, quant_covariates, cat_covariates ->
             grm: [meta, grm_files]
-            pheno: [meta, phenotype, []]
+            pheno: [meta, phenotype, meta.population_prevalence != null ? meta.population_prevalence : []]
             qcovar: [meta, quant_covariates]
             covar: [meta, cat_covariates]
             keep: [meta, keep ?: []]

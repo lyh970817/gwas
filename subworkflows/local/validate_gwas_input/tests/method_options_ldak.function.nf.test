@@ -29,7 +29,7 @@ nextflow_function {
             association: '',
             heritability: 'ldak_reml',
             options: [ldak: [weights_policy: 'automatic']],
-            expected: "option 'ldak.weights_policy': expected 'equal', 'default' or 'provided'",
+            expected: "option 'ldak.weights_policy': expected 'equal' or 'provided'",
         ],
         [
             // `equal` and `default` take the same path: the rule turns on the absence of a consumer, not on the

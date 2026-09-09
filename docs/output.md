@@ -157,13 +157,15 @@ GREML uses one dense matrix. GREML-LDMS partitions variants by LD score and MAF.
   - `<analysis_id>.ldak_reml.reml.liab`: Optional liability-scale REML estimates for a binary analysis with `population_prevalence`.
 - `heritability/individual/ldak_he/<analysis_id>/`
   - `<analysis_id>.ldak_he.he`: Native LDAK Haseman-Elston regression estimates.
+  - `<analysis_id>.ldak_he.he.liab`: Optional liability-scale HE estimates for a binary analysis with `population_prevalence`.
+  - `<analysis_id>.ldak_he.factor`: Native observed-to-liability conversion factors when prevalence is supplied.
 - `heritability/individual/ldak_pcgc/<analysis_id>/`
   - `<analysis_id>.ldak_pcgc.pcgc`: Native LDAK PCGC regression estimates.
   - `<analysis_id>.ldak_pcgc.pcgc.marginal`: Optional marginal PCGC estimates emitted by LDAK.
 
 </details>
 
-The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `model: custom` before supplying another power. `weights_policy: equal` is the default and passes `--ignore-weights YES`; `default` passes no weights flag at all, which LDAK treats identically because it applies no predictor weights unless `--weights` is given; `provided` requires the staged `weights` resource. `relatedness_filter` defaults to `false`. When HE or PCGC has covariates, the pipeline first adjusts the kinship matrix on the same analysis subset and covariates, then passes those covariates to the estimator so phenotype residualisation and matrix projection remain aligned.
+The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `model: custom` before supplying another power. `weights_policy: equal` is the default and applies no predictor weights; `provided` requires the staged `weights` resource passed to native `--weights`. `relatedness_filter` defaults to `false`. When HE or PCGC has covariates, the pipeline first adjusts the kinship matrix on the same analysis subset and covariates, then passes those covariates to the estimator so phenotype residualisation and matrix projection remain aligned.
 
 ### LDAK direct-genotype estimators
 
@@ -174,6 +176,8 @@ The LDAK kinship model defaults to `human_default` with `power: -0.25`. Set `mod
 
 - `heritability/individual/ldak_fast_he/<analysis_id>/`
   - `<analysis_id>.ldak_fast_he.fasthe`: Native randomised Haseman-Elston estimates: a key-value header (`Num_Kinships`, `Num_Top_Predictors`, `Num_Covariates`, `Coeffsfile`, `Covar_Heritability`, `Total_Samples`, `With_Phenotypes`, `Null_Likelihood`, `Alt_Likelihood`, `LRT_Stat`, `LRT_P`) followed by a `Component Heritability SE Size Mega_Intensity SE` table with `Her_K1`, `Her_Top` and `Her_All` rows.
+  - `<analysis_id>.ldak_fast_he.fasthe.liab`: Optional liability-scale FASTHE estimates for a binary analysis with `population_prevalence`.
+  - `<analysis_id>.ldak_fast_he.factor`: Native observed-to-liability conversion factors when prevalence is supplied.
   - `<analysis_id>.ldak_fast_he.cats`, `.share`, `.enrich`, `.cross`: Native per-category heritability, share, enrichment and cross-product results.
   - `<analysis_id>.ldak_fast_he.coeff`: Native covariate effects (`Component Effect SE P`), one `Covariate_n` row per fitted column plus the intercept.
   - `<analysis_id>.ldak_fast_he.log`: Native log recording the complete argument list, the effective random-vector count, the jackknife block count, the seed when one was supplied, the sample and predictor counts, and any weights-coverage warning.

@@ -17,6 +17,39 @@ nextflow_pipeline {
         return scripts
     }
 
+    test("a binary fast HE row publishes the native liability scale and conversion factors") {
+        when {
+            params {
+                outdir = "$outputDir"
+                cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'ldak_fast_binary')
+                analysis_manifest = RELATIONAL.analyses(projectDir, outputDir, 'ldak_fast_binary', { rows ->
+                    rows.clear()
+                    def binary = RELATIONAL.analysis(projectDir, 'example_pgen_bt')
+                    binary.analysis_id = 'fast_he_binary'
+                    binary.association_methods = ''
+                    binary.heritability_methods = 'ldak_fast_he'
+                    binary.population_prevalence = 0.1
+                    rows << binary
+                })
+                method_options = RELATIONAL.methodOptions(outputDir, 'ldak_fast_binary', [
+                    fast_he_binary: [ldak: [fast_seed: 7]],
+                ])
+            }
+        }
+        then {
+            def resultDir = new File("${params.outdir}/heritability/individual/ldak_fast_he/fast_he_binary")
+            def command = commands(params.outdir).find { script -> script.contains('ldak6 --fast-he') }
+            assertAll(
+                { assert workflow.success },
+                { assert TRACE.count(workflow, 'LDAK_FASTHE') == 1 },
+                { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
+                { assert command.contains('--prevalence "0.1"') },
+                { assert new File(resultDir, 'fast_he_binary.ldak_fast_he.fasthe.liab').text.contains('Her_All') },
+                { assert new File(resultDir, 'fast_he_binary.ldak_fast_he.factor').text.contains('Scaling_Factor_Observed->Liability') },
+            )
+        }
+    }
+
     test("fast-only rows estimate from raw genotypes and build no relatedness matrix at all") {
 
         tag "ldak_fast_direct"
@@ -104,7 +137,7 @@ nextflow_pipeline {
                 // kinship routes does.
                 { assert fastHeCommand.contains('--bfile "example_pgen"') },
                 { assert fastHeCommand.contains('--power "-0.25"') },
-                { assert fastHeCommand.contains('--ignore-weights YES') },
+                { assert !fastHeCommand.contains('--ignore-weights YES') },
                 { assert fastHeCommand.contains('--covar "fast_qt.noheader.qcovar"') },
                 { assert fastHeCommand.contains('--factors "fast_qt.noheader.catcovar"') },
                 { assert fastHeCommand.contains('--mpheno 1') },
@@ -193,7 +226,7 @@ nextflow_pipeline {
                 // The kinship builder and the direct estimator are given the same predictor-scaling
                 // model, which is what makes the two estimates comparable at all.
                 { assert modelCommands.size() == 2 },
-                { assert modelCommands.every { command -> command.contains('--power "-0.25"') && command.contains('--ignore-weights YES') } },
+                { assert modelCommands.every { command -> command.contains('--power "-0.25"') && !command.contains('--ignore-weights YES') } },
                 { assert multiqcReport.text.contains('LDAK fast Haseman-Elston regression (Speed <em>et al.</em>, 2012; Pazokitoroudi <em>et al.</em>, 2020)') },
                 { assert multiqcReport.text.contains('LDAK fast PCGC regression (Speed <em>et al.</em>, 2012; Pazokitoroudi <em>et al.</em>, 2020)') },
                 { assert multiqcReport.text.count('https://doi.org/10.1038/s41467-020-17576-9') == 1 },
@@ -351,7 +384,7 @@ nextflow_pipeline {
         }
     }
 
-    test("a fast row without a seed runs and warns that it is not reproducible") {
+    test("a fast row without a seed uses the native default") {
 
         tag "ldak_fast_unseeded"
         options "-stub"
@@ -369,11 +402,9 @@ nextflow_pipeline {
         }
 
         then {
-            def report = VALIDATION.report(outputDir, workflow.stdout)
             assertAll(
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_FASTHE') == 1 },
-                { assert report.contains("analysis 'unseeded_qt' selects stochastic method(s) ldak_fast_he without 'ldak.fast_seed'") },
             )
         }
     }

@@ -58,6 +58,8 @@ nextflow_pipeline {
                 { assert reml.list().toList().sort() == ['binary_all_estimators', 'binary_without_prevalence', 'example_pgen_qt'] },
                 { assert he.list().toList().sort() == ['binary_all_estimators', 'binary_without_prevalence', 'example_pgen_qt'] },
                 { assert pcgc.list().toList() == ['binary_all_estimators'] },
+                { assert new File(he, 'binary_all_estimators/binary_all_estimators.ldak_he.he.liab').isFile() },
+                { assert !new File(he, 'binary_without_prevalence/binary_without_prevalence.ldak_he.he.liab').exists() },
                 { assert snapshot(stableNameHeritability, stablePathHeritability).match('heritability') },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )

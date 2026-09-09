@@ -22,6 +22,9 @@ input:
         type: file
         description: Headerless phenotype file passed to `--pheno`
         ontologies: []
+    - prevalence:
+        type: float
+        description: Population prevalence for native liability-scale conversion of a binary phenotype; pass [] when unused
   - - meta2:
         type: map
         description: |

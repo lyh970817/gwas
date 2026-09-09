@@ -88,14 +88,8 @@ def validateMethodSelectors(association_methods, heritability_methods, reject, a
     }
 }
 
-// A heritability estimator's declared trait support is sometimes a native contract and sometimes a route
-// policy, and this rule enforces both the same way. The PCGC modes genuinely refuse a quantitative trait
-// ("Phenotype 1 is not binary"). LDAK's fast Haseman-Elston, by contrast, runs a binary trait to completion
-// and reports an observed-scale estimate; `ldak_fast_he` is declared quantitative-only because this route
-// never passes `--prevalence`, so a binary row would silently receive an observed-scale number with no
-// liability conversion -- which is what `ldak_pcgc` and `ldak_fast_pcgc` exist to provide. Rejecting at
-// ingress names the trait type and the capable alternatives, instead of either failing later with a native
-// message that never mentions the manifest, or succeeding with the wrong scale.
+// Enforce each estimator's declared trait support at manifest ingress. The PCGC modes require a binary
+// phenotype; MPH has no liability-scale conversion. The diagnostic names the trait type and capable methods.
 def validateHeritabilityTraitSupport(is_binary, heritability_methods, reject) {
     def declared = is_binary ? 'binary' : 'quantitative'
     def capabilities = getMethodCapabilities()
@@ -150,13 +144,13 @@ def validateGenotypeGroup(cells, reject) {
 // one place that can name the cohort and the differing columns.
 def validateGenotypeBasenameStem(genotype_format, cells, reject) {
     if (!genotype_format) {
-        return
+        return null
     }
     def columns = getGenotypeGroups()[genotype_format]
     // A single-member group has no stem to agree on, and an incomplete group has already been rejected by
     // `validateGenotypeGroup`, so neither is reported a second time here.
     if (columns.size() < 2 || columns.any { column -> !cells[column] }) {
-        return
+        return null
     }
     def stems = columns.collectEntries { column -> [(column): file(cells[column].toString()).baseName] }
     if (stems.values().toList().unique().size() > 1) {

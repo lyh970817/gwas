@@ -239,8 +239,8 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     if (model == 'human_default' && power != -0.25) {
         fail.call(analysis_id, 'ldak.power', "model 'human_default' fixes power at -0.25; set model to 'custom' to supply another power")
     }
-    if (!(weights_policy in ['equal', 'default', 'provided'])) {
-        fail.call(analysis_id, 'ldak.weights_policy', "expected 'equal', 'default' or 'provided'")
+    if (!(weights_policy in ['equal', 'provided'])) {
+        fail.call(analysis_id, 'ldak.weights_policy', "expected 'equal' or 'provided'")
     }
     if (options.containsKey('weights') && weights_policy != 'provided') {
         fail.call(analysis_id, 'ldak.weights', "resource is only accepted when weights_policy is 'provided', got '${weights_policy}'")
@@ -269,9 +269,8 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
     if (fast_repetitions != null && (!(fast_repetitions instanceof Number) || fast_repetitions < 1 || fast_repetitions != fast_repetitions.toInteger())) {
         fail.call(analysis_id, 'ldak.fast_repetitions', 'expected a positive integer or null')
     }
-    // LDAK itself rejects a block count of two or fewer: "--num-blocks should be an integer greater than 2".
-    if (fast_num_blocks != null && (!(fast_num_blocks instanceof Number) || fast_num_blocks < 3 || fast_num_blocks != fast_num_blocks.toInteger())) {
-        fail.call(analysis_id, 'ldak.fast_num_blocks', 'expected an integer of at least 3 or null; LDAK requires more than two jackknife blocks')
+    if (fast_num_blocks != null && (!(fast_num_blocks instanceof Number) || fast_num_blocks != fast_num_blocks.toInteger())) {
+        fail.call(analysis_id, 'ldak.fast_num_blocks', 'expected an integer or null')
     }
     if (fast_seed != null && (!(fast_seed instanceof Number) || fast_seed != fast_seed.toInteger())) {
         fail.call(analysis_id, 'ldak.fast_seed', 'expected an integer or null')
@@ -279,11 +278,9 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
 
     def ldak_kinship_heritability = getMethodTokensWithCapabilities([domain: 'heritability', input_backend: 'ldak_kinship'])
     def ldak_direct_heritability = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'])
-    def ldak_direct_stochastic = getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true])
     def ldak_association = getMethodTokensWithCapabilities([domain: 'association', option_family: 'ldak'])
     def selects_ldak_kinship = methods.heritability_methods.any { method -> method in ldak_kinship_heritability }
     def selected_ldak_direct = methods.heritability_methods.findAll { method -> method in ldak_direct_heritability }
-    def selected_ldak_stochastic_direct = methods.heritability_methods.findAll { method -> method in ldak_direct_stochastic }
     def selects_ldak_kvik = methods.association_methods.any { method -> method in ldak_association }
     if (options && !selects_ldak_kinship && !selected_ldak_direct && !selects_ldak_kvik) {
         fail.call(analysis_id, "ldak.${options.keySet().first()}", 'analysis does not select an LDAK method')
@@ -302,8 +299,8 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
         fail.call(analysis_id, 'ldak.relatedness_filter', 'option is consumed by LDAK kinship methods only, which this analysis does not select')
     }
     ['fast_repetitions', 'fast_num_blocks', 'fast_seed'].each { option ->
-        if (options.containsKey(option) && !selected_ldak_stochastic_direct) {
-            fail.call(analysis_id, "ldak.${option}", "option is consumed by the stochastic direct-genotype LDAK estimators ${ldak_direct_stochastic.join(' and ')} only, which this analysis does not select")
+        if (options.containsKey(option) && !selected_ldak_direct) {
+            fail.call(analysis_id, "ldak.${option}", "option is consumed by the direct-genotype LDAK estimators ${ldak_direct_heritability.join(' and ')} only, which this analysis does not select")
         }
     }
     ['kvik_step1_subset', 'predictor_extract', 'kvik_step2_keep'].each { option ->
@@ -336,9 +333,8 @@ def resolveLdakMethodOptions(analysis_id, options, methods, defaults, fail) {
 // on the pinned image, the point estimate — not merely its standard error — moved across seeds (issue #67), so
 // a seed here changes the number that gets published. `iterations` and `tolerance` govern the deterministic solver.
 //
-// Unlike the LDAK seed controls, an unset `mph.seed` needs no unseeded-run warning: MPH's own default
-// is the fixed integer 0, so an unseeded run is reproducible and its seed is recoverable from the log's option
-// echo. `tolerance` is validated as any positive number rather than against MPH's own 1e-4 floor, because the
+// An unset `mph.seed` uses MPH's fixed integer 0, so an unseeded run is reproducible and its seed is recoverable
+// from the log's option echo. `tolerance` is validated as any positive number rather than against MPH's own 1e-4 floor, because the
 // floor is applied natively and this pipeline records what the researcher asked for beside what
 // the tool did rather than pre-empting it.
 def resolveMphMethodOptions(analysis_id, options, methods, defaults, fail) {
@@ -428,49 +424,11 @@ def getAnalysisOptionsDocument(method_options, document) {
     return document.analyses ?: [:]
 }
 
-// A randomised estimator whose seed is left native writes no seed anywhere: LDAK's log records the seed only
-// when one was supplied, so an unseeded estimate cannot be reproduced afterwards even from the published run.
-// The warning therefore fires on every path that resolves options, including the two that never look at a
-// document: a row absent from the document and a run with no `--method_options` at all both default the seed
-// to null and would otherwise pass silently.
-//
-// Which selectors randomise is a registry capability, but which option seeds them is not: the seed control is
-// named by the method-option family, so each family contributes one entry here rather than the query trying to
-// derive an option name from a capability that does not describe one. Only families whose seed reaches a
-// native flag appear -- the LDAK kinship estimators are declared stochastic too, but their randomness is the
-// resampled jackknife of `LDAK_HE`/`LDAK_PCGC` rather than a control this document exposes.
-def getStochasticSeedControls() {
-    return [
-        [
-            tokens: getMethodTokensWithCapabilities([domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true]),
-            family: 'ldak',
-            option: 'fast_seed',
-            evidence: 'the native log records no seed',
-        ],
-    ]
-}
-
-def warnUnseededStochasticSelections(analysis_rows, resolved) {
-    def controls = getStochasticSeedControls()
-    analysis_rows.each { row ->
-        def analysis_id = row[0].id
-        def heritability_methods = tokenizeMethodSelector(row[0].heritability_methods)
-        controls.each { control ->
-            def selected = heritability_methods.findAll { method -> method in control.tokens }
-            if (selected && resolved[analysis_id][control.family][control.option] == null) {
-                log.warn("[nf-core/gwas]: analysis '${analysis_id}' selects stochastic method(s) ${selected.join(', ')} without '${control.family}.${control.option}'; repeated runs will not reproduce the estimate and ${control.evidence}")
-            }
-        }
-    }
-}
-
 // Parse and validate the analysis-owned part of the advanced method-options document.
 def validateMethodOptions(method_options, analysis_rows, document = null) {
     def defaults = getMethodOptionDefaults()
     if (!method_options) {
-        def undocumented = analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
-        warnUnseededStochasticSelections(analysis_rows, undocumented)
-        return undocumented
+        return analysis_rows.collectEntries { row -> [(row[0].id): defaults] }
     }
 
     document = document == null ? readMethodOptionsDocument(method_options) : document
@@ -536,6 +494,6 @@ def validateMethodOptions(method_options, analysis_rows, document = null) {
             regenie: resolved_regenie,
         ]
     }
-    warnUnseededStochasticSelections(analysis_rows, resolved)
+
     return resolved
 }

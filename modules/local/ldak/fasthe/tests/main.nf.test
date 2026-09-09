@@ -116,7 +116,7 @@ nextflow_process {
             }
             process {
                 """
-                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_covariates' ], phenotype] }
+                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_covariates' ], phenotype, []] }
                 input[1] = ${genotypes}
                 input[2] = [[ id: 'weights' ], []]
                 input[3] = GAWK_QUANT_COVAR.out.output.map { _meta, covariates -> [[ id: 'fast_he_covariates' ], covariates] }
@@ -167,7 +167,7 @@ nextflow_process {
             }
             process {
                 """
-                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_weights' ], phenotype] }
+                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_weights' ], phenotype, []] }
                 input[1] = ${genotypes}
                 input[2] = GAWK_WEIGHTS_ALL.out.output.map { _meta, weights -> [[ id: 'weights_all' ], weights] }
                 input[3] = [[ id: 'quantitative_covariates' ], []]
@@ -212,7 +212,7 @@ nextflow_process {
                         [['all_predictors', phenotype, all_weights], ['half_predictors', phenotype, half_weights]]
                     }
                     .multiMap { id, phenotype, weights ->
-                        pheno: [[ id: id ], phenotype]
+                        pheno: [[ id: id ], phenotype, []]
                         genotypes: ${genotypes.trim()}
                         weights: [[ id: id ], weights]
                         qcovar: [[ id: id ], []]
@@ -246,7 +246,7 @@ nextflow_process {
         }
     }
 
-    test("homo_sapiens popgen - the default weights policy is the equal-weights policy") {
+    test("homo_sapiens popgen - omitting the weights flag gives equal weights") {
 
         when {
             params {
@@ -259,7 +259,7 @@ nextflow_process {
                         [['equal_policy_explicit', phenotype], ['equal_policy_native', phenotype]]
                     }
                     .multiMap { id, phenotype ->
-                        pheno: [[ id: id ], phenotype]
+                        pheno: [[ id: id ], phenotype, []]
                         genotypes: ${genotypes.trim()}
                         weights: [[ id: id ], []]
                         qcovar: [[ id: id ], []]
@@ -277,8 +277,7 @@ nextflow_process {
 
         then {
             // `--ignore-weights YES` only suppresses a weights lookup that never happens without `--weights`,
-            // so passing it and passing nothing are the same run. This is what lets the pipeline document its
-            // `default` weights policy as an alias of `equal` rather than as a second scientific model. The
+            // so passing it and passing nothing are the same native operation. The
             // `Coeffsfile` line names the output prefix and is the only difference the two may legitimately
             // have.
             def resultById = process.out.fasthe_results.collectEntries { meta, results -> [(meta.id): path(results)] }
@@ -301,11 +300,11 @@ nextflow_process {
 
         when {
             params {
-                module_args = "--mpheno 1 --ignore-weights YES --prevalence 0.3 --random-seed 7"
+                module_args = "--mpheno 1 --ignore-weights YES --random-seed 7"
             }
             process {
                 """
-                input[0] = GAWK_BINARY_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_binary' ], phenotype] }
+                input[0] = GAWK_BINARY_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_binary' ], phenotype, 0.3] }
                 input[1] = ${genotypes}
                 input[2] = [[ id: 'weights' ], []]
                 input[3] = [[ id: 'quantitative_covariates' ], []]
@@ -317,7 +316,7 @@ nextflow_process {
         then {
             // The atom describes the native operation, not one pipeline policy: `--prevalence` reaching
             // `--fast-he` produces a liability-scale result and its scaling factors, and the module declares
-            // both even though this repository's route is quantitative-only.
+            // both for callers that supply the optional prevalence.
             assertAll(
                 { assert process.success },
                 { assert process.out.fasthe_liability.size() == 1 },
@@ -332,11 +331,11 @@ nextflow_process {
 
         when {
             params {
-                module_args = "--mpheno 1 --prevalence 0.3"
+                module_args = "--mpheno 1"
             }
             process {
                 """
-                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_not_binary' ], phenotype] }
+                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_not_binary' ], phenotype, 0.3] }
                 input[1] = ${genotypes}
                 input[2] = [[ id: 'weights' ], []]
                 input[3] = [[ id: 'quantitative_covariates' ], []]
@@ -360,7 +359,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_stub' ], phenotype] }
+                input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[ id: 'fast_he_stub' ], phenotype, []] }
                 input[1] = ${genotypes}
                 input[2] = [[ id: 'weights' ], []]
                 input[3] = GAWK_QUANT_COVAR.out.output.map { _meta, covariates -> [[ id: 'fast_he_stub' ], covariates] }

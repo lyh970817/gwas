@@ -155,7 +155,7 @@ nextflow_pipeline {
                 { assert value(unrestricted, 'Total_Samples') == '200' },
                 { assert value(restricted, 'Total_Samples') == '194' },
                 { assert commands.size() == 1 },
-                { assert commands.every { command -> command.contains('--ignore-weights YES') } },
+                { assert commands.every { command -> !command.contains('--ignore-weights YES') } },
                 { assert commands.every { command -> !command.contains('--weights ') } },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )

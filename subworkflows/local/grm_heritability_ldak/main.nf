@@ -60,7 +60,7 @@ workflow GRM_HERITABILITY_LDAK {
         reml: estimator == 'reml'
         return [[grm[0], pheno[1], pheno[2]], [grm[0], grm[1]], keep, qcovar, covar]
         he: estimator == 'he'
-        return [[grm[0], pheno[1]], [grm[0], grm[1]], keep, qcovar, covar]
+        return [[grm[0], pheno[1], pheno[2]], [grm[0], grm[1]], keep, qcovar, covar]
         pcgc: estimator == 'pcgc'
         return [[grm[0], pheno[1], pheno[2]], [grm[0], grm[1]], keep, qcovar, covar]
     }

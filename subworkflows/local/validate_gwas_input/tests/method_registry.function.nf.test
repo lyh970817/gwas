@@ -183,12 +183,11 @@ nextflow_function {
                 { assert function.result.ldak_fast_pcgc.input_backend == 'direct_plink1_genotypes' },
                 { assert function.result.ldak_fast_he.estimator_family == 'moment_he' },
                 { assert function.result.ldak_fast_pcgc.estimator_family == 'pcgc' },
-                { assert function.result.ldak_fast_he.trait_support == [quantitative: true, binary: false] },
+                { assert function.result.ldak_fast_he.trait_support == [quantitative: true, binary: true] },
                 { assert function.result.ldak_fast_pcgc.trait_support == [quantitative: false, binary: true] },
-                { assert function.result.ldak_fast_he.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
+                { assert function.result.ldak_fast_he.prevalence == [population: 'consumed', sample: 'not_consumed'] },
+                { assert function.result.ldak_he.prevalence == [population: 'consumed', sample: 'not_consumed'] },
                 { assert function.result.ldak_fast_pcgc.prevalence.population == 'required' },
-                { assert function.result.ldak_fast_he.stochastic },
-                { assert function.result.ldak_fast_pcgc.stochastic },
                 { assert function.result.ldak_fast_he.citation_keys == ['ldak', 'rhe_mc'] },
                 { assert function.result.ldak_fast_pcgc.citation_keys == ['ldak', 'rhe_mc'] },
                 // MPH is the second tool to declare a reusable matrix kind of its own, and the pair is what
@@ -203,7 +202,6 @@ nextflow_function {
                 { assert function.result.mph_reml.component_model == 'single' },
                 { assert function.result.mph_reml.trait_support == [quantitative: true, binary: false] },
                 { assert function.result.mph_reml.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
-                { assert function.result.mph_reml.stochastic },
                 // MPH drops a sample whose covariate cell is blank rather than reading the blank as a value,
                 // which is why it is the first covariate-reading heritability estimator here that does not
                 // require complete cells.
@@ -230,7 +228,6 @@ nextflow_function {
                 { assert function.result.mph_bivariate_reml.estimator_family == 'reml' },
                 { assert function.result.mph_bivariate_reml.trait_support == [quantitative: true, binary: false] },
                 { assert function.result.mph_bivariate_reml.prevalence == [population: 'not_consumed', sample: 'not_consumed'] },
-                { assert function.result.mph_bivariate_reml.stochastic },
                 { assert !function.result.mph_bivariate_reml.containsKey('supports_covariates') },
                 { assert !function.result.mph_bivariate_reml.requires_complete_covariates },
                 { assert function.result.mph_bivariate_reml.citation_keys == ['mph'] },
@@ -264,7 +261,6 @@ nextflow_function {
                     'component_model',
                     'trait_support',
                     'prevalence',
-                    'stochastic',
                     'requires_complete_covariates',
                     'citation_keys',
                 ] },
@@ -280,7 +276,6 @@ nextflow_function {
                     'trait_support',
                     'supports_covariates',
                     'prevalence',
-                    'stochastic',
                     'requires_complete_covariates',
                     'citation_keys',
                 ] },
@@ -333,7 +328,6 @@ nextflow_function {
                 'component_model',
                 'trait_support',
                 'prevalence',
-                'stochastic',
                 'requires_complete_covariates',
                 'citation_keys',
             ]
@@ -375,7 +369,6 @@ nextflow_function {
                 { assert function.result.collect { _token, details -> details.estimator_family }.unique().sort() == estimatorFamilies.toSorted() },
                 { assert function.result.collect { _token, details -> details.input_backend }.unique().sort() == inputBackends.toSorted() },
                 { assert function.result.collect { _token, details -> details.component_model }.unique().sort() == componentModels.toSorted() },
-                { assert function.result.every { _token, details -> details.stochastic instanceof Boolean } },
                 { assert function.result.every { _token, details -> details.requires_complete_covariates instanceof Boolean } },
                 { assert function.result.every { _token, details -> details.prevalence.keySet().toList() == ['population', 'sample'] } },
                 { assert function.result.every { _token, details -> details.prevalence.values().every { requirement -> requirement in prevalenceRequirements } } },
@@ -434,8 +427,7 @@ nextflow_function {
         then {
             // Each field named here has a live reader. `component_model` is read by the LDMS plan-setting
             // acceptance in `resolveGctaMethodOptions`, `resolvePairRequests` and `resolveRelationships`;
-            // `stochastic` by the seed-class option acceptance and the unseeded-run warning in
-            // `resolveLdakMethodOptions`; and `requires_complete_covariates` by the phenotype-preparation
+            // and `requires_complete_covariates` by the phenotype-preparation
             // completeness rule, reached through the spine's preparation meta.
             def activeFields = [
                 'domain',
@@ -449,7 +441,6 @@ nextflow_function {
                 'trait_support',
                 'supports_covariates',
                 'prevalence',
-                'stochastic',
                 'requires_complete_covariates',
                 'citation_keys',
             ] as Set
@@ -620,30 +611,6 @@ nextflow_function {
         }
     }
 
-    test("every stochastic direct-genotype heritability estimator but fast PCGC is quantitative-only") {
-        function "getMethodCapabilities"
-        tag "method_capabilities"
-
-        then {
-            // The documented trait contract of the randomised direct-genotype family. It is scoped to the
-            // heritability domain deliberately: `ldak_kvik` is also stochastic and
-            // also reads PLINK 1 directly, but it is an association estimator and is binary-capable. The
-            // membership pin comes first, because the rule below is vacuously true over an empty set and
-            // would stay green if a token silently dropped out of it.
-            assertAll(
-                { assert function.success },
-                { assert function.result
-                    .findAll { _token, details -> details.domain == 'heritability' && details.stochastic && details.input_backend == 'direct_plink1_genotypes' }
-                    .keySet()
-                    .toList()
-                    .sort() == ['ldak_fast_he', 'ldak_fast_pcgc'] },
-                { assert function.result
-                    .findAll { _token, details -> details.domain == 'heritability' && details.stochastic && details.input_backend == 'direct_plink1_genotypes' }
-                    .every { token, details -> details.trait_support.binary == (token == 'ldak_fast_pcgc') } },
-            )
-        }
-    }
-
     def capabilitySelections = [
         [name: 'the LDAK association estimator', required: [domain: 'association', option_family: 'ldak'], expected: ['ldak_kvik']],
         [name: 'the sparse-matrix association estimator', required: [domain: 'association', input_backend: 'sparse_grm'], expected: ['gcta_fastgwa']],
@@ -652,7 +619,6 @@ nextflow_function {
         [name: 'the LDMS GCTA heritability estimator', required: [domain: 'heritability', input_backend: 'ldms_grm_family'], expected: ['gcta_greml_ldms']],
         [name: 'the LDAK kinship heritability estimators', required: [domain: 'heritability', input_backend: 'ldak_kinship'], expected: ['ldak_reml', 'ldak_he', 'ldak_pcgc']],
         [name: 'the direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
-        [name: 'the stochastic direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes', stochastic: true], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms', 'mph_reml_ldms', 'mph_bivariate_reml_ldms']],
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],

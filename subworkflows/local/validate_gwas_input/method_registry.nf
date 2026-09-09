@@ -26,11 +26,6 @@
 // rather than on the matrix kind that carries it, so a second tool's stratified estimator can share one plan.
 // It names the model the pipeline plans, not the number of components a native fit happens to report.
 //
-// `stochastic` marks an estimator that randomises rather than enumerating. It gates the seed-class options and
-// the unseeded-run warning. It is a statement about how this pipeline invokes the estimator: LDAK's kinship
-// Haseman-Elston and PCGC are declared stochastic because their jackknife standard error is resampled and
-// varies run to run, even though their point estimate does not.
-//
 // `requires_complete_covariates` marks an estimator whose covariate interface neither reads nor reports a
 // missing cell, so an incomplete file silently fits an arbitrary value. It gates the preparation rule.
 def getMethodCapabilityContract() {
@@ -42,7 +37,6 @@ def getMethodCapabilityContract() {
             'component_model',
             'trait_support',
             'prevalence',
-            'stochastic',
             'requires_complete_covariates',
             'citation_keys',
         ],
@@ -58,7 +52,6 @@ def getMethodCapabilityContract() {
             'trait_support',
             'supports_covariates',
             'prevalence',
-            'stochastic',
             'requires_complete_covariates',
             'citation_keys',
         ],
@@ -104,8 +97,8 @@ def getMethodCapabilityContract() {
 //
 // `prevalence` is the one typed scale contract. `consumed` accepts and uses a declared value, `required`
 // additionally requires it at ingress, and `not_consumed` rejects it unless a downstream selected method uses
-// it. `ldak_he` therefore keeps binary traits on the observed scale, while `ldak_pcgc` is binary-only and
-// requires population prevalence.
+// it. HE and FASTHE convert binary estimates when population prevalence is declared; PCGC and FASTPCGC
+// require it because their estimates are on the liability scale.
 def getMethodRegistry() {
     return [
         regenie: [
@@ -116,7 +109,6 @@ def getMethodRegistry() {
             component_model: 'none',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['regenie'],
             mapping: [common: [
@@ -142,7 +134,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_fastgwa'],
             mapping: [common: [
@@ -166,7 +157,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: true,
             citation_keys: ['ldak_kvik'],
             mapping: [
@@ -193,7 +183,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_greml'],
         ],
@@ -206,7 +195,6 @@ def getMethodRegistry() {
             component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_greml_ldms'],
         ],
@@ -220,7 +208,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_bivariate_reml'],
         ],
@@ -234,7 +221,6 @@ def getMethodRegistry() {
             component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_bivariate_reml', 'gcta_greml_ldms'],
         ],
@@ -249,7 +235,6 @@ def getMethodRegistry() {
             trait_support: [quantitative: true, binary: false],
             supports_covariates: false,
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_hereg'],
         ],
@@ -264,7 +249,6 @@ def getMethodRegistry() {
             trait_support: [quantitative: true, binary: false],
             supports_covariates: false,
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['gcta_hereg', 'gcta_greml_ldms'],
         ],
@@ -278,7 +262,6 @@ def getMethodRegistry() {
             component_model: 'tagging_bundle',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['ldak_sumstats'],
         ],
@@ -292,7 +275,6 @@ def getMethodRegistry() {
             component_model: 'tagging_bundle',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['ldak_sumstats'],
         ],
@@ -306,7 +288,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['ldsc'],
         ],
@@ -320,7 +301,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'consumed'],
-            stochastic: false,
             requires_complete_covariates: false,
             citation_keys: ['ldsc'],
         ],
@@ -333,7 +313,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
             prevalence: [population: 'consumed', sample: 'not_consumed'],
-            stochastic: false,
             requires_complete_covariates: true,
             citation_keys: ['ldak'],
         ],
@@ -345,8 +324,7 @@ def getMethodRegistry() {
             input_backend: 'ldak_kinship',
             component_model: 'single',
             trait_support: [quantitative: true, binary: true],
-            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
+            prevalence: [population: 'consumed', sample: 'not_consumed'],
             requires_complete_covariates: true,
             citation_keys: ['ldak'],
         ],
@@ -359,7 +337,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: false, binary: true],
             prevalence: [population: 'required', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: true,
             citation_keys: ['ldak'],
         ],
@@ -369,9 +346,8 @@ def getMethodRegistry() {
             estimator_family: 'moment_he',
             input_backend: 'direct_plink1_genotypes',
             component_model: 'single',
-            trait_support: [quantitative: true, binary: false],
-            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
+            trait_support: [quantitative: true, binary: true],
+            prevalence: [population: 'consumed', sample: 'not_consumed'],
             requires_complete_covariates: true,
             citation_keys: ['ldak', 'rhe_mc'],
         ],
@@ -383,7 +359,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: false, binary: true],
             prevalence: [population: 'required', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: true,
             citation_keys: ['ldak', 'rhe_mc'],
         ],
@@ -396,10 +371,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: false],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
-            // Measured, not assumed: 15 blank covariate cells moved MPH's own
-            // "Non-missing analysis set contains N individuals." from 200 to 185 at exit 0. MPH drops the
-            // sample rather than reading the blank as a value, which is the opposite of LDAK's `--covar`.
             requires_complete_covariates: false,
             citation_keys: ['mph'],
         ],
@@ -412,15 +383,9 @@ def getMethodRegistry() {
             component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: false],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: false,
             citation_keys: ['mph', 'gcta_greml_ldms'],
         ],
-        // The MPH pair entries name the same matrix kinds and backends as their unary siblings, which is what
-        // lets one relationship request and one analysis row share a single built matrix family. They carry no
-        // `supports_covariates: false`: MPH fits the pair covariates for both traits and reports per-trait
-        // BLUEs, so the covariate refusal that protects the HEreg selectors must not fire for them. Binary and
-        // mixed pairs stay out because MPH has no prevalence or liability-scale contract at all.
         mph_bivariate_reml: [
             domain: 'pairwise',
             endpoint_domain: 'analysis',
@@ -431,7 +396,6 @@ def getMethodRegistry() {
             component_model: 'single',
             trait_support: [quantitative: true, binary: false],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: false,
             citation_keys: ['mph'],
         ],
@@ -445,7 +409,6 @@ def getMethodRegistry() {
             component_model: 'ld_maf_stratified',
             trait_support: [quantitative: true, binary: false],
             prevalence: [population: 'not_consumed', sample: 'not_consumed'],
-            stochastic: true,
             requires_complete_covariates: false,
             citation_keys: ['mph', 'gcta_greml_ldms'],
         ],
@@ -518,8 +481,6 @@ def getMatrixKindContract() {
         gcta_ldms: [input_backend: 'ldms_grm_family', genotype_bundle: 'plink1'],
         gcta_sparse: [input_backend: 'sparse_grm', genotype_bundle: 'plink'],
         ldak_kinship: [input_backend: 'ldak_kinship', genotype_bundle: 'plink1'],
-        // MPH builds its matrices from BED/BIM/FAM directly, so both kinds declare the PLINK 1 bundle even
-        // though `mph_ldms` shares its component plan with `gcta_ldms`, which declares the same bundle.
         mph_dense: [input_backend: 'mph_grm', genotype_bundle: 'plink1'],
         mph_ldms: [input_backend: 'mph_grm_family', genotype_bundle: 'plink1'],
     ]

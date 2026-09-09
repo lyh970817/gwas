@@ -171,12 +171,6 @@ nextflow_function {
             expected: "  - analyses.csv row 2 (analysis_id 'example_pgen_qt'), field 'heritability_methods': method(s) ldak_fast_pcgc support binary traits only, but this row declares trait_type 'quantitative'; quantitative-capable heritability methods are ",
         ],
         [
-            name: 'a binary row selecting the quantitative-only fast estimator',
-            binary: true,
-            meta: [association_methods: '', heritability_methods: 'ldak_fast_he'],
-            expected: "  - analyses.csv row 2 (analysis_id 'example_pgen_bt'), field 'heritability_methods': method(s) ldak_fast_he support quantitative traits only, but this row declares trait_type 'binary'; binary-capable heritability methods are ",
-        ],
-        [
             name: 'a binary row selecting a quantitative-only MPH estimator',
             binary: true,
             meta: [association_methods: '', heritability_methods: 'mph_reml'],
