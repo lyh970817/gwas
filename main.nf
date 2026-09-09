@@ -78,9 +78,8 @@ workflow {
 }
 
 output {
-    // The view record is written for every cohort, not behind `--save_prepared_genotypes`: it is the
-    // provenance that explains the keys of every published artifact the cohort produced, while the prepared
-    // bundles themselves remain intermediates.
+    // Every cohort has a view record explaining its published artifact keys; derived genotype bundles
+    // remain work-directory intermediates.
     genotype_views {
         path { cohort_id, _record -> "genotypes/${cohort_id}" }
     }

@@ -47,8 +47,7 @@ nextflow_pipeline {
                 { assert workflow.success },
                 // The routine profile executes the public minimal quantitative example. Broader static
                 // association, heritability and heterogeneous examples have their own named profiles.
-                // `genotypes/` is now always present: every cohort publishes its view record there, whatever
-                // `--save_prepared_genotypes` is set to, because it is what explains the run's other keys.
+                // Every cohort publishes its view record under `genotypes/` to explain the run's other keys.
                 { assert new File("${params.outdir}").list().toList().sort() == ['association', 'genotypes', 'multiqc', 'pipeline_info', 'summary_statistics'] },
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },

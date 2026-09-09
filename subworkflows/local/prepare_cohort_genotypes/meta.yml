@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: "prepare_cohort_genotypes"
-description: Prepare each distinct cohort once in the representation it was supplied in, import VCF to PGEN once, derive one shared PLINK 1 hard-call projection only for a cohort with a PLINK 1-reading consumer, and publish one view identity per cohort
+description: Prepare each distinct cohort once in the representation it was supplied in, derive one shared PLINK 1 hard-call projection only for a cohort with a PLINK 1-reading consumer, and publish one view identity per cohort
 keywords:
   - plink1
   - plink2
@@ -11,16 +11,14 @@ keywords:
   - deduplication
 components:
   - prepare_genotype_source
-  - prepare_pgen_state
   - plink2/makebed
-  - plink2/vcf
   - buildscientificartifactkey
   - getplink1genotypemethodtokens
 input:
   - ch_requests:
       description: One unary or pair request per element, carrying its cohort identity, the manifest's declared genotype format, any declared genotype view identity and the genotype files of the single populated encoding. Requests sharing a cohort must name the same files.
       structure: "[map meta, list genotype_files]"
-      pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz}"
+      pattern: "*.{pgen,psam,pvar,bed,bim,fam}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
 output:
@@ -38,7 +36,7 @@ output:
       description: |
         One native bundle per distinct cohort in the same polymorphic member order, carrying cohort metadata
         with meta.id set to the cohort identifier. `genotype_format` keeps the manifest's meaning and
-        `native_format` states the representation actually on disk, so the two differ only for a VCF cohort.
+        `native_format` states the representation actually on disk, matching the supplied format.
       structure: [map cohort_meta, path primary_genotype, path variant_file, path sample_file]
       pattern: "*.{bed,bim,fam,pgen,pvar,psam}"
       ontologies:
@@ -46,8 +44,7 @@ output:
   - plink1_genotypes:
       description: |
         One PLINK 1 view per unary or pair request whose selected method reads PLINK 1, carrying unchanged
-        focal request metadata. A native PLINK 1 cohort supplies its own files untouched; a PLINK 2 or
-        VCF-imported cohort is projected once and every consumer on that cohort shares the projection.
+        focal request metadata. A native PLINK 1 cohort supplies its own files untouched; a PLINK 2 cohort is projected once and every consumer on that cohort shares the projection.
       structure: [map meta, path bed, path bim, path fam]
       pattern: "*.{bed,bim,fam}"
       ontologies:
@@ -65,7 +62,7 @@ output:
   - cohort_views:
       description: |
         One provenance record per cohort: the source format and identity, the per-member table where the
-        pipeline computed it, the probed PLINK 2 state, the native view key under `native_view`, and the PLINK 1 view with the
+        pipeline computed it, the native view key under `native_view`, and the PLINK 1 view with the
         projection policy and the information that policy discards. Provenance only; no consumer keys on it.
       structure: [map cohort_meta, val view_record]
 authors:

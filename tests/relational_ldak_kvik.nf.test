@@ -25,7 +25,7 @@ nextflow_pipeline {
                 cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'ldak_kvik_defaults', { rows ->
                     def bundle = RELATIONAL.twoChromosomePlink1(projectDir, outputDir, 'ldak_kvik_defaults')
                     rows[0].cohort_id = 'example_bfile'
-                    ['pgen', 'psam', 'pvar', 'vcf'].each { field -> rows[0][field] = '' }
+                    ['pgen', 'psam', 'pvar'].each { field -> rows[0][field] = '' }
                     rows[0].bed = bundle.bed
                     rows[0].bim = bundle.bim
                     rows[0].fam = bundle.fam
@@ -348,7 +348,7 @@ nextflow_pipeline {
                 cohort_manifest = RELATIONAL.cohorts(projectDir, outputDir, 'ldak_kvik_prediction_identity', { rows ->
                     def bundle = RELATIONAL.twoChromosomePlink1(projectDir, outputDir, 'ldak_kvik_prediction_identity')
                     rows[0].cohort_id = 'example_bfile'
-                    ['pgen', 'psam', 'pvar', 'vcf'].each { field -> rows[0][field] = '' }
+                    ['pgen', 'psam', 'pvar'].each { field -> rows[0][field] = '' }
                     rows[0].bed = bundle.bed
                     rows[0].bim = bundle.bim
                     rows[0].fam = bundle.fam

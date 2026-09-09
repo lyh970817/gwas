@@ -78,7 +78,6 @@ nextflow_pipeline {
                 // The profile's cohort is supplied as PLINK 1, which is the representation the stratified
                 // GCTA route reads, so it passes through with no conversion and no state probe at all.
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
-                { assert TRACE.count(workflow, 'PREPARE_PGEN_STATE') == 0 },
                 // The equivalent 0;0.5 and 0.0;0.50 declarations share one build. A different
                 // populated MAF edge list and a different LD-bin count each fork the scientific matrix key.
                 { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 3 },

@@ -37,7 +37,7 @@ output:
   - analyses:
       description: Canonical analysis tuples with joined cohort metadata, resolved method options and stageable scientific resources
       structure: "[map meta, list genotype_files, path phenotype, path quant_covariates|[], path cat_covariates|[], path predictor_extract|[], path ldak_weights|[]]"
-      pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,txt,tsv,json}"
+      pattern: "*.{pgen,psam,pvar,bed,bim,fam,txt,tsv,json}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - summary_statistics:
@@ -48,7 +48,7 @@ output:
   - relationships:
       description: Canonical pair-request tuples with endpoint identity, deterministic request ID, dense or relationship-owned LDMS matrix settings and relationship-owned covariate resources
       structure: "[map meta, list genotype_files, path pair_quant_covariates|[], path pair_cat_covariates|[]]"
-      pattern: "*.{pgen,psam,pvar,bed,bim,fam,vcf,vcf.gz,txt,tsv}"
+      pattern: "*.{pgen,psam,pvar,bed,bim,fam,txt,tsv}"
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - unary_requests:

@@ -25,8 +25,8 @@ nextflow_pipeline {
     }
 
     def inputs = { output_dir, project_dir, String scenario, String subset, boolean binary = false ->
-        def analysis_id = binary ? 'example_pgen_bt' : 'example_vcf_qt'
-        def cohort_id = binary ? 'example_pgen' : 'example_vcf'
+        def analysis_id = binary ? 'example_pgen_bt' : 'example_pgen_qt'
+        def cohort_id = 'example_pgen'
         def analyses = RELATIONAL.analyses(project_dir, output_dir, scenario, { rows ->
             rows[0] = RELATIONAL.analysis(project_dir, analysis_id)
             rows[0].association_methods = 'ldak_kvik'
@@ -64,18 +64,18 @@ nextflow_pipeline {
         }
 
         then {
-            def native_result = new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc")
-            def harmonised_result = new File("${params.outdir}/summary_statistics/example_vcf_qt--ldak_kvik/example_vcf_qt--ldak_kvik.gwaslab.tsv.gz")
+            def native_result = new File("${params.outdir}/association/ldak_kvik/example_pgen_qt/example_pgen_qt.ldak_kvik.step2.assoc")
+            def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt--ldak_kvik/example_pgen_qt--ldak_kvik.gwaslab.tsv.gz")
             def kvik_commands = commands(outputDir).findAll { command -> command.contains('--kvik-step') }
             def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             def harmonised_rows = gzip_rows(harmonised_result)
             def kvik_summary = null
             def kvik_harmonisation_input = null
             new File(new File(outputDir.toString()).parentFile, 'work').eachFileRecurse { entry ->
-                if (entry.isFile() && entry.name == 'example_vcf_qt.ldak_kvik.step2.summaries') {
+                if (entry.isFile() && entry.name == 'example_pgen_qt.ldak_kvik.step2.summaries') {
                     kvik_summary = entry
                 }
-                if (entry.isFile() && entry.name == 'example_vcf_qt.ldak_kvik.step2.harmonisation.tsv') {
+                if (entry.isFile() && entry.name == 'example_pgen_qt.ldak_kvik.step2.harmonisation.tsv') {
                     kvik_harmonisation_input = entry
                 }
             }
@@ -164,8 +164,8 @@ nextflow_pipeline {
         }
 
         then {
-            def native_result = new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc")
-            def harmonised_result = new File("${params.outdir}/summary_statistics/example_vcf_qt--ldak_kvik/example_vcf_qt--ldak_kvik.gwaslab.tsv.gz")
+            def native_result = new File("${params.outdir}/association/ldak_kvik/example_pgen_qt/example_pgen_qt.ldak_kvik.step2.assoc")
+            def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt--ldak_kvik/example_pgen_qt--ldak_kvik.gwaslab.tsv.gz")
             def step1 = commands(outputDir).find { command -> command.contains('--kvik-step1') }
             def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
             def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')
@@ -186,7 +186,7 @@ nextflow_pipeline {
                 // arbitrary participant into the artifact's hash and into every Step 1 fit that
                 // stages its predictor list.
                 { assert step1 =~ /--extract "ldak_thin_common\.thin_common\.[0-9a-f]+\.ldak_kvik\.step1\.in"/ },
-                { assert !(step1.contains('example_vcf.ldak_thin_common')) },
+                { assert !(step1.contains('example_pgen.ldak_thin_common')) },
                 { assert snapshot(stable_name_native, stable_path_native).match('thin-common-native') },
                 { assert snapshot(stable_name_harmonised, stable_path_harmonised).match('thin-common-harmonised') },
             )
@@ -210,8 +210,8 @@ nextflow_pipeline {
         }
 
         then {
-            def native_result = new File("${params.outdir}/association/ldak_kvik/example_vcf_qt/example_vcf_qt.ldak_kvik.step2.assoc")
-            def harmonised_result = new File("${params.outdir}/summary_statistics/example_vcf_qt--ldak_kvik/example_vcf_qt--ldak_kvik.gwaslab.tsv.gz")
+            def native_result = new File("${params.outdir}/association/ldak_kvik/example_pgen_qt/example_pgen_qt.ldak_kvik.step2.assoc")
+            def harmonised_result = new File("${params.outdir}/summary_statistics/example_pgen_qt--ldak_kvik/example_pgen_qt--ldak_kvik.gwaslab.tsv.gz")
             def step1 = commands(outputDir).find { command -> command.contains('--kvik-step1') }
             def stable_name_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", relative: true, includeDir: true).findAll { path -> path.toString() }
             def stable_path_native = getAllFilesFromDir("${params.outdir}/association/ldak_kvik", ignoreFile: 'tests/.nftignore')

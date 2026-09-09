@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/gwas/master/assets/schema_cohort_manifest.json",
     "title": "nf-core/gwas pipeline - cohort manifest schema",
-    "description": "Schema for the cohort manifest provided with params.cohort_manifest. One row declares one cohort-owned PLINK 2, PLINK 1 or VCF genotype representation.",
+    "description": "Schema for the cohort manifest provided with params.cohort_manifest. One row declares one cohort-owned PLINK 2 or PLINK 1 genotype representation.",
     "type": "array",
     "items": {
         "type": "object",
@@ -76,14 +76,6 @@
                 "pattern": "^\\S+\\.fam$",
                 "description": "PLINK 1 sample file accompanying bed.",
                 "errorMessage": "PLINK 1 sample file cannot contain spaces, must exist and must have extension '.fam'"
-            },
-            "vcf": {
-                "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^\\S+\\.vcf(\\.gz|\\.bgz)?$",
-                "description": "VCF genotype file for the cohort, imported once to PLINK 2 PGEN.",
-                "errorMessage": "VCF file cannot contain spaces, must exist and must have extension '.vcf', '.vcf.gz' or '.vcf.bgz'"
             },
             "genotype_view_id": {
                 "type": "string",
