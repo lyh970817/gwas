@@ -1,3 +1,4 @@
+include { ROUTE_META_ANALYSIS } from '../subworkflows/local/route_meta_analysis'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
@@ -44,6 +45,7 @@ workflow GWAS {
     ch_relationships // channel: [ val(meta), [ path(genotype_file), ... ], path(pair_quant_covariates), path(pair_cat_covariates) ]
     ch_unary_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
     ch_pair_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
+    ch_meta_requests // channel: [ val(meta), val(source_summary_statistics_ids) ]
     multiqc_config // channel: val(multiqc_config)
     multiqc_logo // channel: val(multiqc_logo)
     multiqc_methods_description // channel: val(multiqc_methods_description)
@@ -105,6 +107,9 @@ workflow GWAS {
         )
         .mix(
             ch_pair_requests.map { meta, _hapmap3_snplist, _reference_ld_scores, _regression_weights, _tagging_file -> [domain: 'pairwise', meta: meta] }
+        )
+        .mix(
+            ch_meta_requests.map { meta, _source_ids -> [domain: 'summary_set', meta: meta] }
         )
         .collect()
 
@@ -381,6 +386,11 @@ workflow GWAS {
         gwaslab_references,
     )
 
+    def ch_selected_meta_requests = ch_meta_requests.filter { meta, _source_ids -> meta.method == 'common_variant_meta_analysis' }
+    ROUTE_META_ANALYSIS(ch_selected_meta_requests, ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics)
+    def ch_summary_statistics = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics
+        .mix(ROUTE_META_ANALYSIS.out.summary_statistics)
+
     //
     // SUBWORKFLOW: Pipeline route for LDAK SumHer and SumCors from GWASLab-standard summary statistics
     //
@@ -395,7 +405,7 @@ workflow GWAS {
     ROUTE_LDAK_SUMMARY_ANALYSES(
         ch_sumher_requests,
         ch_sumcors_requests,
-        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
+        ch_summary_statistics,
     )
 
     //
@@ -414,31 +424,8 @@ workflow GWAS {
     ROUTE_LDSC_SUMMARY_ANALYSES(
         ch_ldsc_h2_requests,
         ch_ldsc_rg_requests,
-        ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
+        ch_summary_statistics,
     )
-
-    // SIBLING SEAM — a future meta-analysis route (GitHub issue lyh970817/gwas#9) attaches here.
-    //
-    // ROUTE_LDAK_SUMMARY_ANALYSES and ROUTE_LDSC_SUMMARY_ANALYSES are siblings, not a chain: each reads
-    // ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics independently and neither observes the other.
-    // A meta-analysis route is the same kind of sibling and attaches at this point, after GWASLab
-    // convergence and after the two existing consumers, by the same three-part pattern they both follow:
-    //
-    //   1. Select the route on the spine by filtering the validated request stream that carries it — for a
-    //      meta-analysis request that is a pair- or set-scoped stream reaching GWAS through `take:`, filtered
-    //      on `meta.method` exactly as the two blocks above filter theirs. The spine narrows; it does not
-    //      interpret the request.
-    //   2. Call ROUTE_META_ANALYSIS(<selected requests>, ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics,
-    //      <any explicit configuration values>). Pass the GWASLab-standard stream unmodified: it is a plain queue
-    //      channel and a third reader adds no barrier, no reuse change and no cardinality change to the two
-    //      existing readers. Do not insert a collect()/groupTuple() here to materialise it for the new route.
-    //   3. Let the controller own everything downstream of that seam — endpoint resolution, per-cohort
-    //      preparation and its reuse identity, native meta-analysis invocation, and model-specific outputs.
-    //
-    // Nothing else on this spine changes: the union channels, the shared-resource preparations, the version
-    // topic and the public `emit:` block below are all independent of how many summary consumers exist. If a
-    // meta-analysed output must itself become a pipeline summary, that is a change to
-    // ROUTE_CANONICAL_SUMMARY_STATISTICS's inputs rather than a second convergence point here.
 
     //
     // Collate and save software versions
@@ -501,7 +488,7 @@ workflow GWAS {
         .map { record -> [record.name - '.genotype_view.json', record] }
 
     emit:
-    summary_statistics  = ROUTE_CANONICAL_SUMMARY_STATISTICS.out.summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
+    summary_statistics  = ch_summary_statistics // channel: [ val(meta), path(gwaslab_summary_statistics) ]
     multiqc_report      = ROUTE_GWAS_REPORTING.out.report.toList() // channel: [ [ path(report) ] ]
     genotype_views      = ch_genotype_view_records // channel: [ val(cohort_id), path(genotype_view_record) ], one per cohort
     gcta_ldms_artifacts = PREPARE_RELATEDNESS_MATRICES.out.gcta_ldms_artifacts // channel: [ val(matrix_meta), path(grm_files), val(grm_prefixes) ], one per base key

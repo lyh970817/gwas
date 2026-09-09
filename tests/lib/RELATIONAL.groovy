@@ -162,6 +162,9 @@ class RELATIONAL {
             'population_prevalence',
             'sample_prevalence',
             'access_constraints',
+            'source_summary_statistics_ids',
+            'meta_analysis_models',
+            'min_studies',
         ]
         def rows = [summary(outputDir, 'external_qt')]
         if (mutate) {

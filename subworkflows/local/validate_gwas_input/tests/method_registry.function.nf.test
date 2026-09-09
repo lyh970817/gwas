@@ -121,6 +121,7 @@ nextflow_function {
             assertAll(
                 { assert function.success },
                 { assert function.result.keySet().toList() == [
+                    'fixed', 'random', 're2', 'mrmega',
                     'regenie',
                     'gcta_fastgwa',
                     'ldak_kvik',
@@ -287,6 +288,8 @@ nextflow_function {
                     'pcgc',
                     'ld_score_regression',
                     'summary_tagging_regression',
+                    'meta_analysis',
+                    'meta_regression',
                 ] },
                 { assert function.result.input_backends == [
                     'dense_grm',
@@ -339,6 +342,8 @@ nextflow_function {
                 'pcgc',
                 'ld_score_regression',
                 'summary_tagging_regression',
+                    'meta_analysis',
+                    'meta_regression',
             ]
             def inputBackends = [
                 'dense_grm',
@@ -620,6 +625,7 @@ nextflow_function {
         [name: 'the LDAK kinship heritability estimators', required: [domain: 'heritability', input_backend: 'ldak_kinship'], expected: ['ldak_reml', 'ldak_he', 'ldak_pcgc']],
         [name: 'the direct-genotype LDAK heritability estimators', required: [domain: 'heritability', option_family: 'ldak', input_backend: 'direct_plink1_genotypes'], expected: ['ldak_fast_he', 'ldak_fast_pcgc']],
         [name: 'the LDMS component estimators', required: [component_model: 'ld_maf_stratified'], expected: ['gcta_greml_ldms', 'gcta_bivariate_reml_ldms', 'gcta_bivariate_he_ldms', 'mph_reml_ldms', 'mph_bivariate_reml_ldms']],
+        [name: 'the meta-analysis models', required: [domain: 'summary_set'], expected: ['fixed', 'random', 're2', 'mrmega']],
         [name: 'the LDSC estimators', required: [option_family: 'ldsc'], expected: ['ldsc_h2', 'ldsc_rg']],
         [name: 'the LDAK summary estimators', required: [option_family: 'ldak', input_backend: 'summary_statistics'], expected: ['ldak_sumher', 'ldak_sumcors']],
         [name: 'the LDAK summary pair estimator', required: [domain: 'pairwise', reference_family: 'ldak'], expected: ['ldak_sumcors']],

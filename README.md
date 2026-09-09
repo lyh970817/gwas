@@ -21,7 +21,7 @@
 
 ## Introduction
 
-**nf-core/gwas** is a bioinformatics pipeline for association, individual-level and summary-level heritability, and declared pairwise genetic-correlation analysis. A cohort manifest owns genotype facts, an analysis manifest links traits and individual-level methods to those cohorts, a summary-statistics manifest declares external or pipeline-generated summary results and their unary methods, and an optional relationship manifest binds explicit analysis or summary endpoints. The pipeline reuses compatible work, retains native analytical results, and passes every internal and external summary-statistics source through one GWASLab harmonisation boundary.
+**nf-core/gwas** is a bioinformatics pipeline for association, individual-level and summary-level heritability, declared pairwise genetic-correlation analysis, and common-variant meta-analysis. A cohort manifest owns genotype facts, an analysis manifest links traits and individual-level methods to those cohorts, a summary-statistics manifest declares external, pipeline-generated or meta-analysis-derived summary results and their unary methods, and an optional relationship manifest binds explicit analysis or summary endpoints. The pipeline reuses compatible work, retains native analytical results, and passes every internal and external summary-statistics source through one GWASLab harmonisation boundary.
 
 Genotype quality control is not performed by the pipeline. Input genotypes must already have suitable samples, variants, alleles, coordinates, genome build and analysis filters.
 
@@ -51,10 +51,11 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 
    Not every heritability route needs one: LDAK fast Haseman-Elston regression and LDAK fast PCGC estimate directly from the cohort's genotypes and build no relatedness matrix at all.
 
-8. Resolve declared unary and pair summary-statistics requests against explicit LDAK or LDSC reference bundles, including LDAK SumHer heritability and SumCors genetic correlation.
-9. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg, or with dense or LDMS MPH bivariate REML, and publish each native result and log directly. The ordered two-trait table and the relationship-owned covariates are prepared once per relationship and shared by every selected pair estimator, so several estimators over one relationship still define one endpoint sample set.
-10. Run declared LDSC H2 and ordered RG requests, reusing content-identical munging and publishing the observed- and available liability-scale native logs directly.
-11. Collect run and software provenance with MultiQC and Nextflow reports.
+8. Pool ordered base summaries with fixed effects and optional conventional random effects, METASOFT RE2 and MR-MEGA meta-regression; retain native model results and make the derived fixed-effect summary available to downstream summary methods.
+9. Resolve declared unary and pair summary-statistics requests against explicit LDAK or LDSC reference bundles, including LDAK SumHer heritability and SumCors genetic correlation.
+10. Run declared same-cohort pairs with dense or LDMS GCTA bivariate REML or HEreg, or with dense or LDMS MPH bivariate REML, and publish each native result and log directly. The ordered two-trait table and the relationship-owned covariates are prepared once per relationship and shared by every selected pair estimator, so several estimators over one relationship still define one endpoint sample set.
+11. Run declared LDSC H2 and ordered RG requests, reusing content-identical munging and publishing the observed- and available liability-scale native logs directly.
+12. Collect run and software provenance with MultiQC and Nextflow reports.
 
 ## Usage
 

@@ -32,8 +32,8 @@ process METASOFT_RE2 {
     stub:
     prefix = task.ext.prefix ?: meta.id
     """
-    printf 'RSID\t#STUDY\tPVALUE_FE\tBETA_FE\tSTD_FE\tPVALUE_RE\tBETA_RE\tSTD_RE\tPVALUE_RE2\tSTAT1_RE2\tSTAT2_RE2\tPVALUE_BE\tI_SQUARE\tQ\tPVALUE_Q\tTAU_SQUARE\tPVALUES_OF_STUDIES(Tab_delimitered)\tMVALUES_OF_STUDIES(Tab_delimitered)\n' > "${prefix}.metasoft.txt"
-    printf 'stub\n' > "${prefix}.metasoft.log"
+    printf 'RSID\t#STUDY\tPVALUE_FE\tBETA_FE\tSTD_FE\tPVALUE_RE\tBETA_RE\tSTD_RE\tPVALUE_RE2\tSTAT1_RE2\tSTAT2_RE2\tPVALUE_BE\tI_SQUARE\tQ\tPVALUE_Q\tTAU_SQUARE\tPVALUES_OF_STUDIES(Tab_delimitered)\tMVALUES_OF_STUDIES(Tab_delimitered)\\n' > "${prefix}.metasoft.txt"
+    printf 'stub\\n' > "${prefix}.metasoft.log"
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         metasoft: \$(metasoft --version)

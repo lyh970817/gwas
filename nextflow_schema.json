@@ -41,8 +41,8 @@
                     "schema": "assets/schema_summary_statistics_manifest.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Optional summary-statistics manifest declaring external or pipeline-generated results.",
-                    "help_text": "Each unique `summary_statistics_id` declares exactly one external source or one producing analysis/method pair and owns any unary summary-statistics methods. Supply this manifest alone for external summary-only work or alongside the linked cohort and analysis manifests.",
+                    "description": "Optional summary-statistics manifest declaring external, pipeline-generated or meta-analysis-derived results.",
+                    "help_text": "Each unique `summary_statistics_id` declares exactly one external source, one producing analysis/method pair or an ordered set of base summaries for meta-analysis and owns any unary summary-statistics methods. Supply this manifest alone for external summary-only work or alongside the linked cohort and analysis manifests.",
                     "fa_icon": "fas fa-table"
                 },
                 "relationship_manifest": {

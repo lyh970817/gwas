@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/gwas/master/assets/schema_summary_statistics_manifest.json",
     "title": "nf-core/gwas pipeline - summary-statistics manifest schema",
-    "description": "Schema for the summary-statistics manifest provided with params.summary_statistics_manifest. One row declares one external or pipeline-generated scientific summary result.",
+    "description": "One row declares one external, pipeline-generated or meta-analysis-derived scientific summary result.",
     "type": "array",
     "items": {
         "type": "object",
@@ -115,6 +115,24 @@
                 "description": "Optional non-secret access or redistribution constraint associated with the declared summary result.",
                 "errorMessage": "Access constraints must be one line and must not contain credentials",
                 "meta": ["access_constraints"]
+            },
+            "source_summary_statistics_ids": {
+                "type": "string",
+                "pattern": "^\\S+(,\\S+)*$",
+                "description": "Ordered comma-delimited identifiers of at least two declared base summaries; defines a meta-analysis-derived origin.",
+                "meta": ["source_summary_statistics_ids"]
+            },
+            "meta_analysis_models": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+(,[a-z0-9_]+)*$",
+                "description": "Comma-delimited fixed, random, re2 and mrmega model selection; defaults to fixed, which is always required.",
+                "meta": ["meta_analysis_models"]
+            },
+            "min_studies": {
+                "type": "integer",
+                "minimum": 2,
+                "description": "Minimum native fixed-effect contributing study count retained in the derived result; defaults to 2 and cannot exceed the declared parent count.",
+                "meta": ["min_studies"]
             }
         },
         "required": ["summary_statistics_id"],
@@ -131,14 +149,66 @@
                     "source_method"
                 ],
                 "not": {
-                    "anyOf": [{ "required": ["producer_analysis_id"] }, { "required": ["producer_association_method"] }]
+                    "anyOf": [
+                        {
+                            "required": ["producer_analysis_id"]
+                        },
+                        {
+                            "required": ["producer_association_method"]
+                        },
+                        {
+                            "required": ["source_summary_statistics_ids"]
+                        },
+                        {
+                            "required": ["meta_analysis_models"]
+                        },
+                        {
+                            "required": ["min_studies"]
+                        }
+                    ]
                 }
             },
             {
                 "title": "Pipeline-generated summary-statistics origin",
                 "required": ["producer_analysis_id", "producer_association_method"],
                 "not": {
-                    "anyOf": [{ "required": ["source"] }, { "required": ["source_format"] }]
+                    "anyOf": [
+                        {
+                            "required": ["source"]
+                        },
+                        {
+                            "required": ["source_format"]
+                        },
+                        {
+                            "required": ["source_summary_statistics_ids"]
+                        },
+                        {
+                            "required": ["meta_analysis_models"]
+                        },
+                        {
+                            "required": ["min_studies"]
+                        }
+                    ]
+                }
+            },
+            {
+                "title": "Meta-analysis-derived summary-statistics origin",
+                "required": ["source_summary_statistics_ids"],
+                "not": {
+                    "anyOf": [
+                        {
+                            "required": ["source"]
+                        },
+                        {
+                            "required": ["source_format"]
+                        },
+                        {
+                            "required": ["producer_analysis_id"]
+                        },
+                        {
+                            "required": ["producer_association_method"]
+                        }
+                    ]
                 }
             }
         ]

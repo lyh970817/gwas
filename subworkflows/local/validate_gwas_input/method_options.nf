@@ -407,7 +407,7 @@ def readMethodOptionsDocument(method_options) {
 }
 
 def getAnalysisOptionsDocument(method_options, document) {
-    def namespaces = ['analyses', 'unary_requests', 'pair_requests']
+    def namespaces = ['analyses', 'unary_requests', 'pair_requests', 'meta_requests']
     def uses_namespaces = document.keySet().any { key -> key in namespaces }
     if (!uses_namespaces) {
         return document

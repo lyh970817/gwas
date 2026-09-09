@@ -63,6 +63,8 @@ def getMethodCapabilityContract() {
             'pcgc',
             'ld_score_regression',
             'summary_tagging_regression',
+            'meta_analysis',
+            'meta_regression',
         ],
         input_backends: [
             'dense_grm',
@@ -101,6 +103,50 @@ def getMethodCapabilityContract() {
 // require it because their estimates are on the liability scale.
 def getMethodRegistry() {
     return [
+        fixed: [
+            domain: 'summary_set',
+            endpoint_domain: 'summary_statistics',
+            estimator_family: 'meta_analysis',
+            input_backend: 'summary_statistics',
+            component_model: 'none',
+            trait_support: [quantitative: true, binary: true],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            requires_complete_covariates: false,
+            citation_keys: ['gwaslab'],
+        ],
+        random: [
+            domain: 'summary_set',
+            endpoint_domain: 'summary_statistics',
+            estimator_family: 'meta_analysis',
+            input_backend: 'summary_statistics',
+            component_model: 'none',
+            trait_support: [quantitative: true, binary: true],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            requires_complete_covariates: false,
+            citation_keys: ['gwaslab'],
+        ],
+        re2: [
+            domain: 'summary_set',
+            endpoint_domain: 'summary_statistics',
+            estimator_family: 'meta_analysis',
+            input_backend: 'summary_statistics',
+            component_model: 'none',
+            trait_support: [quantitative: true, binary: true],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            requires_complete_covariates: false,
+            citation_keys: ['metasoft'],
+        ],
+        mrmega: [
+            domain: 'summary_set',
+            endpoint_domain: 'summary_statistics',
+            estimator_family: 'meta_regression',
+            input_backend: 'summary_statistics',
+            component_model: 'none',
+            trait_support: [quantitative: true, binary: true],
+            prevalence: [population: 'not_consumed', sample: 'not_consumed'],
+            requires_complete_covariates: false,
+            citation_keys: ['mrmega'],
+        ],
         regenie: [
             domain: 'association',
             option_family: 'regenie',
@@ -541,4 +587,8 @@ def getRelationshipMethodTokens() {
         .findAll { _token, details -> details.domain == 'pairwise' }
         .keySet()
         .toList()
+}
+
+def getSummarySetMethodTokens() {
+    return getMethodTokensWithCapabilities([domain: 'summary_set'])
 }

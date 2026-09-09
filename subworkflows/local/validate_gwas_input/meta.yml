@@ -18,7 +18,7 @@ input:
       structure: "path analysis_manifest|[]"
       pattern: "*.csv"
   - summary_statistics_manifest:
-      description: Optional manifest declaring mutually exclusive external sources or pipeline-generated summary results and their unary methods
+      description: Optional manifest declaring mutually exclusive external sources, pipeline-generated or meta-analysis-derived summary results and their unary methods
       structure: "path summary_statistics_manifest|[]"
       pattern: "*.csv"
   - relationship_manifest:
@@ -30,7 +30,7 @@ input:
       structure: "path reference_catalog|[]"
       pattern: "*.json"
   - method_options:
-      description: Optional JSON document containing validated analysis, unary summary and pair-request scientific options
+      description: Optional JSON document containing validated analysis, unary summary, pair-request and meta-request scientific options
       structure: "path method_options|[]"
       pattern: "*.json"
 output:
@@ -59,6 +59,11 @@ output:
   - pair_requests:
       description: Resolved pair summary-statistics requests with explicit family-specific reference resources
       structure: "[map meta, path hapmap3_snplist|[], path reference_ld_scores|[], path regression_weights|[], path tagging_file|[]]"
+      pattern: "*"
+      ontologies: []
+  - meta_requests:
+      description: Ordered base summary identifiers with resolved model selection and derived result metadata
+      structure: "[map meta, list source_summary_statistics_ids]"
       pattern: "*"
       ontologies: []
 authors:

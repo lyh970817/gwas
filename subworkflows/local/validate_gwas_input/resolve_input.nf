@@ -10,6 +10,7 @@ include {
 include { resolveCohorts                  } from './resolve_cohorts'
 include { readReferenceCatalog            } from './resolve_references'
 include { resolveRelationships            } from './resolve_relationships'
+include { resolveMetaAnalysisRequests } from './resolve_meta_analysis'
 include { resolveSummaryStatistics        } from './resolve_summary_statistics'
 include {
     requestResourceTuple ;
@@ -49,6 +50,10 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
         analyses.generated_summaries_by_id,
         errors,
     )
+    def meta_analysis = resolveMetaAnalysisRequests(
+        summaries.meta_rows, summaries, analyses.generated_summaries_by_id,
+        options_document, method_options, summary_statistics_manifest, errors,
+    )
     def relationships = resolveRelationships(
         relationship_rows,
         getSamplesheetPositionalColumns(relationship_schema),
@@ -66,7 +71,7 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
         }
     }
     summaries.declared_summaries.each { meta ->
-        if (!meta.heritability_methods && !(meta.summary_statistics_id in relationships.referenced_summaries)) {
+        if (meta.source_kind != 'meta-analysis-derived' && !meta.heritability_methods && !(meta.summary_statistics_id in relationships.referenced_summaries) && !(meta.summary_statistics_id in meta_analysis.referenced_summaries)) {
             def line = summaries.line_by_summary_statistics_id[meta.summary_statistics_id]
             errors << "  - ${summary_statistics_manifest} row ${line} (summary_statistics_id '${meta.summary_statistics_id}'), field 'heritability_methods': result selects no unary method and is not referenced by any relationship"
         }
@@ -106,5 +111,6 @@ def validateRelationalInput(cohort_rows, analysis_rows, summary_statistics_rows,
         relationships: resolved_relationships,
         unary_requests: unary_requests,
         pair_requests: pair_requests,
+        meta_requests: meta_analysis.requests,
     ]
 }

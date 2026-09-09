@@ -6,7 +6,7 @@
 
 ## Introduction
 
-nf-core/gwas runs association, individual-level and summary-level heritability, and explicitly declared pairwise genetic-correlation analyses. A cohort manifest owns genotype facts; an analysis manifest links each individual-level trait analysis to one cohort; a summary-statistics manifest declares external or pipeline-generated summary results and their unary methods; and an optional relationship manifest binds ordered analysis or summary endpoints to pairwise methods.
+nf-core/gwas runs association, individual-level and summary-level heritability, and explicitly declared pairwise genetic-correlation analyses. A cohort manifest owns genotype facts; an analysis manifest links each individual-level trait analysis to one cohort; a summary-statistics manifest declares external, pipeline-generated or meta-analysis-derived summary results and their unary methods; and an optional relationship manifest binds ordered analysis or summary endpoints to pairwise methods.
 
 > [!IMPORTANT]
 > Genotypes must be prepared before you run the pipeline. The pipeline converts accepted genotype
@@ -96,11 +96,13 @@ The summary-statistics manifest owns one stable `summary_statistics_id` per row.
 
 Every external and internal source crosses `GWASLAB_HARMONIZE`. The process emits the pipeline-standard GWASLab table directly; the pipeline does not add a second serializer, schema validator or provenance sidecar after GWASLab.
 
-Each declared summary must either select a unary method or be referenced by a relationship. The primary unary request ID is deterministic:
+Each declared base summary must select a unary method, be referenced by a relationship, or be a parent of a meta-analysis. A meta-analysis row itself declares work and can also select downstream unary or pair methods. The primary unary request ID is deterministic:
 
 ```text
 <method>--<summary_statistics_id>
 ```
+
+The third origin uses `source_summary_statistics_ids`, `meta_analysis_models` and `min_studies`; see [Common-variant meta-analysis](#common-variant-meta-analysis) for ordered parent selection and inherited metadata.
 
 ### Relationship manifest fields
 
@@ -235,9 +237,78 @@ nextflow run nf-core/gwas \
 
 The [mixed summary-statistics manifest](../assets/examples/relational/summary_statistics_manifest.csv) illustrates both origins: one internal REGENIE result from `heterogeneous_qt` and external results loaded through the explicit `gwaslab` format. The companion [summary relationship](../assets/examples/relational/relationship_manifest_summary.csv), [request options](../assets/examples/relational/method_options_summary.json), and [reference-catalog shape](../assets/examples/relational/reference_catalog.json) show the complete declaration surface. Replace every `/refs/...` value in the catalog with a locally available scientific reference before launching; the pipeline deliberately rejects unavailable paths and does not infer a bundle from ancestry.
 
-### Advanced method options
+#### Common-variant meta-analysis
 
-`--method_options` is optional. The established form keeps its JSON root keyed by `analysis_id`; each value may contain `gcta`, `ldak`, `mph` and/or `regenie`. It remains supported unchanged. A namespaced document places those same entries under `analyses`, summary unary settings under `unary_requests`, and relationship settings under `pair_requests`. Unlisted analysis settings receive their defaults. Every selected LDAK or LDSC summary request must explicitly choose a `reference_bundle_id`; nothing is inferred from the summary's ancestry label.
+Declare a meta-analysis as another row in `--summary_statistics_manifest`. Its `summary_statistics_id` is
+both the derived result identity and its request ID. Put at least two distinct declared base-summary IDs in
+`source_summary_statistics_ids`, in the study order you want retained. Parents can be external summaries,
+pipeline-generated summaries, or a mixture. Declare each parent in this manifest, even when an analysis
+produces it. Meta-analysis-derived results cannot themselves be parents of another meta-analysis.
+
+Leave `source`, `source_format`, `producer_analysis_id`, `producer_association_method`, `trait_id`,
+`trait_type`, `genome_build`, `ancestry` and `source_method` blank on the derived row. Trait, type and build
+must agree across its parents. The result inherits their common ancestry label, or `MULTI` when labels differ.
+A multi-ancestry request explicitly selects `mrmega`; the labels describe the studies, while MR-MEGA derives
+its continuous ancestry axes from the aligned per-study allele frequencies.
+
+| Model    | Result                                                                           |
+| -------- | -------------------------------------------------------------------------------- |
+| `fixed`  | GWASLab inverse-variance pooled effect; supplies canonical `BETA`, `SE` and `P`. |
+| `random` | Optional GWASLab conventional DerSimonian–Laird random-effects fields.           |
+| `re2`    | Optional METASOFT Han–Eskin heterogeneous-effect association fields.             |
+| `mrmega` | Optional MR-MEGA ancestry-aware meta-regression and heterogeneity fields.        |
+
+A blank `meta_analysis_models` selects `fixed`. When you list models, include `fixed` alongside every optional
+model. No model replaces another automatically. A blank `min_studies` means 2; otherwise supply an integer
+from 2 through the declared parent count. The derived summary retains variants with at least this many
+contributors to the native fixed-effect result. The threshold does not change native model files.
+
+For example, add this row using the complete summary-manifest header:
+
+```csv
+summary_statistics_id,source_summary_statistics_ids,meta_analysis_models,min_studies
+combined_eur,"cohort_a--regenie,published_eur","fixed,random,re2",2
+```
+
+The [complete two-study example](../assets/examples/relational/summary_statistics_manifest_meta.csv) uses small illustrative tables and can be launched from the repository root:
+
+```bash
+nextflow run . -profile docker \
+    --summary_statistics_manifest assets/examples/relational/summary_statistics_manifest_meta.csv \
+    --outdir results/meta_example
+```
+
+For an MR-MEGA request, declare the axis count explicitly in the fourth method-options namespace:
+
+```json
+{
+  "meta_requests": {
+    "combined_multi": {
+      "mrmega": { "axes": 1 }
+    }
+  }
+}
+```
+
+The pipeline forwards the integer `axes` value to MR-MEGA. Native model behavior remains native: METASOFT's
+RE2 correction table covers 2–50 contributing studies and its very small p-values can be printed as zero;
+MR-MEGA determines per-marker fit availability from the number of contributors and configured axes. Native
+zeros, missing statistics and model-specific diagnostics are retained in the published results.
+
+Same-ancestry derived summaries can select existing `heritability_methods` and be named as summary endpoints
+in `relationship_manifest`. Current LDSC and LDAK summary methods require an ancestry-specific reference
+strategy and therefore do not accept a `MULTI` derived result. Specify result-level binary prevalence when
+needed by downstream methods; sample prevalence is not inferred or averaged from parents. Population
+prevalence may inherit when all non-null parent declarations agree. Matching trait IDs assert compatible
+phenotype meaning and effect scale; the pipeline does not infer sample independence from those labels.
+
+Native results are published per selected model under `requests/<model>/<request_id>/`. The consolidated
+fixed-effect summary is published under `summary_statistics/<summary_statistics_id>/` and contains the
+selected optional model fields without replacing its fixed-effect `BETA`, `SE` or `P`.
+
+## Advanced method options
+
+`--method_options` is optional. The established form keeps its JSON root keyed by `analysis_id`; each value may contain `gcta`, `ldak`, `mph` and/or `regenie`. It remains supported unchanged. A namespaced document places those same entries under `analyses`, summary unary settings under `unary_requests`, relationship settings under `pair_requests`, and meta-analysis settings under `meta_requests`. Unlisted analysis settings receive their defaults. Every selected LDAK or LDSC summary request must explicitly choose a `reference_bundle_id`; nothing is inferred from the summary's ancestry label.
 
 All four GCTA pair routes (`gcta_bivariate_reml`, `gcta_bivariate_reml_ldms`, `gcta_bivariate_he`, `gcta_bivariate_he_ldms`) expose `native_args` as an array of individual non-file GCTA tokens on the deterministic request ID. A relationship's deterministic LDMS request additionally owns its matrix construction settings; it never inherits them from either endpoint's unary analysis:
 
@@ -600,12 +671,12 @@ Read the reported CSV path, row number, entity ID, field name and reason from le
 | `missing covariate cells`                                                                                                 | Complete the covariate cells the diagnostic names, or drop those samples from the phenotype file. Every LDAK analysis-row estimator reads a missing cell as a value rather than excluding the sample.                                                                                    |
 | `restricts the GCTA dense predictor set only`                                                                             | Remove `gcta.grm_maf` or `gcta.grm_extract`, or drop the MPH selector the diagnostic names from that row. Either option filters the GCTA dense matrix alone; MPH's matrices are built over the declared MPH variant universe, so the two estimates would cover different predictor sets. |
 | `names repeat`                                                                                                            | Give every declared weight column a unique name.                                                                                                                                                                                                                                         |
-| A summary origin or deterministic identity diagnostic                                                                     | Populate exactly one complete external or producer origin. Internal IDs must be `<producer_analysis_id>--<producer_association_method>`. See [Summary-statistics manifest fields](#summary-statistics-manifest-fields).                                                                  |
+| A summary origin or deterministic identity diagnostic                                                                     | Populate exactly one complete external, producer or meta-analysis origin. Internal IDs must be `<producer_analysis_id>--<producer_association_method>`. See [Summary-statistics manifest fields](#summary-statistics-manifest-fields).                                                   |
 | An undefined or self-paired summary endpoint                                                                              | Declare each referenced summary ID, use distinct endpoint and trait IDs on the two sides, and ensure any combined analysis/summary side has recorded producer correspondence.                                                                                                            |
 
 ### Method-options validation failed
 
-The diagnostic names the document, entity or request ID, fully qualified option and reason. Fix malformed JSON; use the `gcta`, `ldak`, `mph` and `regenie` analysis families; and use only the `analyses`, `unary_requests` and `pair_requests` namespaces described under [Advanced method options](#advanced-method-options). A request may configure only a method already selected by its summary or relationship declaration. Named additions must provide their own complete settings, including a reference bundle for LDAK or LDSC.
+The diagnostic names the document, entity or request ID, fully qualified option and reason. Fix malformed JSON; use the `gcta`, `ldak`, `mph` and `regenie` analysis families; and use only the `analyses`, `unary_requests`, `pair_requests` and `meta_requests` namespaces described under [Advanced method options](#advanced-method-options). A request may configure only a method already selected by its summary or relationship declaration. Named additions must provide their own complete settings, including a reference bundle for LDAK or LDSC.
 
 Resolve resource paths from the launch environment. `weights_policy: provided` requires `weights`, and `kvik_step1_subset: provided` requires `predictor_extract`; resources are also rejected when supplied under an incompatible policy. Operational settings such as process resources and tool threads belong in run or profile configuration, not `--method_options`.
 

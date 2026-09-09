@@ -91,6 +91,9 @@ def resolveRelationships(relationship_rows, relationship_columns, relationship_m
             reject.call(['right_analysis_id', 'right_summary_statistics_id'], "same-side correspondence cannot be proven: summary '${right_summary_statistics_id}' was not produced by analysis '${right_analysis_id}'")
         }
 
+        if (summary_methods && [left_summary, right_summary].any { summary -> summary?.source_kind == 'meta-analysis-derived' && summary.ancestry == 'MULTI' }) {
+            reject.call(['left_summary_statistics_id', 'right_summary_statistics_id'], 'current LDSC and LDAK summary methods do not support a MULTI derived summary')
+        }
         def left_meta = left_analysis ? left_analysis[0] : left_summary
         def right_meta = right_analysis ? right_analysis[0] : right_summary
         if (left_meta && right_meta && left_meta.trait.toString() == right_meta.trait.toString()) {

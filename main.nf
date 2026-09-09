@@ -57,6 +57,7 @@ workflow {
         PIPELINE_INITIALISATION.out.relationships,
         PIPELINE_INITIALISATION.out.unary_requests,
         PIPELINE_INITIALISATION.out.pair_requests,
+        PIPELINE_INITIALISATION.out.meta_requests,
     )
     //
     // SUBWORKFLOW: Run completion tasks
@@ -111,6 +112,7 @@ workflow NFCORE_GWAS {
     relationships // channel: [ val(meta), path(genotype_files), path(pair_quant_covariates), path(pair_cat_covariates) ]
     unary_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
     pair_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
+    meta_requests // channel: [ val(meta), val(source_summary_statistics_ids) ]
 
     main:
 
@@ -123,6 +125,7 @@ workflow NFCORE_GWAS {
         relationships,
         unary_requests,
         pair_requests,
+        meta_requests,
         params.multiqc_config,
         params.multiqc_logo,
         params.multiqc_methods_description,

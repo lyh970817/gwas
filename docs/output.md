@@ -401,3 +401,34 @@ These files show the exact representation consumed by downstream tools. They are
   - `nf_core_gwas_software_mqc_versions.yml`: Software versions collected from executed processes.
 
 </details>
+
+### Meta-analysis results
+
+A meta-analysis row publishes `<summary_statistics_id>.gwaslab.tsv.gz` below its ordinary
+`summary_statistics/<summary_statistics_id>/` directory. This derived table retains fixed-effect variants
+meeting `min_studies` and appends native fields from each explicitly selected model. `BETA`, `SE` and `P`
+always describe the GWASLab inverse-variance fixed-effect result. Its native `EAF`, `N`, `Z`, `Q`, `DOF`,
+`P_HET`, `I2` and `DIRECTION` fields are retained; `N_STUDIES` is `DOF + 1`.
+
+| Selected model | Additional fields in the derived table                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `random`       | `BETA_RANDOM`, `SE_RANDOM`, `Z_RANDOM`, `P_RANDOM`                                                                                                      |
+| `re2`          | `P_RE2`, `RE2_MEAN_COMPONENT`, `RE2_HET_COMPONENT`                                                                                                      |
+| `mrmega`       | `MRMEGA_CHISQ_ASSOC`, `MRMEGA_DF_ASSOC`, `MRMEGA_P_ASSOC`; corresponding `CHISQ`, `DF`, `P` fields for `ANCESTRY_HET` and `RESIDUAL_HET`; `MRMEGA_LNBF` |
+
+Optional model fields are joined to the retained fixed-effect rows by allele-aware variant identity. An absent
+native model row leaves those optional fields missing. MR-MEGA's multi-degree-of-freedom association p-value
+stays in `MRMEGA_P_ASSOC`, separate from the pooled fixed-effect estimate. Native numerical spelling, zero
+p-values and `NA` statistics are preserved; no tail probabilities are recomputed.
+
+Native products are also retained unchanged:
+
+- `requests/fixed/<request_id>/`: `<request_id>.fixed.tsv.gz` and `<request_id>.gwaslab.log`.
+- `requests/random/<request_id>/`: `<request_id>.random.tsv.gz` when selected.
+- `requests/re2/<request_id>/`: `<request_id>.metasoft.txt` and `<request_id>.metasoft.log` when selected.
+- `requests/mrmega/<request_id>/`: `<request_id>.result` and `<request_id>.log` when selected, including native
+  coefficients and per-marker diagnostics.
+
+The native files contain each program's full output before the derived-summary contribution threshold.
+METASOFT's ordinary fixed and random fields remain inside its native file and are not separate published
+model families. Aligned study matrices and MR-MEGA input lists remain in the Nextflow work directory.

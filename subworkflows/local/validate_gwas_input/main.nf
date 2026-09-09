@@ -70,11 +70,13 @@ workflow VALIDATE_GWAS_INPUT {
     def ch_relationships = channel.fromList(validated.relationships)
     def ch_unary_requests = channel.fromList(validated.unary_requests)
     def ch_pair_requests = channel.fromList(validated.pair_requests)
+    def ch_meta_requests = channel.fromList(validated.meta_requests)
 
     emit:
     analyses           = ch_analyses // channel: [ val(meta), [ path(genotype_file), ... ], path(phenotype), path(quant_covariates), path(cat_covariates), path(kvik_extract), path(ldak_weights) ]
     summary_statistics = ch_summary_statistics // channel: [ val(meta), path(source) ]
     relationships      = ch_relationships // channel: [ val(meta), [ path(genotype_file), ... ], path(pair_quant_covariates), path(pair_cat_covariates) ]
     unary_requests     = ch_unary_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
+    meta_requests      = ch_meta_requests // channel: [ val(meta), val(source_summary_statistics_ids) ]
     pair_requests      = ch_pair_requests // channel: [ val(meta), path(hapmap3_snplist), path(reference_ld_scores), path(regression_weights), path(tagging_file) ]
 }

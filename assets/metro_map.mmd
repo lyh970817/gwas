@@ -121,7 +121,11 @@ graph LR
     subgraph summary_methods [Summary-statistics methods]
         %%metro entry: left | summary
         %%metro exit: right | ldak, ldsc
-        summary_ready[GWASLab-standard summaries]
+        summary_base[Base GWASLab summaries]
+        meta_analysis[Fixed, random, RE2 and MR-MEGA]
+        meta_native[Native model results]
+        meta_derived[Published derived GWASLab summary]
+        summary_ready[Base and derived GWASLab summaries]
         prepare_ldak[GWASLab-to-LDAK adapter]
         sumher[LDAK SumHer]
         sumcors[LDAK SumCors]
@@ -131,7 +135,12 @@ graph LR
         ldsc_rg[LDSC RG]
         ldsc_native[Native LDSC logs]
 
-        gwaslab -->|summary| summary_ready
+        gwaslab -->|summary| summary_base
+        summary_base -->|summary| meta_analysis
+        meta_analysis -->|summary| meta_native
+        meta_analysis -->|summary| meta_derived
+        meta_analysis -->|summary| summary_ready
+        summary_base -->|summary| summary_ready
         summary_ready -->|ldak| prepare_ldak
         prepare_ldak -->|ldak| sumher
         prepare_ldak -->|ldak| sumcors

@@ -62,6 +62,7 @@ nextflow_pipeline {
     }
 
     test("two association summaries feed a derived result and existing unary and pair consumers") {
+        tag "meta_stub_integration"
         options "-stub"
         when {
             params {
@@ -124,6 +125,7 @@ nextflow_pipeline {
     }
 
     test("mixed origins and multi-ancestry models preserve request identity across resume") {
+        tag "meta_stub_integration"
         options "-stub"
         when {
             params {

@@ -7,6 +7,7 @@ def resolveSummaryStatistics(summary_statistics_rows, summary_statistics_columns
     def line_by_summary_statistics_id = [:]
     def validated_external_summaries = []
     def declared_summaries = []
+    def meta_rows = []
     def summary_unary_primary_requests = []
     summary_statistics_rows.eachWithIndex { row, index ->
         def line = index + 2
@@ -33,6 +34,15 @@ def resolveSummaryStatistics(summary_statistics_rows, summary_statistics_columns
         def producer_association_method = normaliseCellValue(summary_meta.producer_association_method)?.toString()
         def has_external_origin = source || source_format
         def has_internal_origin = producer_analysis_id || producer_association_method
+        def has_meta_origin = ['source_summary_statistics_ids', 'meta_analysis_models', 'min_studies']
+            .any { field -> normaliseCellValue(summary_meta[field]) != null }
+        if (has_meta_origin) {
+            if (has_external_origin || has_internal_origin) {
+                reject.call('source_summary_statistics_ids', 'meta-analysis origin is mutually exclusive with external and producer fields')
+            }
+            meta_rows << [meta: summary_meta, line: line]
+            return
+        }
         if (has_external_origin && has_internal_origin) {
             reject.call(
                 ['source', 'source_format', 'producer_analysis_id', 'producer_association_method'],
@@ -163,6 +173,7 @@ def resolveSummaryStatistics(summary_statistics_rows, summary_statistics_columns
     return [
         summaries: validated_external_summaries,
         declared_summaries: declared_summaries,
+        meta_rows: meta_rows,
         summaries_by_id: summaries_by_id,
         unary_primary_requests: summary_unary_primary_requests,
         line_by_summary_statistics_id: line_by_summary_statistics_id,
