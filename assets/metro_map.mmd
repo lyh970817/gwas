@@ -8,7 +8,7 @@
 %%metro file: external_summary_in | TSV.GZ | External summary statistics
 %%metro file: gwaslab_out | TSV.GZ | GWASLab-standard summary statistics
 %%metro file: multiqc_out | HTML | MultiQC
-%%metro off_track: makebed
+%%metro off_track: ldms_plan
 %%metro line: regenie | REGENIE | #2db572
 %%metro line: gcta | GCTA | #756bb1
 %%metro line: ldak | LDAK | #e6550d
@@ -39,7 +39,7 @@ graph LR
         external_summary_in[ ]
         prepare_phenotypes[Prepare phenotype and covariate inputs]
         prepare_pair_traits[Prepare relationship traits]
-        makebed[PLINK 1 view: supplied, or PLINK 2 --make-bed on demand]
+        makebed[PLINK 1 view]
         ldms_plan[LD-by-MAF component plan]
         _genotypes_ready[hidden]
         _analysis_ready[hidden]
