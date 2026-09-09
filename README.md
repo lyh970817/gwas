@@ -33,7 +33,7 @@ Genotype quality control is not performed by the pipeline. Input genotypes must 
 2. Prepare each distinct cohort once from PLINK 2, PLINK 1 or VCF input, preserving the supplied representation.
 3. Prepare the selected phenotype and optional quantitative and categorical covariates for the native tools.
 4. Run selected association routes:
-   - REGENIE (compatible analyses batched into one native invocation)
+   - REGENIE
    - GCTA fastGWA-MLM
    - LDAK-KVIK
 5. Assign every association result a stable `<analysis_id>--<association_method>` summary-statistics identity and standardise it with GWASLab while preserving the native result.

@@ -45,19 +45,11 @@ process REGENIE_RUNL0 {
     """
 
     stub:
-    def args = task.ext.args ?: ''
     def input_prefix = plink_genotype_file.baseName
     def prefix = task.ext.prefix ?: input_prefix
     def run_prefix = "${prefix}_job${job_number}"
-    // A multi-phenotype L0 job writes one level-0 prediction block per `--phenoColList` column, numbered in
-    // REGENIE's own order, so a stub emitting only `_l0_Y1` reports one-phenotype cardinality for a
-    // multi-phenotype fit. The column list is optionally single-quoted on the command line. Without the
-    // option the stub keeps its single block.
-    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
-    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : ['Y1']
-    def l0_lines = (1..pheno_columns.size()).collect { index -> "touch ${run_prefix}_l0_Y${index}" }.join('\n    ')
     """
-    ${l0_lines}
+    touch ${run_prefix}_l0_Y1
     touch ${run_prefix}.log
     """
 }

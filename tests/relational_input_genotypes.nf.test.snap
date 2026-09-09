@@ -35,9 +35,6 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "PREPARE_REGENIE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "REGENIE_STEP1": {
                     "regenie": "4.1.2"
                 },
@@ -49,7 +46,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-07T07:05:38.636717791",
+        "timestamp": "2026-09-10T00:20:40.892906233",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -173,9 +170,6 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "PREPARE_REGENIE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "REGENIE_STEP1": {
                     "regenie": "4.1.2"
                 },
@@ -187,7 +181,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-07T07:04:39.160563694",
+        "timestamp": "2026-09-10T00:19:48.981216487",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -283,9 +277,6 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "PREPARE_REGENIE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "REGENIE_STEP1": {
                     "regenie": "4.1.2"
                 },
@@ -297,7 +288,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-07T07:05:08.495020113",
+        "timestamp": "2026-09-10T00:20:14.268190469",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

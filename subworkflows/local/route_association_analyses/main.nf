@@ -39,7 +39,6 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     regenie_step2_bsize // value: val(step2_bsize)
     regenie_step1_mode // value: val(step1_mode), 'standard' or 'chunked'
     regenie_step1_jobs // value: val(step1_jobs), null for standard mode
-    regenie_batch_size // value: val(batch_size), maximum analyses fitted and tested in one REGENIE invocation
 
     main:
 
@@ -72,7 +71,6 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
         regenie_step2_bsize,
         regenie_step1_mode,
         regenie_step1_jobs,
-        regenie_batch_size,
     )
 
     //

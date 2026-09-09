@@ -66,10 +66,6 @@ input:
       description: The number of REGENIE Step 1 chunk jobs, required in `chunked` mode and `null` in `standard` mode. An execution control that does not enter the fit reuse key
       structure: "val step1_jobs"
       ontologies: []
-  - regenie_batch_size:
-      description: The maximum number of compatible analyses REGENIE fits and tests in one invocation. An operational cap on batch width, not a scientific setting; batch membership itself is decided by the route from the analyses' own inputs
-      structure: "val batch_size"
-      ontologies: []
 output:
   - association_results:
       description: |

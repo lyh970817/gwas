@@ -161,11 +161,6 @@
                 "regenie_lowmem": {
                     "type": "boolean",
                     "description": "Use REGENIE's low-memory Step 1 implementation, keeping temporary predictions in the task work directory."
-                },
-                "regenie_batch_size": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "description": "Maximum number of compatible phenotypes fitted and tested in one REGENIE invocation batch. Compatible analyses are sorted by analysis ID and split into consecutive batches of at most this size."
                 }
             },
             "allOf": [

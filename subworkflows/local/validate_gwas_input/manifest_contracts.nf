@@ -195,42 +195,6 @@ def validateTraitColumns(is_binary, settings, reject) {
     }
 }
 
-// A REGENIE analysis unit's `analysis_id` stops being a pipeline-internal label the moment REGENIE
-// batches compatible analyses: the identifier becomes a native phenotype column name, it is passed on the
-// `--phenoColList` command line, and REGENIE names the per-column Step 2 output file after it. The
-// manifest pattern is only `^\S+$`, which is far wider than any of those three roles allows. An id
-// beginning with `-` would be read as an option by REGENIE's own argument parser rather than as a column,
-// a `,` would split one analysis into two column names, `FID` and `IID` would shadow the key columns of
-// the phenotype file, and a shell metacharacter would be expanded by the task shell before REGENIE saw
-// the value at all. The safe class is enforced here, at ingress, where the message can name the manifest
-// field; `conf/modules/regenie.config` additionally single-quotes the joined list, so the two layers are
-// independent. Gated on the registry rather than on a token literal, so a future REGENIE-family selector
-// inherits the rule.
-def getRegeniePhenotypeColumnPattern() {
-    return ~/^[A-Za-z0-9][A-Za-z0-9._-]*$/
-}
-
-def validateRegeniePhenotypeColumnNames(analysis_id, association_methods, reject) {
-    def regenie_methods = getMethodTokensWithCapabilities([option_family: 'regenie'])
-    if (!association_methods.any { method -> method in regenie_methods }) {
-        return
-    }
-    def name = analysis_id?.toString()
-    if (name in ['FID', 'IID']) {
-        reject.call(
-            'analysis_id',
-            "analysis_id '${name}' selects a REGENIE method, which uses the analysis ID as a native REGENIE phenotype column name; 'FID' and 'IID' are the phenotype file's own key columns and cannot also name a trait",
-        )
-        return
-    }
-    if (!(name ==~ getRegeniePhenotypeColumnPattern())) {
-        reject.call(
-            'analysis_id',
-            "analysis_id '${name}' selects a REGENIE method, which uses the analysis ID as a native REGENIE phenotype column name and passes it on the --phenoColList command line; it must match ^[A-Za-z0-9][A-Za-z0-9._-]*\$ and must not be 'FID' or 'IID'",
-        )
-    }
-}
-
 def validateMethodConditionedColumns(settings, routes, reject, downstream_consumes_population_prevalence = false) {
     if (settings.population_prevalence != null && !routes.consumes_population_prevalence && !downstream_consumes_population_prevalence) {
         reject.call('population_prevalence', 'none of the selected estimators consumes it; select a liability-aware individual, summary or pair method, or remove the prevalence')

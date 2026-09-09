@@ -48,10 +48,8 @@ nextflow_pipeline {
                 { assert workflow.success },
                 { assert TRACE.tags(workflow, 'PREPARE_PHENOTYPE_INPUTS').sort() == analysisIds },
                 { assert TRACE.count(workflow, 'PREPARE_PHENOTYPE_INPUTS') == analysisIds.size() },
-                // The four rows disagree pairwise on trait type and on covariate presence, both of which
-                // are invocation-global for REGENIE, so no two of them may share a native invocation:
-                // four batches of one, one fit and one test each.
-                { assert TRACE.count(workflow, 'PREPARE_REGENIE_PHENOTYPES') == analysisIds.size() },
+                // Four distinct phenotype/covariate byte sets, so the REGENIE Step 1 reuse key produces one
+                // fit per analysis rather than collapsing any of them.
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == analysisIds.size() },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == analysisIds.size() },
                 { assert TRACE.tags(workflow, 'GWASLAB_HARMONIZE').sort() == analysisIds.collect { id -> "${id}--regenie" }.sort() },

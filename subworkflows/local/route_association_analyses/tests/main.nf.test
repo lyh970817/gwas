@@ -155,7 +155,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -167,7 +166,7 @@ nextflow_workflow {
                 // did not declare, and the relatedness matrix reaches only the fastGWA analysis.
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
-                { assert TRACE.tags(workflow, 'REGENIE_STEP2').every { tag -> tag ==~ /^regenie\.[0-9a-f]{12}$/ } },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2') == ['alpha'] },
                 { assert TRACE.count(workflow, 'REGENIE_SPLITL0') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
@@ -220,7 +219,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -228,15 +226,13 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // `alpha` and `beta` differ in covariate presence and in `is_binary`, so the route's batch
-                // key separates them and each analysis gets its own fit and its own test.
+                // `alpha` and `beta` differ in covariate presence and in `is_binary`, so the route's Step 1
+                // reuse key separates them and each analysis gets its own fit and its own test.
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 2 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
-                { assert TRACE.tags(workflow, 'REGENIE_STEP2').unique().size() == 2 },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2').sort() == ['alpha', 'beta'] },
                 { assert workflow.out.association_results.size() == 2 },
-                // The native file is named by the invocation and the phenotype column, and the column is
-                // the analysis identifier: that is what carries attribution out of a batched invocation.
-                { assert workflow.out.association_results.collect { meta, sumstats -> "${meta.id}:${file(sumstats).name.endsWith("_${meta.id}.regenie.gz")}" }.sort() == ['alpha:true', 'beta:true'] },
+                { assert workflow.out.association_results.collect { meta, sumstats -> "${meta.id}:${file(sumstats).name}" }.sort() == ['alpha:alpha.regenie_PHENO.regenie.gz', 'beta:beta.regenie_PHENO.regenie.gz'] },
                 { assert workflow.out.association_results.every { meta, _sumstats -> meta.method == 'regenie' } },
                 // `beta` declared no covariates and is simply absent from the optional stream. The remainder
                 // join still delivers it, with `[]`, which stages nothing.
@@ -285,7 +281,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -293,14 +288,12 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                // Both analyses agree on every cohort-defining and scientific input. LDAK-KVIK fits once and
-                // tests twice; REGENIE now also *tests* once, because the two analyses are compatible in
-                // every setting that reaches the native command and are batched into one invocation whose
-                // two results are attributed back below. The reuse identities belong to the nested routes;
-                // this controller only has to keep the streams that feed them byte-identical.
+                // Both analyses agree on every cohort-defining and scientific input, so each family fits once
+                // and tests twice. The reuse identities belong to the nested routes; this controller only has
+                // to keep the streams that feed them byte-identical.
                 { assert TRACE.count(workflow, 'REGENIE_STEP1') == 1 },
-                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
-                { assert TRACE.tags(workflow, 'REGENIE_STEP2').every { tag -> tag ==~ /^regenie\.[0-9a-f]{12}$/ } },
+                { assert TRACE.count(workflow, 'REGENIE_STEP2') == 2 },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2') == ['alpha', 'beta'] },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP1') == 1 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 2 },
                 { assert TRACE.tags(workflow, 'LDAK_KVIKSTEP2') == ['alpha:alpha', 'beta:beta'] },
@@ -346,7 +339,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -392,7 +384,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -444,7 +435,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }
@@ -457,9 +447,7 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
                 { assert TRACE.count(workflow, 'REGENIE_STEP2') == 1 },
-                // A REGENIE task is now named by the batch it runs, not by an analysis; the analysis
-                // identity is restored on the way out, which the emitted record below is what pins.
-                { assert TRACE.tags(workflow, 'REGENIE_STEP2').every { tag -> tag ==~ /^regenie\.[0-9a-f]{12}$/ } },
+                { assert TRACE.tags(workflow, 'REGENIE_STEP2') == ['regenie_only'] },
                 { assert workflow.out.association_results.collect { meta, _sumstats -> "${meta.id}/${meta.method}" }.sort() == ['kvik/ldak_kvik', 'regenie_only/regenie'] },
             )
         }
@@ -502,7 +490,6 @@ nextflow_workflow {
                 input[9] = 200
                 input[10] = 'standard'
                 input[11] = null
-                input[12] = 20
                 """
             }
         }

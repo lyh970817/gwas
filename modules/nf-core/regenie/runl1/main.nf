@@ -45,21 +45,11 @@ process REGENIE_RUNL1 {
     """
 
     stub:
-    def args = task.ext.args ?: ''
     def input_prefix = plink_genotype_file.baseName
     def prefix = task.ext.prefix ?: input_prefix
-    // The L1 stage completes a multi-phenotype fit, so its `_pred.list` names every `--phenoColList` column
-    // beside that column's LOCO file. A stub emitting one placeholder `Y1` line reports one-phenotype
-    // cardinality and the wrong phenotype name for a multi-phenotype fit. The column list is optionally
-    // single-quoted on the command line. Without the option the stub keeps its single placeholder line.
-    def pheno_match = args =~ /--phenoColList\s+'?([^'\s]+)'?/
-    def pheno_columns = pheno_match.find() ? pheno_match.group(1).tokenize(',') : ['Y1']
-    def loco_files = (1..pheno_columns.size()).collect { index -> "${prefix}_${index}.loco.gz" }
-    def loco_lines = loco_files.collect { loco -> "echo \"\" | gzip > ${loco}" }.join('\n    ')
-    def pred_lines = [pheno_columns, loco_files].transpose().collect { column, loco -> "${column} ${loco}" }.join('\\n')
     """
-    printf '${pred_lines}\\n' > ${prefix}_pred.list
-    ${loco_lines}
+    echo "Y1 ${prefix}_1.loco.gz" > ${prefix}_pred.list
+    echo "" | gzip > ${prefix}_1.loco.gz
     touch ${prefix}.log
     """
 }

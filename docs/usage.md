@@ -443,14 +443,13 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 
 ### Run-level defaults
 
-| Parameter or behaviour            | Default and rationale                                                                                                                                                                                                                 |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                                      |
-| `--regenie_lowmem`                | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                                                 |
-| `--regenie_batch_size`            | `20`, the maximum number of compatible analyses REGENIE fits and tests in one invocation. Lower it if Step 1 memory becomes a problem; set it to `1` to run every analysis on its own. See [Phenotype batching](#phenotype-batching). |
-| REGENIE scientific method options | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                                               |
-| GWASLab reference parameters      | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource.                      |
-| Save controls                     | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                                       |
+| Parameter or behaviour            | Default and rationale                                                                                                                                                                                            |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                 |
+| `--regenie_lowmem`                | `true`, keeping Step 1's temporary prediction blocks in the task work directory to reduce memory use.                                                                                                            |
+| REGENIE scientific method options | Per-analysis `regenie.*` defaults enable approximate Firth fallback below `0.01` for binary traits and leave `min_mac` unset so REGENIE's own versioned policy applies.                                          |
+| GWASLab reference parameters      | Unset. Every association output is still standardised; reference-dependent allele checks, rsID assignment and strand inference run only when you provide the corresponding build-specific FASTA or VCF resource. |
+| Save controls                     | Off. Intermediates stay out of the results directory unless explicitly requested, avoiding unexpectedly large published output.                                                                                  |
 
 The three opt-in save controls are:
 
@@ -462,29 +461,9 @@ REGENIE and LDAK-KVIK Step 1 bundles remain internal work outputs consumed direc
 
 See the [output documentation](output.md) for the exact files and publication exceptions.
 
-### Phenotype batching
-
-REGENIE fits and tests many phenotypes in a single invocation, so the pipeline runs compatible analyses together instead of one at a time. Batching is automatic and changes nothing you declare: each analysis keeps its own `analysis_id`, its own published directory and its own result file.
-
-Two analyses are batched only when they agree on everything the native command depends on:
-
-| Setting                       | Why it must agree                                                                                                                                                                                                                                                                                                                                                    |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cohort genotypes              | One invocation reads one genotype bundle. Two cohorts declaring byte-identical genotypes count as one.                                                                                                                                                                                                                                                               |
-| Trait type                    | `--bt` applies to the whole invocation, and REGENIE refuses a binary column analysed as a quantitative trait.                                                                                                                                                                                                                                                        |
-| Covariates                    | `--covarFile` applies to the whole invocation.                                                                                                                                                                                                                                                                                                                       |
-| Which samples the file lists  | A batch is written as one table over one set of rows. A trait exported with `NA` padding for the whole cohort and a trait exported as only its measured subset therefore do not batch together, even when they observe the same individuals.                                                                                                                         |
-| Which samples are non-missing | REGENIE mean-imputes missing observations across the whole invocation, so an analysis batched with a differently-missing sibling would be fitted against a sample set it would not have alone. That is also why a listed-but-missing row is not interchangeable with an absent one: the first is inside the analysed set and gets imputed, the second is outside it. |
-| `regenie.step1_bsize`         | The Step 1 block size applies to the whole fit.                                                                                                                                                                                                                                                                                                                      |
-| `regenie.min_mac` and Firth   | These apply to the whole Step 2 command. Analyses that differ only here still share one Step 1 fit and are tested separately.                                                                                                                                                                                                                                        |
-
-`--regenie_batch_size` (default `20`) caps how many compatible analyses share one invocation; memory grows with the number of phenotypes fitted at once. Analyses are ordered by `analysis_id` and cut into consecutive batches, so the same manifest always produces the same batches.
-
-Because the `analysis_id` becomes a native REGENIE phenotype column name and is passed on the `--phenoColList` command line, an `analysis_id` selecting REGENIE must match `^[A-Za-z0-9][A-Za-z0-9._-]*$` and must not be `FID` or `IID`. This is checked when the manifests are read, before any task runs.
-
-Batching changes `-resume` in one way worth knowing: a batch is one task, so changing one member's phenotype content re-runs the fit for the whole batch, and changing one member's Step 2 option re-runs Step 2 for the batch it was in. Set `--regenie_batch_size 1` to restore per-analysis behaviour.
-
-If REGENIE drops a phenotype from a batched fit — it removes a binary phenotype with fewer than ten cases and still exits successfully — the run fails and names the affected `analysis_id` rather than returning one result short.
+REGENIE runs Step 2 separately for each analysis. Analyses with identical genotype views, trait type,
+phenotype and covariate bytes, and Step 1 block size share one Step 1 prediction bundle. A Step 2 option
+change leaves that fit reusable; a phenotype change creates a new fit for the affected analysis.
 
 ## Running the pipeline
 

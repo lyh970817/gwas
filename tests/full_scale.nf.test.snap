@@ -84,9 +84,6 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "PREPARE_REGENIE_PHENOTYPES": {
-                    "python": "3.14.5"
-                },
                 "REGENIE_STEP1": {
                     "regenie": "4.1.2"
                 },
@@ -98,7 +95,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-07T06:24:52.176640535",
+        "timestamp": "2026-09-10T00:32:37.390049285",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

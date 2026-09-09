@@ -263,7 +263,6 @@ workflow GWAS {
         params.regenie_step2_bsize,
         params.regenie_step1_mode,
         params.regenie_step1_jobs,
-        params.regenie_batch_size,
     )
 
     //

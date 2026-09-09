@@ -381,64 +381,6 @@ nextflow_workflow {
         }
     }
 
-    test("an analysis_id in the safe column-name class is accepted for REGENIE") {
-        tag "regenie_column_name"
-
-        when {
-            workflow {
-                """
-                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'accepted_regenie_id')}', checkIfExists: true)
-                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'accepted_regenie_id', { rows ->
-                    rows[0].analysis_id = 'a.b-c_1'
-                    rows[0].association_methods = 'regenie'
-                    rows[0].heritability_methods = ''
-                })}', checkIfExists: true)
-                input[2] = null
-                input[3] = null
-                input[4] = null
-                input[5] = null
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert workflow.success },
-                { assert workflow.out.analyses[0][0].id == 'a.b-c_1' },
-            )
-        }
-    }
-
-    test("an analysis_id outside that class is accepted when no REGENIE method is selected") {
-        tag "regenie_column_name"
-
-        when {
-            workflow {
-                """
-                input[0] = file('${RELATIONAL.cohorts(projectDir, outputDir, 'unconstrained_id')}', checkIfExists: true)
-                input[1] = file('${RELATIONAL.analyses(projectDir, outputDir, 'unconstrained_id', { rows ->
-                    rows[0].analysis_id = '-example'
-                    rows[0].association_methods = 'gcta_fastgwa'
-                    rows[0].heritability_methods = ''
-                })}', checkIfExists: true)
-                input[2] = null
-                input[3] = null
-                input[4] = null
-                input[5] = null
-                """
-            }
-        }
-
-        then {
-            // The rule is a REGENIE contract, not a global tightening of the manifest pattern: an
-            // identifier only has to be a native column name for the routes that make it one.
-            assertAll(
-                { assert workflow.success },
-                { assert workflow.out.analyses[0][0].id == '-example' },
-            )
-        }
-    }
-
     // The pairing rule lives in the VALIDATE_GWAS_INPUT workflow body (main.nf), not in a resolver, so it has
     // no function form. Its other half — a cohort manifest with no analysis manifest — stays at pipeline level
     // in tests/relational_input_analyses.nf.test, where it also proves that a null --analysis_manifest passes

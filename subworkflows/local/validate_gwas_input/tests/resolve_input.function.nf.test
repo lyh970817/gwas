@@ -225,58 +225,6 @@ nextflow_function {
         }
     }
 
-    // A REGENIE analysis unit's `analysis_id` becomes a native phenotype column name, a `--phenoColList`
-    // token and the stem REGENIE names its result file after, so the safe class is narrower than the
-    // manifest pattern and is enforced where the message can name the manifest field.
-    def rejectedRegenieAnalysisIds = [
-        [name: 'a leading dash, which REGENIE would read as an option', token: '-example', key_column: false],
-        [name: 'a comma, which would split one analysis into two columns', token: 'exam,ple', key_column: false],
-        [name: 'a command substitution', token: 'example$(id)', key_column: false],
-        [name: 'a backtick', token: 'example`id`', key_column: false],
-        [name: 'a glob', token: 'example*', key_column: false],
-        [name: 'the phenotype file key column FID', token: 'FID', key_column: true],
-        [name: 'the phenotype file key column IID', token: 'IID', key_column: true],
-    ]
-
-    rejectedRegenieAnalysisIds.each { scenario ->
-        test("${scenario.name} is refused as a REGENIE analysis_id") {
-            function "validateRelationalInput"
-
-            when {
-                function {
-                    """
-                    input[0] = ${[cohortRow()].inspect()}
-                    input[1] = ${[analysisRow([id: scenario.token, association_methods: 'regenie', heritability_methods: ''])].inspect()}
-                    input[2] = []
-                    input[3] = []
-                    input[4] = '${COHORT_MANIFEST}'
-                    input[5] = '${ANALYSIS_MANIFEST}'
-                    input[6] = null
-                    input[7] = null
-                    input[8] = '${projectDir}/assets/schema_cohort_manifest.json'
-                    input[9] = '${projectDir}/assets/schema_analysis_manifest.json'
-                    input[10] = '${projectDir}/assets/schema_summary_statistics_manifest.json'
-                    input[11] = '${projectDir}/assets/schema_relationship_manifest.json'
-                    input[12] = null
-                    input[13] = null
-                    """
-                }
-            }
-
-            then {
-                def report = function.stdout.join('\n')
-                def prefix = "  - analyses.csv row 2 (analysis_id '${scenario.token}'), field 'analysis_id': analysis_id '${scenario.token}' selects a REGENIE method, which uses the analysis ID as a native REGENIE phenotype column name"
-                def reason = scenario.key_column
-                    ? "; 'FID' and 'IID' are the phenotype file's own key columns and cannot also name a trait"
-                    : ' and passes it on the --phenoColList command line'
-                assertAll(
-                    { assert function.failed },
-                    { assert report.contains(prefix + reason) },
-                )
-            }
-        }
-    }
-
     // The genotype-group rules exist because every PLINK, GCTA and REGENIE consumer would otherwise fail deep
     // inside preparation with a message that names no cohort.
     def cohortRowRejections = [

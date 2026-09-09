@@ -56,7 +56,7 @@ def getMethodOptionOperationalKeys() {
         gcta: ['gcta_grm_parts'],
         ldak: ['threads', 'jobs', 'partitions'],
         mph: ['threads', 'num_threads'],
-        regenie: ['step2_bsize', 'step1_mode', 'step1_jobs', 'lowmem', 'batch_size'],
+        regenie: ['step2_bsize', 'step1_mode', 'step1_jobs', 'lowmem'],
     ]
 }
 
