@@ -97,8 +97,8 @@ nf-test-parallel --filter=process,workflow,function --verbose
 
 `--filter` selects on the test type each file declares, so the same command selects the same cases on any
 checkout and a mistake shows up as a changed count rather than as silence. Counted by `--dry-run` discovery,
-which is the authoritative figure, the suite is 776 cases: 672 selected by `process,workflow,function`
-(function 420, process 155, workflow 97) and 104 by `pipeline`, summing exactly. Do not confuse that with
+which is the authoritative figure, the suite is 700 cases: 593 selected by `process,workflow,function`
+(function 404, process 105, workflow 84) and 107 by `pipeline`, summing exactly. Do not confuse that with
 the `test(` blocks in the sources — many are generated in `.each` loops, so one block yields several cases
 — nor with counts measured on older commits: the suite was 828 cases before the validation-rejection and
 stub-twin collapse, and 777 when issue #113 first measured it. Re-measure with `--dry-run` rather than

@@ -39,6 +39,27 @@ is silent and the behavior is unambiguously an error on input the documentation 
 documentary basis of every classification: the sentence that describes the behavior, or the sections searched
 that are silent on it.
 
+Keep the pipeline's adapters minimal. An adapter is code that exists only to bridge what a wired programme
+does and what the pipeline needs: input reshaping, output parsing, a guard or refusal, a restated default, a
+test-side compensation. Add or keep one only when, without it, the code materially breaks, the pipeline
+publishes a wrong or unusable scientific result, or the programme cannot consume the pipeline's current input
+scheme as the analysis manifest defines it. A message-only guard, a warning, a recorded provenance detail, a
+restatement of the programme's documented default, or a second net under a failure that already stops the run
+meets none of these and is removed rather than maintained. Name the condition an adapter satisfies in a
+comment beside it, and record the retirement condition when the adapter compensates for a pinned version.
+
+Split responsibility between the pipeline and the programmes it wires. The pipeline guards its own inputs,
+its own processes, and the way it feeds each programme: the manifest and the user's files as the pipeline
+reads them, its own joins, merges and derived files, and the formats, flags and staging a programme's
+documented interface requires. It does not handle programme-level errors: if a programme accepts an input,
+let it; if a programme rejects an input loudly, let that rejection stand rather than duplicating it; and do
+not write code whose purpose is to detect, prevent, compensate for, or interpret a programme's own failure,
+defect, tolerance, or output pathology. Such programme-level handling enters pipeline code only with the
+user's explicit approval, recorded item by item, and the issue it compensates for carries the label
+`upstream bug` (a measured defect) or `upstream` (a limitation). A behaviour recorded as a documented
+contract is never guarded, validated against, or compensated for, whatever its consequence. Validating user-supplied input remains
+unaffected, as above.
+
 Licensing and redistribution questions for the wired scientific tools are resolved and are the user's concern.
 Never defer, descope, or block work on licence grounds; at most record licence status in the issue or image
 metadata.
