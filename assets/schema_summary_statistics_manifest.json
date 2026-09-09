@@ -40,8 +40,8 @@
             "source_format": {
                 "type": "string",
                 "pattern": "^[A-Za-z0-9_.+-]+$",
-                "description": "Explicit GWASLab input-format name; use gwaslab for a pre-harmonised GWASLab table and leave blank for a pipeline-generated result.",
-                "errorMessage": "Source format must be one explicit GWASLab format token",
+                "description": "GWASLab input-format name; use gwaslab for a pre-harmonised GWASLab table and leave blank for a pipeline-generated result.",
+                "errorMessage": "Source format must be a GWASLab input-format name",
                 "meta": ["source_format"]
             },
             "producer_analysis_id": {
