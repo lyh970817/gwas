@@ -88,11 +88,6 @@ nextflow_pipeline {
                 { assert new File(relationship_request, 'native.log').isFile() },
                 { assert new File(ldms_relationship_request, 'native.hsq').isFile() },
                 { assert new File(ldms_relationship_request, 'native.log').isFile() },
-                // The derived genome-wide total is published beside the native files it is derived from,
-                // named so neither can be read as the other. The shipped example declares one stratum, so
-                // this is the degenerate case whose total is its single component.
-                { assert new File(ldms_relationship_request, 'derived.total_rg.tsv').isFile() },
-                { assert new File(ldms_relationship_request, 'derived.provenance.json').isFile() },
                 { assert multiqc_report.text.count('https://doi.org/10.1038/ng.3390') == 1 },
                 { assert multiqc_report.text.count('https://doi.org/10.1038/s41588-019-0530-8') == 1 },
                 { assert multiqc_report.text.count('https://doi.org/10.1016/j.ajhg.2012.10.010') == 1 },

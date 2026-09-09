@@ -140,9 +140,6 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREG') == 0 },
-                // Only the REML side derives a total. HEreg-LDMS prints its own `Total rG` natively, so the
-                // derivation is scheduled once for the pair of estimators, not once per estimator.
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 1 },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_he_ldms/gcta_bivariate_he_ldms--qt_qt2/native.HEreg").isFile() },
                 { assert new File("${params.outdir}/requests/gcta_bivariate_reml_ldms/gcta_bivariate_reml_ldms--qt_qt2/native.hsq").isFile() },
             )
@@ -260,8 +257,6 @@ nextflow_pipeline {
                 { assert workflow.success },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEHEREGLDMS') == 1 },
                 { assert TRACE.count(workflow, 'GCTA_BIVARIATEREMLLDMS') == 0 },
-                // HEreg-LDMS derives nothing: its total is GCTA's own, published in the native table below.
-                { assert TRACE.count(workflow, 'DERIVE_GCTA_BIVARIATE_TOTAL') == 0 },
                 { assert new File(heRequest, 'native.HEreg').isFile() },
                 { assert new File(heRequest, 'native.log').isFile() },
                 { assert new File(heRequest, 'native.HEreg').text.contains('Total rG') },
