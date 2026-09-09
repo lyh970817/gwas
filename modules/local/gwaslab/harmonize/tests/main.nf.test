@@ -44,6 +44,7 @@ nextflow_process {
                 { assert process.success },
                 { assert rows[0] == 'SNPID\trsID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN' },
                 { assert rows[1] == '1:1000:A:G\trs1\t1\t1000\tG\tA\t3800099\t0.25\t1.000000e-01\t2.000000e-02\t1.0000e-06\t500' },
+                { assert rows[2].split('\t')[8..9] == ['3.000000e-05', '1.000000e-05'] },
                 { assert new File(process.out.log.get(0)[1].toString()).text.contains('Start to load format from formatbook') },
                 { assert versions.contains('gwaslab: 4.1.9') },
                 { assert versions.contains('python:') },

@@ -380,6 +380,56 @@ nextflow_function {
         }
     }
 
+    test("external summaries accept GWASLab auto_2 format") {
+        function "validateRelationalInput"
+
+        def external_meta = INTERNAL_SUMMARY_META + [
+            id: 'external_auto_2',
+            producer_analysis_id: [],
+            producer_association_method: [],
+            trait: 'QT_external',
+            trait_type: 'quantitative',
+            source_format: 'auto_2',
+            build: 'GRCh37',
+            ancestry: 'EUR',
+            source_method: 'published_gwas',
+        ]
+
+        when {
+            def reference_catalog = RELATIONAL.referenceCatalog(outputDir, 'auto_2')
+            def method_options = RELATIONAL.methodOptions(outputDir, 'auto_2', [
+                unary_requests: ['ldsc_h2--external_auto_2': [reference_bundle_id: 'ldsc_eur']],
+            ])
+            function {
+                """
+                input[0] = ${[cohortRow()].inspect()}
+                input[1] = ${[analysisRow()].inspect()}
+                input[2] = ${[[external_meta, '/fixtures/summaries/external_qt.tsv']].inspect()}
+                input[3] = []
+                input[4] = '${COHORT_MANIFEST}'
+                input[5] = '${ANALYSIS_MANIFEST}'
+                input[6] = '${SUMMARY_MANIFEST}'
+                input[7] = null
+                input[8] = '${projectDir}/assets/schema_cohort_manifest.json'
+                input[9] = '${projectDir}/assets/schema_analysis_manifest.json'
+                input[10] = '${projectDir}/assets/schema_summary_statistics_manifest.json'
+                input[11] = '${projectDir}/assets/schema_relationship_manifest.json'
+                input[12] = '${reference_catalog}'
+                input[13] = '${method_options}'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert function.success },
+                { assert function.result.summary_statistics.size() == 1 },
+                { assert function.result.summary_statistics[0][0].source_format == 'auto_2' },
+                { assert function.result.summary_statistics[0][1] == '/fixtures/summaries/external_qt.tsv' },
+            )
+        }
+    }
+
     def summaryRejections = [
         [
             name: 'pipeline-generated summaries require the producer-derived identity',

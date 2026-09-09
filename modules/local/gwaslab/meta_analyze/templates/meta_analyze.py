@@ -6,6 +6,9 @@ import json
 import os
 import sys
 
+# Programme-level compensation, approved 2026-09-09: importing GWASLab as a non-root
+# container user raises RuntimeError when Numba cache=True targets the read-only package
+# directory (#48). Retire when the bioconda::gwaslab pin moves past the fix.
 os.environ.setdefault("NUMBA_CACHE_DIR", os.path.abspath(".numba_cache"))
 os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(".matplotlib"))
 
