@@ -105,9 +105,6 @@ def resolveSummaryStatistics(summary_statistics_rows, summary_statistics_columns
                     "external result collides with pipeline-generated result '${summary_statistics_id}'; choose a distinct external identity",
                 )
             }
-            if (source_format.startsWith('auto')) {
-                reject.call('source_format', 'external input must declare an explicit GWASLab format name; automatic detection is not supported')
-            }
             def is_binary = summary_meta.trait_type == 'binary'
             def population_prevalence = normaliseCellValue(summary_meta.population_prevalence)
             def sample_prevalence = normaliseCellValue(summary_meta.sample_prevalence)

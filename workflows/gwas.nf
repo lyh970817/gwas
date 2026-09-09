@@ -166,7 +166,9 @@ workflow GWAS {
     // Which selectors read a covariate file through an interface that treats a missing cell as a value is a
     // registry capability, so the answer is resolved once here rather than re-derived per row. It belongs in
     // the preparation meta, and therefore inside the preparation cache boundary, precisely because it decides
-    // whether preparation succeeds at all.
+    // whether preparation succeeds at all. Programme-level compensation, approved 2026-09-09: LDAK 6.1
+    // (pinned genomedk build) fits a stale read-buffer value for a missing --covar cell at exit 0 (#49).
+    // Retire when the LDAK analysis-row modules move to 6.3 (#7), which mean-imputes as documented.
     def complete_covariate_methods = getMethodTokensWithCapabilities([requires_complete_covariates: true])
     PREPARE_PHENOTYPE_INPUTS(
         ch_analyses.map { meta, _genotype_files, phenotype, quant_covariates, cat_covariates, _kvik_extract, _ldak_weights ->

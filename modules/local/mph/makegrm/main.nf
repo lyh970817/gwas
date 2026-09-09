@@ -23,6 +23,7 @@ process MPH_MAKEGRM {
     // the triangle below it is the raw unnormalised cross-product.
     tuple val(meta), path("${prefix}.grm.{bin,iid}"), emit: grm_files
     tuple val(meta), path("${prefix}.log"), emit: log
+    // MPH has no --version; the bare binary prints its banner and exits 1 (#56), tolerated by || true.
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
 
     script:
@@ -40,6 +41,8 @@ process MPH_MAKEGRM {
         ${args} \\
         2>&1 | tee "${prefix}.log"
 
+    # Programme-level compensation, approved 2026-09-09. Retire when an MPH release returns a non-zero
+    # exit on failure.
     # MPH's `main()` catches most thrown errors, prints them and returns 0 (issue #55), so the exit status
     # is not the contract: the primary bundle and the absence of an error line in the log are. Both members are asserted
     # because a missing `.grm.iid` alone would make every downstream sample map silently empty.

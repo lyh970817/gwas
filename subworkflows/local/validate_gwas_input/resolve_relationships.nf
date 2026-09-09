@@ -121,6 +121,8 @@ def resolveRelationships(relationship_rows, relationship_columns, relationship_m
         // Declared pair covariates must reach the estimator or the request must fail. GCTA 1.94.1 accepts
         // `--qcovar`/`--covar` on an `--HEreg-bivar` command line and silently ignores them, so a
         // covariate-bearing HE request cannot be honoured and is refused here rather than answered wrongly.
+        // #20: manifest validation of a request the programme accepts and cannot honour; approved 2026-09-09.
+        // Retire when GCTA reads --covar/--qcovar under --HEreg-bivar.
         def covariate_incapable_methods = cells.pair_quant_covariates || cells.pair_cat_covariates
             ? methods.findAll { method -> capabilities[method]?.supports_covariates == false }
             : []
