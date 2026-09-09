@@ -611,6 +611,19 @@ class RELATIONAL {
         return resource(outputDir, name, ([header.join('\t')] + body.collect { row -> row.join('\t') }).join('\n') + '\n')
     }
 
+    // A two-variant synthetic VCF for the native PLINK 2 --make-bed multiallelic contract test.
+    static String multiallelicVcf(Object outputDir, String name) {
+        def lines = [
+            '##fileformat=VCFv4.2',
+            '##contig=<ID=1>',
+            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">',
+            ['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT', 'S1', 'S2', 'S3', 'S4'].join('\t'),
+            ['1', '100', 'm1', 'A', 'C,G', '.', 'PASS', '.', 'GT', '0/1', '1/2', '0/0', '2/2'].join('\t'),
+            ['1', '200', 'b1', 'A', 'T', '.', 'PASS', '.', 'GT', '0/1', '0/0', '1/1', './.'].join('\t'),
+        ]
+        return resource(outputDir, name, lines.join('\n') + '\n')
+    }
+
     // A byte-for-byte copy of a fixture file under a new name. `resource` writes text, which corrupts a
     // binary member such as a `.pgen`, so a test that needs a renamed-but-identical bundle uses this.
     static String copyResource(Object outputDir, String name, Object source) {
