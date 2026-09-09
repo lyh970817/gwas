@@ -66,17 +66,11 @@
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_BIVARIATE_TRAITS": {
                     "python": "3.14.5"
                 },
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
-                },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -92,7 +86,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-10T01:33:32.510400026",
+        "timestamp": "2026-09-10T06:30:42.327568557",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -177,7 +171,9 @@
                 "gcta_greml_ldms/heterogeneous_qt/heterogeneous_qt.gcta_greml_ldms.hsq",
                 "ldak_he",
                 "ldak_he/heterogeneous_bt",
+                "ldak_he/heterogeneous_bt/heterogeneous_bt.ldak_he.factor",
                 "ldak_he/heterogeneous_bt/heterogeneous_bt.ldak_he.he",
+                "ldak_he/heterogeneous_bt/heterogeneous_bt.ldak_he.he.liab",
                 "ldak_he/heterogeneous_qt",
                 "ldak_he/heterogeneous_qt/heterogeneous_qt.ldak_he.he",
                 "ldak_pcgc",
@@ -196,7 +192,9 @@
                 "heterogeneous_qt.gcta_greml.hsq:md5,3475afa4e0119452ee59e94502a1ccd7",
                 "heterogeneous_bt.gcta_greml_ldms.hsq:md5,38d69502b784df0b2dbe7a8bb90b46b5",
                 "heterogeneous_qt.gcta_greml_ldms.hsq:md5,b0b893c27948aad255fc3e6f544a7429",
+                "heterogeneous_bt.ldak_he.factor:md5,2c4417a10e53eb4476ef8a6e972a20cd",
                 "heterogeneous_bt.ldak_he.he:md5,9d1cc93a0a8e8a24fefd2232c28b82e6",
+                "heterogeneous_bt.ldak_he.he.liab:md5,8fcd8175a812b6955c3fb0aaa36c8b5d",
                 "heterogeneous_qt.ldak_he.he:md5,b71335568c37a227600eb39367079855",
                 "heterogeneous_bt.ldak_pcgc.pcgc:md5,37451b9d8fe15877849315b3eb4ff311",
                 "heterogeneous_bt.ldak_pcgc.pcgc.marginal:md5,903c5f5182cc3113e6ae247ff20f62b1",
@@ -205,10 +203,10 @@
                 "heterogeneous_qt.ldak_reml.reml:md5,6d8452f526c1adc1f0a757020a233d2c"
             ]
         ],
-        "timestamp": "2026-08-13T14:38:39.766332156",
+        "timestamp": "2026-09-10T06:30:42.356648224",
         "meta": {
-            "nf-test": "0.9.3",
-            "nextflow": "25.10.4"
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
         }
     }
 }
