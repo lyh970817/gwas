@@ -26,6 +26,7 @@ nextflow_workflow {
         input[2] = channel.value([
             [domain: 'analysis', meta: analysis],
             [domain: 'summary_unary', meta: [method: 'ldsc_h2']],
+            [domain: 'summary_set', meta: [meta_analysis_models: ['fixed', 'random', 're2', 'mrmega']]],
             [domain: 'pairwise', meta: [relationship_methods: ['gcta_bivariate_reml']]],
         ])
         input[3] = ['Input/output options': [outdir: 'results']]
@@ -98,6 +99,10 @@ nextflow_workflow {
                 { assert report_data.config_report_comment.contains('analysis pipeline') },
                 { assert report_data.report_multiqc_command.contains('custom_logo: "nf-core-gwas_logo_light.png"') },
                 { assert report.text.contains('nf-core collection of workflows') },
+                { assert report.text.contains('10.1016/j.ajhg.2011.04.014') },
+                { assert report.text.contains('10.1093/hmg/ddx280') },
+                { assert report.text.contains('METASOFT') },
+                { assert report.text.contains('MR-MEGA') },
                 { assert !report.text.contains('ROUTE_GWAS_REPORTING custom') },
             )
         }
