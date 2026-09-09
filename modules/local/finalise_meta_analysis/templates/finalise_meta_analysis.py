@@ -28,9 +28,9 @@ MRMEGA_COLUMNS = {
 }
 
 
-def read_table(path, sep="\t"):
+def read_table(path, sep="\t", usecols=None):
     # Preserve native numeric spelling, zeros and missing-value tokens.
-    return pd.read_csv(path, sep=sep, dtype=str, keep_default_na=False)
+    return pd.read_csv(path, sep=sep, dtype=str, keep_default_na=False, usecols=usecols, index_col=False)
 
 
 def variant_keys(frame):
@@ -38,25 +38,26 @@ def variant_keys(frame):
 
 
 def attach(result, native, key, columns):
-    fields = native.reindex(columns=list(columns)).rename(columns=columns)
+    fields = native[list(columns)].rename(columns=columns)
     fields.index = pd.Index(key, name="META_VARIANT_KEY")
     return result.join(fields, how="left", validate="one_to_one")
 
 
-def finalise(fixed, random, metasoft, mrmega, min_studies, output):
+def finalise(fixed, random_result, metasoft, mrmega, min_studies, output):
     result = read_table(fixed)
     result.index = pd.Index(variant_keys(result), name="META_VARIANT_KEY")
     # DOF is the native contributing-study count minus one.
     result["N_STUDIES"] = (pd.to_numeric(result["DOF"].replace("NA", pd.NA)) + 1).astype("Int64")
     result = result.loc[result["N_STUDIES"] >= min_studies]
-    if random:
-        native = read_table(random)
+    if random_result:
+        native = read_table(random_result)
         result = attach(result, native, variant_keys(native), RANDOM_COLUMNS)
     if metasoft:
-        native = read_table(metasoft, sep=r"\s+")
+        # METASOFT appends variable-length per-study fields after its named statistics.
+        native = read_table(metasoft, sep=r"\\s+", usecols=["RSID", *RE2_COLUMNS])
         result = attach(result, native, native["RSID"], RE2_COLUMNS)
     if mrmega:
-        native = read_table(mrmega, sep=r"\s+")
+        native = read_table(mrmega, sep=r"\\s+")
         result = attach(result, native, native["MarkerName"], MRMEGA_COLUMNS)
     result.to_csv(output, sep="\t", index=False, na_rep="NA", compression={"method": "gzip", "mtime": 0})
 

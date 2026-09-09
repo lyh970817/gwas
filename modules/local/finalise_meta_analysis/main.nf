@@ -8,7 +8,7 @@ process FINALISE_META_ANALYSIS {
         : 'quay.io/biocontainers/gwaslab:4.1.9--pyhdfd78af_0'}"
 
     input:
-    tuple val(meta), path(fixed), path(random), path(metasoft), path(mrmega)
+    tuple val(meta), path(fixed), path(random_result), path(metasoft), path(mrmega)
 
     output:
     tuple val(meta), path("${prefix}.gwaslab.tsv.gz"), emit: summary_statistics
@@ -17,7 +17,7 @@ process FINALISE_META_ANALYSIS {
     script:
     prefix = task.ext.prefix ?: meta.summary_statistics_id
     fixed_literal = groovy.json.JsonOutput.toJson(fixed.toString())
-    random_literal = groovy.json.JsonOutput.toJson(random ? random.toString() : null)
+    random_literal = groovy.json.JsonOutput.toJson(random_result ? random_result.toString() : null)
     metasoft_literal = groovy.json.JsonOutput.toJson(metasoft ? metasoft.toString() : null)
     mrmega_literal = groovy.json.JsonOutput.toJson(mrmega ? mrmega.toString() : null)
     min_studies = meta.min_studies
@@ -28,7 +28,7 @@ process FINALISE_META_ANALYSIS {
     stub:
     prefix = task.ext.prefix ?: meta.summary_statistics_id
     def optional_columns = []
-    if (random) {
+    if (random_result) {
         optional_columns.addAll(['BETA_RANDOM', 'SE_RANDOM', 'Z_RANDOM', 'P_RANDOM'])
     }
     if (metasoft) {
