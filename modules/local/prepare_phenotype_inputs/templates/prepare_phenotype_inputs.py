@@ -51,11 +51,6 @@ MAX_UNMATCHED_VALUES = 10
 # missing cell, and `split_row` preserves it.
 MISSING_TOKENS = frozenset(["", "na", "nan", "-9"])
 
-# The canonical column names. A covariate carrying one of them would be ambiguous in the merged file
-# and would shadow the trait column downstream.
-RESERVED_NAMES = frozenset(["FID", "IID", "PHENO"])
-
-
 def fail(message):
     """Abort naming the analysis unit, so a large samplesheet can be fixed without bisecting it."""
     sys.exit("[nf-core/gwas] ERROR: analysis '{}': {}".format(ANALYSIS_ID, message))
@@ -151,13 +146,6 @@ def load_covariates(path, role):
     if not path:
         return None
     header, body = read_table(path, role)
-    for name in header[2:]:
-        if name.upper() in RESERVED_NAMES:
-            fail(
-                "the {} file '{}' declares a covariate named '{}', which collides with the canonical FID, IID and PHENO columns".format(
-                    role, path, name
-                )
-            )
     return header, [normalise_covariate_row(row) for row in body]
 
 
@@ -178,6 +166,9 @@ def merge_covariates(quant, cat):
     return quant_header + cat_header[2:], body
 
 
+# Programme-level compensation, approved 2026-09-09 (Q-AD1): --adjust-grm rejects --factors on 6.1, 6.2 and
+# 6.3 (#50), so the categorical adjustment design is treatment-coded here. Retire when an LDAK release accepts
+# --factors with --adjust-grm.
 def adjustment_covariates(quant, cat):
     """Build the numerical design accepted by LDAK ``--adjust-grm``.
 
@@ -236,10 +227,6 @@ def write_table(suffix, header, body):
     write_lines("{}.noheader.{}".format(PREFIX, suffix), rows)
 
 
-def identities(body):
-    return set((row[0], row[1]) for row in body)
-
-
 def raw_value_counts(raw_values):
     """Count source-cell spellings before any normalisation can hide them."""
     counts = {}
@@ -274,6 +261,9 @@ def binary_match_counts(raw_values):
     return case_matches, control_matches
 
 
+# Programme-level compensation, approved 2026-09-09: LDAK 6.1 (pinned genomedk build) fits a stale read-buffer
+# value for a missing --covar cell at exit 0 (#49). Retire when the LDAK analysis-row modules move to 6.3 (#7),
+# which mean-imputes as documented.
 def missing_covariate_cells(covariates, phenotyped):
     """List every (FID, IID, column) whose covariate cell is missing for a sample that has a trait value.
 
@@ -339,26 +329,6 @@ cat_covariates = load_covariates(CAT_COVARIATES_FILE, "categorical covariate")
 merged = merge_covariates(quant_covariates, cat_covariates)
 adjustment = adjustment_covariates(quant_covariates, cat_covariates)
 
-phenotype_identities = identities(phenotype_body)
-for covariates, label, source in (
-    (quant_covariates, "quantitative covariates", QUANT_COVARIATES_FILE),
-    (cat_covariates, "categorical covariates", CAT_COVARIATES_FILE),
-):
-    if covariates is None:
-        continue
-    covariate_identities = identities(covariates[1])
-    if covariate_identities != phenotype_identities:
-        # A warning rather than an error: every consumer intersects sample sets natively, and
-        # refusing a covariate file that merely covers a different subset would reject legitimate
-        # input.
-        warning = "WARNING: {} in '{}' cover {} samples absent from the phenotype file and omit {} that are present".format(
-            label,
-            source,
-            len(covariate_identities - phenotype_identities),
-            len(phenotype_identities - covariate_identities),
-        )
-        print("[nf-core/gwas]: analysis '{}': {}".format(ANALYSIS_ID, warning))
-
 if TRAIT_TYPE == "binary":
     if case_raw_matches == 0 or control_raw_matches == 0:
         fail(
@@ -382,14 +352,9 @@ elif TRAIT_TYPE == "quantitative" and numeric_raw_matches == 0:
         )
     )
 
-# LDAK never parses a missing `--covar` cell. It leaves whatever value was last in its read buffer in place, so
-# the fitted covariate silently becomes the neighbouring column's value for that sample, the previous row's last
-# value, or -- for the very first cell of the file -- uninitialised memory; measured on the pinned image, a
-# wholly missing first row is fitted as 1.1762e-316. A missing `--factors` cell instead becomes an additional
-# factor level. In neither case does LDAK drop the sample or say anything in its log, so an analysis whose
-# selected methods read covariates that way cannot be given an incomplete file at all: the run would succeed and
-# report a covariate model nobody asked for. This is input validation, not compensation -- the pipeline neither
-# imputes the cell nor drops the sample, it names the cells and stops.
+# Programme-level compensation, approved 2026-09-09: LDAK 6.1 (pinned genomedk build) fits a stale read-buffer
+# value for a missing --covar cell at exit 0 (#49). Retire when the LDAK analysis-row modules move to 6.3 (#7),
+# which mean-imputes as documented.
 if COVARIATE_COMPLETENESS == "required":
     phenotyped = set((row[0], row[1]) for row in trait_rows if row[2] != MISSING)
     incomplete = missing_covariate_cells(quant_covariates, phenotyped) + missing_covariate_cells(

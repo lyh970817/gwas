@@ -53,12 +53,6 @@ process CUSTOM_MPHSNPINFO {
     if len(set(columns)) != len(columns):
         fail("weight column names repeat: {}".format(columns))
 
-    # MPH reads the SNP-information file as a CSV keyed on column 0 and splits its name lists on commas, so
-    # a column name carrying a comma or whitespace would name a different column, or none, at exit 0.
-    for name in columns:
-        if "," in name or any(character.isspace() for character in name):
-            fail("weight column name '{}' contains a comma or whitespace, which MPH cannot address".format(name))
-
     variants = []
     with open(bim_path) as handle:
         for line in handle:

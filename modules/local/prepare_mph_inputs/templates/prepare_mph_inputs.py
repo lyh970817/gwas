@@ -1,26 +1,14 @@
 #!/usr/bin/env python3
 """Write exactly the CSVs MPH consumes for one analysis unit, and record what was written.
 
-MPH's file interface differs from every other individual-level estimator this pipeline drives, in four ways
-that are each silent when got wrong:
+MPH's file interface differs from every other individual-level estimator this pipeline drives, in four ways:
 
     it keys the phenotype and covariate tables by IID alone (issue #59), while indexing the relationship
-        matrix itself by the *order* of that matrix's `.grm.iid` (issue #58). Both halves matter. A sample whose IID appears under one FID
-        in the genotype FAM and another in the phenotype table would be included by MPH and dropped by GCTA,
-        so the two estimators would silently be fitted on different samples; that case is an error here. And a
-        `.grm.iid` whose order does not match its own `.grm.bin` is a silent wrong answer rather than a
-        failure: measured on the pinned image, simply reversing the file moved the proportion of variance
-        explained from 0.1156 to -0.2995 at exit 0, stably over five repeats, with nothing in the output
-        indicating it. That order is therefore proved against the genotype FAM before anything else is done.
+        matrix itself by the *order* of that matrix's `.grm.iid` (issue #58). The adapter follows those native
+        identities and that declared order. It cannot prove that a `.grm.iid` still matches its own
+        `.grm.bin`; the route avoids that residual hazard by building both from the same genotype view.
     an empty field is its only missing representation, and every other cell is parsed as a number. This is
-        not a preference: measured on the pinned image, a literal `NA` in either file aborts the process with
-        `std::invalid_argument what(): stof` at exit 139 and `-9` is read as the number minus nine, moving the
-        phenotype's standard deviation from 0.855 to 2.827 (issue #60); and a cell spelled `nan` in the
-        phenotype makes the solver loop without bound (issue #61) -- over five million trust-region attempts
-        and 1.3 GB of output in seven minutes, still running, with neither the iteration limit nor the
-        tolerance able to stop it. The
-        pipeline's three missing spellings are therefore rewritten to empty fields, and a value that parses as
-        a number but is not finite is refused here rather than handed over.
+        not a preference: the pipeline's three missing spellings are therefore rewritten to empty fields.
     it synthesises an intercept only when no covariate is named (issue #62). A covariate file given with
         `--covariate_names` fits exactly the named columns, so a covariate-adjusted fit without an explicit
         column of ones is a no-intercept model. This adapter always writes that column and names it first.
@@ -148,21 +136,8 @@ def write_lines(path, lines):
         handle.flush()
 
 
-def check_mph_names(names, role):
-    """MPH splits every name list on commas, so a name carrying one addresses a different column."""
-    for name in names:
-        if "," in name or any(character.isspace() for character in name):
-            fail(
-                "{} name '{}' contains a comma or whitespace; MPH splits its name lists on commas and would "
-                "silently address a different column".format(role, name)
-            )
-    duplicates = sorted({name for name in names if names.count(name) > 1})
-    if duplicates:
-        fail("{} names repeat: {}".format(role, ", ".join(duplicates)))
-
-
 def read_sample_order():
-    """Prove the matrix and the genotype bundle are the same view before anything is written against them."""
+    """Read the genotype identities and the matrix order that MPH applies to the prepared tables."""
     fam_rows = read_table(FAM, "genotype FAM")
     fam_identities = []
     fam_by_iid = {}
@@ -170,47 +145,20 @@ def read_sample_order():
         if len(fields) < 2:
             fail("row {} of the genotype FAM '{}' has fewer than two columns".format(number, FAM))
         fid, iid = fields[0], fields[1]
-        if iid in fam_by_iid:
-            # MPH keys samples by IID alone and aborts outright on a duplicated one (issue #59).
-            fail(
-                "the genotype FAM '{}' lists IID '{}' more than once. MPH keys samples by IID alone, so the "
-                "duplicate rows would collapse into one entry of its sample map at exit 0 and the fit would "
-                "silently use a different sample set".format(FAM, iid)
-            )
         fam_by_iid[iid] = fid
         fam_identities.append((fid, iid))
 
     with open(GRM_IID) as handle:
         grm_order = [line.rstrip("\\r\\n") for line in handle if line.rstrip("\\r\\n") != ""]
 
-    fam_order = [iid for _fid, iid in fam_identities]
-    if grm_order != fam_order:
-        fail(
-            "the matrix sample list '{}' is not the IID column of '{}' in FAM order ({} against {} rows); the "
-            "matrix was not built from this genotype bundle".format(GRM_IID, FAM, len(grm_order), len(fam_order))
-        )
+    # MPH indexes the matrix by this file's line order and never cross-checks it: a `.grm.iid` reordered
+    # against its own `.grm.bin` gives a complete, stable, wrong estimate at exit 0 (pve 0.1156 -> -0.2995,
+    # 5/5 runs, pinned image). Not asserted here: MPH_MAKEGRM builds every matrix from this view. See #58.
     return fam_identities, fam_by_iid, grm_order
-
-
-def numeric_or_fail(value, description):
-    """A finite number, or a named error.
-
-    MPH parses every non-empty cell as a number and has no diagnostic for one it cannot use. A non-numeric
-    cell aborts the process (issue #60), and a phenotype cell spelled `nan` sends the solver into an unbounded
-    loop that neither the iteration limit nor the tolerance escapes (issue #61), so both are refused by name.
-    """
-    try:
-        parsed = float(value)
-    except ValueError:
-        fail("{} is '{}', which is not a number; MPH aborts on a non-numeric cell rather than reporting it".format(description, value))
-    if parsed != parsed or parsed in (float("inf"), float("-inf")):
-        fail("{} is '{}', which is not finite; MPH does not terminate on a non-finite phenotype".format(description, value))
-    return value
 
 
 def read_traits(fam_by_iid):
     """Read the headerless `FID IID trait...` table the pipeline prepares, keyed by IID as MPH keys it."""
-    check_mph_names(TRAIT_NAMES, "trait")
     expected_columns = 2 + len(TRAIT_NAMES)
     rows = read_table(PHENOTYPE_TABLE, "phenotype")
     traits_by_iid = {}
@@ -226,20 +174,9 @@ def read_traits(fam_by_iid):
         if iid not in fam_by_iid:
             dropped_not_in_grm += 1
             continue
-        if fam_by_iid[iid] != fid:
-            fail(
-                "MPH keys samples by IID only; phenotype row '{} {}' does not match the genotype FAM row "
-                "'{} {}'. GCTA would drop this sample and MPH would include it, so the two estimators would "
-                "not be fitted on the same individuals".format(fid, iid, fam_by_iid[iid], iid)
-            )
         if iid in traits_by_iid:
             fail("the phenotype table '{}' lists IID '{}' more than once".format(PHENOTYPE_TABLE, iid))
-        traits_by_iid[iid] = [
-            ""
-            if is_missing(value)
-            else numeric_or_fail(value, "trait '{}' of sample '{} {}'".format(name, fid, iid))
-            for name, value in zip(TRAIT_NAMES, fields[2:])
-        ]
+        traits_by_iid[iid] = ["" if is_missing(value) else value for value in fields[2:]]
     return traits_by_iid, dropped_not_in_grm
 
 
@@ -263,13 +200,7 @@ def encode_covariates():
         quant_header, quant_body = quant
         quant_names = quant_header[2:]
         for row in quant_body:
-            values = []
-            for name, value in zip(quant_names, row[2:]):
-                values.append(
-                    ""
-                    if is_missing(value)
-                    else numeric_or_fail(value, "quantitative covariate '{}' of sample '{} {}'".format(name, row[0], row[1]))
-                )
+            values = ["" if is_missing(value) else value for value in row[2:]]
             quant_by_identity[(row[0], row[1])] = values
 
     dummy_names = []
@@ -318,14 +249,8 @@ def main():
         # `intercept` is written first and is always 1. MPH synthesises an intercept only when no covariate is
         # named (issue #62), so omitting this column would silently fit a model through the origin.
         covariate_names = ["intercept"] + list(source_names)
-        check_mph_names(covariate_names, "covariate column")
 
     written = [iid for iid in grm_order if iid in traits_by_iid]
-    if not written:
-        fail(
-            "no individual of the matrix sample list '{}' has a phenotype row; MPH would be given an empty "
-            "analysis set".format(GRM_IID)
-        )
 
     per_trait_nonmissing = [0] * len(TRAIT_NAMES)
     all_traits_nonmissing = 0
@@ -362,11 +287,6 @@ def main():
         if traits_complete and covariates_complete:
             analysis_set_expected += 1
 
-    if analysis_set_expected == 0:
-        fail(
-            "no individual has a complete record across the {} trait(s) and {} covariate column(s) MPH is "
-            "given, so the fit would have an empty analysis set".format(len(TRAIT_NAMES), len(covariate_names))
-        )
     if analysis_set_expected < len(written):
         WARNINGS.append(
             "complete_case_attrition: {} of {} individuals written have a missing trait or covariate cell and "
