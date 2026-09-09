@@ -8,6 +8,8 @@ testing*
 *.pyc
 null/
 .lineage/
+.nf-test/
+.nf-test.log
 
 # Local development environment — machine-specific, and .envrc carries secrets
 .envrc
