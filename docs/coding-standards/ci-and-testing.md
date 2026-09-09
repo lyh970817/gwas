@@ -51,16 +51,31 @@ failed mechanism evidence rather than hand-policing mechanically repairable form
 
 ## Local suite scope
 
-- **[MUST]** Use focused tests while iterating and the sharded suite for broad validation.
-- **[SHOULD]** A narrowed branch tier may select by the test type a file declares. Select a tier from the test
-  files rather than from a diff base, which reports success after silently selecting nothing. A branch tier
-  never replaces the complete suite as the merge gate, and it must not be used to remove or weaken a test.
+- **[MUST]** Validate each package with focused behavioral evidence, including native command and output
+  contracts and cache-boundary evidence where relevant. Add targeted broader tests for identified cross-package
+  interactions; do not run the complete suite automatically after each wave.
+- **[SHOULD]** Select the smallest sufficient test type and explicit paths or cases. A narrowed branch tier may
+  select by declared test type. If using diff-based selection, verify the discovered test set against the
+  intended scope. Narrowing execution must not remove or weaken coverage.
+- **[MUST]** Intermediate local programme merges may proceed with the focused evidence above while the final
+  gate is explicitly pending. For a programme with an explicit final-integration gate, freeze the implementation
+  after all waves and run one complete unsharded suite covering the combined changes and any deliberately
+  deferred snapshot owners. A focused pass does not close this final gate.
+- **[SHOULD]** Use sharding for independently warranted broad verification. The final gate does not require a
+  duplicate complete sharded run before the complete unsharded run.
 - **[MUST]** When tests, snapshot labels, or snapshot-producing assertions are removed or renamed, run the
-  affected test files unsharded and check for obsolete snapshot entries.
+  affected test files unsharded with all their tests passing and no skipped cases, and check for obsolete
+  snapshot entries. Covering every affected owner this way suffices for bounded snapshot-staleness checks.
+- **[SHOULD]** Generate or update snapshots during necessary focused runs; generation also works in shards
+  and does not require a complete sequential suite. Reuse existing validation evidence for the same candidate
+  and scope. Do not run complete suites before and after purely snapshot maintenance.
 - **[MUST]** Run the complete unsharded suite only for unbounded snapshot scope, an explicit release or
-  final-integration gate, or behavior the shards cannot adequately cover. Do not repeat a successful complete
-  unsharded run unless relevant pipeline, test, fixture, or snapshot changes occur, or the earlier run ended
-  prematurely.
+  final-integration gate, or behavior the shards cannot adequately cover. Rerun affected failures or changes;
+  repeat the complete suite only when relevant changes justify global verification or the earlier run was
+  incomplete. Cleaning actual obsolete entries does not itself require another complete green run.
+- **[MUST]** Mechanical snapshot-only drift, such as removed version entries, may be recorded and consolidated
+  at the final gate when focused behavioral coverage is already present. Report the pending snapshot work;
+  never claim it is clean or treat unexpected output changes as mechanical drift.
 
 ## Cache-boundary refactors
 
