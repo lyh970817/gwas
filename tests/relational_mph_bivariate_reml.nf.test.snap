@@ -35,15 +35,12 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "SUMMARISE_MPH_RESULT": {
-                    "python": "3.14.5"
-                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-09-06T13:40:15.563356693",
+        "timestamp": "2026-09-10T03:30:16.363009567",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

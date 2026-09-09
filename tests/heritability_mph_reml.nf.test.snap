@@ -32,15 +32,12 @@
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
-                "SUMMARISE_MPH_RESULT": {
-                    "python": "3.14.5"
-                },
                 "Workflow": {
                     "nf-core/gwas": "v1.0.0dev"
                 }
             }
         ],
-        "timestamp": "2026-09-06T12:58:30.35814545",
+        "timestamp": "2026-09-10T03:27:35.187359615",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -55,20 +52,18 @@
                 "mph_reml/example_pgen_qt/example_pgen_qt.mph_reml.mq.blue.csv",
                 "mph_reml/example_pgen_qt/example_pgen_qt.mph_reml.mq.iter.csv",
                 "mph_reml/example_pgen_qt/example_pgen_qt.mph_reml.mq.vc.csv",
-                "mph_reml/example_pgen_qt/example_pgen_qt.mph_reml.provenance.json",
                 "mph_reml_ldms",
                 "mph_reml_ldms/example_pgen_qt",
                 "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.log",
                 "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.blue.csv",
                 "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.iter.csv",
-                "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv",
-                "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.provenance.json"
+                "mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv"
             ],
             [
                 
             ]
         ],
-        "timestamp": "2026-09-03T10:13:02.84965132",
+        "timestamp": "2026-09-10T03:27:35.206298043",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

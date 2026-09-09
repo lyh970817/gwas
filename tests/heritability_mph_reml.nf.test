@@ -16,8 +16,6 @@ nextflow_pipeline {
         return scripts
     }
 
-    def slurper = new groovy.json.JsonSlurper()
-
     test("one analysis selecting both MPH tokens builds one plan, three matrices and two independent results") {
 
         tag "mph_reml"
@@ -57,26 +55,22 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 3 },
                 { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
-                { assert TRACE.count(workflow, 'SUMMARISE_MPH_RESULT') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
                 { assert individual.list().toList().sort() == ['mph_reml', 'mph_reml_ldms'] },
                 // Both estimates publish under their own token and their own prefix, so neither can
-                // overwrite the other. The projected-phenotype file, the matrix list and the serializer's
-                // record all stay in the work directory.
+                // overwrite the other. The projected-phenotype file and matrix list stay in the work directory.
                 { assert new File(individual, 'mph_reml/example_pgen_qt').list().toList().sort() == [
                     'example_pgen_qt.mph_reml.log',
                     'example_pgen_qt.mph_reml.mq.blue.csv',
                     'example_pgen_qt.mph_reml.mq.iter.csv',
                     'example_pgen_qt.mph_reml.mq.vc.csv',
-                    'example_pgen_qt.mph_reml.provenance.json',
                 ] },
                 { assert new File(individual, 'mph_reml_ldms/example_pgen_qt').list().toList().sort() == [
                     'example_pgen_qt.mph_reml_ldms.log',
                     'example_pgen_qt.mph_reml_ldms.mq.blue.csv',
                     'example_pgen_qt.mph_reml_ldms.mq.iter.csv',
                     'example_pgen_qt.mph_reml_ldms.mq.vc.csv',
-                    'example_pgen_qt.mph_reml_ldms.provenance.json',
                 ] },
                 // Two matrix families, published under two keys by two different selectors: the dense one
                 // by its own configured selector and the stratified family through the pipeline's output
@@ -87,8 +81,7 @@ nextflow_pipeline {
             )
             def runCommands = commands(params.outdir)
             def remlCommands = runCommands.findAll { command -> command.contains('mph --reml') }
-            def dense = slurper.parseText(new File(individual, 'mph_reml/example_pgen_qt/example_pgen_qt.mph_reml.provenance.json').text)
-            def stratified = slurper.parseText(new File(individual, 'mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.provenance.json').text)
+
             def stratifiedResult = new File(individual, 'mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv').readLines()
             def stratifiedHeader = stratifiedResult.first().split(',').toList()
             def stratifiedRows = stratifiedResult.tail().collect { row -> [stratifiedHeader, row.split(',').toList()].transpose().collectEntries() }
@@ -118,51 +111,11 @@ nextflow_pipeline {
                 { assert stratifiedRows.collect { row -> row.vc_name }.takeRight(1) == ['err'] },
                 { assert stratifiedRows[0].vc_name.endsWith('ld01_maf01') },
                 { assert stratifiedRows[1].vc_name.endsWith('ld02_maf01') },
-                // The plan's own declared total, read from the published manifest rather than pinned:
-                // GCTA's LD-score pass applies its own quality control, so the retained set is not
-                // simply the BIM.
-                { assert stratifiedRows.findAll { row -> row.vc_name != 'err' }.sum { row -> row.m as int } == stratified.component_plan.components.sum { component -> component.plan_predictor_count } },
                 { assert lastIteration.sample_size as int == 200 },
                 { assert stratifiedLog.contains('Non-missing analysis set contains 200 individuals') },
-                // The sidecar records both counts per component and never one ambiguous number: the
-                // declared count comes from the SNP-information file, the achieved count from MPH.
-                { assert stratified.component_plan.components.size() == 2 },
-                { assert stratified.component_plan.components.collect { component -> component.name } == ['ld01_maf01', 'ld02_maf01'] },
-                { assert stratified.component_plan.components.every { component -> component.native_predictor_count != null } },
-                { assert stratified.component_plan.components.collect { component -> component.vc_name } == stratifiedRows.findAll { row -> row.vc_name != 'err' }.collect { row -> row.vc_name } },
-                { assert stratified.component_plan.plan_key != null },
-                { assert stratified.classification == 'estimable' },
-                { assert stratified.warnings == [] },
-                { assert stratified.stochastic_settings.seed == 7 },
-                { assert stratified.stochastic_settings.num_threads != null },
-                { assert stratified.stochastic_settings.reproducibility == 'seed_stable_given_threads_and_memory_mode' },
-                { assert stratified.native_arguments == ['--seed 7'] },
-                // The shared core key is the sample the estimate was computed on, so it is the same
-                // number the solver trace reports as its `sample_size`, not the count of rows the
-                // adapter handed MPH. That one lives under `detail`.
-                { assert stratified.inputs.samples.retained == lastIteration.sample_size as int },
-                { assert stratified.inputs.samples.retained == 200 },
-                { assert stratified.inputs.samples.dropped == 0 },
-                { assert stratified.inputs.samples.detail.written == 200 },
-                { assert stratified.inputs.samples.detail.analysis_set_expected == 200 },
-                { assert stratified.inputs.samples.detail.analysis_set_observed == 200 },
-                { assert stratified.inputs.variants.universe == 'autosomes' },
-                { assert stratified.inputs.variants.retained == stratifiedRows.findAll { row -> row.vc_name != 'err' }.sum { row -> row.m as int } },
-                { assert stratified.schema_version == '1.1' },
-                { assert stratified.derivation == null },
-                { assert stratified.residual_covariance == null },
-                { assert stratified.estimator.input_backend == 'mph_grm_family' },
-                { assert stratified.estimator.component_model == 'ld_maf_stratified' },
-                // The dense family declares its universe symbolically and fits one component.
-                { assert dense.component_plan.plan_key == null },
-                { assert dense.component_plan.components.size() == 1 },
-                { assert dense.component_plan.components.first().name == 'all' },
-                { assert dense.component_plan.settings.variant_universe == 'autosomes' },
-                { assert dense.estimator.input_backend == 'mph_grm' },
-                { assert dense.classification == 'estimable' },
                 // Neither the container-local timestamp in a log nor a thread-sensitive estimate is
                 // allowed to reach a content hash.
-                { assert !stablePath.any { path -> path.toString().endsWith('.log') || path.toString().contains('.mq.') || path.toString().endsWith('.provenance.json') } },
+                { assert !stablePath.any { path -> path.toString().endsWith('.log') || path.toString().contains('.mq.') } },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
                 { assert snapshot(stableName, stablePath).match('heritability') },
             )
@@ -208,7 +161,6 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 1 },
                 { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
-                { assert TRACE.count(workflow, 'SUMMARISE_MPH_RESULT') == 2 },
                 { assert plans.list().toList().size() == 1 },
                 { assert matrices.list().toList().size() == 1 },
                 // The plan publishes its LD scores, its ordered manifest and one group file per component.
@@ -251,9 +203,7 @@ nextflow_pipeline {
             def individual = new File("${params.outdir}/heritability/individual/mph_reml_ldms")
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
             def plans = new File("${params.outdir}/quality_control/ldms_component_plans")
-            def sidecar = { analysis_id -> slurper.parseText(new File(individual, "${analysis_id}/${analysis_id}.mph_reml_ldms.provenance.json").text) }
-            def two = sidecar('mph_two_bins')
-            def four = sidecar('mph_four_bins')
+
             assertAll(
                 { assert workflow.success },
                 // The counterpart of the reuse case above. Two declarations that differ only in `ld_bins` must
@@ -264,14 +214,6 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 6 },
                 { assert plans.list().toList().size() == 2 },
                 { assert matrices.list().toList().size() == 2 },
-                { assert two.component_plan.plan_key != four.component_plan.plan_key },
-                { assert two.component_plan.matrix_key != four.component_plan.matrix_key },
-                { assert two.component_plan.components.size() == 2 },
-                { assert four.component_plan.components.size() == 4 },
-                // Each family's own key is the directory it published under, so the two records point at the
-                // two directories rather than at one.
-                { assert matrices.list().toList().sort() == [two.component_plan.matrix_key, four.component_plan.matrix_key].sort() },
-                { assert plans.list().toList().sort() == [two.component_plan.plan_key, four.component_plan.plan_key].sort() },
             )
         }
     }
@@ -303,7 +245,7 @@ nextflow_pipeline {
             def individual = new File("${params.outdir}/heritability/individual")
             def plans = new File("${params.outdir}/quality_control/ldms_component_plans")
             def matrices = new File("${params.outdir}/quality_control/relatedness_matrices")
-            def stratified = slurper.parseText(new File(individual, 'mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.provenance.json').text)
+
             def manifest = plans.listFiles().first().listFiles().find { entry -> entry.name.endsWith('.strata.tsv') }.readLines()
             def manifestHeader = manifest.first().split('\t').toList()
             def manifestRows = manifest.tail().collect { row -> [manifestHeader, row.split('\t').toList()].transpose().collectEntries() }
@@ -315,6 +257,9 @@ nextflow_pipeline {
                     gctaLogs << entry.text
                 }
             }
+            def mphResult = new File(individual, 'mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv').readLines()
+            def mphHeader = mphResult.first().split(',').toList()
+            def mphRows = mphResult.tail().collect { row -> [mphHeader, row.split(',').toList()].transpose().collectEntries() }
             def gctaUsedCounts = gctaLogs
                 .collect { text -> (text =~ /Used (\d+) valid SNPs/).collect { match -> match[1] as int } }
                 .flatten()
@@ -335,14 +280,14 @@ nextflow_pipeline {
                 // control at exit 0, so identical group files are not proof of identical retained sets. This
                 // is what "one identical component plan and SNP membership set" has to mean.
                 { assert manifestRows.size() == 2 },
-                { assert stratified.component_plan.components.collect { component -> component.plan_predictor_count } == manifestRows.collect { row -> row.predictor_count as int } },
-                { assert stratified.component_plan.components.collect { component -> component.native_predictor_count } == manifestRows.collect { row -> row.predictor_count as int } },
+                { assert mphRows.findAll { row -> row.vc_name != 'err' }.collect { row -> row.m as int }
+                    == manifestRows.collect { row -> row.predictor_count as int } },
                 { assert gctaUsedCounts == manifestRows.collect { row -> row.predictor_count as int }.sort() },
             )
         }
     }
 
-    test("changing the seed reruns the fit and its record while the plan and the matrices stay cached") {
+    test("changing the seed reruns the fit while the plan and the matrices stay cached") {
 
         tag "mph_resume"
 
@@ -362,6 +307,13 @@ nextflow_pipeline {
         }
 
         then {
+            def baselineResults = new File("${params.outdir}/heritability/individual/mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv").readLines()
+            def unchanged = RESUME.rerun(outputDir, [:])
+            assertAll(
+                { assert RESUME.statuses(unchanged, 'MPH_REML') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'PREPARE_MPH_INPUTS') == ['CACHED'] },
+                { assert new File("${params.outdir}/heritability/individual/mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv").readLines() == baselineResults },
+            )
             def rerun = RESUME.rerun(outputDir, [
                 method_options: RELATIONAL.methodOptions(outputDir, 'mph_resume_reseeded', [analyses: [
                     example_pgen_qt: [gcta: [ld_score_region_kb: 50, ld_bins: 2, ldms_maf_edges: [0.0, 0.5]], mph: [seed: 8]],
@@ -370,14 +322,16 @@ nextflow_pipeline {
             assertAll(
                 { assert workflow.success },
                 // The seed reaches the fit and nothing above it, so a reseeded run reuses the plan and the
-                // matrices and recomputes only the estimate and the record that describes it.
+                // matrices and recomputes the estimate.
                 { assert RESUME.statuses(rerun, 'GCTA_CALCULATELDSCORES') == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'CUSTOM_GCTASTRATIFYLDSCORES') == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'CUSTOM_MPHSNPINFO') == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'MPH_MAKEGRM').unique() == ['CACHED'] },
                 { assert RESUME.statuses(rerun, 'MPH_REML') == ['COMPLETED'] },
-                { assert RESUME.statuses(rerun, 'SUMMARISE_MPH_RESULT') == ['COMPLETED'] },
-                // The serializer reruns too, because the effective settings it records are part of its task
+                // Seed changes preserve the native result's row count and component order.
+                { assert new File("${params.outdir}/heritability/individual/mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv").readLines().collect { line -> line.split(',').take(3) }
+                    == baselineResults.collect { line -> line.split(',').take(3) } },
+                // The serializer reruns too, because the route metadata carries the effective settings in its task
                 // identity; the CSVs it writes are byte-identical either way.
                 { assert RESUME.statuses(rerun, 'PREPARE_MPH_INPUTS') == ['COMPLETED'] },
             )

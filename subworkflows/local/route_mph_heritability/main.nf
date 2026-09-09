@@ -1,17 +1,14 @@
 // Route unary analysis units through MPH REML on native MPH relatedness matrices, one-component and
 // LD-by-MAF-stratified. Matrix construction stays on the pipeline spine so each scientifically distinct matrix
 // family is built once; this controller owns estimator selection, the IID-keyed serialisation of the prepared
-// phenotype and covariate tables, the effective stochastic and solver settings the native call renders, and
-// the per-result provenance sidecar written after the fit.
+// phenotype and covariate tables and the effective settings the native call renders.
 // Emits no versions; reads no params, workflow or projectDir.
 
 // MODULE: Local to the pipeline
 include { PREPARE_MPH_INPUTS              } from '../../../modules/local/prepare_mph_inputs/main'
 include { MPH_REML                        } from '../../../modules/local/mph/reml/main'
-include { SUMMARISE_MPH_RESULT            } from '../../../modules/local/summarise_mph_result/main'
 
 // FUNCTION: Local to the pipeline
-include { getMethodCapabilities           } from '../validate_gwas_input/method_registry'
 include { getMethodTokensWithCapabilities } from '../validate_gwas_input/method_registry'
 
 workflow ROUTE_MPH_HERITABILITY {
@@ -26,7 +23,6 @@ workflow ROUTE_MPH_HERITABILITY {
 
     // The estimator token comes from the registry query whose matrix kind produced the stream, so neither
     // token appears as a literal anywhere in this route.
-    def capabilities = getMethodCapabilities()
     def ch_matrices = ch_mph_dense_matrices
         .map { meta, identity, grm_files -> [meta, identity, grm_files, [grmPrefix(grm_files)], resolveMphEstimator('mph_dense')] }
         .mix(
@@ -39,15 +35,11 @@ workflow ROUTE_MPH_HERITABILITY {
     // `failOnMismatch` nor `failOnDuplicate` and would drop an unmatched analysis in silence.
     def ch_route_requests = ch_matrices
         .combine(ch_headerless_phenotypes.map { meta, phenotype, _quant_covariates, _cat_covariates -> [meta, phenotype] }, by: 0)
-        .map { meta, identity, grm_files, grm_prefixes, estimator, phenotype ->
+        .map { meta, _identity, grm_files, grm_prefixes, estimator, phenotype ->
             def route_meta = meta + [
                 mph_estimator: estimator,
-                mph_capability: capabilities[estimator].subMap(['option_family', 'estimator_family', 'input_backend', 'component_model', 'stochastic']),
                 mph_trait_names: [meta.trait],
-                mph_matrix: identity,
-                mph_grm_prefixes: grm_prefixes,
                 mph_effective: buildMphEffectiveSettings(meta.method_options.mph),
-                mph_result: buildMphResultRecord(meta, estimator),
             ]
             [routeKey(route_meta), route_meta, grm_files, grm_prefixes, phenotype]
         }
@@ -80,8 +72,7 @@ workflow ROUTE_MPH_HERITABILITY {
     //
     def ch_serializer_inputs = ch_requests.multiMap { route_meta, grm_files, _grm_prefixes, phenotype, quant_covariates, cat_covariates, fam ->
         tables: [route_meta, phenotype, quant_covariates, cat_covariates]
-        // Every component of one family shares one `.grm.iid`, and the FAM beside it is what makes an
-        // ambiguous FID/IID pairing detectable rather than silent.
+        // Every component shares one matrix sample order; the FAM supplies the matching FID for each IID.
         identity: [route_meta, grm_files.find { grm_file -> grm_file.name.endsWith('.grm.iid') }, fam]
     }
     PREPARE_MPH_INPUTS(ch_serializer_inputs.tables, ch_serializer_inputs.identity)
@@ -97,36 +88,17 @@ workflow ROUTE_MPH_HERITABILITY {
         .multiMap { _key, route_meta, grm_files, grm_prefixes, phenotype_csv, covariate_csv ->
             grm: [route_meta, grm_files, grm_prefixes]
             pheno: [route_meta, phenotype_csv, route_meta.mph_trait_names]
-            // The fitted column set is only knowable after the serializer applied the dummy-encoding rule, so
-            // it is read back from the completed output's header rather than recomputed in a second language.
-            // Absence is a missing file, not an empty column list: MPH synthesises an intercept only when no
-            // covariate is named, so the two are different models.
+            // Read the encoded column names from the completed CSV. With no covariate file, MPH supplies
+            // its own intercept, so absence remains an empty path and column list.
             covar: [route_meta, covariate_csv ?: [], covariate_csv ? readCsvHeader(covariate_csv).drop(1) : []]
         }
     MPH_REML(ch_reml_inputs.grm, ch_reml_inputs.pheno, ch_reml_inputs.covar)
-
-    //
-    // MODULE: Complete and publish the per-result provenance sidecar
-    //
-    // Written after the fit because MPH reports both of its quality failures as warnings at exit 0, reports
-    // each component's achieved variant count only inside the result file, and names the covariates it fitted
-    // only in the fixed-effect result. All five seams are one-to-one on [analysis, estimator].
-    def ch_summary_inputs = PREPARE_MPH_INPUTS.out.serialization
-        .map { meta, serialization -> [routeKey(meta), meta, serialization] }
-        .join(MPH_REML.out.variance_components.map { meta, variance_components -> [routeKey(meta), variance_components] }, failOnDuplicate: true, failOnMismatch: true)
-        .join(MPH_REML.out.fixed_effects.map { meta, fixed_effects -> [routeKey(meta), fixed_effects] }, failOnDuplicate: true, failOnMismatch: true)
-        .join(MPH_REML.out.iterations.map { meta, iterations -> [routeKey(meta), iterations] }, failOnDuplicate: true, failOnMismatch: true)
-        .join(MPH_REML.out.log.map { meta, native_log -> [routeKey(meta), native_log] }, failOnDuplicate: true, failOnMismatch: true)
-        // A one-trait fit writes no correlation result, so the writer's optional last member is absent here.
-        .map { _key, meta, serialization, variance_components, fixed_effects, iterations, native_log -> [meta, serialization, variance_components, fixed_effects, iterations, native_log, []] }
-    SUMMARISE_MPH_RESULT(ch_summary_inputs)
 
     emit:
     mph_results    = MPH_REML.out.variance_components.map { meta, variance_components -> [stripMphRouteState(meta), variance_components] } // channel: [ val(meta), path(mq.vc.csv) ], one per analysis and selected MPH method
     mph_fixed      = MPH_REML.out.fixed_effects.map { meta, fixed_effects -> [stripMphRouteState(meta), fixed_effects] } // channel: [ val(meta), path(mq.blue.csv) ]
     mph_iterations = MPH_REML.out.iterations.map { meta, iterations -> [stripMphRouteState(meta), iterations] } // channel: [ val(meta), path(mq.iter.csv) ]
     mph_log        = MPH_REML.out.log.map { meta, native_log -> [stripMphRouteState(meta), native_log] } // channel: [ val(meta), path(log) ]
-    mph_provenance = SUMMARISE_MPH_RESULT.out.provenance.map { meta, provenance -> [stripMphRouteState(meta), provenance] } // channel: [ val(meta), path(provenance_json) ]
 }
 
 /*
@@ -156,21 +128,6 @@ def routeKey(meta) {
     return [meta.id, meta.mph_estimator]
 }
 
-// The published result's identity, resolved by the route because whether a fit is a unary heritability
-// estimate or an oriented pair is a routing fact. The serializer copies this block through rather than
-// inferring it from the number of traits it was handed.
-def buildMphResultRecord(meta, estimator) {
-    return [
-        kind: 'heritability',
-        analysis_id: meta.id,
-        request_id: null,
-        relationship_id: null,
-        method: estimator,
-        left_analysis_id: null,
-        right_analysis_id: null,
-    ]
-}
-
 // The staged bundle's prefix, taken from the member whose name defines it. MPH's `--grm_list` names prefixes
 // rather than paths, so this is the value the fit is addressed by.
 def grmPrefix(grm_files) {
@@ -184,30 +141,16 @@ def readCsvHeader(csv) {
     return csv.readLines()[0].split(',').toList()
 }
 
-// One rendering of MPH's curated options, shared by the configured argument closure and the provenance
-// sidecar, so the published command and the published record cannot disagree.
-//
-// The split between the two blocks is not cosmetic. `seed`, `random_vectors` and `save_memory` govern the
-// stochastic trace estimator and move the point estimate itself; `iterations` and `tolerance` govern the
-// deterministic solver. Nothing here claims determinism: MPH's default seed is the fixed 0, but the thread
-// count the executor chooses and the memory mode both move the estimate in the sixth to seventh significant
-// digit (issue #68), and the thread count is not knowable outside the task.
+// Render the curated options for the configured MPH argument closure.
 def buildMphEffectiveSettings(options) {
     return [
-        seed: options.seed != null ? options.seed : 0,
-        random_vectors: options.random_vectors != null ? options.random_vectors : 100,
-        save_memory: options.save_memory,
-        iterations: options.iterations != null ? options.iterations : 20,
-        tolerance: options.tolerance != null ? options.tolerance : 0.01,
-        requested: options,
-        native_defaults_apply: options.findAll { _name, value -> value == null }.keySet().toList(),
         native_arguments: [
             options.iterations != null ? "--num_iterations ${options.iterations}" : null,
             options.tolerance != null ? "--tolerance ${options.tolerance}" : null,
             options.random_vectors != null ? "--num_random_vectors ${options.random_vectors}" : null,
             options.seed != null ? "--seed ${options.seed}" : null,
             options.save_memory ? '--save_memory' : null,
-        ].findAll { argument -> argument != null },
+        ].findAll { argument -> argument != null }
     ]
 }
 
@@ -215,5 +158,5 @@ def buildMphEffectiveSettings(options) {
 // selected token and its resolved settings. Everything but the token is stripped before emission, so a
 // consumer receives the focal analysis identity it supplied and the route cannot leak its own bookkeeping.
 def stripMphRouteState(meta) {
-    return meta.findAll { name, _value -> !(name in ['mph_capability', 'mph_trait_names', 'mph_matrix', 'mph_grm_prefixes', 'mph_effective', 'mph_result']) }
+    return meta.findAll { name, _value -> !(name in ['mph_trait_names', 'mph_effective']) }
 }

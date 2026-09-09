@@ -308,10 +308,8 @@ workflow PREPARE_RELATEDNESS_MATRICES {
         )
         .map { _selected_key, meta, grm_files, grm_prefixes -> [meta, grm_files, grm_prefixes] }
 
-    // The MPH families carry their identity in a tuple position rather than in metadata. A unary analysis row
-    // never receives a `matrix_key` today, and the consumer needs more than a key anyway: its provenance
-    // sidecar records the plan key, the declared per-component predictor counts and the universe accounting,
-    // all of which are read here from completed outputs rather than recomputed downstream.
+    // The MPH families carry their identity in a tuple position rather than in analysis metadata. The matrix
+    // identity includes the plan and declared predictor counts read from the completed construction outputs.
     def ch_mph_dense_artifacts = PLINK_PREPARE_GRM_MPH.out.grm_files
         .map { matrix_meta, grm_files -> [matrix_meta.key, matrix_meta, grm_files] }
         .join(
@@ -443,9 +441,8 @@ def buildLdmsPlanMeta(plan) {
     ]
 }
 
-// Read the declared predictor counts an MPH builder emitted beside its matrices. Both counts the sidecar
-// carries come from a component that actually holds them: the declared count from the SNP-information file at
-// build time, and MPH's own post-quality-control count from the fit's result. The `.grm.bin` header's
+// Read the declared predictor counts an MPH builder emitted beside its matrices from the SNP-information
+// file at build time. These are distinct from MPH's post-quality-control counts in the fit's result. The `.grm.bin` header's
 // `sum2pq` is deliberately not used for either: it is a `float32` sum of 2pq weights that coincides with a
 // variant count only for the 0/1 columns this pipeline happens to write, and it is not exact above 2^24.
 def readMphPredictorCounts(counts_file) {

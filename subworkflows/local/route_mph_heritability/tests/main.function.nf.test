@@ -5,25 +5,17 @@ nextflow_function {
     tag "function"
     tag "mph"
 
-    // Every combination that changes what reaches the command line. The rendering is shared by the configured
-    // argument closure and the provenance sidecar, so this table is what keeps the published command and the
-    // published record from drifting apart.
+    // Every combination that changes what reaches the configured command line.
     def effectiveSettings = [
         [
             name: 'every option left native',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: null, save_memory: false],
             arguments: [],
-            defaults: ['iterations', 'tolerance', 'random_vectors', 'seed'],
-            seed: 0,
-            random_vectors: 100,
         ],
         [
             name: 'a curated seed only',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: 7, save_memory: false],
             arguments: ['--seed 7'],
-            defaults: ['iterations', 'tolerance', 'random_vectors'],
-            seed: 7,
-            random_vectors: 100,
         ],
         [
             // Zero is a real seed, not an absent one: MPH's own unset default is the fixed integer 0, so the
@@ -31,17 +23,11 @@ nextflow_function {
             name: 'the seed set to MPH own default',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: 0, save_memory: false],
             arguments: ['--seed 0'],
-            defaults: ['iterations', 'tolerance', 'random_vectors'],
-            seed: 0,
-            random_vectors: 100,
         ],
         [
             name: 'every option curated',
             options: [iterations: 50, tolerance: 0.001, random_vectors: 200, seed: 7, save_memory: true],
             arguments: ['--num_iterations 50', '--tolerance 0.001', '--num_random_vectors 200', '--seed 7', '--save_memory'],
-            defaults: [],
-            seed: 7,
-            random_vectors: 200,
         ],
         [
             // A false boolean renders nothing at all rather than a negated flag, and is not a native default
@@ -49,9 +35,6 @@ nextflow_function {
             name: 'the memory mode explicitly disabled',
             options: [iterations: null, tolerance: null, random_vectors: 50, seed: null, save_memory: false],
             arguments: ['--num_random_vectors 50'],
-            defaults: ['iterations', 'tolerance', 'seed'],
-            seed: 0,
-            random_vectors: 50,
         ],
     ]
 
@@ -71,16 +54,8 @@ nextflow_function {
                 assertAll(
                     { assert function.success },
                     { assert function.result.native_arguments == scenario.arguments },
-                    // The flag order is fixed rather than incidental: the sidecar records this list verbatim
-                    // as what was run, so two runs with the same options must render one string.
+                    // The flag order is fixed so equal options render the same command.
                     { assert function.result.native_arguments.join(' ').trim() == scenario.arguments.join(' ') },
-                    { assert function.result.native_defaults_apply == scenario.defaults },
-                    { assert function.result.seed == scenario.seed },
-                    { assert function.result.random_vectors == scenario.random_vectors },
-                    { assert function.result.requested == scenario.options },
-                    // No boolean determinism claim: the thread count and the memory mode both move the
-                    // estimate, and neither is knowable here.
-                    { assert !function.result.containsKey('deterministic') },
                 )
             }
         }
@@ -160,36 +135,6 @@ nextflow_function {
         }
     }
 
-    test("the result record a unary fit publishes under is the heritability shape, with both endpoint slots empty") {
-        function "buildMphResultRecord"
-
-        when {
-            function {
-                """
-                input[0] = [id: 'analysis', trait: 'QT']
-                input[1] = 'mph_reml_ldms'
-                """
-            }
-        }
-
-        then {
-            // The serializer copies this block through rather than deciding for itself what kind of result it
-            // is writing, so the shape is the route's statement and is pinned here.
-            assertAll(
-                { assert function.success },
-                { assert function.result == [
-                    kind: 'heritability',
-                    analysis_id: 'analysis',
-                    request_id: null,
-                    relationship_id: null,
-                    method: 'mph_reml_ldms',
-                    left_analysis_id: null,
-                    right_analysis_id: null,
-                ] },
-            )
-        }
-    }
-
     test("the route key is the analysis and its selected estimator, which is the fan-out axis") {
         function "routeKey"
 
@@ -264,12 +209,8 @@ nextflow_function {
                     trait: 'QT',
                     heritability_methods: ['mph_reml'],
                     mph_estimator: 'mph_reml',
-                    mph_capability: [option_family: 'mph'],
                     mph_trait_names: ['QT'],
-                    mph_matrix: [key: 'abc123'],
-                    mph_grm_prefixes: ['mph_dense.abc123'],
-                    mph_effective: [seed: 0],
-                    mph_result: [kind: 'heritability', analysis_id: 'analysis'],
+                    mph_effective: [native_arguments: ['--seed 7']],
                 ]
                 """
             }

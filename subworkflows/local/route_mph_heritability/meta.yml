@@ -11,13 +11,11 @@ keywords:
 components:
   - prepare_mph_inputs
   - mph/reml
-  - summarise_mph_result
 input:
   - ch_mph_dense_matrices:
       description: |
         One-component MPH matrices fanned to their unary consumers, with the matrix identity in a tuple
-        position rather than in metadata: a unary analysis row never carries a matrix key, and the identity
-        also has to reach the provenance writer.
+        position rather than in metadata: a unary analysis row never carries a matrix key.
       structure: [map meta, map matrix_identity, list grm_files]
       pattern: "*.grm.{bin,iid}"
       ontologies:
@@ -75,12 +73,7 @@ output:
       structure: [map meta, path log]
       pattern: "*.log"
       ontologies: []
-  - mph_provenance:
-      description: Per-result invocation record, written after the fit so the quality classification is a real value.
-      structure: [map meta, path provenance]
-      pattern: "*.provenance.json"
-      ontologies:
-        - edam: "http://edamontology.org/format_3464"
+
 authors:
   - "@lyh970817"
 maintainers:

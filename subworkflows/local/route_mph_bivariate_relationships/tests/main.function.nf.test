@@ -34,17 +34,6 @@ nextflow_function {
         variant_counts: [bim_rows: 1100, assigned: 1100, unassigned: 0],
     ]
 
-    def CAPABILITIES = [
-        mph_bivariate_reml_ldms: [
-            option_family: 'mph',
-            estimator_family: 'reml',
-            input_backend: 'mph_grm_family',
-            component_model: 'ld_maf_stratified',
-            stochastic: true,
-            citation_keys: ['mph', 'gcta_greml_ldms'],
-        ],
-    ]
-
     test("the route meta keeps the request identity and carries the declared trait order into the fit") {
         function "resolveMphPairRouteMeta"
 
@@ -53,8 +42,6 @@ nextflow_function {
                 """
                 input[0] = ${PAIR.inspect()}
                 input[1] = ${MATRIX.inspect()}
-                input[2] = ['mph_ldms.ldms000001__000001_ld01_maf01']
-                input[3] = ${CAPABILITIES.inspect()}
                 """
             }
         }
@@ -72,10 +59,6 @@ nextflow_function {
                 // ordering this pipeline uses, but the point is that no ordering is applied at all.
                 { assert function.result.mph_trait_names == ['QT', 'QT2'] },
                 { assert function.result.mph_estimator == 'mph_bivariate_reml_ldms' },
-                { assert function.result.mph_grm_prefixes == ['mph_ldms.ldms000001__000001_ld01_maf01'] },
-                { assert function.result.mph_capability == CAPABILITIES.mph_bivariate_reml_ldms.subMap(['option_family', 'estimator_family', 'input_backend', 'component_model', 'stochastic']) },
-                { assert function.result.mph_result.kind == 'pairwise' },
-                { assert function.result.mph_effective.seed == 7 },
                 { assert function.result.mph_effective.native_arguments == ['--seed 7'] },
             )
         }
@@ -89,8 +72,6 @@ nextflow_function {
                 """
                 input[0] = ${(PAIR + [left_trait_id: 'ZTRAIT', right_trait_id: 'ATRAIT']).inspect()}
                 input[1] = ${MATRIX.inspect()}
-                input[2] = ['mph_ldms.ldms000001__000001_ld01_maf01']
-                input[3] = ${CAPABILITIES.inspect()}
                 """
             }
         }
@@ -103,83 +84,39 @@ nextflow_function {
         }
     }
 
-    test("the result record names both endpoints so a reader never has to parse the request identifier") {
-        function "buildMphResultRecord"
-
-        when {
-            function {
-                """
-                input[0] = ${PAIR.inspect()}
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result == [
-                    kind: 'pairwise',
-                    analysis_id: null,
-                    request_id: 'mph_bivariate_reml_ldms--qt_qt2',
-                    relationship_id: 'qt_qt2',
-                    method: 'mph_bivariate_reml_ldms',
-                    left_analysis_id: 'example_qt',
-                    right_analysis_id: 'example_qt2',
-                ] },
-            )
-        }
-    }
-
-    // Every combination that changes what reaches the command line. The rendering is shared by the configured
-    // argument closure and the provenance sidecar, so this table is what keeps the published command and the
-    // published record from drifting apart.
+    // Every combination that changes what reaches the configured command line.
     def effectiveSettings = [
         [
             name: 'every option left native and no named addition',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: null, save_memory: false],
             native_args: [],
             arguments: [],
-            defaults: ['iterations', 'tolerance', 'random_vectors', 'seed'],
-            seed: 0,
-            random_vectors: 100,
         ],
         [
             name: 'a curated seed only',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: 7, save_memory: false],
             native_args: [],
             arguments: ['--seed 7'],
-            defaults: ['iterations', 'tolerance', 'random_vectors'],
-            seed: 7,
-            random_vectors: 100,
         ],
         [
             // The curated options come first and the allow-listed named addition after them, which is the
-            // order the firewall admitted them in and the order the sidecar records.
+            // order the firewall admitted them in.
             name: 'a curated seed beside an allow-listed native addition',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: 7, save_memory: false],
             native_args: ['--min_maf', '0.01'],
             arguments: ['--seed 7', '--min_maf', '0.01'],
-            defaults: ['iterations', 'tolerance', 'random_vectors'],
-            seed: 7,
-            random_vectors: 100,
         ],
         [
             name: 'a native addition with no curated option at all',
             options: [iterations: null, tolerance: null, random_vectors: null, seed: null, save_memory: false],
             native_args: ['--verbose'],
             arguments: ['--verbose'],
-            defaults: ['iterations', 'tolerance', 'random_vectors', 'seed'],
-            seed: 0,
-            random_vectors: 100,
         ],
         [
             name: 'every option curated',
             options: [iterations: 50, tolerance: 0.001, random_vectors: 200, seed: 7, save_memory: true],
             native_args: [],
             arguments: ['--num_iterations 50', '--tolerance 0.001', '--num_random_vectors 200', '--seed 7', '--save_memory'],
-            defaults: [],
-            seed: 7,
-            random_vectors: 200,
         ],
     ]
 
@@ -200,13 +137,6 @@ nextflow_function {
                 assertAll(
                     { assert function.success },
                     { assert function.result.native_arguments == scenario.arguments },
-                    { assert function.result.native_defaults_apply == scenario.defaults },
-                    { assert function.result.seed == scenario.seed },
-                    { assert function.result.random_vectors == scenario.random_vectors },
-                    { assert function.result.requested == scenario.options },
-                    // No boolean determinism claim: the thread count and the memory mode both move the
-                    // estimate, and neither is knowable here.
-                    { assert !function.result.containsKey('deterministic') },
                 )
             }
         }
@@ -267,12 +197,8 @@ nextflow_function {
                     method: 'mph_bivariate_reml',
                     matrix_key: 'abc123',
                     mph_estimator: 'mph_bivariate_reml',
-                    mph_capability: [option_family: 'mph'],
                     mph_trait_names: ['QT', 'QT2'],
-                    mph_matrix: [key: 'abc123'],
-                    mph_grm_prefixes: ['mph_dense.abc123'],
-                    mph_effective: [seed: 7],
-                    mph_result: [kind: 'pairwise'],
+                    mph_effective: [native_arguments: ['--seed 7']],
                 ]
                 """
             }

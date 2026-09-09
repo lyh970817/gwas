@@ -143,7 +143,6 @@ nextflow_workflow {
                 // preparation is shared; the fits and the records are not.
                 { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
-                { assert TRACE.count(workflow, 'SUMMARISE_MPH_RESULT') == 2 },
                 { assert methods == ['mph_bivariate_reml', 'mph_bivariate_reml_ldms'] },
                 // A multi-trait fit produces the correlation result, so every emit is populated for every
                 // request rather than only for the stratified one.
@@ -152,18 +151,14 @@ nextflow_workflow {
                 { assert workflow.out.bivariate_fixed.size() == 2 },
                 { assert workflow.out.bivariate_iterations.size() == 2 },
                 { assert workflow.out.bivariate_log.size() == 2 },
-                { assert workflow.out.bivariate_provenance.size() == 2 },
                 // The emitted identity is the request identity the manifest determined, never the matrix key,
                 // and none of the state this route minted for its own use survives into it.
                 { assert workflow.out.bivariate_results.collect { record -> record[0].id }.sort() == ['mph_bivariate_reml--qt_qt2', 'mph_bivariate_reml_ldms--qt_qt2'] },
                 { assert workflow.out.bivariate_results.every { record -> record[0].id == record[0].request_id } },
                 { assert workflow.out.bivariate_results.every { record -> record[0].relationship_id == 'qt_qt2' } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('matrix_key') } },
-                { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_matrix') } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_effective') } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_trait_names') } },
-                { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_grm_prefixes') } },
-                { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_result') } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_estimator') } },
             )
         }
@@ -227,7 +222,6 @@ nextflow_workflow {
                 // Absence travels as `[]` all the way to the atom, which is a different model rather than an
                 // empty column set: the serializer writes no covariate file, so MPH synthesises its intercept.
                 { assert workflow.out.bivariate_results.size() == 1 },
-                { assert workflow.out.bivariate_provenance.size() == 1 },
                 { assert workflow.out.bivariate_correlations.size() == 1 },
             )
         }

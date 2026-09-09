@@ -90,10 +90,9 @@ nextflow_workflow {
             def estimators = workflow.out.mph_results.collect { record -> record[0].mph_estimator }.sort()
             assertAll(
                 { assert workflow.success },
-                // One analysis holding two matrix records becomes two fits, two records and two sidecars,
+                // One analysis holding two matrix records becomes two fits and two native result records,
                 // each addressed by the selected token.
                 { assert workflow.out.mph_results.size() == 2 },
-                { assert workflow.out.mph_provenance.size() == 2 },
                 { assert workflow.out.mph_fixed.size() == 2 },
                 { assert workflow.out.mph_iterations.size() == 2 },
                 { assert workflow.out.mph_log.size() == 2 },
@@ -101,11 +100,8 @@ nextflow_workflow {
                 // The emitted identity is the focal analysis plus the selected token, and nothing else this
                 // route minted for its own use.
                 { assert workflow.out.mph_results.every { record -> record[0].id == 'both' } },
-                { assert workflow.out.mph_results.every { record -> !record[0].containsKey('mph_matrix') } },
                 { assert workflow.out.mph_results.every { record -> !record[0].containsKey('mph_effective') } },
                 { assert workflow.out.mph_results.every { record -> !record[0].containsKey('mph_trait_names') } },
-                { assert workflow.out.mph_results.every { record -> !record[0].containsKey('mph_grm_prefixes') } },
-                { assert workflow.out.mph_results.every { record -> !record[0].containsKey('mph_capability') } },
             )
         }
     }
@@ -137,7 +133,6 @@ nextflow_workflow {
                 // Absence travels as `[]` all the way to the atom, which is a different model rather than an
                 // empty column set: the serializer writes no covariate file, so MPH synthesises its intercept.
                 { assert workflow.out.mph_results.size() == 1 },
-                { assert workflow.out.mph_provenance.size() == 1 },
                 { assert workflow.out.mph_results.first()[0].mph_estimator == 'mph_reml' },
             )
         }

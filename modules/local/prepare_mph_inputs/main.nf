@@ -17,11 +17,7 @@ process PREPARE_MPH_INPUTS {
     output:
     tuple val(meta), path("${prefix}.mph.pheno.csv"), emit: phenotype
     tuple val(meta), path("${prefix}.mph.covar.csv"), emit: covariates, optional: true
-    // Not published. It is the machine-readable record of what this task decided, and the input to the writer
-    // that publishes the sidecar after the fit, so exactly one component computes each value.
-    tuple val(meta), path("${prefix}.mph.inputs.json"), emit: serialization
     path 'versions.yml', emit: versions, topic: versions
-
 
     script:
     // `prefix` must remain visible to the output declarations. Every other assignment must remain visible to
@@ -35,21 +31,10 @@ process PREPARE_MPH_INPUTS {
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     analysis_id_literal = groovy.json.JsonOutput.toJson(meta.id.toString())
     task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
-    // The result block the sidecar is keyed by. It is supplied by the route rather than assembled here,
-    // because whether a fit is a unary heritability estimate or an oriented pair is a routing fact: the same
-    // serializer writes both and must not switch on the trait count to decide which identity it is publishing.
-    result_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_result))
     // Serialised twice on purpose: the inner call renders the structure as JSON, the outer one renders that
     // JSON as a quoted string. A bare JSON object is not valid Python -- its `null`, `true` and `false` are
     // not Python literals -- so the template parses a string rather than embedding an expression.
     trait_names_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_trait_names))
-    effective_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_effective))
-    matrix_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_matrix))
-    // The staged matrix prefixes in component order. MPH copies each one verbatim into its result's
-    // `vc_name`, so recording them here is what lets the post-fit writer match components by name instead of
-    // by row position.
-    grm_prefixes_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_grm_prefixes))
-    capability_literal = groovy.json.JsonOutput.toJson(groovy.json.JsonOutput.toJson(meta.mph_capability))
     template('prepare_mph_inputs.py')
 
     stub:
@@ -61,12 +46,9 @@ process PREPARE_MPH_INPUTS {
     def stub_covariates = quant_covariates || cat_covariates
         ? "printf 'IID,intercept,stub_covariate\\nstub,1,0\\n' > \"${prefix}.mph.covar.csv\""
         : ''
-    def stub_covariate_names = quant_covariates || cat_covariates ? '["intercept", "stub_covariate"]' : '[]'
-    def stub_result = groovy.json.JsonOutput.toJson(meta.mph_result)
     """
     printf 'IID,${stub_traits}\\nstub,${stub_trait_values}\\n' > "${prefix}.mph.pheno.csv"
     ${stub_covariates}
-    printf '%s\\n' '{"schema_version": "1.1", "result": ${stub_result}, "covariate_names": ${stub_covariate_names}, "trait_names": ${groovy.json.JsonOutput.toJson(meta.mph_trait_names)}, "analysis_set_expected": 1, "warnings": []}' > "${prefix}.mph.inputs.json"
     printf '"%s":\\n    python: %s\\n' \\
         '${task.process}' \\
         "\$(python3 --version | sed 's/^Python //')" \\

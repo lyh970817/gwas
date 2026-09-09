@@ -14,8 +14,7 @@ tools:
         A Python 3 representation adapter. It rewrites the pipeline's prepared phenotype and covariate tables
         into MPH's comma-separated, IID-keyed, empty-field-is-missing form (issue #60), dummy-encodes
         categorical covariates by the same rule the pipeline's other numeric design uses (issue #64), prepends
-        the explicit intercept column MPH does not synthesise once a covariate is named (issue #62), and
-        records the sample accounting and input digests the post-fit sidecar writer publishes.
+        the explicit intercept column MPH does not synthesise once a covariate is named (issue #62).
       homepage: "https://github.com/nf-core/gwas"
       documentation: "https://nf-co.re/gwas"
       # Pipeline-authored code carrying the pipeline's own licence. It invokes no third-party programme; MPH
@@ -26,10 +25,7 @@ input:
   - - meta:
         type: map
         description: |
-          Groovy Map containing the analysis unit's information, including the selected MPH token, the trait
-          names, the matrix identity, the staged matrix prefixes, the resolved effective settings and the
-          result identity `mph_result`, which the route supplies and this module copies into the record
-          verbatim rather than inferring from how many traits it was given.
+          Groovy Map containing the analysis unit's information and its ordered `mph_trait_names` list.
     - phenotype_table:
         type: file
         description: |
@@ -103,19 +99,6 @@ output:
           pattern: "*.mph.covar.csv"
           ontologies:
             - edam: "http://edamontology.org/format_3752"
-  serialization:
-    - - meta:
-          type: map
-          description: Groovy Map containing the analysis unit's information.
-      - "${prefix}.mph.inputs.json":
-          type: file
-          description: |
-            Machine-readable record of what this task decided: the sample accounting, the emitted covariate
-            column names, the analysis-set size MPH is expected to report, the input digests and the
-            provenance blocks the post-fit sidecar writer publishes unchanged. Not published itself.
-          pattern: "*.mph.inputs.json"
-          ontologies:
-            - edam: "http://edamontology.org/format_3464"
   versions:
     - "versions.yml":
         type: file
