@@ -570,6 +570,15 @@ class RELATIONAL {
         return resource(outputDir, name, content)
     }
 
+    static String threeLevelCategoricalCovariates(Object projectDir, Object outputDir) {
+        def source = new File("${FIXTURES.base(projectDir)}results/fixtures/pheno_cov/example.catcovar")
+        def rows = source.readLines().drop(1).findAll { line -> line.trim() }.withIndex().collect { line, index ->
+            def ids = line.tokenize().take(2)
+            return (ids + ['A', 'B', 'C'][index % 3]).join('\t')
+        }
+        return resource(outputDir, 'batch3.catcovar', (['FID\tIID\tBATCH'] + rows).join('\n') + '\n')
+    }
+
     // A copy of a shipped covariate fixture with one cell of `column` blanked out on the first sample, for the
     // ingress rule that refuses an incomplete covariate file to a method which would read the gap as a value.
     // Returns the resource path and the identity of the sample whose cell was removed.

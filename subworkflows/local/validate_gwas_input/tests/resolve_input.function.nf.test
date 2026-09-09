@@ -10,8 +10,8 @@ nextflow_function {
     // resolvers, not by the rule functions themselves, so the rules are exercised through it rather than by
     // calling `validateTraitColumns` and friends with a stub closure. The rows are the shape
     // `samplesheetToList` produces: `[meta, <positional cells in schema order>]`, with an absent cell as the
-    // empty list nf-schema emits. Nothing here opens a genotype or phenotype file, so these cases need no
-    // fixture; the schemas are read because the positional column order is derived from them.
+    // empty list nf-schema emits. No genotype or phenotype is opened; categorical-header cases write their
+    // own files. The schemas are read because the positional column order is derived from them.
 
     def COHORT_MANIFEST = 'cohorts.csv'
     def ANALYSIS_MANIFEST = 'analyses.csv'
@@ -61,6 +61,47 @@ nextflow_function {
 
     def binaryAnalysisRow = { Map meta = [:] ->
         return [BINARY_META + meta, '/fixtures/pheno_cov/example.pheno', [], []]
+    }
+
+    [
+        [name: 'tab-delimited', content: '\n\t\nFID\tIID\tBATCH\tSITE\n1\t1\tA\tN\n', names: ['BATCH', 'SITE']],
+        [name: 'whitespace-delimited', content: '\n  \n FID IID BATCH SITE\n1 1 A N\n', names: ['BATCH', 'SITE']],
+        [name: 'absent', content: null, names: []],
+    ].each { scenario ->
+        test("analysis metadata carries categorical names from ${scenario.name} input") {
+            function "validateRelationalInput"
+            tag "categorical_covariate_names"
+
+            when {
+                def analysis = analysisRow()
+                analysis[3] = scenario.content == null ? [] : RELATIONAL.resource(outputDir, 'user.catcovar', scenario.content)
+                function {
+                    """
+                    input[0] = ${[cohortRow()].inspect()}
+                    input[1] = ${[analysis].inspect()}
+                    input[2] = []
+                    input[3] = []
+                    input[4] = '${COHORT_MANIFEST}'
+                    input[5] = '${ANALYSIS_MANIFEST}'
+                    input[6] = null
+                    input[7] = null
+                    input[8] = '${projectDir}/assets/schema_cohort_manifest.json'
+                    input[9] = '${projectDir}/assets/schema_analysis_manifest.json'
+                    input[10] = '${projectDir}/assets/schema_summary_statistics_manifest.json'
+                    input[11] = '${projectDir}/assets/schema_relationship_manifest.json'
+                    input[12] = null
+                    input[13] = null
+                    """
+                }
+            }
+
+            then {
+                assertAll(
+                    { assert function.success },
+                    { assert function.result.analyses[0][0].cat_covariate_names == scenario.names },
+                )
+            }
+        }
     }
 
     def INTERNAL_SUMMARY_META = [
