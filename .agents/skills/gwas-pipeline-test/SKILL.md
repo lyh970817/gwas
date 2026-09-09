@@ -58,7 +58,10 @@ act on completion notifications rather than sleep-waiting — Bash `timeout` cap
 
 ## Run the requested scope
 
-Discover the current filename before a focused run:
+Choose the smallest sufficient test type and discover the current filenames and cases before a focused run.
+Record the selected paths or cases and the behavior they cover, including native command/output contracts and
+positive/negative cache evidence where relevant. Add broader coverage for identified cross-package interactions.
+For example:
 
 ```console
 nf-test test tests/<route>.nf.test --profile +docker
@@ -67,7 +70,11 @@ nf-test test tests/<route>.nf.test --profile +docker
 `tests/fixtures/nf-test.sh tests/<route>.nf.test --profile +docker` is the equivalent that materializes
 fixtures itself, for use outside the dev shell.
 
-For broad validation, confirm `GWAS_TEST_FIXTURES` is exported (above) before starting anything long, then
+Reuse an owned warm `NFT_WORKDIR` and the materialized fixture root across serial commands when they use the
+same checkout and fixture source. Keep concurrent runs isolated; do not share a live work directory. Coordinate
+one heavy test or build job at a time on this host; a sharded invocation is one coordinated job.
+
+For independently warranted broad validation, confirm `GWAS_TEST_FIXTURES` is exported (above), then
 use `nf-test-parallel --verbose` when the development shell provides it; it prints the fixture root it is
 using as its first line, so check that line rather than assuming. Select another
 profile with `NFT_PROFILE`, and `NFT_SHARD_ROOT` to put the shard work dirs and logs outside the synced
@@ -79,10 +86,9 @@ announces a derived count as `nf-test-parallel: N shards (memory-derived; pass a
 override)`; an explicit first argument wins in either direction. Otherwise run the native shards with
 `nf-test test --profile=+docker --shard i/N`, distinct `NFT_WORKDIR` values, and aggregated exit statuses.
 
-## Run the branch tier
+## Select a broader tier when needed
 
-Pipeline-level tests under `tests/` are just over half the suite's wall clock. While iterating, run the branch
-tier instead of the whole suite:
+A declared-type tier can cover interactions spanning several packages without selecting every pipeline case:
 
 ```console
 export GWAS_TEST_FIXTURES=$(tests/fixtures/materialize.sh --profile docker)
@@ -96,18 +102,37 @@ which is the authoritative figure, the suite is 776 cases: 672 selected by `proc
 the `test(` blocks in the sources — many are generated in `.each` loops, so one block yields several cases
 — nor with counts measured on older commits: the suite was 828 cases before the validation-rejection and
 stub-twin collapse, and 777 when issue #113 first measured it. Re-measure with `--dry-run` rather than
-quoting any of them. `--related-tests` and
-`--changed-since` narrow further but choose from a diff, so a wrong base quietly selects nothing and still
-reports success; do not build a tier on them.
+quoting any of them. `--related-tests` and `--changed-since` narrow further but choose from a diff, so a wrong
+base quietly selects nothing and still reports success. If using them, inspect `--dry-run` discovery and verify
+the selected cases against the intended scope before treating the result as evidence.
 
-The trade-off is real and is the reason this is a tier and not a default: `--filter` defers exactly the
-route-level and `-resume` coverage the pipeline tests exist to provide. The complete suite remains the merge
-gate, and a green branch tier is never evidence for merging.
+The type filter omits route-level and `-resume` coverage supplied by pipeline tests. Select those cases
+explicitly when they cover the changed behavior; a tier pass alone does not establish that coverage. Follow
+the canonical local-suite policy for intermediate merges and keep the final gate visibly pending.
 
-After broad shard validation, apply the canonical unsharded-suite trigger. When it requires an unsharded run,
-confirm and remove obsolete snapshot entries deliberately; do not use `--wipe-snapshot` for routine validation.
-Sharding suppresses nf-test's obsolete-snapshot pruning — it prunes only when a suite has no skipped tests, and
-sharding works by skipping — so that trigger is the only route to a snapshot-staleness check.
+## Close the final integration and snapshot gate
 
-Report exact scope, profile, fixture source, commands, pass/fail counts, snapshot warnings, and environment
-blockers.
+For an explicit final-integration gate, freeze the combined implementation and run the complete suite
+unsharded through the dev-shell wrapper:
+
+```console
+nf-test test --profile=+docker --verbose
+```
+
+This gate covers the combined changes and deliberately deferred snapshot owners; it does not depend on first
+running a duplicate complete sharded suite. Snapshot generation and updates work during focused runs, including
+shards, and do not require a complete sequential run. Sharding skips tests and can suppress obsolete-snapshot
+detection: for bounded removal/rename checks, run every affected file unsharded with all its tests passing and
+no skips. That covers the affected owners without an extra global run. Inspect generated or changed snapshots
+and reconcile recorded mechanical drift. Investigate unexpected output changes before accepting snapshots.
+
+Use `--clean-snapshot` only when actual obsolete entries need removal, scoped to the affected files where
+possible; do not use `--wipe-snapshot` for routine validation. Rerun affected failures or changes and inspect
+the resulting diff. Apply the canonical repeat-run criteria rather than automatically repeating a green
+complete suite after cleanup. Reuse evidence for the same candidate and scope rather than duplicating
+validation; do not bracket purely snapshot maintenance with complete suites. Ordinary bounded changes need
+only the focused scope unless a canonical complete-suite trigger applies.
+
+Report exact scope, profile, fixture source, commands, pass/fail counts, snapshot warnings, environment
+blockers, and whether the final gate is pending or complete. List any mechanical snapshot drift awaiting the
+final gate separately from successful behavioral evidence.
