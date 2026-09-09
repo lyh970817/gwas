@@ -6,8 +6,8 @@ process MPH_REML {
     // following `metasoft/re2`. The image is `linux/amd64` only, statically linked against Intel
     // oneMKL, and there is no Conda fallback, so the module cannot run on another architecture.
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'docker://ghcr.io/lyh970817/mph@sha256:561fc32443768cdaa80b1a56ed6d3f4190633d8c52d0f9fc8d0f9cc1694fad6a'
-        : 'ghcr.io/lyh970817/mph@sha256:561fc32443768cdaa80b1a56ed6d3f4190633d8c52d0f9fc8d0f9cc1694fad6a'}"
+        ? 'docker://ghcr.io/lyh970817/gwas/mph@sha256:c471ae7132e961bf401dd3db177d4c0c1c6cfdf0fc8306db1dcaac5b85a6c3e7'
+        : 'ghcr.io/lyh970817/gwas/mph:0.55.1-13ffe63@sha256:c471ae7132e961bf401dd3db177d4c0c1c6cfdf0fc8306db1dcaac5b85a6c3e7'}"
 
     input:
     // One or more `[.grm.bin, .grm.iid]` bundles staged flat, plus the prefix order the fit must use.
@@ -30,7 +30,6 @@ process MPH_REML {
     tuple val(meta), path("${prefix}.mq.cor.csv"), emit: correlations, optional: true
     tuple val(meta), path("${prefix}.log"), emit: log
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
-
 
     script:
     def args = task.ext.args ?: ''

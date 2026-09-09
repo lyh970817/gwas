@@ -3,8 +3,8 @@ process METASOFT_RE2 {
     label 'process_medium'
 
     container "${workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container
-        ? 'docker://ghcr.io/lyh970817/metasoft@sha256:29dfc8a85266582cf5a05039c41b90d3003b3e06920fa010ed3a20268027c2f3'
-        : 'ghcr.io/lyh970817/metasoft@sha256:29dfc8a85266582cf5a05039c41b90d3003b3e06920fa010ed3a20268027c2f3'}"
+        ? 'docker://ghcr.io/lyh970817/gwas/metasoft@sha256:13c0275d393111daf53ba8e6bfa787627eec6facc7c3b8e4879784497745f073'
+        : 'ghcr.io/lyh970817/gwas/metasoft:2.0.1-515de6e@sha256:13c0275d393111daf53ba8e6bfa787627eec6facc7c3b8e4879784497745f073'}"
 
     input:
     tuple val(meta), path(effect_matrix)
