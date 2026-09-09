@@ -37,7 +37,7 @@ process GWASLAB_META_ANALYZE {
         ? "printf 'SNPID\\tCHR\\tPOS\\tEA\\tNEA\\tBETA_RANDOM\\tSE_RANDOM\\tZ_RANDOM\\tP_RANDOM\\n' | gzip -n -c > \"${prefix}.random.tsv.gz\""
         : ''
     """
-    printf 'SNPID\tCHR\tPOS\tEA\tNEA\tBETA\tSE\tZ\tP\n' | gzip -n -c > "${prefix}.fixed.tsv.gz"
+    printf 'SNPID\tCHR\tPOS\tEA\tNEA\tBETA\tSE\tZ\tP\tDOF\tN\tEAF\tDIRECTION\n' | gzip -n -c > "${prefix}.fixed.tsv.gz"
     ${random_write}
     printf '1:1000:A:G ${matrix_fields}\n' > "${prefix}.metasoft.input.txt"
     printf 'META_VARIANT_KEY\tSNPID\tCHR\tPOS\tEA\tNEA\t${view_header}\n' | gzip -n -c > "${prefix}.mrmega.tsv.gz"

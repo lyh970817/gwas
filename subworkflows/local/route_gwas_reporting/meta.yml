@@ -22,7 +22,7 @@ input:
       description: Every validated analysis unit's metadata map, already collected into one list element
       structure: list
   - ch_method_metadata:
-      description: Every method-selecting record as `[domain, meta]`, already collected into one list element; domain is analysis, summary_unary or pairwise
+      description: Every method-selecting record as `[domain, meta]`, already collected into one list element; domain is analysis, summary_unary, pairwise or summary_set
       structure: list
   - summary_params:
       description: Run parameter summary grouped by schema section, evaluated by the spine from the workflow context

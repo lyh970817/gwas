@@ -41,6 +41,9 @@ output:
   - fixed:
       type: channel
       description: "`[ val(meta), path('*.fixed.tsv.gz') ]` native GWASLab fixed-effects result"
+  - gwaslab_log:
+      type: channel
+      description: "`[ val(meta), path('*.gwaslab.log') ]` native GWASLab alignment and meta-analysis log"
   - random_effects:
       type: channel
       description: "`[ val(meta), path('*.random.tsv.gz') ]` native GWASLab random-effects result when selected"

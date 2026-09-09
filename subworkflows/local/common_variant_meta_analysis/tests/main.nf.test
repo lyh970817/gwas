@@ -46,6 +46,7 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert workflow.out.fixed.size() == 1 },
+                { assert workflow.out.gwaslab_log.size() == 1 },
                 { assert workflow.out.random_effects.empty },
                 { assert workflow.out.metasoft_result.empty },
                 { assert workflow.out.metasoft_log.empty },
@@ -68,6 +69,7 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert workflow.out.fixed.size() == 1 },
+                { assert workflow.out.gwaslab_log.size() == 1 },
                 { assert workflow.out.random_effects.size() == 1 },
                 { assert workflow.out.metasoft_result.size() == 1 },
                 { assert workflow.out.metasoft_log.size() == 1 },
@@ -91,6 +93,7 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert workflow.out.fixed.size() == 1 },
+                { assert workflow.out.gwaslab_log.size() == 1 },
                 { assert workflow.out.random_effects.empty },
                 { assert workflow.out.metasoft_result.empty },
                 { assert workflow.out.mrmega_result.size() == 1 },

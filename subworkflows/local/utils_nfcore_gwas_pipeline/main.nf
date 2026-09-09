@@ -273,22 +273,24 @@ def selectedCitationKeys(selected_methods) {
     def association = (selected_methods.association ?: []) as Set
     def heritability = (selected_methods.heritability ?: []) as Set
     def pairwise = (selected_methods.pairwise ?: []) as Set
+    def summary_set = (selected_methods.summary_set ?: []) as Set
     def capabilities = getMethodCapabilities()
     def known_association = capabilities.findAll { _token, details -> details.domain == 'association' }.keySet() as Set
     def known_heritability = capabilities.findAll { _token, details -> details.domain in ['heritability', 'summary_unary'] }.keySet() as Set
     def known_pairwise = capabilities.findAll { _token, details -> details.domain == 'pairwise' }.keySet() as Set
-    def unknown = (association - known_association) + (heritability - known_heritability) + (pairwise - known_pairwise)
+    def known_summary_set = capabilities.findAll { _token, details -> details.domain == 'summary_set' }.keySet() as Set
+    def unknown = (association - known_association) + (heritability - known_heritability) + (pairwise - known_pairwise) + (summary_set - known_summary_set)
     if (unknown) {
         error("Cannot generate methods citations for unknown method selectors: ${unknown.toList().sort().join(', ')}")
     }
 
-    def citation_order = ['regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'rhe_mc', 'mph', 'ldak_sumstats', 'ldsc']
-    def keys = (association + heritability + pairwise)
+    def citation_order = ['regenie', 'gcta_fastgwa', 'gcta_greml', 'gcta_greml_ldms', 'gcta_bivariate_reml', 'gcta_hereg', 'ldak_kvik', 'ldak', 'rhe_mc', 'mph', 'ldak_sumstats', 'ldsc', 'gwaslab', 'metasoft', 'mrmega']
+    def keys = (association + heritability + pairwise + summary_set)
         .collectMany { token -> capabilities[token].citation_keys }
         .findAll { key -> key }
         .unique()
         .sort { key -> citation_order.indexOf(key) }
-    if (association) {
+    if (association && !keys.contains('gwaslab')) {
         keys << 'gwaslab'
     }
     keys << 'multiqc'
@@ -299,6 +301,7 @@ def toolCitationText(selected_methods) {
     def association = (selected_methods.association ?: []) as Set
     def heritability = (selected_methods.heritability ?: []) as Set
     def pairwise = (selected_methods.pairwise ?: []) as Set
+    def summary_set = (selected_methods.summary_set ?: []) as Set
     def association_labels = [
         regenie: 'REGENIE (Mbatchou <em>et al.</em>, 2021)',
         gcta_fastgwa: 'GCTA fastGWA (Jiang <em>et al.</em>, 2019)',
@@ -327,6 +330,12 @@ def toolCitationText(selected_methods) {
         ldak_sumcors: 'LDAK SumCors (Speed and Balding, 2019)',
         ldsc_rg: 'LDSC genetic correlation (Bulik-Sullivan <em>et al.</em>, 2015)',
     ]
+    def meta_analysis_labels = [
+        fixed: 'GWASLab inverse-variance fixed effects',
+        random: 'GWASLab DerSimonian–Laird random effects',
+        re2: 'METASOFT Han–Eskin RE2 (Han and Eskin, 2011)',
+        mrmega: 'MR-MEGA (Mägi <em>et al.</em>, 2017)',
+    ]
     def sentences = []
     def selected_association = association_labels.findAll { token, _label -> token in association }.values().toList()
     def selected_heritability = heritability_labels.findAll { token, _label -> token in heritability }.values().toList().unique()
@@ -340,6 +349,10 @@ def toolCitationText(selected_methods) {
     }
     if (selected_pairwise) {
         sentences << "Pairwise genetic covariance and correlation were estimated with ${joinProseList(selected_pairwise)}."
+    }
+    def selected_meta_analysis = meta_analysis_labels.findAll { token, _label -> token in summary_set }.values().toList()
+    if (selected_meta_analysis) {
+        sentences << "Common-variant meta-analysis used ${joinProseList(selected_meta_analysis)}."
     }
     sentences << 'The run report was generated with MultiQC (Ewels <em>et al.</em>, 2016).'
     return sentences.join(' ')
@@ -360,6 +373,8 @@ def toolBibliographyText(selected_methods) {
         ldak_sumstats: '<li>Speed D, Balding DJ. SumHer better estimates the SNP heritability of complex traits from summary statistics. <em>Nature Genetics</em>. 2019;51:277-284. doi: <a href="https://doi.org/10.1038/s41588-018-0279-5">10.1038/s41588-018-0279-5</a>.</li>',
         ldsc: '<li>Bulik-Sullivan BK, Loh PR, Finucane HK, et al. LD Score regression distinguishes confounding from polygenicity in genome-wide association studies. <em>Nature Genetics</em>. 2015;47:291-295. doi: <a href="https://doi.org/10.1038/ng.3211">10.1038/ng.3211</a>.</li>',
         gwaslab: '<li>GWASLab. <a href="https://cloufield.github.io/gwaslab/">https://cloufield.github.io/gwaslab/</a>.</li>',
+        metasoft: '<li>Han B, Eskin E. Random-effects model aimed at discovering associations in meta-analysis of genome-wide association studies. <em>American Journal of Human Genetics</em>. 2011;88:586-598. doi: <a href="https://doi.org/10.1016/j.ajhg.2011.04.014">10.1016/j.ajhg.2011.04.014</a>.</li>',
+        mrmega: '<li>Mägi R, Horikoshi M, Sofer T, et al. Trans-ethnic meta-regression of genome-wide association studies accounting for ancestry increases power for discovery and improves fine-mapping resolution. <em>Human Molecular Genetics</em>. 2017;26:3639-3650. doi: <a href="https://doi.org/10.1093/hmg/ddx280">10.1093/hmg/ddx280</a>.</li>',
         multiqc: '<li>Ewels P, Magnusson M, Lundin S, Käller M. MultiQC: summarize analysis results for multiple tools and samples in a single report. <em>Bioinformatics</em>. 2016;32:3047-3048. doi: <a href="https://doi.org/10.1093/bioinformatics/btw354">10.1093/bioinformatics/btw354</a>.</li>',
     ]
     return selectedCitationKeys(selected_methods).collect { key -> bibliography[key] }.join('\n    ')

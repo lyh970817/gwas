@@ -85,9 +85,11 @@ def getSelectedMethods(method_metadata) {
     def analysis_metadata = method_metadata.findAll { record -> record.domain == 'analysis' }.collect { record -> record.meta }
     def summary_unary_metadata = method_metadata.findAll { record -> record.domain == 'summary_unary' }.collect { record -> record.meta }
     def relationship_metadata = method_metadata.findAll { record -> record.domain == 'pairwise' }.collect { record -> record.meta }
+    def summary_set_metadata = method_metadata.findAll { record -> record.domain == 'summary_set' }.collect { record -> record.meta }
     return [
         association: analysis_metadata.collectMany { meta -> meta.association_methods }.unique().sort(),
         heritability: (analysis_metadata.collectMany { meta -> meta.heritability_methods } + summary_unary_metadata.collect { meta -> meta.method }).unique().sort(),
         pairwise: relationship_metadata.collectMany { meta -> meta.relationship_methods }.unique().sort(),
+        summary_set: summary_set_metadata.collectMany { meta -> meta.meta_analysis_models }.unique().sort(),
     ]
 }

@@ -1,9 +1,9 @@
 // Run explicitly selected common-variant meta-analysis models on one genome-wide request.
 
 include { GWASLAB_META_ANALYZE } from '../../../modules/local/gwaslab/meta_analyze/main'
-include { METASOFT_RE2         } from '../../../modules/local/metasoft/re2/main'
+include { METASOFT_RE2 } from '../../../modules/local/metasoft/re2/main'
 include { PREPARE_MRMEGA_INPUT } from '../../../modules/local/prepare_mrmega_input/main'
-include { MRMEGA               } from '../../../modules/local/mrmega/main'
+include { MRMEGA } from '../../../modules/local/mrmega/main'
 
 workflow COMMON_VARIANT_META_ANALYSIS {
     take:
@@ -47,10 +47,11 @@ workflow COMMON_VARIANT_META_ANALYSIS {
     )
 
     emit:
-    fixed           = GWASLAB_META_ANALYZE.out.fixed // channel: [ val(meta), path(fixed) ]
-    random_effects  = GWASLAB_META_ANALYZE.out.random_effects // channel: [ val(meta), path(random) ]
+    fixed = GWASLAB_META_ANALYZE.out.fixed // channel: [ val(meta), path(fixed) ]
+    gwaslab_log = GWASLAB_META_ANALYZE.out.log // channel: [ val(meta), path(log) ]
+    random_effects = GWASLAB_META_ANALYZE.out.random_effects // channel: [ val(meta), path(random) ]
     metasoft_result = METASOFT_RE2.out.result // channel: [ val(meta), path(result) ]
-    metasoft_log    = METASOFT_RE2.out.log // channel: [ val(meta), path(log) ]
-    mrmega_result   = MRMEGA.out.result // channel: [ val(meta), path(result) ]
-    mrmega_log      = MRMEGA.out.log // channel: [ val(meta), path(log) ]
+    metasoft_log = METASOFT_RE2.out.log // channel: [ val(meta), path(log) ]
+    mrmega_result = MRMEGA.out.result // channel: [ val(meta), path(result) ]
+    mrmega_log = MRMEGA.out.log // channel: [ val(meta), path(log) ]
 }
