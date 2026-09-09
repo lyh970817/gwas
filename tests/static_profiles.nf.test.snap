@@ -6,14 +6,8 @@
                     "gwaslab": "4.1.9",
                     "python": "3.12.13"
                 },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
-                },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -29,7 +23,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-10T00:31:12.61176868",
+        "timestamp": "2026-09-10T06:24:39.663134586",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -63,14 +57,8 @@
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
-                },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -86,7 +74,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-10T00:31:29.824961218",
+        "timestamp": "2026-09-10T06:24:55.497700873",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -131,14 +119,8 @@
                 "PLINK2_MAKEBED": {
                     "plink2": "2.0.0-a.6.9LM"
                 },
-                "PLINK2_VCF": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
-                },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
                 },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
@@ -148,7 +130,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-06T13:45:23.648389879",
+        "timestamp": "2026-09-10T06:25:12.194565821",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

@@ -42,9 +42,6 @@
                 "PREPARE_LDAK_SUMMARY_STATISTICS": {
                     "python": "3.14.5"
                 },
-                "PREPARE_PGEN_STATE": {
-                    "plink2": "2.0.0-a.6.9LM"
-                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -53,7 +50,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-06T17:17:29.317868199",
+        "timestamp": "2026-09-10T06:25:29.08687221",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
