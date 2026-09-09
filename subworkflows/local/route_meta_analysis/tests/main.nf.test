@@ -43,6 +43,7 @@ nextflow_workflow {
     }
 
     test("all four models share ordered parents and retain fixed canonical statistics") {
+        tag "meta_all_models"
         when {
             def files = parents(outputDir)
             workflow {
