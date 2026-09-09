@@ -440,6 +440,8 @@ Structural failures name the manifest and invalid column. Cross-row preflight fa
 
 `PREPARE_PHENOTYPE_INPUTS` prepares each selected phenotype in a shared two-identifier-plus-trait layout. Binary source values matching `control_value` and `case_value` become `0` and `1`; missing values and unmatched binary values become `NA`. Quantitative values must be numeric. Quantitative and categorical covariates remain distinct for tools with separate native interfaces.
 
+Categorical covariates are passed to REGENIE by their names in the `cat_covariates` header and dummy-coded by REGENIE.
+
 ### Run-level defaults
 
 | Parameter or behaviour            | Default and rationale                                                                                                                                                                                            |

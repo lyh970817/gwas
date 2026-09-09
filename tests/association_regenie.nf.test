@@ -134,6 +134,36 @@ nextflow_pipeline {
         }
     }
 
+    test("a categorical covariate reaches REGENIE as --catCovarList") {
+        config "../conf/test_regenie_standard.config"
+        tag "regenie_categorical_covariates"
+
+        when {
+            params {
+                outdir = "$outputDir"
+                def linked = manifests(outputDir, projectDir, 'regenie_categorical', { rows ->
+                    rows[0].cat_covariates = RELATIONAL.threeLevelCategoricalCovariates(projectDir, outputDir)
+                })
+                cohort_manifest = linked.cohort
+                analysis_manifest = linked.analysis
+            }
+        }
+
+        then {
+            def generated = commands(outputDir)
+            def step1 = generated.findAll { command -> command.contains('--step 1') }
+            def step2 = generated.findAll { command -> command.contains('--step 2') }
+            assertAll(
+                { assert workflow.success },
+                { assert step1.size() == 1 },
+                { assert step2.size() == 1 },
+                { assert step1[0].contains("--catCovarList 'BATCH'") },
+                { assert step2[0].contains("--catCovarList 'BATCH'") },
+                { assert new File("${params.outdir}/summary_statistics/example_pgen_qt--regenie/example_pgen_qt--regenie.gwaslab.tsv.gz").isFile() },
+            )
+        }
+    }
+
     test("linked quantitative and binary analyses route trait flags and optional covariates") {
 
         config "../conf/test_regenie_standard.config"
@@ -175,6 +205,8 @@ nextflow_pipeline {
                 { assert step2.size() == 2 },
                 { assert step1.count { command -> command.contains('--bt') } == 1 },
                 { assert step2.count { command -> command.contains('--bt') } == 1 },
+                { assert step1.find { command -> command.contains('--bt') }.contains('--catCovarList') == false },
+                { assert step2.find { command -> command.contains('--bt') }.contains('--catCovarList') == false },
                 { assert step2.find { command -> command.contains('--bt') }.contains('--firth') },
                 { assert step2.find { command -> command.contains('--bt') }.contains('--approx') },
                 { assert step2.find { command -> command.contains('--bt') }.contains('--pThresh 0.01') },
