@@ -1,4 +1,4 @@
-// Build one LDAK base kinship and optionally derive its unrelated-sample subset.
+// Build LDAK base kinships and derive the requested unrelated-sample subsets.
 // Constituent local modules report versions directly to the run-wide topic, so this subworkflow emits no versions.
 
 // MODULE: Local to the pipeline
@@ -40,7 +40,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
         )
         .map { _id, meta, grm_files, producer_ref -> [meta, grm_files, producer_ref] }
 
-    // A child request selects its completed parent by key and replaces the base execution metadata with the
+    // A child request selects its completed parent by explicit producer reference and replaces the base execution metadata with the
     // derivative metadata before either native transformation runs.
     def ch_subset_inputs = ch_base_grm
         .map { _base_meta, grm_files, producer_ref -> [producer_ref, grm_files] }

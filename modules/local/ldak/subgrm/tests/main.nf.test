@@ -9,6 +9,7 @@ nextflow_process {
     tag "ldak/subgrm"
 
     test("homo sapiens - native") {
+        tag "ldak-subgrm-sample-subset"
         setup {
             run("LDAK_CALCKINS") {
                 script "../../calckins/main.nf"
@@ -26,7 +27,7 @@ nextflow_process {
             process {
                 """
                 input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust ->
-                    keep = file('samples.keep')
+                    def keep = file('samples.keep')
                     keep.text = ids.readLines().take(10).join('\\n') + '\\n'
                     [[id:'base'], [bin, ids, details, adjust], keep]
                 }

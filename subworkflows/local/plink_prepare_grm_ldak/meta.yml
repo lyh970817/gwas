@@ -35,17 +35,21 @@ output:
       ontologies: []
   - subset_grm:
       type: file
-      description: Unrelated-sample child kinship artifacts, each carrying child-artifact metadata
+      description: Unrelated-sample child kinship artifacts, each carrying unchanged child metadata
+      structure: [map derived_meta, path grm_files]
       pattern: "*.grm.{bin,id,details,adjust}"
       ontologies: []
   - filtered_list:
       type: file
       description: LDAK relatedness-filter keep and lose files for requested subset children
+      structure: [map derived_meta, path keep, path lose]
       pattern: "*.{keep,lose}"
       ontologies: []
   - maxrel:
       type: file
       description: LDAK maximum-relatedness diagnostic for requested subset children
+      structure: [map derived_meta, path maxrel]
+      optional: true
       pattern: "*.maxrel"
       ontologies: []
 authors:
