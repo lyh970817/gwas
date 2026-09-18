@@ -4,6 +4,7 @@ description: Run REGENIE step 1 to fit whole-genome regression models and emit L
 keywords:
   - regenie
   - gwas
+  - genome-wide association study
   - association
   - burden test
   - genomics
@@ -49,7 +50,9 @@ input:
           e.g. `[ id:'plink_simulated' ]`
     - pheno:
         type: file
-        description: Phenotype file passed to `--phenoFile`
+        description: |
+          Phenotype file passed to `--phenoFile`
+          REGENIE's documented layout is a header line naming `FID`, `IID` and one column per trait, and the stub derives its per-trait output cardinality from that header
         pattern: "*.{phe,pheno,txt,tsv}"
         ontologies:
           - edam: "http://edamontology.org/format_3475" # TSV
