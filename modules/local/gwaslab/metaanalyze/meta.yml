@@ -1,4 +1,4 @@
-name: "gwaslab_meta_analyze"
+name: "gwaslab_metaanalyze"
 description: Align GWAS summary statistics with GWASLab and run fixed and optional random-effects meta-analysis
 keywords:
   - gwas
@@ -42,7 +42,7 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing the meta-analysis request information
-      - "*.fixed.tsv.gz":
+      - "${prefix}.fixed.tsv.gz":
           type: file
           description: Native GWASLab fixed-effects meta-analysis table
           pattern: "*.fixed.tsv.gz"
@@ -52,7 +52,7 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing the meta-analysis request information
-      - "*.random.tsv.gz":
+      - "${prefix}.random.tsv.gz":
           type: file
           description: Native GWASLab random-effects meta-analysis table
           pattern: "*.random.tsv.gz"
@@ -62,7 +62,7 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing the meta-analysis request information
-      - "*.metasoft.input.txt":
+      - "${prefix}.metasoft.input.txt":
           type: file
           description: Native METASOFT effect matrix in declared study order
           pattern: "*.metasoft.input.txt"
@@ -71,7 +71,7 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing the meta-analysis request information
-      - "*.mrmega.tsv.gz":
+      - "${prefix}.mrmega.tsv.gz":
           type: file
           description: Aligned GWASLab study columns required by the MR-MEGA adapter
           pattern: "*.mrmega.tsv.gz"
@@ -81,7 +81,7 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing the meta-analysis request information
-      - "*.gwaslab.log":
+      - "${prefix}.gwaslab.log":
           type: file
           description: GWASLab alignment and meta-analysis log
           pattern: "*.gwaslab.log"

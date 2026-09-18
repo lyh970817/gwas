@@ -9,17 +9,17 @@ keywords:
   - RE2
   - MR-MEGA
 components:
-  - gwaslab/meta/analyze
+  - gwaslab/metaanalyze
   - metasoft/re2
-  - prepare/mrmega/input
+  - custom/preparemrmegainput
   - mrmega
 input:
   - ch_request:
       type: channel
       description: |
         One genome-wide request as
-        `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models), val(axes) ]`.
-        Fixed is required. Random, RE2, and MR-MEGA are optional explicit selections. Axes is required only for MR-MEGA.
+        `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models) ]`.
+        Fixed is required. Random, RE2, and MR-MEGA are optional explicit selections. MR-MEGA optional flags, including --pc and --qt, are supplied with task.ext.args; see nextflow.config.
       structure:
         - type: map
           description: Request metadata
@@ -35,8 +35,6 @@ input:
           description: Quantitative or binary trait type
         - type: list
           description: Selected fixed, random, re2, and mrmega models
-        - type: integer
-          description: MR-MEGA ancestry-axis count, otherwise null
 output:
   - fixed:
       type: channel

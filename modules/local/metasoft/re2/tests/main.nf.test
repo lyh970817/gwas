@@ -64,7 +64,7 @@ nextflow_process {
         }
     }
 
-    test("stub emits only the native contract") {
+    test("emits only the native contract - stub") {
         options "-stub"
 
         when {

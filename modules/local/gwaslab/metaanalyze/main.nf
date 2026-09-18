@@ -1,4 +1,4 @@
-process GWASLAB_META_ANALYZE {
+process GWASLAB_METAANALYZE {
     tag "${meta.id}"
     label 'process_high'
 
@@ -8,7 +8,7 @@ process GWASLAB_META_ANALYZE {
         : 'quay.io/biocontainers/gwaslab:4.1.9--pyhdfd78af_0'}"
 
     input:
-    tuple val(meta), path(sumstats, stageAs: 'parents/*'), val(study_names), val(input_format), val(genome_build), val(random_effects)
+    tuple val(meta), path(sumstats, stageAs: 'parents??/*'), val(study_names), val(input_format), val(genome_build), val(random_effects)
 
     output:
     tuple val(meta), path("${prefix}.fixed.tsv.gz"), emit: fixed
@@ -17,6 +17,9 @@ process GWASLAB_META_ANALYZE {
     tuple val(meta), path("${prefix}.mrmega.tsv.gz"), emit: mrmega_input
     tuple val(meta), path("${prefix}.gwaslab.log"), emit: log
     path "versions.yml", emit: versions, topic: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
     prefix = task.ext.prefix ?: meta.id

@@ -47,7 +47,8 @@ nextflow_process {
             def data = fixture(outputDir, 'quantitative', false)
             process {
                 """
-                input[0] = [[id: 'quantitative'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true), 1, 'quantitative']
+                params.module_args = "--pc 1 --qt"
+                input[0] = [[id: 'quantitative'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true)]
                 """
             }
         }
@@ -78,7 +79,8 @@ nextflow_process {
             def data = fixture(outputDir, 'binary', true)
             process {
                 """
-                input[0] = [[id: 'binary'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true), 1, 'binary']
+                params.module_args = "--pc 1"
+                input[0] = [[id: 'binary'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true)]
                 """
             }
         }
@@ -98,14 +100,14 @@ nextflow_process {
         }
     }
 
-    test("stub emits the native output contract") {
+    test("native output contract - stub") {
         options "-stub"
 
         when {
             def data = fixture(outputDir, 'stub', false)
             process {
                 """
-                input[0] = [[id: 'stub'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true), 2, 'quantitative']
+                input[0] = [[id: 'stub'], [${staged(data.files)}], file('${data.filelist}', checkIfExists: true)]
                 """
             }
         }
@@ -115,7 +117,7 @@ nextflow_process {
                 { assert process.success },
                 { assert process.out.result.size() == 1 },
                 { assert process.out.log.size() == 1 },
-                { assert new File(process.out.result.get(0)[1].toString()).readLines()[0].split('\t').size() == 26 },
+                { assert new File(process.out.result.get(0)[1].toString()).readLines()[0].split('\t').size() == 30 },
                 { assert new File(process.out.versions.get(0).toString()).text == '"MRMEGA":\n    mrmega: 0.2\n' },
             )
         }

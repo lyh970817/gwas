@@ -1,4 +1,7 @@
-process PREPARE_MRMEGA_INPUT {
+// Repository-authored format conversion. MR-MEGA cannot consume the aligned wide TSV directly.
+// Contract: gzip TSV with META_VARIANT_KEY, CHR, POS, EA, NEA and EAF_i/BETA_i/SE_i/N_i,
+// indexed from one in study_names order. NA marks a missing study observation.
+process CUSTOM_PREPAREMRMEGAINPUT {
     tag "${meta.id}"
     label 'process_single'
 
@@ -14,6 +17,9 @@ process PREPARE_MRMEGA_INPUT {
     tuple val(meta), path("${prefix}.mrmega_inputs/*.txt.gz"), emit: study_files
     tuple val(meta), path("${prefix}.filelist.txt"), emit: filelist
     path "versions.yml", emit: versions, topic: versions
+
+    when:
+    task.ext.when == null || task.ext.when
 
     script:
     prefix = task.ext.prefix ?: meta.id
