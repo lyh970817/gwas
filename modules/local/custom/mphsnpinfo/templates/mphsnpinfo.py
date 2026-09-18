@@ -27,7 +27,7 @@ membership = {}
 
 # Input conversion is required because MPH consumes numeric weight columns rather than SNP lists.
 with open(manifest_path) as handle:
-    records = list(csv.DictReader(handle, delimiter="\t"))
+    records = list(csv.DictReader(handle, delimiter="\\t"))
 declared = [record["group_id"] for record in records]
 if declared != columns:
     fail("weight column order does not match the group manifest")
@@ -43,8 +43,8 @@ for index, record in enumerate(records):
 
 counts = [0] * len(columns)
 unassigned = 0
-with open("{}.snp_info.csv".format(prefix), "w", newline="\n") as handle:
-    writer = csv.writer(handle, lineterminator="\n")
+with open("{}.snp_info.csv".format(prefix), "w", newline="\\n") as handle:
+    writer = csv.writer(handle, lineterminator="\\n")
     writer.writerow(["SNP"] + columns)
     for name in variants:
         index = membership.get(name)
@@ -56,9 +56,9 @@ with open("{}.snp_info.csv".format(prefix), "w", newline="\n") as handle:
 
 # `__unassigned__` is the number of BIM rows MPH is told to ignore and `__bim_rows__` the number it will
 # report as found, so the pair reconciles the supplied groups against the BIM rows.
-with open("{}.snp_info.counts.tsv".format(prefix), "w", newline="\n") as handle:
-    handle.write("group_id\tpredictor_count\n")
+with open("{}.snp_info.counts.tsv".format(prefix), "w", newline="\\n") as handle:
+    handle.write("group_id\\tpredictor_count\\n")
     for name, count in zip(columns, counts):
-        handle.write("{}\t{}\n".format(name, count))
-    handle.write("__unassigned__\t{}\n".format(unassigned))
-    handle.write("__bim_rows__\t{}\n".format(len(variants)))
+        handle.write("{}\\t{}\\n".format(name, count))
+    handle.write("__unassigned__\\t{}\\n".format(unassigned))
+    handle.write("__bim_rows__\\t{}\\n".format(len(variants)))
