@@ -248,11 +248,7 @@ workflow PREPARE_RELATEDNESS_MATRICES {
     // table for one group as it does for many groups and has no chromosome-selection policy.
     def ch_mph_all_lists = ch_mph_dense_builds
         .map { matrix_meta, _bed, bim, _fam ->
-            def selected_snps = bim
-                .readLines()
-                .collect { row -> row.tokenize() }
-                .findAll { fields -> fields[0].isInteger() && fields[0].toInteger() in 1..autosome_count }
-                .collect { fields -> fields[1] }
+            def selected_snps = selectAutosomalSnps(bim, autosome_count)
             [matrix_meta.id, selected_snps.join('\n') + '\n']
         }
         .collectFile { matrix_id, snps -> ["${matrix_id}.all.snps.txt", snps] }
@@ -664,4 +660,13 @@ def buildRelatednessArtifactRequest(meta, view_compatibility_key, kind, weights_
         derived: derived,
         selected_key: derived ? derived.key : base.key,
     ]
+}
+
+// Dense MPH construction must use the same caller-selected autosomal universe as the other matrix routes.
+def selectAutosomalSnps(bim, autosome_count) {
+    return bim
+        .readLines()
+        .collect { row -> row.tokenize() }
+        .findAll { fields -> fields[0].isInteger() && fields[0].toInteger() in 1..autosome_count }
+        .collect { fields -> fields[1] }
 }
