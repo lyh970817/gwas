@@ -15,8 +15,8 @@ def fail(message):
     sys.exit("MPH SNP information: {}".format(message))
 
 
-if not columns:
-    fail("CUSTOM_MPHSNPINFO was given no weight column names")
+# Validates the caller's column names: `--snp_weight_name` selects a column by name, so a repeated name
+# would leave MPH silently building the matrix from whichever duplicate it matched first.
 if len(set(columns)) != len(columns):
     fail("weight column names repeat: {}".format(columns))
 
@@ -29,15 +29,15 @@ membership = {}
 # Input conversion is required because MPH consumes numeric weight columns rather than SNP lists.
 with open(manifest_path) as handle:
     records = list(csv.DictReader(handle, delimiter="\\t"))
-declared = [record["group_id"] for record in records]
-if declared != columns:
-    fail("weight column order does not match the group manifest")
 for index, record in enumerate(records):
     with open(record["group_filename"]) as handle:
         group = handle.read().split()
     for name in group:
+        # Validates a user-supplied resource file: a group list may only name variants of the supplied BIM.
         if name not in known_variants:
             fail("SNP '{}' is in group '{}' but not in the BIM".format(name, record["group_id"]))
+        # Validates a user-supplied resource file: overlapping groups would give one variant weight in two
+        # components, which is not a partition and not what the written CSV could represent.
         if name in membership:
             fail("SNP '{}' is in more than one group file; groups must be disjoint".format(name))
         membership[name] = index

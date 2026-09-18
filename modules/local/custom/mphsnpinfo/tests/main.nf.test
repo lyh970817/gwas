@@ -23,10 +23,10 @@ nextflow_process {
                 }
             }
             then {
+                assert process.success
                 def csv = path(process.out.snp_info[0][1]).readLines()
                 def counts = path(process.out.counts[0][1]).readLines()
                 assertAll(
-                    { assert process.success },
                     { assert snapshot(sanitizeOutput(process.out)).match() },
                     { assert process.out.snp_info[0][2] == (groups == 2 ? ['first','second'] : ['first']) },
                     { assert csv == (groups == 2 ? ['SNP,first,second','rs1,0,1','rs2,1,0','rs3,0,0'] : ['SNP,first','rs1,0','rs2,1','rs3,0']) },
