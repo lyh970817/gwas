@@ -3,7 +3,9 @@ name: "ldak_reml"
 description: Run linkage disequilibrium-adjusted kinship (LDAK) restricted maximum likelihood (REML) heritability estimation on a precomputed genomic relationship matrix (GRM) and phenotype
 keywords:
   - ldak
+  - linkage disequilibrium adjusted kinship
   - reml
+  - restricted maximum likelihood
   - heritability
 tools:
   - ldak6:
@@ -22,9 +24,7 @@ input:
         description: Headerless phenotype file passed to `--pheno`
         pattern: "*.{phe,pheno,txt,tsv}"
         ontologies: []
-    - prevalence:
-        type: float
-        description: Optional disease prevalence passed to `--prevalence`; pass [] when absent
+
   - - meta2:
         type: map
         description: |
@@ -201,6 +201,20 @@ topics:
           description: The expression used to obtain the version of the tool
 notes: |
   `task.ext.args` is passed directly to LDAK and can be used for optional phenotype-selection arguments such as `--mpheno`.
+containers:
+  conda:
+    linux/amd64:
+      lock_file: "modules/nf-core/ldak/reml/.conda-lock/linux-64-452828f72b3c9129_1.txt"
+  docker:
+    linux/amd64:
+      build_id: "bd-452828f72b3c9129_1"
+      name: "community.wave.seqera.io/library/ldak6_r-base:452828f72b3c9129"
+      scan_id: "sc-65cc7b1c1a9a20b6_1"
+  singularity:
+    linux/amd64:
+      build_id: "bd-e8012f1be139af77_1"
+      name: "oras://community.wave.seqera.io/library/ldak6_r-base:e8012f1be139af77"
+      https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/c9/c94e5424f08cbd7e0856ab3c3a9992b4080944a5d0c497ce0abcceb413db4a3e/data"
 authors:
   - "@lyh970817"
 maintainers:

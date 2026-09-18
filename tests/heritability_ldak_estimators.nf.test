@@ -105,6 +105,9 @@ nextflow_pipeline {
                 { assert adjustmentCommands.every { command -> command.contains('--covar "ldak_all_covariates.adjustcovar"') } },
                 { assert adjustmentCommands.every { command -> !command.contains('--factors ') } },
                 { assert adjustedEstimatorCommands.size() == 2 },
+                // Both consumers point to the exact matrix produced by the one adjustment task.
+                { assert adjustedEstimatorCommands.collect { command -> (command =~ /--grm "([^"]+)"/)[0][1] }.unique().size() == 1 },
+                { assert adjustedEstimatorCommands.every { command -> command.contains('--grm "' + (adjustmentCommands.first() =~ /--adjust-grm "([^"]+)"/)[0][1] + '"') } },
                 { assert adjustedEstimatorCommands.every { command -> command.contains('--covar "ldak_all_covariates.adjustcovar"') } },
                 { assert adjustedEstimatorCommands.every { command -> !command.contains('--factors ') } },
                 { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
