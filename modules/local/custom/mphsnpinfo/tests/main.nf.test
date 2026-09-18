@@ -51,7 +51,12 @@ nextflow_process {
             }
             then {
                 assert !process.success
-                assert process.errorReport.contains(invalid == 'overlap' ? 'groups must be disjoint' : 'not in the BIM')
+                // The whole formatted message, not a fragment: the error report echoes the template source,
+                // in which these phrases also appear around their `{}` placeholders, so a fragment would
+                // match a template that never ran.
+                assert process.errorReport.contains(invalid == 'overlap'
+                    ? "MPH SNP information: SNP 'rs1' is in more than one group file; groups must be disjoint"
+                    : "MPH SNP information: SNP 'rs2' is in group 'b' but not in the BIM")
             }
         }
     }

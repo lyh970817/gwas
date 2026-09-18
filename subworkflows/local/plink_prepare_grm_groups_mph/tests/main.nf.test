@@ -66,9 +66,12 @@ nextflow_workflow {
                 assert family[2] == prefixes
                 assert family[0] == [id:'focal',single_end:false]
                 prefixes.eachWithIndex { prefix, index ->
-                    def binary = path(family[1].find { path(it).name == prefix+'.grm.bin' })
+                    def binary = path(family[1].find { staged -> file(staged).name == prefix+'.grm.bin' })
                     def bytes = java.nio.ByteBuffer.wrap(binary.bytes[0..7] as byte[]).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                     assert bytes.getInt() == 200
+                    // The `.grm.bin` header sum is over the post-quality-control variants, and MPH's only
+                    // default filter drops MAF-zero variants. It equals the declared group count here only
+                    // because the shipped fixture has no monomorphic variant.
                     assert bytes.getFloat() == counts[names[index]] as float
                     assert binary.size() == 8 + 4 * 200 * 201 / 2
                 }
