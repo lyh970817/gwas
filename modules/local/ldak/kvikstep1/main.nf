@@ -26,7 +26,7 @@ process LDAK_KVIKSTEP1 {
     script:
     def args = task.ext.args ?: ''
     def bfile_prefix = bed.baseName
-    prefix = task.ext.prefix ?: meta2.id
+    prefix = task.ext.prefix ?: "${meta.id}"
     def covar_arg = quant_covariates_file ? "--covar \"${quant_covariates_file}\"" : ""
     def factors_arg = cat_covariates_file ? "--factors \"${cat_covariates_file}\"" : ""
     def extract_arg = extract_file ? "--extract \"${extract_file}\"" : ""
@@ -43,7 +43,7 @@ process LDAK_KVIKSTEP1 {
     """
 
     stub:
-    prefix = task.ext.prefix ?: meta2.id
+    prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch "${prefix}.step1.root"
     touch "${prefix}.step1.loco.details"

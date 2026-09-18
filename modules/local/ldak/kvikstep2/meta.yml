@@ -1,203 +1,188 @@
-name: ldak_kvikstep2
-description: Run LDAK-KVIK step 2 association testing from the minimal step 1 prediction artifacts emitted by ldak/kvikstep1
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "ldak_kvikstep2"
+description: "Run LDAK-KVIK step 2 association testing from the minimal step 1 prediction artifacts emitted by ldak/kvikstep1"
 keywords:
-- ldak
-- kvik
-- gwas
-- association
-- linkage disequilibrium adjusted kinships
-- genome-wide association study
+  - "ldak"
+  - "kvik"
+  - "gwas"
+  - "association"
+  - "linkage disequilibrium adjusted kinships"
+  - "genome-wide association study"
 tools:
-- ldak6:
-    description: LDAK and LDAK-KVIK for mixed-model genome-wide association study (GWAS) and heritability analysis.
-    homepage: https://dougspeed.com/ldak/
-    documentation: https://dougspeed.com/ldak-kvik/
-    tool_dev_url: https://github.com/dougspeed/LDAK
+  - "ldak6":
+      description: "LDAK and LDAK-KVIK for mixed-model genome-wide association study (GWAS) and heritability analysis."
+      homepage: "https://dougspeed.com/ldak/"
+      documentation: "https://dougspeed.com/ldak-kvik/"
+      tool_dev_url: "https://github.com/dougspeed/LDAK"
 input:
-- - meta:
-      type: map
-      description: 'Groovy Map containing genotype information
-
-        Keep only the genotype analysis identifier in this map
-
-        The PLINK bundle must already be staged with the basename consumed by `--bfile`
-
-        Optional chromosome selection such as `--chr 21` is command-line interface (CLI) behavior supplied via `task.ext.args`,
-        not metadata identity
-
-        e.g. `[ id:''plink_multichr'' ]`
-
-        '
-  - bed:
-      type: file
-      description: PLINK BED genotype file passed to `--bfile`
-      pattern: '*.bed'
-      ontologies: []
-  - bim:
-      type: file
-      description: PLINK BIM variant file paired with the BED input
-      pattern: '*.bim'
-      ontologies: []
-  - fam:
-      type: file
-      description: PLINK FAM sample file paired with the BED input
-      pattern: '*.fam'
-      ontologies: []
-- - meta2:
-      type: map
-      description: Phenotype metadata. Optional phenotype selection uses task.ext.args.
-  - phenotype_file:
-      type: file
-      description: Phenotype file passed to `--pheno`
-      pattern: '*.{txt,tsv,pheno,phe}'
-      ontologies:
-      - edam: http://edamontology.org/format_3475
-- - meta3:
-      type: map
-      description: Fit metadata. The root, details and PRS files must retain one native Step 1 basename. Step 2
-        derives its prefix from the root file, as required by LDAK, and does not rename or alias these files. Native
-        output names retain the fit basename plus any native chromosome suffix; output metadata remains the testing
-        analysis metadata.
-  - step1_root:
-      type: file
-      description: LDAK-KVIK step 1 root file
-      pattern: '*.step1.root'
-      ontologies: []
-  - step1_loco_details:
-      type: file
-      description: LDAK-KVIK step 1 leave-one-chromosome-out (LOCO) details file
-      pattern: '*.step1.loco.details'
-      ontologies: []
-  - step1_loco_prs:
-      type: file
-      description: LDAK-KVIK step 1 LOCO polygenic risk score (PRS) file
-      pattern: '*.step1.loco.prs'
-      ontologies: []
-- - meta4:
-      type: map
-      description: 'Groovy Map containing quantitative covariate information
-
-        e.g. `[ id:''qcov'' ]`
-
-        '
-  - quant_covariates_file:
-      type: file
-      optional: true
-      description: Optional quantitative covariates file passed to `--covar`; provide `[]` when absent
-      pattern: '*.{txt,tsv,covar,cov}'
-      ontologies:
-      - edam: http://edamontology.org/format_3475
-- - meta5:
-      type: map
-      description: 'Groovy Map containing categorical covariate information
-
-        e.g. `[ id:''ccov'' ]`
-
-        '
-  - cat_covariates_file:
-      type: file
-      optional: true
-      description: Optional categorical covariates file passed to `--factors`; provide `[]` when absent
-      pattern: '*.{txt,tsv,covar,cov}'
-      ontologies:
-      - edam: http://edamontology.org/format_3475
-- - meta6:
-      type: map
-      description: 'Groovy Map containing keep-file information
-
-        e.g. `[ id:''keep'' ]`
-
-        '
-  - keep_file:
-      type: file
-      optional: true
-      description: Optional sample keep file passed to `--keep`; provide `[]` when absent
-      pattern: '*.{txt,tsv,keep}'
-      ontologies:
-      - edam: http://edamontology.org/format_3475
-output:
-  results:
   - - meta:
         type: map
-        description: 'Groovy Map containing genotype information
-
-          e.g. `[ id:''plink_multichr'' ]`
-
-          '
-    - ${prefix}.step2*.assoc:
+        description: |
+          Groovy Map containing genotype information
+          Keep only the genotype analysis identifier in this map
+          The PLINK bundle must already be staged with the basename consumed by `--bfile`
+          Optional chromosome selection such as `--chr 21` is command-line interface (CLI) behavior supplied via `task.ext.args`,
+          not metadata identity
+          e.g. `[ id:'plink_multichr' ]`
+    - bed:
         type: file
-        description: LDAK-KVIK step 2 association results
-        pattern: '*.step2*.assoc'
-        ontologies:
-        - edam: http://edamontology.org/format_3475
-  summaries:
-  - - meta:
-        type: map
-        description: 'Groovy Map containing genotype information
-
-          e.g. `[ id:''plink_multichr'' ]`
-
-          '
-    - ${prefix}.step2*.summaries:
+        description: PLINK BED genotype file passed to `--bfile`
+        pattern: "*.bed"
+        ontologies: []
+    - bim:
         type: file
-        description: Required LDAK-KVIK step 2 summary output
-        pattern: '*.step2*.summaries'
-        ontologies:
-        - edam: http://edamontology.org/format_3475
-  pvalues:
-  - - meta:
+        description: PLINK BIM variant file paired with the BED input
+        pattern: "*.bim"
+        ontologies: []
+    - fam:
+        type: file
+        description: PLINK FAM sample file paired with the BED input
+        pattern: "*.fam"
+        ontologies: []
+  - - meta2:
         type: map
-        description: 'Groovy Map containing genotype information
-
-          e.g. `[ id:''plink_multichr'' ]`
-
-          '
-    - ${prefix}.step2*.pvalues:
+        description: Phenotype metadata. Optional phenotype selection uses task.ext.args.
+    - phenotype_file:
+        type: file
+        description: Phenotype file passed to `--pheno`
+        pattern: "*.{txt,tsv,pheno,phe}"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475"
+  - - meta3:
+        type: map
+        description: |
+          Fit metadata. The root, details and PRS files must retain one native Step 1 basename. `--kvik-step2`
+          reads that bundle by its basename, so the prefix defaults to it and the files are never renamed or
+          aliased; `task.ext.prefix` overrides the default and must then name the same staged bundle. Native
+          output names are the prefix plus LDAK's own chromosome suffix, which it writes when the tested
+          bundle covers a single chromosome and omits when the bundle covers several; output metadata remains
+          the testing analysis metadata.
+    - step1_root:
+        type: file
+        description: LDAK-KVIK step 1 root file
+        pattern: "*.step1.root"
+        ontologies: []
+    - step1_loco_details:
+        type: file
+        description: LDAK-KVIK step 1 leave-one-chromosome-out (LOCO) details file
+        pattern: "*.step1.loco.details"
+        ontologies: []
+    - step1_loco_prs:
+        type: file
+        description: LDAK-KVIK step 1 LOCO polygenic risk score (PRS) file
+        pattern: "*.step1.loco.prs"
+        ontologies: []
+  - - meta4:
+        type: map
+        description: |
+          Groovy Map containing quantitative covariate information
+          e.g. `[ id:'qcov' ]`
+    - quant_covariates_file:
         type: file
         optional: true
-        description: Optional LDAK-KVIK step 2 pvalue output
-        pattern: '*.step2*.pvalues'
+        description: Optional quantitative covariates file passed to `--covar`; provide `[]` when absent
+        pattern: "*.{txt,tsv,covar,cov}"
         ontologies:
-        - edam: http://edamontology.org/format_3475
-  log:
-  - - meta:
+          - edam: "http://edamontology.org/format_3475"
+  - - meta5:
         type: map
-        description: 'Groovy Map containing genotype information
-
-          e.g. `[ id:''plink_multichr'' ]`
-
-          '
-    - ${prefix}.step2.log:
+        description: |
+          Groovy Map containing categorical covariate information
+          e.g. `[ id:'ccov' ]`
+    - cat_covariates_file:
         type: file
-        description: LDAK-KVIK step 2 log file
-        pattern: '*.step2.log'
+        optional: true
+        description: Optional categorical covariates file passed to `--factors`; provide `[]` when absent
+        pattern: "*.{txt,tsv,covar,cov}"
         ontologies:
-        - edam: http://edamontology.org/format_2330
+          - edam: "http://edamontology.org/format_3475"
+  - - meta6:
+        type: map
+        description: |
+          Groovy Map containing keep-file information
+          e.g. `[ id:'keep' ]`
+    - keep_file:
+        type: file
+        optional: true
+        description: Optional sample keep file passed to `--keep`; provide `[]` when absent
+        pattern: "*.{txt,tsv,keep}"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475"
+output:
+  results:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing genotype information
+            e.g. `[ id:'plink_multichr' ]`
+      - "${prefix}.step2*.assoc":
+          type: file
+          description: LDAK-KVIK step 2 association results
+          pattern: "*.step2*.assoc"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475"
+  summaries:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing genotype information
+            e.g. `[ id:'plink_multichr' ]`
+      - "${prefix}.step2*.summaries":
+          type: file
+          description: Required LDAK-KVIK step 2 summary output
+          pattern: "*.step2*.summaries"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475"
+  pvalues:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing genotype information
+            e.g. `[ id:'plink_multichr' ]`
+      - "${prefix}.step2*.pvalues":
+          type: file
+          optional: true
+          description: Optional LDAK-KVIK step 2 pvalue output
+          pattern: "*.step2*.pvalues"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475"
+  log:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing genotype information
+            e.g. `[ id:'plink_multichr' ]`
+      - "${prefix}.step2.log":
+          type: file
+          description: LDAK-KVIK step 2 log file
+          pattern: "*.step2.log"
+          ontologies:
+            - edam: "http://edamontology.org/format_2330"
   versions_ldak6:
-  - - ${task.process}:
-        type: string
-        description: The process the versions were collected from
-    - ldak6:
-        type: string
-        description: The tool name
-    - ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+':
-        type: eval
-        description: The command used to generate the version of the tool
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - ldak6:
+          type: string
+          description: The tool name
+      - ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+':
+          type: eval
+          description: The command used to generate the version of the tool
 topics:
   versions:
-  - - ${task.process}:
-        type: string
-        description: The process the versions were collected from
-    - ldak6:
-        type: string
-        description: The tool name
-    - ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+':
-        type: eval
-        description: The command used to generate the version of the tool
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - ldak6:
+          type: string
+          description: The tool name
+      - ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+':
+          type: eval
+          description: The command used to generate the version of the tool
 authors:
-- '@lyh970817'
+  - "@lyh970817"
 maintainers:
-- '@lyh970817'
+  - "@lyh970817"
 containers:
   conda:
     linux/amd64:
