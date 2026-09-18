@@ -19,6 +19,9 @@ process CUSTOM_MPHSNPINFO {
     tuple val(meta), path("${prefix}.snp_info.counts.tsv"), emit: counts
     tuple val("${task.process}"), val("python"), eval("python3 --version | sed 's/^Python //'"), emit: versions_python, topic: versions
 
+    when:
+    task.ext.when == null || task.ext.when
+
     script:
     prefix = task.ext.prefix ?: meta.id
     bim_literal = groovy.json.JsonOutput.toJson(bim.toString())
