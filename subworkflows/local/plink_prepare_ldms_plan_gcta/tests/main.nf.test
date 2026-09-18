@@ -3,8 +3,12 @@ nextflow_workflow {
     name "Test the LD-by-MAF component plan builder"
     script "../main.nf"
     workflow "PLINK_PREPARE_LDMS_PLAN_GCTA"
+    config "./nextflow.config"
     tag "subworkflows"
     tag "subworkflows_nfcore"
+    tag "subworkflows/plink_prepare_ldms_plan_gcta"
+    tag "gcta/calculateldscores"
+    tag "custom/gctastratifyldscores"
     tag "subworkflow"
     tag "gcta"
     tag "ldms"
@@ -147,6 +151,29 @@ nextflow_workflow {
                 { assert rows.first().predictor_count as int == 220 },
                 { assert rows.first().group_filename == 'popgen_single_snp_group_ld01_maf01.txt' },
             )
+        }
+    }
+
+    test("plan and generic groups preserve identity and row order - stub") {
+        options "-stub"
+        when {
+            workflow {
+                """
+                input[0] = channel.of(${genotypes("[id: 'stub_plan']")})
+                input[1] = channel.of([[id: 'stub_plan'], 50])
+                input[2] = channel.of([[id: 'stub_plan'], 2])
+                input[3] = channel.of([[id: 'stub_plan'], [0, 0.5]])
+                """
+            }
+        }
+        then {
+            assert workflow.success
+            def plan = workflow.out.plan.first()
+            def groups = workflow.out.groups.first()
+            assert groups[0] == [id: 'stub_plan']
+            assert manifestRows(groups[1])*.group_id == manifestRows(plan[1])*.stratum_key
+            assert groupsByName(groups[2]) == groupsByName(plan[2])
+            assert snapshot(workflow.out).match()
         }
     }
 

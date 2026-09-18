@@ -2,8 +2,12 @@ nextflow_workflow {
     name "Test independent GCTA row-part construction and merge"
     script "../main.nf"
     workflow "PLINK_PREPARE_GRM_GCTA"
+    config "./nextflow.config"
     tag "subworkflows"
     tag "subworkflows_nfcore"
+    tag "subworkflows/plink_prepare_grm_gcta"
+    tag "gcta/makegrmpart"
+    tag "custom/gctamergegrmparts"
     tag "plink_prepare_grm_gcta"
 
     [[parts: 1, selected: false], [parts: 2, selected: true], [parts: 2, selected: false, stub: true]].each { scenario ->
@@ -39,6 +43,13 @@ nextflow_workflow {
                     assert path(files.find { it.toString().endsWith('.grm.id') }).readLines().size() == 200
                     assert path(files.find { it.toString().endsWith('.grm.bin') }).size() == 200 * 201 / 2 * 4
                     assert path(files.find { it.toString().endsWith('.grm.N.bin') }).size() == 200 * 201 / 2 * 4
+                    if (scenario.selected) {
+                        def counts = java.nio.ByteBuffer.wrap(java.nio.file.Files.readAllBytes(path(files.find { it.toString().endsWith('.grm.N.bin') })))
+                            .order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+                        def markerCounts = (0..<counts.limit()).collect { counts.get(it) }
+                        assert markerCounts.max() == 10.0f
+                        assert markerCounts.every { it >= 0.0f && it <= 10.0f }
+                    }
                 }
             }
         }

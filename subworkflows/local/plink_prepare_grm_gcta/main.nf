@@ -66,4 +66,3 @@ workflow PLINK_PREPARE_GRM_GCTA {
     emit:
     grm_files = CUSTOM_GCTAMERGEGRMPARTS.out.grm_files // channel: [ val(meta), path(grm_files) ]
 }
-

@@ -2,6 +2,7 @@
 name: "plink_prepare_grm_gcta"
 description: Construct and merge dense GCTA genetic relationship matrix parts
 keywords:
+  - genome-wide complex trait analysis
   - gcta
   - genome relationship matrix
   - grm

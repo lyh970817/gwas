@@ -2,6 +2,7 @@ nextflow_process {
     name "Test GCTA LD-score calculation"
     script "../main.nf"
     process "GCTA_CALCULATELDSCORES"
+    config "./nextflow.config"
     tag "modules"
     tag "modules_nfcore"
     tag "gcta"

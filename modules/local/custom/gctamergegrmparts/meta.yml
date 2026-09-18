@@ -64,6 +64,20 @@ topics:
       - "cat --version | head -n 1 | cut -d ' ' -f 4":
           type: eval
           description: GNU coreutils version
+containers:
+  conda:
+    linux/amd64:
+      lock_file: "modules/nf-core/custom/gctamergegrmparts/.conda-lock/linux_amd64-bd-838ba80435a629f8_1.txt"
+  docker:
+    linux/amd64:
+      build_id: "bd-838ba80435a629f8_1"
+      name: "community.wave.seqera.io/library/coreutils_grep_gzip_lbzip2_pruned:838ba80435a629f8"
+      scan_id: "sc-2b1453b6febde61b_1"
+  singularity:
+    linux/amd64:
+      build_id: "bd-2f90c612c8e49f19_1"
+      name: "oras://community.wave.seqera.io/library/coreutils_grep_gzip_lbzip2_pruned:2f90c612c8e49f19"
+      https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/52/52ccce28d2ab928ab862e25aae26314d69c8e38bd41ca9431c67ef05221348aa/data"
 authors:
   - "@andongni"
 maintainers:

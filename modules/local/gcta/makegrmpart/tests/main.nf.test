@@ -2,6 +2,7 @@ nextflow_process {
     name "Test GCTA row-part native interface"
     script "../main.nf"
     process "GCTA_MAKEGRMPART"
+    config "./nextflow.config"
     tag "modules"
     tag "modules_nfcore"
     tag "gcta"
