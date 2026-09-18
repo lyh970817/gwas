@@ -8,8 +8,10 @@ nextflow_function {
         function "orderSnpGroups"
         when {
             function {
+                """
                 input[0] = [3, 1, 2]
                 input[1] = [['third.bin', 'third.iid'], ['first.bin', 'first.iid'], ['second.bin', 'second.iid']]
+                """
             }
         }
         then {

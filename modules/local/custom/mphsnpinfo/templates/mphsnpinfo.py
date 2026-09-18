@@ -19,15 +19,10 @@ if not columns:
 if len(set(columns)) != len(columns):
     fail("weight column names repeat: {}".format(columns))
 
-variants = []
 with open(bim_path) as handle:
-    for line in handle:
-        fields = line.split()
-        if not fields:
-            continue
-        variants.append((fields[0], fields[1]))
+    variants = [line.split()[1] for line in handle]
 
-known_variants = set(name for _chromosome, name in variants)
+known_variants = set(variants)
 membership = {}
 
 # Input conversion is required because MPH consumes numeric weight columns rather than SNP lists.
@@ -51,7 +46,7 @@ unassigned = 0
 with open("{}.snp_info.csv".format(prefix), "w", newline="\n") as handle:
     writer = csv.writer(handle, lineterminator="\n")
     writer.writerow(["SNP"] + columns)
-    for _chromosome, name in variants:
+    for name in variants:
         index = membership.get(name)
         if index is None:
             unassigned += 1

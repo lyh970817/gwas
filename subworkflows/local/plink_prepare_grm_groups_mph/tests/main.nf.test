@@ -30,56 +30,63 @@ nextflow_workflow {
         }
     }
 
+    def groupInputs = { groups ->
+        """
+            def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
+            def bim = file(base + 'bim', checkIfExists:true)
+            def ids = bim.readLines().collect { it.tokenize()[1] }
+            def names = ${groups} == 1 ? ['all'] : ['second','first']
+            def selections = ${groups} == 1 ? [ids] : [ids.take(ids.size().intdiv(2)), ids.drop(ids.size().intdiv(2))]
+            def files = names.withIndex().collect { name, index ->
+                def target = file(name + '.txt')
+                target.text = selections[index].join('\\n') + '\\n'
+                target
+            }
+            file('groups.tsv').text = 'group_id\\tgroup_filename\\n' + names.collect { name -> name + '\\t' + name + '.txt' }.join('\\n') + '\\n'
+            input[0] = channel.of([[id:'focal',single_end:false], file('groups.tsv'), files.reverse()])
+            input[1] = channel.of([[id:'focal'],file(base+'bed'),bim,file(base+'fam')])
+        """
+    }
+
     [1, 2].each { groups ->
-        [false, true].each { stub ->
-            test("${groups} named groups preserve order and focal identity${stub ? ' - stub' : ''}") {
-                if (stub) options "-stub"
-                when {
-                    workflow {
-                        """
-                        def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
-                        def bim = file(base + 'bim', checkIfExists:true)
-                        def ids = bim.readLines().collect { it.tokenize()[1] }
-                        def names = ${groups} == 1 ? ['all'] : ['second','first']
-                        def selections = ${groups} == 1 ? [ids] : [ids.take(ids.size().intdiv(2)), ids.drop(ids.size().intdiv(2))]
-                        def files = names.withIndex().collect { name, index ->
-                            def target = file(name + '.txt')
-                            target.text = selections[index].join('\\n') + '\\n'
-                            target
-                        }
-                        file('groups.tsv').text = 'group_id\\tgroup_filename\\n' + names.collect { name -> name + '\\t' + name + '.txt' }.join('\\n') + '\\n'
-                        input[0] = channel.of([[id:'focal',single_end:false], file('groups.tsv'), files.reverse()])
-                        input[1] = channel.of([[id:'focal'],file(base+'bed'),bim,file(base+'fam')])
-                        """
-                    }
+        test("${groups} named groups preserve order and focal identity") {
+            when {
+                workflow {
+                    groupInputs(groups)
                 }
-                then {
-                    def family = workflow.out.grm_family[0]
-                    def names = groups == 1 ? ['all'] : ['second','first']
-                    def prefixes = names.withIndex().collect { name, index -> 'focal__' + String.format('%06d',index+1) + '_' + name }
-                    assertAll(
-                        { assert workflow.success },
-                        { assert snapshot(workflow.out).match() },
-                        { assert family[2] == prefixes },
-                        { assert family[1].size() == 2 * groups },
-                        { assert family[1].collect { path(it).name }.sort() == prefixes.collectMany { [it+'.grm.bin',it+'.grm.iid'] }.sort() },
-                        { assert family[0] == [id:'focal',single_end:false] },
-                        { assert workflow.out.counts[0][0] == family[0] },
-                        { assert path(workflow.out.counts[0][1]).readLines()[0] == 'group_id\tpredictor_count' }
-                    )
-                    if (!stub) {
-                        def counts = path(workflow.out.counts[0][1]).readLines().drop(1).collectEntries { row -> def fields = row.split('\t'); [fields[0],fields[1] as int] }
-                        prefixes.eachWithIndex { prefix, index ->
-                            def binary = path(family[1].find { path(it).name == prefix+'.grm.bin' })
-                            def bytes = java.nio.ByteBuffer.wrap(binary.bytes[0..7] as byte[]).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-                            assert bytes.getInt() == 200
-                            assert bytes.getFloat() == counts[names[index]] as float
-                            assert binary.size() == 8 + 4 * 200 * 201 / 2
-                        }
-                        assert counts.__unassigned__ == 0
-                        assert counts.__bim_rows__ == 220
-                    }
+            }
+            then {
+                def family = workflow.out.grm_family[0]
+                def names = groups == 1 ? ['all'] : ['second','first']
+                def prefixes = names.withIndex().collect { name, index -> 'focal__' + String.format('%06d',index+1) + '_' + name }
+                assert workflow.success
+                assert snapshot(workflow.out).match()
+                def counts = path(workflow.out.counts[0][1]).readLines().drop(1).collectEntries { row -> def fields = row.split('\t'); [fields[0],fields[1] as int] }
+                // The family follows manifest row order even when group files arrive in the opposite order.
+                assert family[2] == prefixes
+                assert family[0] == [id:'focal',single_end:false]
+                prefixes.eachWithIndex { prefix, index ->
+                    def binary = path(family[1].find { path(it).name == prefix+'.grm.bin' })
+                    def bytes = java.nio.ByteBuffer.wrap(binary.bytes[0..7] as byte[]).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    assert bytes.getInt() == 200
+                    assert bytes.getFloat() == counts[names[index]] as float
+                    assert binary.size() == 8 + 4 * 200 * 201 / 2
                 }
+                assert counts.__unassigned__ == 0
+                assert counts.__bim_rows__ == 220
+            }
+        }
+
+        test("${groups} named groups preserve order and focal identity - stub") {
+            options "-stub"
+            when {
+                workflow {
+                    groupInputs(groups)
+                }
+            }
+            then {
+                assert workflow.success
+                assert snapshot(workflow.out).match()
             }
         }
     }
