@@ -10,8 +10,10 @@ Applies to new or maintained upstream-bound atomic components, including the can
 - The portable component contains `main.nf`, `meta.yml`, `environment.yml`, and `tests/main.nf.test`; snapshots
   change only when the understood output contract changes.
 - Process names are uppercase and module directories lowercase. The process directives are `tag`, `label`,
-  `conda`, and `container`. New and upstream-bound modules do not use a process-level `when:` seam; conditional
-  routing belongs in composition.
+  `conda`, and `container`. Upstream-bound modules provide the target nf-core caller hook:
+  `when: task.ext.when == null || task.ext.when`. This generic execution switch is part of the component
+  interface; scientific routing stays in composition. Do not add scientific, input-validation, or programme-error
+  guards to `when:`, and do not add this hook to unrelated pipeline-owned processes.
 - Choose a resource label that reflects the operation's CPU, memory, and time profile.
 
 ## Inputs and native interface
