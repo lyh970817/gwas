@@ -90,6 +90,26 @@ nextflow_process {
             }
         }
 
+        run("REGENIE_STEP1", alias: "REGENIE_STEP1_MULTITRAIT") {
+            script "../../step1/main.nf"
+            process {
+                """
+                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                def lines = file(base + 'plink_simulated_quantitative_phenoname.phe').readLines()
+                def multiPheno = new File('${outputDir}/two_traits.phe')
+                multiPheno.parentFile.mkdirs()
+                multiPheno.text = 'FID IID QuantitativeTrait QuantitativeTrait2\\n' + lines.drop(1).collect { line ->
+                    def fields = line.tokenize()
+                    fields.join(' ') + ' ' + ((fields[2] as BigDecimal) * 2)
+                }.join('\\n') + '\\n'
+                input[0] = [[id: 'training'], file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')]
+                input[1] = [[id: 'training'], file(multiPheno.absolutePath)]
+                input[2] = [[id: 'training'], []]
+                input[3] = 1000
+                """
+            }
+        }
+
     }
 
     test("homo_sapiens popgen - quantitative plink1 with covariates") {
@@ -429,6 +449,88 @@ nextflow_process {
             )
         }
 
+    }
+
+    test("homo_sapiens popgen - complete multi-trait prediction bundle") {
+        when {
+            params {
+                module_args = "--phenoColList QuantitativeTrait,QuantitativeTrait2"
+            }
+            process {
+                """
+                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                input[0] = [[id: 'association', single_end: false], file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')]
+                input[1] = REGENIE_STEP1_MULTITRAIT.out.predictions.join(REGENIE_STEP1_MULTITRAIT.out.loco)
+                input[2] = [[id: 'phenotypes'], file('${outputDir}/two_traits.phe')]
+                input[3] = [[id: 'covariates'], []]
+                input[4] = 400
+                """
+            }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.results[0][0] == [id: 'association', single_end: false] },
+                {
+                    def results = process.out.results[0][1]
+                    assert results.size() == 2
+                    def directory = path(results[0]).parent
+                    def lines = directory.resolve('plink_simulated_pred.list').text.readLines().findAll { it }
+                    assert lines.size() == 2
+                    assert lines.collect { it.tokenize()[0] }.sort() == ['QuantitativeTrait', 'QuantitativeTrait2']
+                    assert lines.every { directory.resolve(it.tokenize()[1]).exists() }
+                    assert results.every { path(it).exists() }
+                },
+                {
+                    assert snapshot(
+                        process.out.results,
+                        process.out.log.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        process.out.versions_regenie
+                    ).match()
+                }
+            )
+        }
+    }
+    test("homo_sapiens popgen - complete multi-trait prediction bundle - stub") {
+        options "-stub"
+        when {
+            params {
+                module_args = "--phenoColList QuantitativeTrait,QuantitativeTrait2"
+            }
+            process {
+                """
+                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                input[0] = [[id: 'association', single_end: false], file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')]
+                input[1] = REGENIE_STEP1_MULTITRAIT.out.predictions.join(REGENIE_STEP1_MULTITRAIT.out.loco)
+                input[2] = [[id: 'phenotypes'], file('${outputDir}/two_traits.phe')]
+                input[3] = [[id: 'covariates'], []]
+                input[4] = 400
+                """
+            }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.results[0][0] == [id: 'association', single_end: false] },
+                {
+                    def results = process.out.results[0][1]
+                    assert results.size() == 2
+                    def directory = path(results[0]).parent
+                    def lines = directory.resolve('plink_simulated_pred.list').text.readLines().findAll { it }
+                    assert lines.size() == 2
+                    assert lines.collect { it.tokenize()[0] }.sort() == ['QuantitativeTrait', 'QuantitativeTrait2']
+                    assert lines.every { directory.resolve(it.tokenize()[1]).exists() }
+                    assert results.every { path(it).exists() }
+                },
+                {
+                    assert snapshot(
+                        process.out.results,
+                        process.out.log.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        process.out.versions_regenie
+                    ).match()
+                }
+            )
+        }
     }
 
 }

@@ -47,9 +47,15 @@ process REGENIE_STEP2 {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}.${plink_genotype_file.baseName}"
     def pheno_match = args =~ /--phenoColList\s+(\S+)/
-    def pheno_suffix = pheno_match.find() ? "_${pheno_match.group(1)}" : ''
+    def phenotype_command = pheno_match.find()
+        ? "echo '${pheno_match.group(1).replace(',', ' ')}'"
+        : "awk 'NR == 1 { for (i = 3; i <= NF; i++) print \$i; exit }' ${pheno}"
     """
-    echo "" | gzip > ${prefix}${pheno_suffix}.regenie.gz
+    index=0
+    for phenotype in \$(${phenotype_command}); do
+        index=\$((index + 1))
+        echo "" | gzip > ${prefix}_\${phenotype}.regenie.gz
+    done
     touch ${prefix}.log
     """
 }

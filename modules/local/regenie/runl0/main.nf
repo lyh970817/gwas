@@ -44,11 +44,19 @@ process REGENIE_RUNL0 {
     """
 
     stub:
-    def input_prefix = plink_genotype_file.baseName
-    def prefix = task.ext.prefix ?: input_prefix
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: plink_genotype_file.baseName
+    def pheno_match = args =~ /--phenoColList\s+(\S+)/
+    def phenotype_command = pheno_match.find()
+        ? "echo '${pheno_match.group(1).replace(',', ' ')}'"
+        : "awk 'NR == 1 { for (i = 3; i <= NF; i++) print \$i; exit }' ${pheno}"
     def run_prefix = "${prefix}_job${job_number}"
     """
-    touch ${run_prefix}_l0_Y1
+    index=0
+    for phenotype in \$(${phenotype_command}); do
+        index=\$((index + 1))
+        touch ${run_prefix}_l0_Y\${index}
+    done
     touch ${run_prefix}.log
     """
 }

@@ -42,11 +42,20 @@ process REGENIE_STEP1 {
     """
 
     stub:
-    def input_prefix = plink_genotype_file.baseName
-    def prefix = task.ext.prefix ?: input_prefix
+    def args = task.ext.args ?: ''
+    def prefix = task.ext.prefix ?: plink_genotype_file.baseName
+    def pheno_match = args =~ /--phenoColList\s+(\S+)/
+    def phenotype_command = pheno_match.find()
+        ? "echo '${pheno_match.group(1).replace(',', ' ')}'"
+        : "awk 'NR == 1 { for (i = 3; i <= NF; i++) print \$i; exit }' ${pheno}"
     """
-    echo "Y1 ${prefix}_1.loco.gz" > ${prefix}_pred.list
-    echo "" | gzip > ${prefix}_1.loco.gz
+    : > ${prefix}_pred.list
+    index=0
+    for phenotype in \$(${phenotype_command}); do
+        index=\$((index + 1))
+        echo "\$phenotype ${prefix}_\${index}.loco.gz" >> ${prefix}_pred.list
+        echo "" | gzip > ${prefix}_\${index}.loco.gz
+    done
     touch ${prefix}.log
     """
 }
