@@ -119,7 +119,7 @@ nextflow_process {
                     predictionFiles = predictionFiles instanceof List ? predictionFiles : [predictionFiles]
                     def command = path(predictionFiles[0]).parent.resolve('.command.sh').text.replaceAll(/\s+/, ' ')
                     assert command.contains('--run-l0 plink_simulated.master,1')
-                    assert command.contains('--out plink_simulated_job1')
+                    assert command.contains('--out plink_simulated_job1 ')
                     assert command.contains('--bed plink_simulated')
                     assert !command.contains('--pgen plink_simulated')
                     assert command.contains('--phenoColList QuantitativeTrait')
@@ -254,7 +254,7 @@ nextflow_process {
                     predictionFiles = predictionFiles instanceof List ? predictionFiles : [predictionFiles]
                     def command = path(predictionFiles[0]).parent.resolve('.command.sh').text.replaceAll(/\s+/, ' ')
                     assert command.contains('--run-l0 plink_simulated_plink2.master,1')
-                    assert command.contains('--out plink_simulated_plink2_job1')
+                    assert command.contains('--out plink_simulated_plink2_job1 ')
                     assert command.contains('--pgen plink_simulated')
                     assert !command.contains('--bed plink_simulated')
                     assert command.contains('--phenoColList QuantitativeTrait')

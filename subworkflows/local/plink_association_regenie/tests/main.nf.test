@@ -41,18 +41,23 @@ nextflow_workflow {
                 }
             }
             then {
-                assert workflow.success
-                assert workflow.out.predictions.size() == 1
-                assert workflow.out.predictions[0][0] == 'producer'
-                assert workflow.out.predictions[0][1] == [id:'training']
-                assert workflow.out.results.collect { row -> row[0].id }.sort() == ['analysis_a', 'analysis_b']
-                assert workflow.out.results.every { row -> path(row[1]).getFileName().toString().startsWith(row[0].id + '.plink_simulated') }
-                assert workflow.out.logs.size() == 2
-                assert snapshot(workflow.out.results.collect { row -> [row[0], path(row[1]).getFileName().toString()] }.sort { row -> row[0].id }).match()
-                def tasks = workflow.trace.tasks()
-                assert tasks.count { task -> task.name.tokenize(':').last().startsWith('REGENIE_STEP2') } == 2
-                assert tasks.count { task -> task.name.tokenize(':').last().startsWith('REGENIE_STEP1') } == (mode == 'standard' ? 1 : 0)
-                assert tasks.count { task -> task.name.tokenize(':').last().startsWith('REGENIE_RUNL1') } == (mode == 'chunked' ? 1 : 0)
+                assertAll(
+                    { assert workflow.success },
+                    { assert workflow.out.predictions.size() == 1 },
+                    { assert workflow.out.predictions[0][0] == 'producer' },
+                    { assert workflow.out.predictions[0][1] == [id:'training'] },
+                    { assert workflow.out.results.collect { row -> row[0].id }.sort() == ['analysis_a', 'analysis_b'] },
+                    { assert workflow.out.results.every { row -> path(row[1]).getFileName().toString().startsWith(row[0].id + '.plink_simulated') } },
+                    { assert workflow.out.logs.size() == 2 },
+                    // The nested fitter's logs carry the caller's producer reference and metadata, not the
+                    // private fit identifier the composition gives the fit modules.
+                    { assert workflow.out.fit_logs.every { row -> row[0] == 'producer' && row[1] == [id:'training'] } },
+                    { assert mode == 'standard' ? workflow.out.fit_logs.size() == 1 : workflow.out.fit_logs.size() >= 3 },
+                    { assert snapshot(workflow.out.results.collect { row -> [row[0], path(row[1]).getFileName().toString()] }.sort { row -> row[0].id }).match() },
+                    { assert workflow.trace.tasks().count { task -> task.name.tokenize(':').last().startsWith('REGENIE_STEP2') } == 2 },
+                    { assert workflow.trace.tasks().count { task -> task.name.tokenize(':').last().startsWith('REGENIE_STEP1') } == (mode == 'standard' ? 1 : 0) },
+                    { assert workflow.trace.tasks().count { task -> task.name.tokenize(':').last().startsWith('REGENIE_RUNL1') } == (mode == 'chunked' ? 1 : 0) },
+                )
             }
         }
     }
@@ -77,20 +82,23 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated'
+                def test_base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated'
                 input[0] = channel.empty()
                 input[1] = PLINK_FIT_REGENIE.out.predictions.join(PLINK_FIT_REGENIE.out.loco).map { _meta, predictions, loco -> ['existing', [id:'original_fit'], predictions, loco] }
-                input[2] = channel.of(['existing', [id:'consumer'], file(base + '.pgen'), file(base + '.pvar'), file(base + '.psam'), file(base + '_quantitative_phenoname.phe'), [], 256])
+                input[2] = channel.of(['existing', [id:'consumer'], file(test_base + '.pgen'), file(test_base + '.pvar'), file(test_base + '.psam'), file(test_base + '_quantitative_phenoname.phe'), [], 256])
                 """
             }
         }
         then {
-            assert workflow.success
-            assert workflow.out.predictions[0][0..1] == ['existing', [id:'original_fit']]
-            assert workflow.out.results.size() == 1
-            assert workflow.out.results[0][0] == [id:'consumer']
-            assert snapshot(workflow.out.results.collect { row -> [row[0], path(row[1]).getFileName().toString()] }).match()
-            assert workflow.trace.tasks().every { task -> !task.name.contains('PLINK_ASSOCIATION_REGENIE:PLINK_FIT_REGENIE:') }
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.predictions[0][0..1] == ['existing', [id:'original_fit']] },
+                { assert workflow.out.results.size() == 1 },
+                { assert workflow.out.results[0][0] == [id:'consumer'] },
+                { assert workflow.out.fit_logs.size() == 0 },
+                { assert snapshot(workflow.out.results.collect { row -> [row[0], path(row[1]).getFileName().toString()] }).match() },
+                { assert workflow.trace.tasks().every { task -> !task.name.contains('PLINK_ASSOCIATION_REGENIE:PLINK_FIT_REGENIE:') } },
+            )
         }
     }
 
@@ -112,7 +120,7 @@ nextflow_workflow {
                 }
                 def pheno = fixture_dir.resolve('phenotype.phe')
                 pheno.text = 'FID IID QuantitativeTrait QuantitativeTrait2\\n'
-                input[0] = channel.of(['F', [id:'training'], *training, pheno, [], 256, 'standard', []])
+                input[0] = channel.of(['F', [id:'training'], training[0], training[1], training[2], pheno, [], 256, 'standard', []])
                 input[1] = channel.empty()
                 input[2] = channel.fromList((1..22).collect { chromosome ->
                     def bundle = ['bed', 'bim', 'fam'].collect { ext ->
@@ -120,24 +128,28 @@ nextflow_workflow {
                         fixture.text = ''
                         fixture
                     }
-                    ['F', [id:'analysis'], *bundle, pheno, [], 256]
+                    ['F', [id:'analysis'], bundle[0], bundle[1], bundle[2], pheno, [], 256]
                 })
                 """
             }
         }
         then {
-            assert workflow.success
-            assert workflow.out.predictions.size() == 1
-            assert workflow.out.predictions[0][3].size() == 2
-            assert workflow.out.results.size() == 22
-            assert workflow.out.results.every { row -> row[0] == [id:'analysis'] }
-            assert workflow.out.results.every { row -> row[1].size() == 2 }
-            assert workflow.out.results.collectMany { row -> row[1].collect { result -> path(result).getFileName().toString() } }.sort() == (1..22).collectMany { chromosome ->
-                ['QuantitativeTrait', 'QuantitativeTrait2'].collect { trait -> "analysis.chr${chromosome}_${trait}.regenie.gz" }
-            }.sort()
-            assert snapshot(workflow.out.results.collect { row -> [row[0], row[1].collect { result -> path(result).getFileName().toString() }.sort()] }.sort { row -> row[1][0] }).match()
-            assert workflow.trace.tasks().count { task -> task.name.contains(':REGENIE_STEP1') } == 1
-            assert workflow.trace.tasks().count { task -> task.name.contains(':REGENIE_STEP2') } == 22
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.predictions.size() == 1 },
+                { assert workflow.out.predictions[0][3].size() == 2 },
+                { assert workflow.out.results.size() == 22 },
+                { assert workflow.out.results.every { row -> row[0] == [id:'analysis'] } },
+                { assert workflow.out.results.every { row -> row[1].size() == 2 } },
+                {
+                    assert workflow.out.results.collectMany { row -> row[1].collect { result -> path(result).getFileName().toString() } }.sort() == (1..22).collectMany { chromosome ->
+                        ['QuantitativeTrait', 'QuantitativeTrait2'].collect { trait -> "analysis.chr${chromosome}_${trait}.regenie.gz" }
+                    }.sort()
+                },
+                { assert snapshot(workflow.out.results.collect { row -> [row[0], row[1].collect { result -> path(result).getFileName().toString() }.sort()] }.sort { row -> row[1][0] }).match() },
+                { assert workflow.trace.tasks().count { task -> task.name.contains(':REGENIE_STEP1') } == 1 },
+                { assert workflow.trace.tasks().count { task -> task.name.contains(':REGENIE_STEP2') } == 22 },
+            )
         }
     }
 }

@@ -17,7 +17,7 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def meta = [id: 'fit', single_end: false]
+                def meta = [id: 'fit']
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 input[0] = channel.of([meta, file(base + 'plink_simulated.bed', checkIfExists: true), file(base + 'plink_simulated.bim', checkIfExists: true), file(base + 'plink_simulated.fam', checkIfExists: true)])
                 input[1] = channel.of([meta, file(base + 'plink_simulated_quantitative_phenoname.phe', checkIfExists: true)])
@@ -31,8 +31,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit', single_end: false]] },
-                { assert workflow.out.loco*.getAt(0) == [[id: 'fit', single_end: false]] },
+                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit']] },
+                { assert workflow.out.loco*.getAt(0) == [[id: 'fit']] },
                 { assert workflow.out.logs.size() == 1 },
                 {
                     def predictionList = path(workflow.out.predictions[0][1])
@@ -58,7 +58,7 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def meta = [id: 'fit', single_end: false]
+                def meta = [id: 'fit']
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 input[0] = channel.of([meta, file(base + 'plink_simulated.bed', checkIfExists: true), file(base + 'plink_simulated.bim', checkIfExists: true), file(base + 'plink_simulated.fam', checkIfExists: true)])
                 input[1] = channel.of([meta, file(base + 'plink_simulated_quantitative_phenoname.phe', checkIfExists: true)])
@@ -72,8 +72,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit', single_end: false]] },
-                { assert workflow.out.loco*.getAt(0) == [[id: 'fit', single_end: false]] },
+                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit']] },
+                { assert workflow.out.loco*.getAt(0) == [[id: 'fit']] },
                 { assert workflow.out.logs.size() == 4 },
                 {
                     def predictionList = path(workflow.out.predictions[0][1])
@@ -99,7 +99,7 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def meta = [id: 'fit', single_end: false]
+                def meta = [id: 'fit']
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 input[0] = channel.of([meta, file(base + 'plink_simulated.pgen', checkIfExists: true), file(base + 'plink_simulated.pvar', checkIfExists: true), file(base + 'plink_simulated.psam', checkIfExists: true)])
                 input[1] = channel.of([meta, file(base + 'plink_simulated_quantitative_phenoname.phe', checkIfExists: true)])
@@ -113,8 +113,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit', single_end: false]] },
-                { assert workflow.out.loco*.getAt(0) == [[id: 'fit', single_end: false]] },
+                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit']] },
+                { assert workflow.out.loco*.getAt(0) == [[id: 'fit']] },
                 { assert workflow.out.logs.size() == 3 },
                 {
                     def predictionList = path(workflow.out.predictions[0][1])
@@ -141,7 +141,7 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def meta = [id: 'fit', single_end: false]
+                def meta = [id: 'fit']
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 input[0] = channel.of([meta, file(base + 'plink_simulated.pgen', checkIfExists: true), file(base + 'plink_simulated.pvar', checkIfExists: true), file(base + 'plink_simulated.psam', checkIfExists: true)])
                 input[1] = channel.of([meta, file(base + 'plink_simulated_quantitative_phenoname.phe', checkIfExists: true)])
@@ -155,8 +155,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit', single_end: false]] },
-                { assert workflow.out.loco*.getAt(0) == [[id: 'fit', single_end: false]] },
+                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit']] },
+                { assert workflow.out.loco*.getAt(0) == [[id: 'fit']] },
                 { assert workflow.out.logs.size() == 1 },
                 {
                     def predictionList = path(workflow.out.predictions[0][1])
@@ -183,7 +183,7 @@ nextflow_workflow {
         when {
             workflow {
                 """
-                def meta = [id: 'fit', single_end: false]
+                def meta = [id: 'fit']
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 input[0] = channel.of([meta, file(base + 'plink_simulated.bed', checkIfExists: true), file(base + 'plink_simulated.bim', checkIfExists: true), file(base + 'plink_simulated.fam', checkIfExists: true)])
                 input[1] = channel.of([meta, file(base + 'plink_simulated_quantitative_phenoname.phe', checkIfExists: true)])
@@ -197,8 +197,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit', single_end: false]] },
-                { assert workflow.out.loco*.getAt(0) == [[id: 'fit', single_end: false]] },
+                { assert workflow.out.predictions*.getAt(0) == [[id: 'fit']] },
+                { assert workflow.out.loco*.getAt(0) == [[id: 'fit']] },
                 { assert workflow.out.logs.size() == 4 },
                 {
                     def predictionList = path(workflow.out.predictions[0][1])
@@ -225,7 +225,7 @@ nextflow_workflow {
             workflow {
                 """
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
-                def fits = [[id: 'standard', single_end: false], [id: 'chunked', single_end: false]]
+                def fits = [[id: 'standard'], [id: 'chunked']]
                 input[0] = channel.fromList(fits).map { meta -> [meta, file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')] }
                 input[1] = channel.fromList(fits).map { meta -> [meta, file(base + 'plink_simulated_quantitative_phenoname.phe')] }
                 input[2] = channel.fromList(fits).map { meta -> [meta, []] }
@@ -238,8 +238,8 @@ nextflow_workflow {
         then {
             assertAll(
                 { assert workflow.success },
-                { assert workflow.out.predictions.collect { it[0] }.sort { it.id } == [[id: 'chunked', single_end: false], [id: 'standard', single_end: false]] },
-                { assert workflow.out.loco.collect { it[0] }.sort { it.id } == [[id: 'chunked', single_end: false], [id: 'standard', single_end: false]] },
+                { assert workflow.out.predictions.collect { it[0] }.sort { it.id } == [[id: 'chunked'], [id: 'standard']] },
+                { assert workflow.out.loco.collect { it[0] }.sort { it.id } == [[id: 'chunked'], [id: 'standard']] },
                 { assert workflow.out.logs.countBy { it[0].id } == [standard: 1, chunked: 3] },
                 {
                     assert snapshot(

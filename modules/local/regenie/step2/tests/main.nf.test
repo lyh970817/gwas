@@ -94,6 +94,8 @@ nextflow_process {
             script "../../step1/main.nf"
             process {
                 """
+                // The public fixture is a header line plus one numeric trait column per sample, so a second
+                // trait is derived from that column rather than added as a new shared fixture.
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
                 def lines = file(base + 'plink_simulated_quantitative_phenoname.phe').readLines()
                 def multiPheno = new File('${outputDir}/two_traits.phe')
@@ -458,8 +460,8 @@ nextflow_process {
             }
             process {
                 """
-                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
-                input[0] = [[id: 'association', single_end: false], file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')]
+                def genotype_base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                input[0] = [[id: 'association'], file(genotype_base + 'plink_simulated.bed'), file(genotype_base + 'plink_simulated.bim'), file(genotype_base + 'plink_simulated.fam')]
                 input[1] = REGENIE_STEP1_MULTITRAIT.out.predictions.join(REGENIE_STEP1_MULTITRAIT.out.loco)
                 input[2] = [[id: 'phenotypes'], file('${outputDir}/two_traits.phe')]
                 input[3] = [[id: 'covariates'], []]
@@ -470,7 +472,7 @@ nextflow_process {
         then {
             assertAll(
                 { assert process.success },
-                { assert process.out.results[0][0] == [id: 'association', single_end: false] },
+                { assert process.out.results[0][0] == [id: 'association'] },
                 {
                     def results = process.out.results[0][1]
                     assert results.size() == 2
@@ -499,8 +501,8 @@ nextflow_process {
             }
             process {
                 """
-                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
-                input[0] = [[id: 'association', single_end: false], file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')]
+                def genotype_base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                input[0] = [[id: 'association'], file(genotype_base + 'plink_simulated.bed'), file(genotype_base + 'plink_simulated.bim'), file(genotype_base + 'plink_simulated.fam')]
                 input[1] = REGENIE_STEP1_MULTITRAIT.out.predictions.join(REGENIE_STEP1_MULTITRAIT.out.loco)
                 input[2] = [[id: 'phenotypes'], file('${outputDir}/two_traits.phe')]
                 input[3] = [[id: 'covariates'], []]
@@ -511,7 +513,7 @@ nextflow_process {
         then {
             assertAll(
                 { assert process.success },
-                { assert process.out.results[0][0] == [id: 'association', single_end: false] },
+                { assert process.out.results[0][0] == [id: 'association'] },
                 {
                     def results = process.out.results[0][1]
                     assert results.size() == 2

@@ -285,7 +285,7 @@ nextflow_process {
                     assert command.contains('--run-l1 plink_simulated.master')
                     assert command.contains('--pgen plink_simulated')
                     assert command.contains('--bsize 1000')
-                    assert command.contains('--out plink_simulated')
+                    assert command.contains('--out plink_simulated ')
                     assert !command.contains('--bed')
                     assert !command.contains('--covarFile')
                     assert command.contains('--phenoColList QuantitativeTrait')
