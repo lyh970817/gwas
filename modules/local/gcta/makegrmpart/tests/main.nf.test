@@ -8,35 +8,83 @@ nextflow_process {
     tag "gcta"
     tag "gcta/makegrmpart"
 
-    [[format: 'bed', selected: false], [format: 'pgen', selected: false], [format: 'bed', selected: true], [format: 'bed', selected: false, stub: true]].each { scenario ->
-        test("${scenario.format} selected=${scenario.selected} ${scenario.stub ? "- stub" : "- real"}") {
-            if (scenario.stub) options "-stub"
-            when {
-                process {
-                    def variant = scenario.format == 'bed' ? 'bim' : 'pvar'
-                    def sample = scenario.format == 'bed' ? 'fam' : 'psam'
-                    """
-                    def root = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
-                    def manifest = file('genotypes.txt')
-                    manifest.text = 'plink_simulated\\n'
-                    def selected = []
-                    if (${scenario.selected}) {
-                        selected = file('selected.txt')
-                        selected.text = file(root + 'bim').readLines().take(10).collect { it.split(/\\s+/)[1] }.join('\\n') + '\\n'
-                    }
-                    input[0] = [[id: 'focal'], manifest, [file(root + '${scenario.format}')], [file(root + '${variant}')], [file(root + '${sample}')], 2, 1]
-                    input[1] = [[id: 'selection'], selected]
-                    """
-                }
+    def inputCode = { genotype, variant, sample, selectionCode ->
+        """
+        def root = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
+        def manifest = file('genotypes.txt')
+        manifest.text = 'plink_simulated\\n'
+        ${selectionCode}
+        input[0] = [[id: 'focal'], manifest, [file(root + '${genotype}')], [file(root + '${variant}')], [file(root + '${sample}')], 2, 1]
+        input[1] = [[id: 'selection'], selected]
+        """
+    }
+    def selectionCode = """
+        def selected = file('selected.txt')
+        selected.text = file(root + 'bim').readLines().take(10).collect { row -> row.split(/\\s+/)[1] }.join('\\n') + '\\n'
+    """
+
+    test("bed selected=false - real") {
+        when {
+            process {
+                inputCode('bed', 'bim', 'fam', 'def selected = []')
             }
-            then {
-                assertAll(
-                    { assert process.success },
-                    { assert process.out.grm_files[0][0] == [id: 'focal'] },
-                    { assert process.out.grm_files[0][2..3] == [2, 1] },
-                    { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
-                )
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.grm_files[0][0] == [id: 'focal'] },
+                { assert process.out.grm_files[0][2..3] == [2, 1] },
+                { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
+            )
+        }
+    }
+
+    test("pgen selected=false - real") {
+        when {
+            process {
+                inputCode('pgen', 'pvar', 'psam', 'def selected = []')
             }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.grm_files[0][0] == [id: 'focal'] },
+                { assert process.out.grm_files[0][2..3] == [2, 1] },
+                { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
+            )
+        }
+    }
+
+    test("bed selected=true - real") {
+        when {
+            process {
+                inputCode('bed', 'bim', 'fam', selectionCode)
+            }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.grm_files[0][0] == [id: 'focal'] },
+                { assert process.out.grm_files[0][2..3] == [2, 1] },
+                { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
+            )
+        }
+    }
+
+    test("bed selected=false - stub") {
+        options "-stub"
+        when {
+            process {
+                inputCode('bed', 'bim', 'fam', 'def selected = []')
+            }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.grm_files[0][0] == [id: 'focal'] },
+                { assert process.out.grm_files[0][2..3] == [2, 1] },
+                { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
+            )
         }
     }
 }

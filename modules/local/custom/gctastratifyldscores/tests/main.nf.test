@@ -8,31 +8,60 @@ nextflow_process {
     tag "custom"
     tag "custom/gctastratifyldscores"
 
-    [[bins: 1, edges: [0, 0.5]], [bins: 2, edges: [0, 0.2, 0.5]], [bins: 2, edges: [0, 0.5], stub: true]].each { scenario ->
-        test("bins=${scenario.bins} edges=${scenario.edges} ${scenario.stub ? "- stub" : "- real"}") {
-            if (scenario.stub) options "-stub"
-            when {
-                process {
-                    """
-                    def scores = file('scores.score.ld')
-                    scores.text = 'SNP freq ldscore_SNP\\ns1 0.1 1\\ns2 0.3 2\\ns3 0.7 3\\ns4 0.9 4\\n'
-                    input[0] = [[id: 'focal'], scores, ${scenario.bins}, ${scenario.edges}]
-                    """
-                }
-            }
-            then {
-                assertAll(
-                    { assert process.success },
-                    { assert process.out.groups[0][0] == [id: 'focal'] },
-                    { assert path(process.out.groups[0][1]).readLines()[0] == 'group_id\tgroup_filename' },
-                    { assert snapshot(sanitizeOutput(process.out)).match() }
-                )
-                if (!scenario.stub) {
-                    def listed = process.out.groups[0][2]
-                    def files = listed instanceof List ? listed : [listed]
-                    assert files.collectMany { path(it).readLines() }.sort() == ['s1', 's2', 's3', 's4']
-                }
-            }
+    def inputCode = { bins, edges ->
+        """
+        def scores = file('scores.score.ld')
+        scores.text = 'SNP freq ldscore_SNP\\ns1 0.1 1\\ns2 0.3 2\\ns3 0.7 3\\ns4 0.9 4\\n'
+        input[0] = [[id: 'focal'], scores, ${bins}, ${edges}]
+        """
+    }
+    def assertMembership = { listed ->
+        def files = listed instanceof List ? listed : [listed]
+        assert files.collectMany { entry -> path(entry).readLines() }.sort() == ['s1', 's2', 's3', 's4']
+    }
+
+    test("bins=1 edges=[0, 0.5] - real") {
+        when {
+            process { inputCode(1, [0, 0.5]) }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.groups[0][0] == [id: 'focal'] },
+                { assert path(process.out.groups[0][1]).readLines()[0] == 'group_id\tgroup_filename' },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+            assertMembership(process.out.groups[0][2])
+        }
+    }
+
+    test("bins=2 edges=[0, 0.2, 0.5] - real") {
+        when {
+            process { inputCode(2, [0, 0.2, 0.5]) }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.groups[0][0] == [id: 'focal'] },
+                { assert path(process.out.groups[0][1]).readLines()[0] == 'group_id\tgroup_filename' },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
+            assertMembership(process.out.groups[0][2])
+        }
+    }
+
+    test("bins=2 edges=[0, 0.5] - stub") {
+        options "-stub"
+        when {
+            process { inputCode(2, [0, 0.5]) }
+        }
+        then {
+            assertAll(
+                { assert process.success },
+                { assert process.out.groups[0][0] == [id: 'focal'] },
+                { assert path(process.out.groups[0][1]).readLines()[0] == 'group_id\tgroup_filename' },
+                { assert snapshot(sanitizeOutput(process.out)).match() }
+            )
         }
     }
 }
