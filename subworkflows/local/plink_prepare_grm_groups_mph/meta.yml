@@ -1,23 +1,23 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
-name: "plink_prepare_grm_ldms_mph"
-description: Build an explicitly ordered LD-by-MAF-stratified family of native MPH genetic relationship matrices from a component plan
+name: "plink_prepare_grm_groups_mph"
+description: Build an ordered family of native MPH genetic relationship matrices from one or many disjoint named SNP groups
 keywords:
   - mph
   - minque for partitioning heritability
-  - ldms
-  - linkage disequilibrium by minor allele frequency stratification
   - genome relationship matrix
   - grm
 components:
   - custom/mphsnpinfo
   - mph/makegrm
 input:
-  - ch_plan:
+  - ch_groups:
       description: |
-        Ordered stratum manifest and the SNP group files it names, as produced by
-        `plink_prepare_ldms_plan_gcta`. Row order is the component order. Public outputs retain meta.
-      structure: [map meta, path strata_manifest, list snp_group_files]
-      pattern: "*.strata.tsv, *_snp_group*.txt"
+        Required ordered TSV with header group_id and group_filename, and the disjoint SNP lists it names.
+        The group IDs label matrix prefixes. Row order defines the output family order. One group uses the
+        same API as several groups. The caller supplies the selected SNP universe; chromosomes are not filtered.
+        Public outputs retain the focal group metadata. Genotypes are matched by meta.id.
+      structure: [map meta, path group_manifest, list snp_group_files]
+      pattern: "*.tsv, *.txt"
       ontologies:
         - edam: "http://edamontology.org/format_3475"
         - edam: "http://edamontology.org/format_2330"
@@ -28,16 +28,11 @@ input:
       ontologies:
         - edam: "http://edamontology.org/format_3003"
         - edam: "http://edamontology.org/format_2330"
-  - autosome_count:
-      description: |
-        Process-global highest integer chromosome code counted as autosomal. The plan is autosome-only by
-        construction, so this is an assertion that the plan and the bundle belong together rather than a filter.
-      structure: [integer autosome_count]
 output:
   - grm_family:
       description: |
         Every component's MPH matrix bundle and the matching prefixes in manifest ordinal order. The prefix of
-        component k is `<family>__%06d_<stratum_key>`, and MPH copies it verbatim into the result's `vc_name`,
+        component k is `<family>__%06d_<group_id>`, and MPH copies it verbatim into the result's `vc_name`,
         so the published result names its own components.
       structure: [map meta, path grm_files, list grm_prefixes]
       pattern: "*.grm.{bin,iid}"
