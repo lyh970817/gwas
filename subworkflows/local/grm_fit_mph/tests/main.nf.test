@@ -43,9 +43,9 @@ nextflow_workflow {
                         file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
                     ]
                 }
-                def variants = file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim').readLines().collect { line -> line.tokenize()[1] }
-                file('split.snp_info.csv').text = 'SNP,ld01,ld02\\n' + variants.withIndex().collect { variant, index ->
-                    [variant, index < variants.size().intdiv(2) ? 1 : 0, index < variants.size().intdiv(2) ? 0 : 1].join(',')
+                def split_variants = file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim').readLines().collect { line -> line.tokenize()[1] }
+                file('split.snp_info.csv').text = 'SNP,ld01,ld02\\n' + split_variants.withIndex().collect { variant, index ->
+                    [variant, index < split_variants.size().intdiv(2) ? 1 : 0, index < split_variants.size().intdiv(2) ? 0 : 1].join(',')
                 }.join('\\n') + '\\n'
                 input[1] = channel.of('ld01', 'ld02').map { column -> [[id: 'split'], file('split.snp_info.csv'), column] }
                 """
@@ -90,15 +90,22 @@ nextflow_workflow {
                 expected.each { output, suffix ->
                     assert workflow.out[output].size() == 1
                     assert workflow.out[output][0][0] == [id: 'fit']
-                    assert path(workflow.out[output][0][1]).name == "fit${suffix}"
+                    assert file(workflow.out[output][0][1]).name == "fit${suffix}"
                 }
                 assert workflow.out.correlations.size() == (scenario.traits.size() > 1 ? 1 : 0)
                 assert workflow.out.covariates.size() == (scenario.covariates ? 1 : 0)
                 assert path(workflow.out.phenotype[0][1]).readLines().first() == 'IID,' + scenario.traits.join(',')
+                if (scenario.stub) {
+                    assert snapshot(workflow.out).match()
+                }
                 if (!scenario.stub) {
+                    // The declared order is the row order of the native result. The bundle is handed over in
+                    // descending name order, so a composition that sorted it would report ld01 first here.
+                    // A multi-trait fit repeats the component block once per trait pair, hence `unique`.
                     def variance = path(workflow.out.variance_components[0][1])
-                    def nativeList = variance.parent.resolve('fit.grm_list').readLines()
-                    assert nativeList == (scenario.groups == 1 ? ['dense'] : ['ld02', 'ld01'])
+                    def rows = variance.readLines().findAll { line -> line.trim() }.collect { line -> line.split(',', -1).collect { field -> field.trim() } }
+                    def labels = rows.tail().collect { row -> row[rows.first().indexOf('vc_name')] }
+                    assert labels.unique(false) == (scenario.groups == 1 ? ['dense', 'err'] : ['ld02', 'ld01', 'err'])
                     if (scenario.covariates) {
                         assert path(workflow.out.covariates[0][1]).readLines().first() == 'IID,intercept,AGE,BATCH_B'
                     }
