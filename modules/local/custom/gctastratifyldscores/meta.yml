@@ -44,7 +44,9 @@ output:
             - edam: "http://edamontology.org/format_3475" # TSV
       - "${prefix}_snp_group*.txt":
           type: file
-          description: Predictor identifiers for each non-empty LD-by-MAF stratum listed in the manifest
+          description: Predictor identifiers for each non-empty LD-by-MAF stratum listed in the manifest. These
+            are the same files the groups channel emits; each manifest travels with the SNP lists it names, so
+            a consumer of either channel can stage one self-contained bundle.
           pattern: "*_snp_group*.txt"
           ontologies:
             - edam: "http://edamontology.org/format_2330" # Textual format
@@ -59,49 +61,29 @@ output:
           ontologies: []
       - "${prefix}_snp_group*.txt":
           type: file
-          description: The same named SNP lists referenced by the provenance table.
+          description: The same named SNP lists the strata_bundle channel emits, repeated here so the generic
+            group table is a self-contained bundle for a matrix builder that never reads the provenance table.
           pattern: "*_snp_group*.txt"
           ontologies: []
-  versions_stratifier:
-    - - ${task.process}:
-          type: string
-          description: Process name
-      - gcta_stratify_ldscores:
-          type: string
-          description: Module-owned stratification template
-      - "1.0.0":
-          type: string
-          description: Module-owned stratification template version
-  versions_r_base:
-    - - "${task.process}":
-          type: string
-          description: The process the version was collected from
-      - r-base:
-          type: string
-          description: The tool name
-      - "Rscript -e 'cat(as.character(getRversion()))'":
-          type: eval
-          description: The command used to retrieve the R version
+  versions:
+    - versions.yml:
+        type: file
+        description: |
+          File containing software versions: the module-owned stratification template and the R interpreter
+          it ran under.
+        pattern: "versions.yml"
+        ontologies:
+          - edam: "http://edamontology.org/format_3750"
 topics:
   versions:
-    - - ${task.process}:
-          type: string
-          description: Process name
-      - gcta_stratify_ldscores:
-          type: string
-          description: Module-owned stratification template
-      - "1.0.0":
-          type: string
-          description: Module-owned stratification template version
-    - - "${task.process}":
-          type: string
-          description: The process the version was collected from
-      - r-base:
-          type: string
-          description: The tool name
-      - "Rscript -e 'cat(as.character(getRversion()))'":
-          type: eval
-          description: The command used to retrieve the R version
+    - versions.yml:
+        type: file
+        description: |
+          File containing software versions: the module-owned stratification template and the R interpreter
+          it ran under.
+        pattern: "versions.yml"
+        ontologies:
+          - edam: "http://edamontology.org/format_3750"
 containers:
   conda:
     linux/amd64:

@@ -19,13 +19,17 @@ nextflow_workflow {
     def POPGEN = { member -> "file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.${member}', checkIfExists: true)" }
     def genotypes = { meta -> "[${meta}, ${POPGEN('bed')}, ${POPGEN('bim')}, ${POPGEN('fam')}]" }
 
-    // GCTA 1.94.1 segmentation-faults in `--ld-score-region` whenever the bundle spans less than one region
-    // width, and the shipped popgen BIM puts all 220 variants inside 220 base pairs, so every region width
-    // crashes it on the fixture as shipped (measured: span 220 bp crashes at 50 kb and at 200 kb; the same
-    // genotypes at 1 kb spacing succeed at 50 kb and at 200 kb and crash again at 5000 kb, which is once more
-    // wider than the span). Only the map positions are rewritten here, so the genotypes, the allele
-    // frequencies and therefore the MAF axis of the plan are the fixture's own; the derived BIM is written
-    // beside `outputDir` rather than shipped, because it is a function of the fixture's own dimensions.
+    // Test-side compensation for lyh970817/gwas#38, measured on the pinned image
+    // `community.wave.seqera.io/library/gcta:1.94.1--9bc35dc424fcf6e9`: GCTA 1.94.1 segmentation-faults in
+    // `--ld-score-region` whenever the bundle spans less than one region width, and the shipped popgen BIM
+    // puts all 220 variants inside 220 base pairs, so every region width crashes it on the fixture as shipped
+    // (measured: span 220 bp crashes at 50 kb and at 200 kb; the same genotypes at 1 kb spacing succeed at
+    // 50 kb and at 200 kb and crash again at 5000 kb, which is once more wider than the span). Only the map
+    // positions are rewritten here, so the genotypes, the allele frequencies and therefore the MAF axis of the
+    // plan are the fixture's own; the derived BIM is written beside `outputDir` rather than shipped, because
+    // it is a function of the fixture's own dimensions.
+    // Retire this rewrite once the pinned GCTA image moves to a release that no longer crashes on #38's
+    // reproducer; the shipped fixture can then be used unmodified.
     def spacedGenotypes = { meta, directory ->
         """channel.of(${genotypes(meta)})
                     .map { record_meta, bed, bim, fam ->

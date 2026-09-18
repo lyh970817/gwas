@@ -16,19 +16,19 @@ workflow PLINK_PREPARE_LDMS_PLAN_GCTA {
 
     main:
     ch_plan_inputs = ch_genotypes
-        .map { meta, bed, bim, fam -> tuple(meta.id, tuple(meta, bed, bim, fam)) }
+        .map { meta, bed, bim, fam -> tuple(meta.id, meta, bed, bim, fam) }
         .join(ch_ld_score_region_kb.map { meta2, ld_score_region_kb -> tuple(meta2.id, ld_score_region_kb) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .join(ch_ld_bins.map { meta3, ld_bins -> tuple(meta3.id, ld_bins) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .join(ch_maf_edges.map { meta4, maf_edges -> tuple(meta4.id, maf_edges) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
 
-    ch_ld_score_inputs = ch_plan_inputs.map { _plan_id, genotypes, ld_score_region_kb, _ld_bins, _maf_edges ->
-        genotypes + [ld_score_region_kb]
+    ch_ld_score_inputs = ch_plan_inputs.map { _plan_id, meta, bed, bim, fam, ld_score_region_kb, _ld_bins, _maf_edges ->
+        tuple(meta, bed, bim, fam, ld_score_region_kb)
     }
     GCTA_CALCULATELDSCORES(ch_ld_score_inputs)
 
     ch_stratify_inputs = GCTA_CALCULATELDSCORES.out.ld_scores
         .map { meta, ld_scores -> tuple(meta.id, meta, ld_scores) }
-        .join(ch_plan_inputs.map { plan_id, _genotypes, _ld_score_region_kb, ld_bins, maf_edges -> tuple(plan_id, ld_bins, maf_edges) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .join(ch_plan_inputs.map { plan_id, _meta, _bed, _bim, _fam, _ld_score_region_kb, ld_bins, maf_edges -> tuple(plan_id, ld_bins, maf_edges) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .map { _plan_id, meta, ld_scores, ld_bins, maf_edges -> tuple(meta, ld_scores, ld_bins, maf_edges) }
     CUSTOM_GCTASTRATIFYLDSCORES(ch_stratify_inputs)
 

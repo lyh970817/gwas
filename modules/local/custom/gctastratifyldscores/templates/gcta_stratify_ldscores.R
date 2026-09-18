@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 arguments <- c('${ld_scores}', '${prefix}', '${ld_bins}', '${maf_edges.join(",")}')
+process_name <- ${task_process_literal}
 
 input_file <- arguments[[1]]
 output_prefix <- arguments[[2]]
@@ -78,3 +79,13 @@ manifest <- do.call(rbind, manifest_rows)
 write.table(manifest, paste0(output_prefix, ".strata.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
 groups <- data.frame(group_id = manifest[["stratum_key"]], group_filename = manifest[["group_filename"]])
 write.table(groups, paste0(output_prefix, ".groups.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+
+# Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
+writeLines(
+  c(
+    sprintf('"%s":', process_name),
+    "    gcta_stratify_ldscores: 1.0.0",
+    sprintf("    r-base: %s", as.character(getRversion()))
+  ),
+  "versions.yml"
+)

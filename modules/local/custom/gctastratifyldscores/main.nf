@@ -13,14 +13,17 @@ process CUSTOM_GCTASTRATIFYLDSCORES {
     output:
     tuple val(meta), path("${prefix}.strata.tsv"), path("${prefix}_snp_group*.txt"), emit: strata_bundle
     tuple val(meta), path("${prefix}.groups.tsv"), path("${prefix}_snp_group*.txt"), emit: groups
-    tuple val("${task.process}"), val("gcta_stratify_ldscores"), val("1.0.0"), emit: versions_stratifier, topic: versions
-    tuple val("${task.process}"), val("r-base"), eval("Rscript -e 'cat(as.character(getRversion()))'"), emit: versions_r_base, topic: versions
+    // `eval()` is the house style for version capture, but Nextflow rejects an `eval` output on any process
+    // whose script is not Bash, and this one is an R `template`. The template version and the interpreter
+    // version are therefore written from inside the template.
+    path "versions.yml", emit: versions, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
     prefix = task.ext.prefix ?: "${meta.id}"
+    task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
     template('gcta_stratify_ldscores.R')
 
     stub:
@@ -30,5 +33,11 @@ process CUSTOM_GCTASTRATIFYLDSCORES {
     printf 'stub_snp2\n' > "${prefix}_snp_group_ld02_maf01.txt"
     printf 'model_key\tstratum_key\tld_lower\tld_upper\tmaf_lower\tmaf_upper\tpredictor_count\tgroup_filename\nldms\tld01_maf01\t0\t1\t0\t0.5\t1\t${prefix}_snp_group_ld01_maf01.txt\nldms\tld02_maf01\t1\t2\t0\t0.5\t1\t${prefix}_snp_group_ld02_maf01.txt\n' > "${prefix}.strata.tsv"
     printf 'group_id\tgroup_filename\nld01_maf01\t${prefix}_snp_group_ld01_maf01.txt\nld02_maf01\t${prefix}_snp_group_ld02_maf01.txt\n' > "${prefix}.groups.tsv"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        gcta_stratify_ldscores: 1.0.0
+        r-base: \$(Rscript -e 'cat(as.character(getRversion()))')
+    END_VERSIONS
     """
 }
