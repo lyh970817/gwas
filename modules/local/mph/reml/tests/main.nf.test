@@ -45,9 +45,9 @@ nextflow_process {
                         file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.fam', checkIfExists: true)
                     ]
                 }
-                def variants = file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim').readLines().collect { line -> line.tokenize()[1] }
-                file('split.snp_info.csv').text = 'SNP,ld01,ld02\\n' + variants.withIndex().collect { variant, index ->
-                    [variant, index < variants.size().intdiv(2) ? 1 : 0, index < variants.size().intdiv(2) ? 0 : 1].join(',')
+                def split_variants = file(params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.bim').readLines().collect { line -> line.tokenize()[1] }
+                file('split.snp_info.csv').text = 'SNP,ld01,ld02\\n' + split_variants.withIndex().collect { variant, index ->
+                    [variant, index < split_variants.size().intdiv(2) ? 1 : 0, index < split_variants.size().intdiv(2) ? 0 : 1].join(',')
                 }.join('\\n') + '\\n'
                 input[1] = channel.of('ld01', 'ld02').map { column -> [[id: 'split'], file('split.snp_info.csv'), column] }
                 """
@@ -183,7 +183,7 @@ nextflow_process {
                 input[0] = MPH_MAKEGRM_SPLIT.out.grm_files
                     .map { _meta, grm_files -> grm_files }
                     .collect()
-                    .map { staged -> [ [ id:'two_component' ], staged.flatten().sort { left, right -> left.name <=> right.name } ] }
+                    .map { staged -> [ [ id:'two_component' ], staged.flatten().sort { left, right -> right.name <=> left.name } ] }
                 input[1] = [ [ id:'traits' ], file('${fixtures.phenotype}', checkIfExists: true), [ 'QT' ] ]
                 input[2] = [ [ id:'traits' ], file('${fixtures.covariates}', checkIfExists: true), [ 'intercept', 'cov' ] ]
                 """
@@ -200,8 +200,10 @@ nextflow_process {
                 // whitespace-separated column as an initial variance component, and segfaults on an empty
                 // list. The order of the list is the row order of the result and the column order of the
                 // appended covariance blocks, so it is a contract rather than an implementation detail.
-                { assert grmList.readLines() == ['ld01', 'ld02'] },
-                { assert valuesOf(variance, 'vc_name') == ['ld01', 'ld02', 'err'] }
+                // The bundle is staged in descending name order deliberately: an implementation that sorted
+                // the staged members internally would produce `ld01, ld02` here and fail both assertions.
+                { assert grmList.readLines() == ['ld02', 'ld01'] },
+                { assert valuesOf(variance, 'vc_name') == ['ld02', 'ld01', 'err'] }
             )
         }
     }
@@ -352,6 +354,34 @@ nextflow_process {
                 { assert path(process.out.fixed_effects.get(0).get(1)).readLines().size() > 1 },
                 { assert path(process.out.iterations.get(0).get(1)).readLines().size() > 1 },
                 { assert path(process.out.projected_phenotypes.get(0).get(1)).readLines().size() > 1 }
+            )
+        }
+    }
+
+    test("homo_sapiens popgen - a bundle missing its identifier companion is refused") {
+
+        when {
+            def fixtures = tables(outputDir, 'absent')
+            process {
+                """
+                input[0] = MPH_MAKEGRM_DENSE.out.grm_files.map { _meta, grm_files ->
+                    [ [ id:'absent_matrix' ], grm_files.findAll { grm_file -> grm_file.name.endsWith('.grm.bin') } ]
+                }
+                input[1] = [ [ id:'traits' ], file('${fixtures.phenotype}', checkIfExists: true), [ 'QT' ] ]
+                input[2] = [ [ id:'traits' ], file('${fixtures.covariates}', checkIfExists: true), [ 'intercept', 'cov' ] ]
+                """
+            }
+        }
+
+        then {
+            // The prefix `dense` is on the list because its `.grm.bin` is staged, but the `.grm.iid` beside it
+            // is not, so MPH prints its error, writes no result file at all and returns 0. This case is what
+            // proves the exit-status compensation is live rather than decorative: without it the task would
+            // succeed with no result. The native message is deliberately not asserted -- `process.errorReport`
+            // embeds the rendered script, which contains the guard's own source line.
+            assertAll(
+                { assert !process.success },
+                { assert process.exitStatus != 0 }
             )
         }
     }
