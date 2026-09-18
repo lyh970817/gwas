@@ -101,9 +101,7 @@ workflow ROUTE_LDAK_KVIK_ASSOCIATIONS {
     PREPARE_LDAK_KVIK_HARMONISATION(ch_harmonisation)
 
     emit:
-    results             = PLINK_ASSOCIATION_LDAK_KVIK.out.results // channel: [ val(meta), path(assoc) ]
     harmonisation_input = PREPARE_LDAK_KVIK_HARMONISATION.out.harmonisation_input // channel: [ val(meta), path(tsv) ]
-    progress            = LDAK_THINCOMMON.out.progress // channel: [ val(meta), path(progress) ], once per shared predictor artifact
 }
 
 /*

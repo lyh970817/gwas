@@ -30,21 +30,10 @@ input:
       pattern: "*.in"
       ontologies: []
 output:
-  - results:
-      description: LDAK-KVIK Step 2 association result files carrying each consuming analysis metadata map
-      structure: "[map meta, path assoc]"
-      pattern: "*.step2*.assoc"
-      ontologies: []
   - harmonisation_input:
-      description: LDAK-KVIK association tables prepared for harmonisation
+      description: LDAK-KVIK association tables prepared for harmonisation. The native association, summary, predictor and progress files stay in the work directory
       structure: "[map meta, path harmonisation_input]"
       pattern: "*.step2*.harmonisation.tsv"
-      ontologies: []
-  - progress:
-      description: ThinCommon progress files, once per genotype-view and effective-thinning-options predictor artifact
-      structure: "[map meta, path progress]"
-      pattern: "*.progress"
-      optional: true
       ontologies: []
 authors:
   - "@andongni"
