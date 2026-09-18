@@ -15,14 +15,24 @@ workflow GRM_FIT_MPH {
     }
     CUSTOM_PREPAREMPHINPUTS(ch_preparation.tables, ch_preparation.samples)
 
+    // MPH fits exactly the covariate columns it is named, and ignores a covariate file given without them,
+    // so the fit needs the encoded column names as a value. Treatment-coded names exist only once the
+    // serializer has observed the factor levels, and the header of the file it wrote is where it states them.
+    // The design and its names travel as one element, because the optional join below represents an absent
+    // right-hand side with a single `null`.
+    def ch_covariate_design = CUSTOM_PREPAREMPHINPUTS.out.covariates
+        .map { meta, covariate_csv -> [meta, covariate_csv, covariate_csv] }
+        .splitCsv(elem: 2, limit: 1)
+        .map { meta, covariate_csv, header -> [meta, [covariate_csv, header.tail()]] }
+
     def ch_fit = ch_inputs
         .map { meta, grm_files, _phenotypes, _quant_covariates, _cat_covariates, _fam, trait_names, _missing_tokens -> [meta, grm_files, trait_names] }
         .join(CUSTOM_PREPAREMPHINPUTS.out.phenotype, failOnDuplicate: true, failOnMismatch: true)
-        .join(CUSTOM_PREPAREMPHINPUTS.out.covariates, failOnDuplicate: true, remainder: true)
-        .multiMap { meta, grm_files, trait_names, phenotype_csv, covariate_csv ->
+        .join(ch_covariate_design, failOnDuplicate: true, remainder: true)
+        .multiMap { meta, grm_files, trait_names, phenotype_csv, covariate_design ->
             grm: [meta, grm_files]
             phenotype: [meta, phenotype_csv, trait_names]
-            covariates: [meta, covariate_csv ?: [], covariate_csv ? covariate_csv.readLines().first().split(',').drop(1).toList() : []]
+            covariates: [meta, covariate_design ? covariate_design.first() : [], covariate_design ? covariate_design.last() : []]
         }
     MPH_REML(ch_fit.grm, ch_fit.phenotype, ch_fit.covariates)
 
