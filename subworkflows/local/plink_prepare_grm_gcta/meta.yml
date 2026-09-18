@@ -19,14 +19,19 @@ input:
         - edam: "http://edamontology.org/format_3003"
         - edam: "http://edamontology.org/format_2330"
   - ch_snp_group_file:
-      description: Optional SNP group file in the second metadata-bearing tuple; use [] when absent.
+      description: |
+        Optional SNP group file in the second metadata-bearing tuple; use [] when absent. This tuple is
+        joined to ch_genotypes on the identifier, so meta2.id equals meta.id and every focal analysis
+        supplies exactly one record.
       structure: "[map meta2, path snp_group_file|[]]"
       pattern: "*"
       optional: true
       ontologies:
         - edam: "http://edamontology.org/format_2330"
   - ch_n_parts:
-      description: Requested GRM part count in the third metadata-bearing tuple.
+      description: |
+        Requested GRM part count in the third metadata-bearing tuple. This tuple is joined to ch_genotypes on
+        the identifier, so meta3.id equals meta.id and every focal analysis supplies exactly one record.
       structure: [map meta3, integer requested_parts]
 output:
   - grm_files:

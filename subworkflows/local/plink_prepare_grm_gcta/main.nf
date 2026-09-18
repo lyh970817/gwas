@@ -5,25 +5,11 @@
 include { GCTA_MAKEGRMPART         } from '../../../modules/local/gcta/makegrmpart/main'
 include { CUSTOM_GCTAMERGEGRMPARTS } from '../../../modules/local/custom/gctamergegrmparts/main'
 
-def orderGrmPartRecords(part_indices, grm_part_file_lists) {
-    return [part_indices, grm_part_file_lists]
-        .transpose()
-        .sort { left, right -> left[0] <=> right[0] }
-        .collect { part_index, grm_part_files ->
-            [
-                part: part_index,
-                bin: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.bin') },
-                n_bin: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.N.bin') },
-                id: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.id') },
-            ]
-        }
-}
-
 workflow PLINK_PREPARE_GRM_GCTA {
     take:
     ch_genotypes // channel: [ val(meta), path(mfile), path(bed_pgen), path(bim_pvar), path(fam_psam) ], mandatory
-    ch_snp_group_file // channel: [ val(meta2), path(snp_group_file) ], optional; use [] when absent
-    ch_n_parts // channel: [ val(meta3), val(requested_parts) ], mandatory
+    ch_snp_group_file // channel: [ val(meta2), path(snp_group_file) ], optional file; meta2.id equals meta.id
+    ch_n_parts // channel: [ val(meta3), val(requested_parts) ], mandatory; meta3.id equals meta.id
 
     main:
     ch_make_jobs = ch_genotypes
@@ -65,4 +51,18 @@ workflow PLINK_PREPARE_GRM_GCTA {
 
     emit:
     grm_files = CUSTOM_GCTAMERGEGRMPARTS.out.grm_files // channel: [ val(meta), path(grm_files) ]
+}
+
+def orderGrmPartRecords(part_indices, grm_part_file_lists) {
+    return [part_indices, grm_part_file_lists]
+        .transpose()
+        .sort { left, right -> left[0] <=> right[0] }
+        .collect { part_index, grm_part_files ->
+            [
+                part: part_index,
+                bin: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.bin') },
+                n_bin: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.N.bin') },
+                id: grm_part_files.find { grm_part_file -> grm_part_file.name.endsWith('.grm.id') },
+            ]
+        }
 }
