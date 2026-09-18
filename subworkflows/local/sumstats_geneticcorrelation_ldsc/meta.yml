@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: sumstats_geneticcorrelation_ldsc
+description: Munge declared summary-statistics producers and estimate genetic correlation for ordered pairs with LD Score Regression
+keywords:
+  - summary statistics
+  - linkage disequilibrium score regression
+  - geneticcorrelation
+components:
+  - ldsc/mungesumstats
+  - ldsc/rg
+input:
+  - ch_producers:
+      description: |
+        Structure: [ val(meta), path(sumstats), val(meta2), path(merge_alleles) ]
+        Producer meta.id is unique and referenced by at least one request. Producer metadata
+        propagates unchanged to preparation outputs. sumstats is a native association summary
+        table (*.txt, *.tsv, *.csv, or gzipped). meta2 identifies the optional merge-allele
+        resource (*.txt, *.tsv, *.snplist); supply [] as merge_alleles to omit it.
+  - ch_pairs:
+      description: |
+        Structure: [ val(meta), val(meta2), path(reference_ld_scores), val(meta3), path(regression_weights), val(left_producer_id), val(right_producer_id) ]
+        Focal request metadata is preserved unchanged on the fitted log. Left and right producer ids reference producer meta.id in native RG order; pair meta.id is unique.
+        meta2 identifies the chromosome-prefix reference LD-score directory; meta3 identifies
+        the separate regression-weight directory. Native optional fit arguments belong in
+        task.ext.args. The caller owns reference selection, prevalence, and publication policy.
+output:
+  - munged_sumstats:
+      description: |
+        Structure: [ val(meta), path(sumstats) ]
+        One *.sumstats.gz product per declared producer with original producer metadata.
+      pattern: "*.sumstats.gz"
+  - munging_log:
+      description: |
+        Structure: [ val(meta), path(log) ]
+        Native preparation log (*.log) with original producer metadata.
+      pattern: "*.log"
+  - rg_log:
+      description: |
+        Structure: [ val(meta), path(log) ]
+        Native genetic correlation log (*.log) with original focal ordered pair metadata.
+      pattern: "*.log"
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

@@ -52,7 +52,7 @@ output:
     - - meta:
           type: map
           description: Groovy map propagated from the pair input
-      - "*.log":
+      - "${prefix}.log":
           type: file
           description: Native LDSC genetic-correlation log containing all marginal and pairwise estimates
           pattern: "*.log"
@@ -64,9 +64,9 @@ output:
       - ldsc:
           type: string
           description: The tool name
-      - "cat /opt/venv/ldsc-source-revision":
+      - "python -c 'import importlib.metadata; print(importlib.metadata.version(\"ldsc\"))'":
           type: eval
-          description: The expression used to obtain the pinned CBIIT/ldsc source revision
+          description: The expression used to obtain the installed LDSC distribution version
   versions_python:
     - - "${task.process}":
           type: string
@@ -85,9 +85,9 @@ topics:
       - ldsc:
           type: string
           description: The tool name
-      - "cat /opt/venv/ldsc-source-revision":
+      - "python -c 'import importlib.metadata; print(importlib.metadata.version(\"ldsc\"))'":
           type: eval
-          description: The expression used to obtain the pinned CBIIT/ldsc source revision
+          description: The expression used to obtain the installed LDSC distribution version
     - - "${task.process}":
           type: string
           description: The name of the process
@@ -99,7 +99,7 @@ topics:
           description: The expression used to obtain the Python version
 notes: |
   The runtime pins the CBIIT/ldsc `ldsc39` revision `6c673952cee74bd5c57aef1555a03b1c015399a0`.
-  The exact source revision is emitted as the LDSC version identity.
+  The installed distribution version is emitted on the versions topic.
   Both reference inputs must follow the native chromosome-prefix layout expected
   by LDSC's `--ref-ld-chr` and `--w-ld-chr` options.
   On successful `ldsc39` RG runs the upstream logger can leave its file empty;

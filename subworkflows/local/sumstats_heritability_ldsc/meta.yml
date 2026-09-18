@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: sumstats_heritability_ldsc
+description: Munge declared summary-statistics producers and estimate SNP heritability with LD Score Regression
+keywords:
+  - summary statistics
+  - linkage disequilibrium score regression
+  - heritability
+components:
+  - ldsc/mungesumstats
+  - ldsc/h2
+input:
+  - ch_producers:
+      description: |
+        Structure: [ val(meta), path(sumstats), val(meta2), path(merge_alleles) ]
+        Producer meta.id is unique and referenced by at least one request. Producer metadata
+        propagates unchanged to preparation outputs. sumstats is a native association summary
+        table (*.txt, *.tsv, *.csv, or gzipped). meta2 identifies the optional merge-allele
+        resource (*.txt, *.tsv, *.snplist); supply [] as merge_alleles to omit it.
+  - ch_requests:
+      description: |
+        Structure: [ val(meta), val(meta2), path(reference_ld_scores), val(meta3), path(regression_weights), val(producer_id) ]
+        Focal request metadata is preserved unchanged on the fitted log. One producer_id references the producer meta.id.
+        meta2 identifies the chromosome-prefix reference LD-score directory; meta3 identifies
+        the separate regression-weight directory. Native optional fit arguments belong in
+        task.ext.args. The caller owns reference selection, prevalence, and publication policy.
+output:
+  - munged_sumstats:
+      description: |
+        Structure: [ val(meta), path(sumstats) ]
+        One *.sumstats.gz product per declared producer with original producer metadata.
+      pattern: "*.sumstats.gz"
+  - munging_log:
+      description: |
+        Structure: [ val(meta), path(log) ]
+        Native preparation log (*.log) with original producer metadata.
+      pattern: "*.log"
+  - h2_log:
+      description: |
+        Structure: [ val(meta), path(log) ]
+        Native heritability log (*.log) with original focal request metadata.
+      pattern: "*.log"
+authors:
+  - "@lyh970817"
+maintainers:
+  - "@lyh970817"

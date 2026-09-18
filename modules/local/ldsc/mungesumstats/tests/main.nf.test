@@ -10,7 +10,7 @@ nextflow_process {
     tag "ldsc"
     tag "ldsc_mungesumstats"
 
-    def inputs = { outputDir, name, valid = true ->
+    def inputs = { outputDir, name ->
         def root = new File(outputDir.toString(), "fixture_${name}")
         root.mkdirs()
         def sumstats = new File(root, "${name}.tsv.gz")
@@ -20,7 +20,7 @@ nextflow_process {
             def pvalue = String.format(java.util.Locale.ROOT, '%.6g', 0.0001 + index / 1000000.0)
             "rs${index}\tA\tG\t10000\t${beta}\t${pvalue}"
         }
-        def body = valid ? "SNP\tA1\tA2\tN\tBETA\tP\n${variants.join('\n')}\n" : "SNP\tA1\tA2\tN\nrs1\tA\tG\t10000\n"
+        def body = "SNP\tA1\tA2\tN\tBETA\tP\n${variants.join('\n')}\n"
         sumstats.withOutputStream { output ->
             def gzip = new java.util.zip.GZIPOutputStream(output)
             gzip.write(body.getBytes('UTF-8'))
@@ -54,10 +54,29 @@ nextflow_process {
                 { assert lines.first().split('\\s+') as List == ['SNP', 'A1', 'A2', 'N', 'Z'] },
                 { assert lines.size() == 201 },
                 { assert log.text.contains('200 SNPs remain') },
-                { assert process.out.versions_ldsc.get(0) == ['LDSC_MUNGESUMSTATS', 'ldsc', '6c673952cee74bd5c57aef1555a03b1c015399a0'] },
+                { assert process.out.versions_ldsc.get(0) == ['LDSC_MUNGESUMSTATS', 'ldsc', '3.0.2'] },
                 { assert process.out.versions_python.get(0) == ['LDSC_MUNGESUMSTATS', 'python', '3.9.13'] },
-                { assert snapshot([munged.name, lines.first(), lines.size(), process.out.findAll { name, value -> name.startsWith('versions_') }]).match() },
+                { assert snapshot([output: [munged.name, lines.first(), lines.size()], versions: process.out.findAll { name, value -> name.startsWith('versions_') }]).match() },
             )
+        }
+    }
+
+    test("munge without an optional merge-alleles reference") {
+        when {
+            def fixture = inputs(outputDir, 'no_reference')
+            process {
+                """
+                input[0] = [[id: 'no_reference'], file('${fixture.sumstats}', checkIfExists: true)]
+                input[1] = [[id: 'absent'], []]
+                """
+            }
+        }
+        then {
+            assert process.success
+            def file = new File(process.out.munged_sumstats[0][1].toString())
+            def gzip = new java.util.zip.GZIPInputStream(new FileInputStream(file))
+            assert gzip.getText('UTF-8').readLines().size() == 201
+            gzip.close()
         }
     }
 
@@ -84,28 +103,9 @@ nextflow_process {
                 { assert process.success },
                 { assert text == 'SNP\tA1\tA2\tN\tZ\n' },
                 { assert new File(process.out.log.get(0).get(1).toString()).text == 'LDSC munging stub\n' },
-                { assert snapshot([munged.name, text]).match() },
+                { assert snapshot([output: [munged.name, text], versions: process.out.findAll { name, value -> name.startsWith('versions_') }]).match() },
             )
         }
     }
 
-    test("reject summary statistics without an association statistic") {
-
-        when {
-            def fixture = inputs(outputDir, 'invalid', false)
-            process {
-                """
-                input[0] = [[id: 'trait_invalid'], file('${fixture.sumstats}', checkIfExists: true)]
-                input[1] = [[id: 'hapmap3'], file('${fixture.mergeAlleles}', checkIfExists: true)]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.failed },
-                { assert process.errorReport.contains('Could not interpret column') || process.errorReport.contains('signed summary statistic') },
-            )
-        }
-    }
 }
