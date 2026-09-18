@@ -515,6 +515,12 @@ Categorical covariates are passed to REGENIE by their names in the `cat_covariat
 
 ### Run-level defaults
 
+Parameters divide by what they control. Scientific specification — what is estimated and under which
+model — is declared per analysis in the method-options document, not on the command line. Execution
+strategy — task partitioning, execution modes, job counts, block sizes and low-memory modes — is set by
+the parameters in the schema's `Execution options` group, whose defaults live in `conf/execution.config`. CPU, memory and
+time requests are not parameters at all: change them with a custom process configuration passed via `-c`.
+
 | Parameter or behaviour            | Default and rationale                                                                                                                                                                                            |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--regenie_step1_mode`            | `standard`, the simplest one-task Step 1. Use `chunked` with `--regenie_step1_jobs` when a large cohort needs REGENIE's split-L0/run-L0/run-L1 execution family.                                                 |
