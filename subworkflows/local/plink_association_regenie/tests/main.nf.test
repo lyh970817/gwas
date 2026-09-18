@@ -79,7 +79,7 @@ nextflow_workflow {
                 """
                 def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated'
                 input[0] = channel.empty()
-                input[1] = channel.of(['existing', [id:'original_fit'], setup.PLINK_FIT_REGENIE.out.predictions[0][1], setup.PLINK_FIT_REGENIE.out.loco[0][1]])
+                input[1] = PLINK_FIT_REGENIE.out.predictions.join(PLINK_FIT_REGENIE.out.loco).map { _meta, predictions, loco -> ['existing', [id:'original_fit'], predictions, loco] }
                 input[2] = channel.of(['existing', [id:'consumer'], file(base + '.pgen'), file(base + '.pvar'), file(base + '.psam'), file(base + '_quantitative_phenoname.phe'), [], 256])
                 """
             }
@@ -90,7 +90,7 @@ nextflow_workflow {
             assert workflow.out.results.size() == 1
             assert workflow.out.results[0][0] == [id:'consumer']
             assert snapshot(workflow.out.results.collect { row -> [row[0], path(row[1]).getFileName().toString()] }).match()
-            assert workflow.trace.tasks().every { task -> !task.name.contains('PLINK_FIT_REGENIE') }
+            assert workflow.trace.tasks().every { task -> !task.name.contains('PLINK_ASSOCIATION_REGENIE:PLINK_FIT_REGENIE:') }
         }
     }
 
