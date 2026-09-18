@@ -110,7 +110,7 @@ maintainers:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/local/custom/mphsnpinfo/.conda-lock/linux-64.txt"
+      lock_file: "modules/local/custom/mphsnpinfo/.conda-lock/linux_amd64-bd-dc8358b3c5eeb927_1.txt"
   docker:
     linux/amd64:
       name: "community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927"
