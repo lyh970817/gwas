@@ -15,9 +15,11 @@ input:
         Required ordered TSV with header group_id and group_filename, and the disjoint SNP lists it names.
         The group IDs label matrix prefixes. Row order defines the output family order. One group uses the
         same API as several groups. The caller supplies the selected SNP universe; chromosomes are not filtered.
-        Public outputs retain the focal group metadata. Genotypes are matched by meta.id.
+        Public outputs retain the focal group metadata. Genotypes are matched by meta.id. Neither called
+        process can be switched off through this composition with `ext.when`, because the joins that carry
+        identity forward are declared `failOnMismatch` and a skipped task leaves them unmatched.
       structure: [map meta, path group_manifest, list snp_group_files]
-      pattern: "*.tsv, *.txt"
+      pattern: "*.{tsv,txt}"
       ontologies:
         - edam: "http://edamontology.org/format_3475"
         - edam: "http://edamontology.org/format_2330"

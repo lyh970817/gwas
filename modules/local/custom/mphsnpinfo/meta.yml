@@ -39,7 +39,9 @@ input:
         type: file
         description: |
           Required ordered TSV with header group_id and group_filename. Each row names one staged SNP list;
-          row order defines output column order, including a one-row whole-universe group.
+          the manifest's row order defines the output column order, including a one-row whole-universe group.
+          Every `group_filename` is a bare basename of a file staged through `snp_group_files`, because the
+          rows are opened relative to the task directory; a path with a directory component will not resolve.
         pattern: "*.tsv"
         ontologies:
           - edam: "http://edamontology.org/format_3475"
@@ -114,3 +116,8 @@ containers:
       name: "community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927"
       build_id: "bd-dc8358b3c5eeb927_1"
       scan_id: "sc-d453bf85569b853d_1"
+  singularity:
+    linux/amd64:
+      name: "oras://community.wave.seqera.io/library/python:3.14.5--b29a2f2e65e096bd"
+      build_id: "bd-b29a2f2e65e096bd_10"
+      https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/18/1841daa69f98a0b0ffcb8f545070c8350a75febb167202136eab0990131d31c0/data"

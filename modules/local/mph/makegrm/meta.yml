@@ -98,7 +98,7 @@ output:
           description: |
             Tee'd MPH standard output: the echoed option block, the variant and sample counts found and
             retained, the post-quality-control variant count actually used, and any `Error:` line, which MPH
-            prints at exit 0 (issue #55).
+            prints at exit 0 (lyh970817/gwas#55).
           pattern: "*.log"
           ontologies: []
   versions_mph:
