@@ -2,6 +2,7 @@ nextflow_workflow {
 
     name "Test the named-group GCTA matrix builder"
     script "../main.nf"
+    config "./nextflow.config"
     workflow "PLINK_PREPARE_GRM_GROUPS_GCTA"
     tag "subworkflows"
     tag "subworkflows_nfcore"
