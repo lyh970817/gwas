@@ -38,10 +38,11 @@ input:
     - group_manifest:
         type: file
         description: |
-          Required ordered TSV with header group_id and group_filename. Each row names one staged SNP list;
-          the manifest's row order defines the output column order, including a one-row whole-universe group.
-          Every `group_filename` is a bare basename of a file staged through `snp_group_files`, because the
-          rows are opened relative to the task directory; a path with a directory component will not resolve.
+          Required TSV with header group_id and group_filename. Each row names one staged SNP list, and its
+          group_id selects the weight column that list is written into, so a one-row whole-universe manifest
+          uses the same interface as many rows. Every `group_filename` is a bare basename of a file staged
+          through `snp_group_files`, because the rows are opened relative to the task directory; a path with
+          a directory component will not resolve.
         pattern: "*.tsv"
         ontologies:
           - edam: "http://edamontology.org/format_3475"
@@ -56,7 +57,8 @@ input:
     - weight_names:
         type: list
         description: |
-          Required ordered group IDs, equal to the manifest group_id column. Echoed on the output tuple.
+          Required group IDs, one per manifest row and the same set as its group_id column. These name the
+          output columns and their order is the column order. Echoed on the output tuple.
 output:
   snp_info:
     - - meta:

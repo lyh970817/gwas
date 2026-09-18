@@ -29,7 +29,10 @@ membership = {}
 # Input conversion is required because MPH consumes numeric weight columns rather than SNP lists.
 with open(manifest_path) as handle:
     records = list(csv.DictReader(handle, delimiter="\\t"))
-for index, record in enumerate(records):
+for record in records:
+    # Membership is keyed by the column name the row declares, not by the row's position, so the written
+    # columns follow the caller's weight column order whatever order the manifest rows arrive in.
+    index = columns.index(record["group_id"])
     with open(record["group_filename"]) as handle:
         group = handle.read().split()
     for name in group:
