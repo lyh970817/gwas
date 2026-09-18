@@ -111,3 +111,12 @@ authors:
   - "@lyh970817"
 maintainers:
   - "@lyh970817"
+containers:
+  conda:
+    linux/amd64:
+      lock_file: "modules/local/custom/mphsnpinfo/.conda-lock/linux-64.txt"
+  docker:
+    linux/amd64:
+      name: "community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927"
+      build_id: "bd-dc8358b3c5eeb927_1"
+      scan_id: "sc-d453bf85569b853d_1"
