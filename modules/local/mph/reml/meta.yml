@@ -60,7 +60,9 @@ input:
   - - meta2:
         type: map
         description: |
-          Groovy Map containing the phenotype table's information, e.g. `[ id:'sample1' ]`
+          Groovy Map containing the phenotype table's information, e.g. `[ id:'sample1' ]`. A caller that
+          derived the tables from the same sample set passes the same map as `meta`, in which case the `tag`
+          renders that identity twice.
     - phenotype_csv:
         type: file
         description: |
@@ -78,7 +80,8 @@ input:
   - - meta3:
         type: map
         description: |
-          Groovy Map containing the covariate table's information, e.g. `[ id:'sample1' ]`
+          Groovy Map containing the covariate table's information, e.g. `[ id:'sample1' ]`. As with `meta2`,
+          a caller that derived the table from the same sample set passes the same map as `meta`.
     - covariate_csv:
         type: file
         description: |

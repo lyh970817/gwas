@@ -27,7 +27,7 @@ process MPH_REML {
     tuple val(meta), path("${prefix}.mq.py.csv"), emit: projected_phenotypes
     tuple val(meta), path("${prefix}.mq.cor.csv"), emit: correlations, optional: true
     tuple val(meta), path("${prefix}.log"), emit: log
-    // MPH has no --version; the bare binary prints its banner and exits 1 , tolerated by || true.
+    // MPH has no --version; the bare binary prints its banner and exits 1, tolerated by || true.
     tuple val("${task.process}"), val("mph"), eval("(mph 2>&1 || true) | sed -n 's/^[*] Version \\([0-9][0-9.]*\\).*/\\1/p'"), emit: versions_mph, topic: versions
 
     when:
@@ -61,13 +61,13 @@ process MPH_REML {
 
     # Programme-level compensation, approved 2026-09-09. Retire when an MPH release returns a non-zero
     # exit on failure.
-    # MPH's `main()` catches most thrown errors, prints them and returns 0 (https://github.com/lyh970817/gwas/issues/55), so the exit status
+    # MPH's `main()` catches most thrown errors, prints them and returns 0 (lyh970817/gwas#55), so the exit status
     # is not the contract. A GRM prefix that resolves to nothing, a missing `--output_file` and a missing
     # `--trait_names` all exit 0; the first two write no `mq.*` file at all and the third writes only the log. The result file
     # and the absence of an error line are therefore what this task succeeds on.
     #
-    # A `Warning:` line is deliberately not fatal here: non-convergence (issue #66) and a rank-deficient
-    # covariate matrix (issue #65) are legitimate native states with a complete result written, and
+    # A `Warning:` line is deliberately not fatal here: non-convergence (lyh970817/gwas#66) and a rank-deficient
+    # covariate matrix (lyh970817/gwas#65) are legitimate native states with a complete result written, and
     # classifying them is the caller's job.
     test -s "${prefix}.mq.vc.csv"
     ${correlations_check}
