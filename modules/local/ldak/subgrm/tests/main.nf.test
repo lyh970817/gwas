@@ -5,6 +5,7 @@ nextflow_process {
     tag "modules"
     tag "modules_nfcore"
     tag "ldak"
+    tag "ldak/calckins"
     tag "ldak/subgrm"
 
     test("homo sapiens - native") {
@@ -24,19 +25,24 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [[id:'base'], [bin, ids, details, adjust], ids] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust ->
+                    keep = file('samples.keep')
+                    keep.text = ids.readLines().take(10).join('\\n') + '\\n'
+                    [[id:'base'], [bin, ids, details, adjust], keep]
+                }
                 """
             }
         }
         then {
             assertAll(
                 { assert process.success },
+                { assert path(process.out.sub_grm[0][2]).readLines().size() == 10 },
                 { assert snapshot(sanitizeOutput(process.out)).match() }
             )
         }
     }
 
-    test("homo sapiens - stub - stub") {
+    test("homo sapiens - bed bim fam - stub") {
         options "-stub"
         setup {
             run("LDAK_CALCKINS") {
