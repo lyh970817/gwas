@@ -33,6 +33,76 @@
             "nextflow": "26.04.6"
         }
     },
+    "homo_sapiens popgen - complete multi-trait prediction bundle": {
+        "content": [
+            [
+                [
+                    {
+                        "id": "association"
+                    },
+                    [
+                        "association.plink_simulated_QuantitativeTrait.regenie.gz:md5,2150e5d9acba84c8a803ec52857f5d74",
+                        "association.plink_simulated_QuantitativeTrait2.regenie.gz:md5,248e32f7e128ec5dcf4492ed33eb5dba"
+                    ]
+                ]
+            ],
+            [
+                [
+                    {
+                        "id": "association"
+                    },
+                    "association.plink_simulated.log"
+                ]
+            ],
+            [
+                [
+                    "REGENIE_STEP2",
+                    "regenie",
+                    "4.1.2"
+                ]
+            ]
+        ],
+        "timestamp": "2026-09-18T20:34:05.998165645",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
+    "homo_sapiens popgen - complete multi-trait prediction bundle - stub": {
+        "content": [
+            [
+                [
+                    {
+                        "id": "association"
+                    },
+                    [
+                        "association.plink_simulated_QuantitativeTrait.regenie.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
+                        "association.plink_simulated_QuantitativeTrait2.regenie.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                    ]
+                ]
+            ],
+            [
+                [
+                    {
+                        "id": "association"
+                    },
+                    "association.plink_simulated.log"
+                ]
+            ],
+            [
+                [
+                    "REGENIE_STEP2",
+                    "regenie",
+                    "4.1.2"
+                ]
+            ]
+        ],
+        "timestamp": "2026-09-18T20:34:19.220775083",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    },
     "homo_sapiens popgen - quantitative plink1 without covariates": {
         "content": [
             [

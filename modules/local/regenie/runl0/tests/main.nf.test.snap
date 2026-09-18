@@ -8,7 +8,7 @@
                             "id": "plink_simulated"
                         },
                         [
-                            "plink_simulated.regenie_step1_job1_l0_Y1"
+                            "plink_simulated_job1_l0_Y1"
                         ]
                     ]
                 ],
@@ -29,7 +29,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:39:30.080874016",
+        "timestamp": "2026-09-18T20:25:29.123925176",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

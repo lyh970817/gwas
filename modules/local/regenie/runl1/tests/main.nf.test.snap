@@ -7,7 +7,7 @@
                         {
                             "id": "plink_simulated"
                         },
-                        "plink_simulated.regenie_step1_pred.list"
+                        "plink_simulated_pred.list"
                     ]
                 ],
                 "loco": [
@@ -15,7 +15,7 @@
                         {
                             "id": "plink_simulated"
                         },
-                        "plink_simulated.regenie_step1_1.loco.gz"
+                        "plink_simulated_1.loco.gz"
                     ]
                 ],
                 "log": [
@@ -23,7 +23,7 @@
                         {
                             "id": "plink_simulated"
                         },
-                        "plink_simulated.regenie_step1.log"
+                        "plink_simulated.log"
                     ]
                 ],
                 "versions_regenie": [
@@ -35,7 +35,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:40:23.183647556",
+        "timestamp": "2026-09-18T20:26:19.254151488",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
