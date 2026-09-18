@@ -76,7 +76,7 @@ workflow ROUTE_MPH_BIVARIATE_RELATIONSHIPS {
         def ordered_grm_files = grm_prefixes.collectMany { grm_prefix ->
             grm_files.findAll { grm_file -> grm_file.name in ["${grm_prefix}.grm.bin".toString(), "${grm_prefix}.grm.iid".toString()] }
         }
-        [route_meta, ordered_grm_files, phenotype, quant_covariates, cat_covariates, fam, route_meta.mph_trait_names, ['', 'na', 'nan', '-9']]
+        [route_meta, ordered_grm_files, phenotype, quant_covariates, cat_covariates, fam, mphTraitNames(route_meta), ['', 'na', 'nan', '-9']]
     }
     GRM_FIT_MPH(ch_fit_inputs)
 
@@ -101,9 +101,14 @@ def resolveMphPairRouteMeta(pair_meta, matrix_identity) {
     return pair_meta + [
         matrix_key: matrix_identity.key,
         mph_estimator: pair_meta.method,
-        mph_trait_names: [pair_meta.left_trait_id, pair_meta.right_trait_id],
         mph_effective: buildMphEffectiveSettings(pair_meta.request_options.mph, pair_meta.native_args),
     ]
+}
+
+// The declared orientation of the pair, in manifest order and never sorted. This list becomes MPH's
+// `--trait_names` and therefore fixes which endpoint is the left one in every published record.
+def mphTraitNames(pair_meta) {
+    return [pair_meta.left_trait_id, pair_meta.right_trait_id]
 }
 
 // The staged bundle's prefix, taken from the member whose name defines it. MPH's `--grm_list` names prefixes
@@ -113,13 +118,15 @@ def grmPrefix(grm_files) {
     return grm_iid_name.substring(0, grm_iid_name.length() - '.grm.iid'.length())
 }
 
-// Render the curated options and validated native additions for the configured MPH argument closure.
+// Render the curated options and validated native additions for the configured MPH argument closure. Each
+// fragment is rendered to a plain String: a GString is not equal to the String the task cache restores it as,
+// so one left in metadata makes a resumed run's join by that metadata mismatch.
 def buildMphEffectiveSettings(options, native_args) {
     return [native_arguments: [
-        options.iterations != null ? "--num_iterations ${options.iterations}" : null,
-        options.tolerance != null ? "--tolerance ${options.tolerance}" : null,
-        options.random_vectors != null ? "--num_random_vectors ${options.random_vectors}" : null,
-        options.seed != null ? "--seed ${options.seed}" : null,
+        options.iterations != null ? "--num_iterations ${options.iterations}".toString() : null,
+        options.tolerance != null ? "--tolerance ${options.tolerance}".toString() : null,
+        options.random_vectors != null ? "--num_random_vectors ${options.random_vectors}".toString() : null,
+        options.seed != null ? "--seed ${options.seed}".toString() : null,
         options.save_memory ? '--save_memory' : null,
     ].findAll { argument -> argument != null } + (native_args ?: []).collect { argument -> argument.toString() }]
 }
@@ -128,5 +135,5 @@ def buildMphEffectiveSettings(options, native_args) {
 // selected token and its resolved settings. They are stripped before emission, so a consumer receives the
 // request identity it supplied and the route cannot leak its own bookkeeping.
 def stripMphPairRouteState(meta) {
-    return meta.findAll { name, _value -> !(name in ['matrix_key', 'mph_estimator', 'mph_trait_names', 'mph_effective']) }
+    return meta.findAll { name, _value -> !(name in ['matrix_key', 'mph_estimator', 'mph_effective']) }
 }

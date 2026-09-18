@@ -35,7 +35,6 @@ workflow ROUTE_MPH_HERITABILITY {
         .map { meta, _identity, grm_files, grm_prefixes, estimator, phenotype ->
             def route_meta = meta + [
                 mph_estimator: estimator,
-                mph_trait_names: [meta.trait],
                 mph_effective: buildMphEffectiveSettings(meta.method_options.mph),
             ]
             [routeKey(route_meta), route_meta, grm_files, grm_prefixes, phenotype]
@@ -64,13 +63,14 @@ workflow ROUTE_MPH_HERITABILITY {
             [route_meta, grm_files, grm_prefixes, phenotype, quant_covariates, cat_covariates, fam]
         }
 
-    // The caller resolves matrix order and the accepted missing-value spelling before crossing the
-    // portable preparation-and-fit boundary. Scientific method selection stays in this route.
+    // The caller resolves matrix order, the fit's trait name and the accepted missing-value spelling before
+    // crossing the portable preparation-and-fit boundary. A unary fit names the analysis's own declared trait,
+    // so the list is built here rather than carried as a metadata key. Method selection stays in this route.
     def ch_fit_inputs = ch_requests.map { route_meta, grm_files, grm_prefixes, phenotype, quant_covariates, cat_covariates, fam ->
         def ordered_grm_files = grm_prefixes.collectMany { grm_prefix ->
             grm_files.findAll { grm_file -> grm_file.name in ["${grm_prefix}.grm.bin".toString(), "${grm_prefix}.grm.iid".toString()] }
         }
-        [route_meta, ordered_grm_files, phenotype, quant_covariates, cat_covariates, fam, route_meta.mph_trait_names, ['', 'na', 'nan', '-9']]
+        [route_meta, ordered_grm_files, phenotype, quant_covariates, cat_covariates, fam, [route_meta.trait], ['', 'na', 'nan', '-9']]
     }
     GRM_FIT_MPH(ch_fit_inputs)
 
@@ -115,13 +115,15 @@ def grmPrefix(grm_files) {
     return grm_iid_name.substring(0, grm_iid_name.length() - '.grm.iid'.length())
 }
 
-// Render the curated options for the configured MPH argument closure.
+// Render the curated options for the configured MPH argument closure. Each fragment is rendered to a plain
+// String: a GString is not equal to the String the task cache restores it as, so one left in metadata makes a
+// resumed run's join by that metadata mismatch.
 def buildMphEffectiveSettings(options) {
     return [native_arguments: [
-        options.iterations != null ? "--num_iterations ${options.iterations}" : null,
-        options.tolerance != null ? "--tolerance ${options.tolerance}" : null,
-        options.random_vectors != null ? "--num_random_vectors ${options.random_vectors}" : null,
-        options.seed != null ? "--seed ${options.seed}" : null,
+        options.iterations != null ? "--num_iterations ${options.iterations}".toString() : null,
+        options.tolerance != null ? "--tolerance ${options.tolerance}".toString() : null,
+        options.random_vectors != null ? "--num_random_vectors ${options.random_vectors}".toString() : null,
+        options.seed != null ? "--seed ${options.seed}".toString() : null,
         options.save_memory ? '--save_memory' : null,
     ].findAll { argument -> argument != null }]
 }
@@ -130,5 +132,5 @@ def buildMphEffectiveSettings(options) {
 // selected token and its resolved settings. Everything but the token is stripped before emission, so a
 // consumer receives the focal analysis identity it supplied and the route cannot leak its own bookkeeping.
 def stripMphRouteState(meta) {
-    return meta.findAll { name, _value -> !(name in ['mph_trait_names', 'mph_effective']) }
+    return meta.findAll { name, _value -> !(name in ['mph_effective']) }
 }

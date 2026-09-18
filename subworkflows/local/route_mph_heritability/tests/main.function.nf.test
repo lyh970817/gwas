@@ -187,7 +187,6 @@ nextflow_function {
                     trait: 'QT',
                     heritability_methods: ['mph_reml'],
                     mph_estimator: 'mph_reml',
-                    mph_trait_names: ['QT'],
                     mph_effective: [native_arguments: ['--seed 7']],
                 ]
                 """
