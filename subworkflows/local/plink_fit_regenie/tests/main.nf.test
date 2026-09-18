@@ -5,6 +5,12 @@ nextflow_workflow {
     config "./nextflow.config"
     tag "subworkflows"
     tag "plink_fit_regenie"
+    tag "subworkflows_nfcore"
+    tag "subworkflows/plink_fit_regenie"
+    tag "regenie/step1"
+    tag "regenie/splitl0"
+    tag "regenie/runl0"
+    tag "regenie/runl1"
     tag "regenie"
 
     test("homo_sapiens popgen - standard fitting") {
