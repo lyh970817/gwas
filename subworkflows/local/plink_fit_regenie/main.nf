@@ -19,7 +19,7 @@ workflow PLINK_FIT_REGENIE {
     main:
     ch_modes = ch_step1_mode.map { meta, step1_mode ->
         if (!['standard', 'chunked'].contains(step1_mode)) {
-            error("[nf-core/gwas] ERROR: PLINK_FIT_REGENIE step1_mode must be 'standard' or 'chunked', got '${step1_mode}'")
+            error("PLINK_FIT_REGENIE: step1_mode must be 'standard' or 'chunked', got '${step1_mode}'")
         }
         tuple(meta.id, step1_mode)
     }
