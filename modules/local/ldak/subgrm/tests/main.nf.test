@@ -1,6 +1,7 @@
 nextflow_process {
     name "Test Process LDAK_SUBGRM"
     script "../main.nf"
+    config "./nextflow.config"
     process "LDAK_SUBGRM"
     tag "modules"
     tag "modules_nfcore"

@@ -1,6 +1,7 @@
 nextflow_workflow {
     name "Test Workflow PLINK_PREPARE_GRM_LDAK"
     script "../main.nf"
+    config "./nextflow.config"
     workflow "PLINK_PREPARE_GRM_LDAK"
     tag "subworkflows"
     tag "subworkflows_nfcore"
