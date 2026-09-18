@@ -5,6 +5,9 @@ nextflow_workflow {
     tag "subworkflows"
     tag "subworkflows_nfcore"
     tag "plink_prepare_grm_groups_mph"
+    tag "subworkflows/plink_prepare_grm_groups_mph"
+    tag "custom/mphsnpinfo"
+    tag "mph/makegrm"
     tag "mph"
     config "./nextflow.config"
 
