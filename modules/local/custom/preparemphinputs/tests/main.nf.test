@@ -3,6 +3,7 @@ nextflow_process {
     name "Test Process CUSTOM_PREPAREMPHINPUTS"
     script "../main.nf"
     process "CUSTOM_PREPAREMPHINPUTS"
+    config "./nextflow.config"
 
     tag "modules"
     tag "custom"
