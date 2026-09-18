@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
 name: custom_preparemphinputs
 description: Convert FID/IID sample tables and a declared covariate design to ordered IID-keyed MPH CSVs
 keywords:
@@ -80,7 +81,9 @@ output:
         description: 'IID-keyed phenotype CSV in matrix sample order, one column per trait, missing values written
           as
 
-          empty fields.
+          empty fields. The rows are the intersection of the `.grm.iid` order with the trait table: a matrix
+          sample the trait table does not list, and a trait row whose IID the supplied FAM does not list, are
+          both omitted.
 
           '
         pattern: '*.mph.pheno.csv'
@@ -92,8 +95,10 @@ output:
         description: Groovy Map containing the analysis unit's information.
     - ${prefix}.mph.covar.csv:
         type: file
-        description: Optional IID-keyed numeric design CSV. An explicit intercept is followed by quantitative columns
-          and treatment-coded categorical columns.
+        description: Optional IID-keyed numeric design CSV, row-aligned with the phenotype CSV. An explicit intercept
+          is followed by quantitative columns and treatment-coded categorical columns. The covariate tables are
+          joined on (FID, IID) with the FID taken from the supplied FAM, and a sample they do not describe under
+          that identity is written with empty covariate cells.
         pattern: '*.mph.covar.csv'
         ontologies:
         - edam: http://edamontology.org/format_3752

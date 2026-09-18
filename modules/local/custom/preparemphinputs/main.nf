@@ -8,8 +8,7 @@ process CUSTOM_PREPAREMPHINPUTS {
         : 'community.wave.seqera.io/library/python:3.14.5--dc8358b3c5eeb927'}"
 
     input:
-    // Isolated staging keeps same-named inputs and outputs separate.
-    tuple val(meta), path(phenotype_table, stageAs: 'input/*'), path(quant_covariates, stageAs: 'input/*'), path(cat_covariates, stageAs: 'input/*'), val(trait_names), val(missing_tokens)
+    tuple val(meta), path(phenotype_table), path(quant_covariates), path(cat_covariates), val(trait_names), val(missing_tokens)
     tuple val(meta2), path(grm_iid), path(fam)
 
     output:

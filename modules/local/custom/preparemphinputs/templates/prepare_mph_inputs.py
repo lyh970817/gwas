@@ -60,8 +60,8 @@ def read_headered_table(path, role):
             "the {} file '{}' has {} columns; two identifier columns and at least one named covariate "
             "column are required".format(role, path, len(header))
         )
-    # A ragged row would otherwise be handed to MPH as a short CSV line under a full-width header, which MPH
-    # reads without complaint.
+    # A ragged row cannot be assigned to columns -- which field belongs to which name is undecidable -- so it
+    # is named and refused here rather than serialised.
     for number, fields in rows[1:]:
         if len(fields) != len(header):
             fail(
