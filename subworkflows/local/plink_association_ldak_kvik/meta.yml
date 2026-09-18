@@ -1,0 +1,265 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: plink_association_ldak_kvik
+description: Fit LDAK-KVIK with optional common-predictor thinning, or accept complete predictions, then test independently
+  supplied genotype bundles by explicit fit reference.
+keywords:
+- association
+- genome-wide association study
+- linkage disequilibrium adjusted kinships
+- polygenic risk score
+components:
+- ldak/thincommon
+- ldak/kvikstep1
+- ldak/kvikstep2
+input:
+- ch_fits:
+    type: tuple
+    description: 'Declared fit producers: [fit_id, meta, bed, bim, fam, phenotype, qcovar, covar, extract, thin_common].
+      Optional qcovar/covar/extract use []; when thin_common is true, extract is []. Each F is unique and disjoint
+      from supplied producers. Native optional flags, including --binary YES, belong in task.ext.args.'
+    structure:
+    - fit_id:
+        type: string
+        description: Unique caller-declared producer reference; disjoint from supplied producers
+    - meta:
+        type: map
+        description: Fit metadata preserved on public outputs. The explicit producer reference privately controls
+          the native fit basename.
+    - &id001
+      bed:
+        type: file
+        description: PLINK BED genotype file
+        pattern: '*.bed'
+        ontologies: []
+    - &id002
+      bim:
+        type: file
+        description: PLINK BIM variant file
+        pattern: '*.bim'
+        ontologies: []
+    - &id003
+      fam:
+        type: file
+        description: PLINK FAM sample file
+        pattern: '*.fam'
+        ontologies: []
+    - &id004
+      phenotype:
+        type: file
+        description: Native phenotype input
+        pattern: '*'
+        ontologies: []
+    - &id005
+      qcovar:
+        type: file
+        description: Quantitative covariates; [] when absent
+        pattern: '*'
+        ontologies: []
+        optional: true
+    - &id006
+      covar:
+        type: file
+        description: Categorical covariates; [] when absent
+        pattern: '*'
+        ontologies: []
+        optional: true
+    - extract:
+        type: file
+        description: Predictor list; [] selects all predictors when thin_common is false
+        pattern: '*'
+        ontologies: []
+        optional: true
+    - thin_common:
+        type: boolean
+        description: Generate common predictors before fitting; extract must be [] when true
+- ch_predictions:
+    type: tuple
+    description: 'Supplied complete predictions: [fit_id, meta, root, details, prs]. Root, LOCO details and LOCO
+      PRS retain the same native Step 1 basename. These producers bypass fitting.'
+    structure:
+    - fit_id:
+        type: string
+        description: Explicit producer reference that bypasses fitting
+    - meta:
+        type: map
+        description: Supplied fit metadata
+    - root:
+        type: file
+        description: Step 1 root file
+        pattern: '*.step1.root'
+        ontologies: []
+    - details:
+        type: file
+        description: Step 1 LOCO details with the same native basename
+        pattern: '*.step1.loco.details'
+        ontologies: []
+    - prs:
+        type: file
+        description: Step 1 LOCO predictions with the same native basename
+        pattern: '*.step1.loco.prs'
+        ontologies: []
+- ch_tests:
+    type: tuple
+    description: 'Testing requests: [fit_id, meta, bed, bim, fam, phenotype, qcovar, covar, keep]. Each fit_id references
+      a declared or supplied producer. Repeated references reuse its predictions. Fit and testing genotypes may
+      differ; repeated chromosome bundles preserve focal A metadata and native chromosome-specific output suffixes.
+      Optional qcovar/covar/keep use [].'
+    structure:
+    - fit_id:
+        type: string
+        description: Reference to one declared or supplied fit; repeated references fan out without refitting
+    - meta:
+        type: map
+        description: Focal testing analysis metadata A, preserved unchanged. Repeated chromosome bundles retain
+          A.
+    - *id001
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - *id006
+    - keep:
+        type: file
+        description: Optional sample subset; [] when absent
+        pattern: '*'
+        ontologies: []
+        optional: true
+output:
+- predictions:
+    type: tuple
+    description: 'Channel: [fit_id, meta, root, details, prs]. Native LOCO prediction scores'
+    structure:
+    - fit_id:
+        type: string
+        description: Producer reference
+    - meta:
+        type: map
+        description: Fit metadata
+    - root:
+        type: file
+        description: Native Step 1 root
+        pattern: '*.step1.root'
+        ontologies: []
+    - details:
+        type: file
+        description: Native LOCO details
+        pattern: '*.step1.loco.details'
+        ontologies: []
+    - prs:
+        type: file
+        description: Native LOCO prediction scores
+        pattern: '*.step1.loco.prs'
+        ontologies: []
+- predictors:
+    type: tuple
+    description: 'Channel: [fit_id, meta, predictors]. Generated predictor list'
+    structure:
+    - fit_id:
+        type: string
+        description: Caller-declared producer reference
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - predictors:
+        type: file
+        description: Generated predictor list
+        pattern: '*.in'
+        ontologies: []
+- progress:
+    type: tuple
+    description: 'Channel: [fit_id, meta, progress]. Thinning progress'
+    structure:
+    - fit_id:
+        type: string
+        description: Caller-declared producer reference
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - progress:
+        type: file
+        description: Thinning progress
+        pattern: '*.progress'
+        ontologies: []
+- results:
+    type: tuple
+    description: 'Channel: [meta, results]. Native association file(s) per test event; fit basename and native chromosome
+      suffix retained'
+    structure:
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - results:
+        type: file
+        description: Native association file(s) per test event; fit basename and native chromosome suffix retained
+        pattern: '*.step2*.assoc'
+        ontologies: []
+- summaries:
+    type: tuple
+    description: 'Channel: [meta, summaries]. Native summary file(s) per test event'
+    structure:
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - summaries:
+        type: file
+        description: Native summary file(s) per test event
+        pattern: '*.step2*.summaries'
+        ontologies: []
+- pvalues:
+    type: tuple
+    description: 'Channel: [meta, pvalues]. Native pvalue file(s) per test event'
+    structure:
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - pvalues:
+        type: file
+        description: Native pvalue file(s) per test event
+        pattern: '*.step2*.pvalues'
+        ontologies: []
+- effects:
+    type: tuple
+    description: 'Channel: [fit_id, meta, effects]. Native Step 1 effects when produced'
+    structure:
+    - fit_id:
+        type: string
+        description: Caller-declared producer reference
+    - meta:
+        type: map
+        description: Fit metadata
+    - effects:
+        type: file
+        description: Native Step 1 effects when produced
+        pattern: '*.step1.effects'
+        ontologies: []
+- fit_log:
+    type: tuple
+    description: 'Channel: [fit_id, meta, fit_log]. Native fit log'
+    structure:
+    - fit_id:
+        type: string
+        description: Caller-declared producer reference
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - fit_log:
+        type: file
+        description: Native fit log
+        pattern: '*.step1.log'
+        ontologies: []
+- test_log:
+    type: tuple
+    description: 'Channel: [meta, test_log]. Native testing log'
+    structure:
+    - meta:
+        type: map
+        description: Preserved metadata from the relevant fit or testing input
+    - test_log:
+        type: file
+        description: Native testing log
+        pattern: '*.step2.log'
+        ontologies: []
+authors:
+- '@lyh970817'
+maintainers:
+- '@lyh970817'
