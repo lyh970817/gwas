@@ -17,7 +17,10 @@ process CUSTOM_MPHSNPINFO {
     // are group accounting that no native command ever sees, and no consumer wants them together.
     tuple val(meta), path("${prefix}.snp_info.csv"), val(weight_names), emit: snp_info
     tuple val(meta), path("${prefix}.snp_info.counts.tsv"), emit: counts
-    tuple val("${task.process}"), val("python"), eval("python3 --version | sed 's/^Python //'"), emit: versions_python, topic: versions
+    // `eval()` is the house style for version capture, but Nextflow rejects an `eval` output on any process
+    // whose script is not Bash, and this one is a Python `template`. The interpreter version is therefore
+    // written from inside the template.
+    path "versions.yml", emit: versions, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -28,6 +31,7 @@ process CUSTOM_MPHSNPINFO {
     prefix_literal = groovy.json.JsonOutput.toJson(prefix.toString())
     manifest_literal = groovy.json.JsonOutput.toJson(group_manifest.toString())
     columns_literal = groovy.json.JsonOutput.toJson(weight_names)
+    task_process_literal = groovy.json.JsonOutput.toJson(task.process.toString())
     template('mphsnpinfo.py')
 
     stub:
@@ -40,5 +44,10 @@ process CUSTOM_MPHSNPINFO {
     """
     printf '%s\\n%s\\n' '${stub_header}' '${stub_row}' > "${prefix}.snp_info.csv"
     printf 'group_id\\tpredictor_count\\n${stub_counts}\\n__unassigned__\\t0\\n__bim_rows__\\t1\\n' > "${prefix}.snp_info.counts.tsv"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/^Python //')
+    END_VERSIONS
     """
 }

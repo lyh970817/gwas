@@ -8,6 +8,7 @@ bim_path = $bim_literal
 prefix = $prefix_literal
 manifest_path = $manifest_literal
 columns = $columns_literal
+process_name = $task_process_literal
 
 
 def fail(message):
@@ -62,3 +63,7 @@ with open("{}.snp_info.counts.tsv".format(prefix), "w", newline="\\n") as handle
         handle.write("{}\\t{}\\n".format(name, count))
     handle.write("__unassigned__\\t{}\\n".format(unassigned))
     handle.write("__bim_rows__\\t{}\\n".format(len(variants)))
+
+# Written here rather than captured by an `eval` output, which Nextflow allows only on a Bash script.
+with open("versions.yml", "w", newline="\\n") as handle:
+    handle.write('"{}":\\n    python: {}\\n'.format(process_name, sys.version.split()[0]))
