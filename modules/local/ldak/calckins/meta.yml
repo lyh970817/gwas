@@ -2,6 +2,8 @@ name: ldak_calckins
 description: Calculate kinship matrices with linkage disequilibrium-adjusted kinship (LDAK), configurable power, and optional single nucleotide polymorphism (SNP) weights
 keywords:
   - ldak
+  - linkage disequilibrium adjusted kinship
+  - genomic relationship matrix
   - kinship
   - grm
   - weights
