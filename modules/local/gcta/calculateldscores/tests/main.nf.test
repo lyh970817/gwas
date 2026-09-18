@@ -1,0 +1,37 @@
+nextflow_process {
+    name "Test GCTA LD-score calculation"
+    script "../main.nf"
+    process "GCTA_CALCULATELDSCORES"
+    tag "modules"
+    tag "modules_nfcore"
+    tag "gcta"
+    tag "gcta/calculateldscores"
+
+    [false, true].each { stub ->
+        test("native LD scores ${stub ? "- stub" : "- real"}") {
+            if (stub) options "-stub"
+            when {
+                process {
+                    """
+                    def root = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
+                    // Map positions span the requested native 50 kb LD region.
+                    def bim = file('plink_simulated.bim')
+                    bim.text = file(root + 'bim').readLines().collect { row ->
+                        def fields = row.split(/\\s+/).toList()
+                        fields[3] = ((fields[3] as int) * 1000).toString()
+                        fields.join('\\t')
+                    }.join('\\n') + '\\n'
+                    input[0] = [[id: 'focal'], file(root + 'bed'), bim, file(root + 'fam'), 50]
+                    """
+                }
+            }
+            then {
+                assertAll(
+                    { assert process.success },
+                    { assert process.out.ld_scores[0][0] == [id: 'focal'] },
+                    { assert snapshot(sanitizeOutput(process.out, unstableKeys: ['log'])).match() }
+                )
+            }
+        }
+    }
+}

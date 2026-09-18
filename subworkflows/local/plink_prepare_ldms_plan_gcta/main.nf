@@ -21,11 +21,10 @@ workflow PLINK_PREPARE_LDMS_PLAN_GCTA {
         .join(ch_ld_bins.map { meta3, ld_bins -> tuple(meta3.id, ld_bins) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .join(ch_maf_edges.map { meta4, maf_edges -> tuple(meta4.id, maf_edges) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
 
-    ch_ld_score_inputs = ch_plan_inputs.multiMap { _plan_id, genotypes, ld_score_region_kb, _ld_bins, _maf_edges ->
-        genotypes: genotypes
-        region_kb: ld_score_region_kb
+    ch_ld_score_inputs = ch_plan_inputs.map { _plan_id, genotypes, ld_score_region_kb, _ld_bins, _maf_edges ->
+        genotypes + [ld_score_region_kb]
     }
-    GCTA_CALCULATELDSCORES(ch_ld_score_inputs.genotypes, ch_ld_score_inputs.region_kb)
+    GCTA_CALCULATELDSCORES(ch_ld_score_inputs)
 
     ch_stratify_inputs = GCTA_CALCULATELDSCORES.out.ld_scores
         .map { meta, ld_scores -> tuple(meta.id, meta, ld_scores) }
@@ -35,5 +34,6 @@ workflow PLINK_PREPARE_LDMS_PLAN_GCTA {
 
     emit:
     plan      = CUSTOM_GCTASTRATIFYLDSCORES.out.strata_bundle // channel: [ val(meta), path(strata_manifest), [ path(snp_group_file), ... ] ], LD-major MAF-minor row order
+    groups    = CUSTOM_GCTASTRATIFYLDSCORES.out.groups // channel: [ val(meta), path(group_manifest), path(snp_group_files) ], same row order as plan
     ld_scores = GCTA_CALCULATELDSCORES.out.ld_scores // channel: [ val(meta), path(ld_scores) ]
 }

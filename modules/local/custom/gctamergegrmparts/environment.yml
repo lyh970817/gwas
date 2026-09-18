@@ -1,7 +1,4 @@
-name: gcta_mergegrmparts
 channels:
   - conda-forge
-  - bioconda
-  - defaults
 dependencies:
   - conda-forge::coreutils=9.5

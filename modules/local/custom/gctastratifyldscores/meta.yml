@@ -11,7 +11,7 @@ keywords:
   - minor allele frequency
 tools:
   - custom:
-      description: Checked-in R adapter implementing deterministic GCTA GREML-LDMS stratification
+      description: Module-owned R template implementing deterministic LD-by-MAF stratification
       homepage: "https://github.com/nf-core/modules"
       documentation: "https://yanglab.westlake.edu.cn/software/gcta/#GREML-LDMS"
       licence: ["MIT"]
@@ -48,6 +48,30 @@ output:
           pattern: "*_snp_group*.txt"
           ontologies:
             - edam: "http://edamontology.org/format_2330" # Textual format
+  groups:
+    - - meta:
+          type: map
+          description: Unchanged focal metadata
+      - "${prefix}.groups.tsv":
+          type: file
+          description: Ordered group_id and group_filename columns, preserving the full stratum manifest row order.
+          pattern: "*.groups.tsv"
+          ontologies: []
+      - "${prefix}_snp_group*.txt":
+          type: file
+          description: The same named SNP lists referenced by the provenance table.
+          pattern: "*_snp_group*.txt"
+          ontologies: []
+  versions_stratifier:
+    - - ${task.process}:
+          type: string
+          description: Process name
+      - gcta_stratify_ldscores:
+          type: string
+          description: Module-owned stratification template
+      - "1.0.0":
+          type: string
+          description: Module-owned stratification template version
   versions_r_base:
     - - "${task.process}":
           type: string
@@ -60,6 +84,15 @@ output:
           description: The command used to retrieve the R version
 topics:
   versions:
+    - - ${task.process}:
+          type: string
+          description: Process name
+      - gcta_stratify_ldscores:
+          type: string
+          description: Module-owned stratification template
+      - "1.0.0":
+          type: string
+          description: Module-owned stratification template version
     - - "${task.process}":
           type: string
           description: The process the version was collected from

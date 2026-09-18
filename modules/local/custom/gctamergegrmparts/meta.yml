@@ -8,24 +8,31 @@ keywords:
   - genetic relationship matrix
   - merge
 tools:
-  - "custom_gctamergegrmparts":
-      description: "A static helper for concatenating GCTA --make-grm-part outputs in explicit numeric part order."
-      homepage: "https://github.com/nf-core/modules"
+  - "coreutils":
+      description: "GNU cat concatenates row-partitioned files in the supplied order."
+      homepage: "https://www.gnu.org/software/coreutils/"
       documentation: "https://yanglab.westlake.edu.cn/software/gcta/#MakingaGRM"
-      licence: ["MIT"]
+      licence: ["GPL-3.0-or-later"]
       identifier: ""
 input:
   - - meta:
         type: map
         description: Groovy map containing GRM identity
-    - grm_files:
+    - grm_bin_parts:
         type: file
-        description: Complete set of row-partitioned GRM files staged for the ordered part records
-        pattern: "*.grm.*"
+        description: GRM binary row parts in numeric part order; ordering is supplied by the caller.
+        pattern: "*.grm.bin"
         ontologies: []
-    - ordered_parts:
-        type: list
-        description: Numeric-part-ordered records naming each staged GRM binary, sample-count and ID part
+    - grm_n_bin_parts:
+        type: file
+        description: Matching per-pair marker-count row parts in the same order.
+        pattern: "*.grm.N.bin"
+        ontologies: []
+    - grm_id_parts:
+        type: file
+        description: Matching sample-identity row parts in the same order.
+        pattern: "*.grm.id"
+        ontologies: []
 output:
   grm_files:
     - - meta:
@@ -36,21 +43,27 @@ output:
           description: Concatenated GCTA dense-GRM bundle in explicit numeric part order
           pattern: "*.grm.*"
           ontologies: []
-  versions:
-    - versions.yml:
-        type: file
-        description: File containing software versions
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750"
+  versions_coreutils:
+    - - ${task.process}:
+          type: string
+          description: Process name
+      - coreutils:
+          type: string
+          description: Executable provider
+      - "cat --version | head -n 1 | cut -d ' ' -f 4":
+          type: eval
+          description: GNU coreutils version
 topics:
   versions:
-    - versions.yml:
-        type: file
-        description: File containing software versions
-        pattern: "versions.yml"
-        ontologies:
-          - edam: "http://edamontology.org/format_3750"
+    - - ${task.process}:
+          type: string
+          description: Process name
+      - coreutils:
+          type: string
+          description: Executable provider
+      - "cat --version | head -n 1 | cut -d ' ' -f 4":
+          type: eval
+          description: GNU coreutils version
 authors:
   - "@andongni"
 maintainers:

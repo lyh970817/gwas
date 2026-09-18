@@ -37,11 +37,9 @@ input:
         description: PLINK1 sample metadata file
         pattern: "*.{fam}"
         ontologies: []
-  - ld_score_region:
-      type: integer
-      description: |
-        LD-score region width passed to `--ld-score-region`.
-        Callers should pass `200` for the default GCTA region width unless they are intentionally overriding it.
+    - ld_score_region:
+        type: integer
+        description: Required LD-score region width in kilobases passed to --ld-score-region.
 output:
   ld_scores:
     - - meta:

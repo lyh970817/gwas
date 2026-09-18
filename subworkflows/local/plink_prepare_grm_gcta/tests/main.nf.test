@@ -1,0 +1,46 @@
+nextflow_workflow {
+    name "Test independent GCTA row-part construction and merge"
+    script "../main.nf"
+    workflow "PLINK_PREPARE_GRM_GCTA"
+    tag "subworkflows"
+    tag "subworkflows_nfcore"
+    tag "plink_prepare_grm_gcta"
+
+    [[parts: 1, selected: false], [parts: 2, selected: true], [parts: 2, selected: false, stub: true]].each { scenario ->
+        test("parts=${scenario.parts} selected=${scenario.selected} ${scenario.stub ? "- stub" : "- real"}") {
+            if (scenario.stub) options "-stub"
+            when {
+                workflow {
+                    """
+                    def root = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/plink_simulated.'
+                    def manifest = file('genotypes.txt')
+                    manifest.text = 'plink_simulated\\n'
+                    def selected = []
+                    if (${scenario.selected}) {
+                        selected = file('selected.txt')
+                        selected.text = file(root + 'bim').readLines().take(10).collect { it.split(/\\s+/)[1] }.join('\\n') + '\\n'
+                    }
+                    input[0] = channel.of([[id: 'focal'], manifest, [file(root + 'bed')], [file(root + 'bim')], [file(root + 'fam')]])
+                    input[1] = channel.of([[id: 'focal'], selected])
+                    input[2] = channel.of([[id: 'focal'], ${scenario.parts}])
+                    """
+                }
+            }
+            then {
+                assertAll(
+                    { assert workflow.success },
+                    { assert workflow.out.grm_files[0][0] == [id: 'focal'] },
+                    { assert workflow.trace.succeeded().count { it.name.contains('GCTA_MAKEGRMPART (') } == scenario.parts },
+                    { assert workflow.trace.succeeded().count { it.name.contains('CUSTOM_GCTAMERGEGRMPARTS (') } == 1 },
+                    { assert snapshot(workflow.out).match() }
+                )
+                if (!scenario.stub) {
+                    def files = workflow.out.grm_files[0][1]
+                    assert path(files.find { it.toString().endsWith('.grm.id') }).readLines().size() == 200
+                    assert path(files.find { it.toString().endsWith('.grm.bin') }).size() == 200 * 201 / 2 * 4
+                    assert path(files.find { it.toString().endsWith('.grm.N.bin') }).size() == 200 * 201 / 2 * 4
+                }
+            }
+        }
+    }
+}

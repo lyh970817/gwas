@@ -3,6 +3,8 @@ nextflow_workflow {
     name "Test the LD-by-MAF component plan builder"
     script "../main.nf"
     workflow "PLINK_PREPARE_LDMS_PLAN_GCTA"
+    tag "subworkflows"
+    tag "subworkflows_nfcore"
     tag "subworkflow"
     tag "gcta"
     tag "ldms"
@@ -80,8 +82,8 @@ nextflow_workflow {
                 .collect { line -> line.trim().split(/\s+/).first() }
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 1 },
-                { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
+                { assert workflow.trace.succeeded().count { it.name.contains('GCTA_CALCULATELDSCORES (') } == 1 },
+                { assert workflow.trace.succeeded().count { it.name.contains('CUSTOM_GCTASTRATIFYLDSCORES (') } == 1 },
                 // Two LD quantile bins across one MAF interval is exactly two non-empty strata here, and the
                 // row order is the LD-major, MAF-minor order every consumer of the plan relies on.
                 { assert rows.size() == 2 },
@@ -102,6 +104,10 @@ nextflow_workflow {
                 { assert workflow.out.plan.size() == 1 },
                 { assert workflow.out.ld_scores.size() == 1 },
                 { assert plan[0] == [id: 'popgen_plan'] },
+                { assert workflow.out.groups.first()[0] == plan[0] },
+                { assert manifestRows(workflow.out.groups.first()[1])*.group_id == rows*.stratum_key },
+                { assert manifestRows(workflow.out.groups.first()[1])*.group_filename == rows*.group_filename },
+                { assert groupsByName(workflow.out.groups.first()[2]) == groups },
                 { assert workflow.out.ld_scores.first()[0] == [id: 'popgen_plan'] },
                 // GCTA's LD-score pass is deterministic on a fixed bundle and region size, and the stratifier
                 // is a pure quantile split of its output, so the whole emission is content-stable.
@@ -173,8 +179,8 @@ nextflow_workflow {
                 // stub script or a config parse error would also leave `workflow.success` false.
                 { assert workflow.stdout.join('\n').contains('Join mismatch') || workflow.errorReport.contains('Join mismatch') },
                 // And the failure is before any work, not after a plan was half built.
-                { assert TRACE.count(workflow, 'GCTA_CALCULATELDSCORES') == 0 },
-                { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 0 },
+                { assert workflow.trace.succeeded().count { it.name.contains('GCTA_CALCULATELDSCORES (') } == 0 },
+                { assert workflow.trace.succeeded().count { it.name.contains('CUSTOM_GCTASTRATIFYLDSCORES (') } == 0 },
             )
         }
     }
