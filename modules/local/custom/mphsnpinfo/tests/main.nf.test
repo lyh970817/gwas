@@ -2,6 +2,7 @@ nextflow_process {
     name "Named SNP groups to MPH weights"
     script "../main.nf"
     process "CUSTOM_MPHSNPINFO"
+    config "./nextflow.config"
     tag "modules"
     tag "modules_nfcore"
     tag "custom"
