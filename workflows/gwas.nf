@@ -258,7 +258,6 @@ workflow GWAS {
     ROUTE_ASSOCIATION_ANALYSES(
         PREPARE_COHORT_GENOTYPES.out.native_genotypes,
         PREPARE_COHORT_GENOTYPES.out.plink1_genotypes,
-        PREPARE_COHORT_GENOTYPES.out.cohort_native_view_keys,
         PREPARE_COHORT_GENOTYPES.out.cohort_plink1_view_keys,
         ch_prepared_phenotype,
         ch_prepared_covariates,

@@ -8,7 +8,7 @@ keywords:
   - fastgwa
 components:
   - gcta/fastgwa
-  - route_regenie_associations
+  - plink_association_regenie
   - route_ldak_kvik_associations
 input:
   - ch_native_genotypes:
@@ -21,12 +21,8 @@ input:
       structure: "[map meta, path bed, path bim, path fam]"
       pattern: "*.{bed,bim,fam}"
       ontologies: []
-  - ch_cohort_native_view_keys:
-      description: One native view key per cohort. It is REGENIE's Step 1 reuse identity and travels to that route as a tuple member, never in metadata
-      structure: "[val cohort_id, val native_view_key]"
-      ontologies: []
   - ch_cohort_plink1_view_keys:
-      description: One PLINK 1 view key per cohort that has a PLINK 1 view. It is LDAK-KVIK's thin-common and Step 1 reuse identity. The channel is partial by design and total for `ch_plink1_genotypes`, because preparation emits both from one stream
+      description: One PLINK 1 view key per cohort that has a PLINK 1 view. It is LDAK-KVIK's shared thin-common resource identity. The channel is partial by design and total for `ch_plink1_genotypes`, because preparation emits both from one stream
       structure: "[val cohort_id, val plink1_view_key]"
       ontologies: []
   - ch_phenotypes:
@@ -50,12 +46,12 @@ input:
       pattern: "*.grm.{id,sp}"
       ontologies: []
   - ch_predictor_extracts:
-      description: The optional LDAK predictor list each analysis unit declared on its relational row, already `[]` when absent. It remains an explicit tuple member so Nextflow stages it, while its content identity is folded into the LDAK-KVIK Step 1 reuse key by the route that owns that key. Rows for analyses that did not select `ldak_kvik` are ignored
+      description: The optional LDAK predictor list each analysis unit declared on its relational row, already `[]` when absent. It remains an explicit tuple member so Nextflow stages it, while shared predictor selection remains owned by the LDAK-KVIK route. Rows for analyses that did not select `ldak_kvik` are ignored
       structure: "[map meta, path extract|[]]"
       pattern: "*.{txt,extract}"
       ontologies: []
   - regenie_step2_bsize:
-      description: The REGENIE Step 2 block size, an execution control that does not enter the Step 1 fit reuse key
+      description: The REGENIE Step 2 block size, an execution control independent of the explicit Step 1 producer reference
       structure: "val step2_bsize"
       ontologies: []
   - regenie_step1_mode:
