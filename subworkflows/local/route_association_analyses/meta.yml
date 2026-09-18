@@ -55,11 +55,11 @@ input:
       structure: "val step2_bsize"
       ontologies: []
   - regenie_step1_mode:
-      description: The REGENIE Step 1 execution mode, `standard` or `chunked`. An execution control that does not enter the fit reuse key
+      description: The REGENIE Step 1 execution mode, `standard` or `chunked`. An execution control attached to each explicitly declared fit
       structure: "val step1_mode"
       ontologies: []
   - regenie_step1_jobs:
-      description: The number of REGENIE Step 1 chunk jobs, required in `chunked` mode and `null` in `standard` mode. An execution control that does not enter the fit reuse key
+      description: The number of REGENIE Step 1 chunk jobs, required in `chunked` mode and `null` in `standard` mode. An execution control attached to each explicitly declared fit
       structure: "val step1_jobs"
       ontologies: []
 output:
@@ -68,9 +68,9 @@ output:
         The raw native summary statistics of every association actually exercised, one record per analysis unit per
         selected association method. `meta` is the focal analysis identity with `meta.method` added — one of
         `regenie`, `ldak_kvik` or `gcta_fastgwa` — because the analysis is what the published summary-statistics
-        directory is keyed by and the method is what distinguishes the files inside it. The REGENIE and LDAK-KVIK
-        Step 1 prediction keys, the synthetic fit identities those fits are addressed by and the fastGWA
-        analysis-id join key are all private to the route that computed them and appear in no emitted metadata.
+        directory is keyed by and the method is what distinguishes the files inside it. Explicit REGENIE and LDAK-KVIK
+        producer references and the fastGWA analysis join key remain tuple members within their callers;
+        emitted metadata contains the focal analysis and its producing method.
         The tables are not yet harmonised or canonical
       structure: "[map meta, path raw_summary_statistics]"
       pattern: "*.{regenie.gz,tsv,fastGWA}"

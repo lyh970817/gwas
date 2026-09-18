@@ -64,7 +64,7 @@ workflow ROUTE_ASSOCIATION_ANALYSES {
     PLINK_ASSOCIATION_REGENIE(ch_regenie_requests.fits, channel.empty(), ch_regenie_requests.tests)
 
     //
-    // SUBWORKFLOW: Pipeline route for LDAK-KVIK association with shared Step 1 predictions
+    // SUBWORKFLOW: Pipeline route for LDAK-KVIK association with shared predictor resources
     //
     // LDAK consumes the headerless phenotype serialisation and keeps quantitative and categorical
     // covariates separate, so it is narrowed out of the prepared headerless stream rather than the headered
