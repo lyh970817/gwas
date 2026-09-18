@@ -13,6 +13,9 @@ process LDAK_SUBGRM {
     tuple val(meta), path("${prefix}.grm.bin"), path("${prefix}.grm.id"), path("${prefix}.grm.details"), path("${prefix}.grm.adjust"), emit: sub_grm
     tuple val("${task.process}"), val("ldak6"), eval("ldak6 --version 2>&1 | grep -oP '(?<=^Version )[0-9.]+'"), emit: versions_ldak6, topic: versions
 
+    when:
+    task.ext.when == null || task.ext.when
+
     script:
     def args = task.ext.args ?: ''
     def grm_prefix = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.bin') }.toString().replaceFirst(/\.grm\.bin$/, '')
