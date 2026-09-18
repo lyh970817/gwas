@@ -28,7 +28,6 @@ nextflow_workflow {
         def files = (0..<5).collect { index -> parent(outputDir, "${id}_${index}", index * 0.05d) }
         def staged = files.collect { file -> "file('${file}', checkIfExists: true)" }.join(', ')
         """
-        params.mrmega_args = "--pc 1${trait == 'quantitative' ? ' --qt' : ''}"
         input[0] = Channel.of([
             [id: '${id}'],
             [${staged}],
@@ -89,6 +88,7 @@ nextflow_workflow {
     test("MR-MEGA selection runs one genome-wide native invocation") {
 
         when {
+            params { mrmega_args = '--pc 1 --qt' }
             workflow {
                 request(outputDir, 'mrmega', ['fixed', 'mrmega'])
             }
@@ -107,20 +107,35 @@ nextflow_workflow {
             )
         }
     }
-    test("binary MR-MEGA uses the declared binary export format") {
+    test("mixed traits configure native modes by preserved caller identity") {
         when {
-            workflow { request(outputDir, 'binary', ['fixed', 'mrmega'], 'binary') }
+            params { mrmega_args_by_id = [binary: '--pc 1', quantitative: '--pc 1 --qt'] }
+            def files = (0..<5).collect { index -> parent(outputDir, "mixed_${index}", index * 0.05d) }
+            def staged = files.collect { file -> "file('${file}', checkIfExists: true)" }.join(', ')
+            workflow {
+                """
+                input[0] = Channel.of(
+                    [[id: 'binary'], [${staged}], ['one', 'two', 'three', 'four', 'five'], 'gwaslab', 'GRCh37', 'binary', ['fixed', 'mrmega']],
+                    [[id: 'quantitative'], [${staged}], ['one', 'two', 'three', 'four', 'five'], 'gwaslab', 'GRCh37', 'quantitative', ['fixed', 'mrmega']],
+                )
+                """
+            }
         }
         then {
+            assert workflow.success
+            def results = workflow.out.mrmega_result.collectEntries { meta, result -> [meta.id, result] }
+            def logs = workflow.out.mrmega_log.collectEntries { meta, log -> [meta.id, new File(log.toString()).text] }
             assertAll(
-                { assert workflow.success },
-                { assert workflow.out.mrmega_result.get(0)[0] == [id: 'binary'] },
-                { assert new File(workflow.out.mrmega_log.get(0)[1].toString()).text.contains('Binary trait analysis') },
+                { assert workflow.out.mrmega_result.collect { row -> row[0] }.toSet() == [[id: 'binary'], [id: 'quantitative']].toSet() },
+                { assert logs.binary.contains('Binary trait analysis') },
+                { assert logs.quantitative.contains('Quantitative trait analysis') },
                 {
-                    def rows = new File(workflow.out.mrmega_result.get(0)[1].toString()).readLines()
-                    def header = rows[0].split('\t').toList()
-                    assert rows.size() == 31
-                    assert rows[1].split('\t')[header.indexOf('P-value_association')] != 'NA'
+                    results.each { id, result ->
+                        def rows = new File(result.toString()).readLines()
+                        def header = rows[0].split('\t').toList()
+                        assert rows.size() == 31
+                        assert rows[1].split('\t')[header.indexOf('P-value_association')] != 'NA'
+                    }
                 },
             )
         }
