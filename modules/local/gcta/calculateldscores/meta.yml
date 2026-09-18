@@ -89,7 +89,7 @@ topics:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/nf-core/gcta/calculateldscores/.conda-lock/linux_amd64-bd-9bc35dc424fcf6e9_1.txt"
+      lock_file: "modules/local/gcta/calculateldscores/.conda-lock/linux_amd64-bd-9bc35dc424fcf6e9_1.txt"
   docker:
     linux/amd64:
       build_id: "bd-9bc35dc424fcf6e9_1"

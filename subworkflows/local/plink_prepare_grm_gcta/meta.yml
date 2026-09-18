@@ -12,9 +12,9 @@ components:
   - custom/gctamergegrmparts
 input:
   - ch_genotypes:
-      description: PLINK multi-file bundle for the focal analysis. Public outputs retain meta.
+      description: PLINK multi-file bundle for the focal analysis. The manifest references the staged matching genotype, variant and sample basenames; public outputs retain meta.
       structure: [map meta, path mfile, path bed_pgen, path bim_pvar, path fam_psam]
-      pattern: "*.{mbfile,mpfile}, *.{bed,pgen}, *.{bim,pvar}, *.{fam,psam}"
+      pattern: "*.{mbfile,mpfile,txt}, *.{bed,pgen}, *.{bim,pvar}, *.{fam,psam}"
       ontologies:
         - edam: "http://edamontology.org/format_3003"
         - edam: "http://edamontology.org/format_2330"

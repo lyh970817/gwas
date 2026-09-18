@@ -67,7 +67,7 @@ topics:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/nf-core/custom/gctamergegrmparts/.conda-lock/linux_amd64-bd-838ba80435a629f8_1.txt"
+      lock_file: "modules/local/custom/gctamergegrmparts/.conda-lock/linux_amd64-bd-838ba80435a629f8_1.txt"
   docker:
     linux/amd64:
       build_id: "bd-838ba80435a629f8_1"

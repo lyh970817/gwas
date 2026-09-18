@@ -105,7 +105,7 @@ topics:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/nf-core/custom/gctastratifyldscores/.conda-lock/linux_amd64-bd-b0b5476e2e7a0872_1.txt"
+      lock_file: "modules/local/custom/gctastratifyldscores/.conda-lock/linux_amd64-bd-b0b5476e2e7a0872_1.txt"
   docker:
     linux/amd64:
       build_id: "bd-b0b5476e2e7a0872_1"
