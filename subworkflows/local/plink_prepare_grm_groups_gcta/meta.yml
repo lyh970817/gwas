@@ -21,18 +21,21 @@ input:
         - edam: "http://edamontology.org/format_3475"
         - edam: "http://edamontology.org/format_2330"
   - ch_genotypes:
-      description: PLINK1 multi-file bundle for the focal analysis in the second metadata-bearing tuple.
+      description: PLINK1 multi-file bundle for the focal analysis in the second metadata-bearing tuple. meta2.id equals meta.id.
       structure: [map meta2, path mfile, path bed, path bim, path fam]
       pattern: "*.mbfile, *.bed, *.bim, *.fam"
       ontologies:
         - edam: "http://edamontology.org/format_3003"
         - edam: "http://edamontology.org/format_2330"
   - ch_n_parts:
-      description: Requested GRM part count in the third metadata-bearing tuple.
+      description: Requested GRM part count in the third metadata-bearing tuple. meta3.id equals meta.id.
       structure: [map meta3, integer requested_parts]
 output:
   - grm_family:
-      description: Merged GRM bundles and their prefixes in declared group order, including a one-group family.
+      description: |
+        Merged GRM bundles and their prefixes in declared group order, including a one-group family. Each
+        prefix is `<meta.id>__<six-digit ordinal>_<group_id>`, so the declared group label names the native
+        matrix files and the variance components a consumer builds from them.
       structure: [map meta, path grm_files, list grm_prefixes]
       pattern: "*.grm.{bin,N.bin,id}"
       ontologies:

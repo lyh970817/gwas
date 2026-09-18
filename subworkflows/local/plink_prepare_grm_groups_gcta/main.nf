@@ -7,8 +7,8 @@ include { PLINK_PREPARE_GRM_GCTA } from '../plink_prepare_grm_gcta/main'
 workflow PLINK_PREPARE_GRM_GROUPS_GCTA {
     take:
     ch_groups // channel: [ val(meta), path(group_manifest), [ path(snp_group_file), ... ] ], ordered named-group table and referenced files
-    ch_genotypes // channel: [ val(meta2), path(mfile), path(bed), path(bim), path(fam) ], focal genotypes
-    ch_n_parts // channel: [ val(meta3), val(requested_parts) ], part count
+    ch_genotypes // channel: [ val(meta2), path(mfile), path(bed), path(bim), path(fam) ], focal genotypes; meta2.id equals meta.id
+    ch_n_parts // channel: [ val(meta3), val(requested_parts) ], part count; meta3.id equals meta.id
 
     main:
     ch_analysis_inputs = ch_groups
@@ -16,10 +16,13 @@ workflow PLINK_PREPARE_GRM_GROUPS_GCTA {
         .join(ch_genotypes.map { meta2, mfile, bed, bim, fam -> tuple(meta2.id, tuple(meta2, mfile, bed, bim, fam)) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
         .join(ch_n_parts.map { meta3, requested_parts -> tuple(meta3.id, requested_parts) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
 
+    // The declared group label is carried into the per-group work identity, so it survives into the native
+    // matrix basenames and into the public `grm_prefixes` the caller uses to name variance components. The
+    // leading ordinal keeps the key collision-free and sortable when two labels differ only in case.
     ch_group_state = ch_analysis_inputs.flatMap { _analysis_id, focal_meta, manifest, snp_group_files, genotypes, requested_parts ->
         readNamedGroups(manifest, snp_group_files).collect { component ->
             tuple(
-                [id: "${focal_meta.id}__${String.format('%06d', component.ordinal)}"],
+                [id: "${focal_meta.id}__${String.format('%06d', component.ordinal)}_${component.group_id}"],
                 focal_meta,
                 component.ordinal,
                 component.count,
@@ -55,12 +58,6 @@ workflow PLINK_PREPARE_GRM_GROUPS_GCTA {
     emit:
     grm_family = ch_grm_families // channel: [ val(meta), path(grm_files), val(grm_prefixes) ], declared group order
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
 
 def orderGroupMatrices(ordinals, grm_file_lists) {
     return [ordinals, grm_file_lists]

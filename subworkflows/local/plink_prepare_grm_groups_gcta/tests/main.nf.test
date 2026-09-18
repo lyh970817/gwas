@@ -91,7 +91,8 @@ nextflow_workflow {
                         root.mkdirs()
                         def variants = bim.readLines().findAll { line -> line.trim() }.collect { line -> line.split('\\t')[1] }
                         def keys = ['group_b', 'group_a']
-                        def halves = [variants[0..<110], variants[110..<variants.size()]]
+                        def midpoint = variants.size().intdiv(2)
+                        def halves = [variants[0..<midpoint], variants[midpoint..<variants.size()]]
                         def groups = [0, 1].collect { index ->
                             def target = new File(root, 'popgen_family_snp_group_' + keys[index] + '.txt')
                             target.text = halves[index].join('\\n') + '\\n'
@@ -119,21 +120,22 @@ nextflow_workflow {
                 { assert workflow.success },
                 { assert taskCount(workflow, 'GCTA_MAKEGRMPART') == 2 },
                 { assert taskCount(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 2 },
-                { assert family[2] == ['popgen_family__000001', 'popgen_family__000002'] },
+                // The declared group labels, not the internal scatter ordinal alone, name the native matrices.
+                { assert family[2] == ['popgen_family__000001_group_b', 'popgen_family__000002_group_a'] },
                 { assert grouped == [
-                    ['popgen_family__000001.grm.N.bin', 'popgen_family__000001.grm.bin', 'popgen_family__000001.grm.id'],
-                    ['popgen_family__000002.grm.N.bin', 'popgen_family__000002.grm.bin', 'popgen_family__000002.grm.id'],
+                    ['popgen_family__000001_group_b.grm.N.bin', 'popgen_family__000001_group_b.grm.bin', 'popgen_family__000001_group_b.grm.id'],
+                    ['popgen_family__000002_group_a.grm.N.bin', 'popgen_family__000002_group_a.grm.bin', 'popgen_family__000002_group_a.grm.id'],
                 ] },
                 // GCTA's dense GRM is a headerless row-major lower triangle of `float32`, so a complete matrix
                 // over the 200 fixture samples is exactly `4*200*201/2` bytes. A stratum built from only half
                 // the variants is still a full 200-by-200 matrix, which is what makes the family stackable.
-                { assert sizes['popgen_family__000001.grm.bin'] == 4 * 200 * 201 / 2 },
-                { assert sizes['popgen_family__000002.grm.bin'] == 4 * 200 * 201 / 2 },
-                { assert sizes['popgen_family__000001.grm.N.bin'] == 4 * 200 * 201 / 2 },
+                { assert sizes['popgen_family__000001_group_b.grm.bin'] == 4 * 200 * 201 / 2 },
+                { assert sizes['popgen_family__000002_group_a.grm.bin'] == 4 * 200 * 201 / 2 },
+                { assert sizes['popgen_family__000001_group_b.grm.N.bin'] == 4 * 200 * 201 / 2 },
                 // The two strata cover disjoint halves of the BIM, so their matrices are genuinely different
                 // rather than two names for the same construction.
-                { assert path(family[1].find { entry -> entry.toString().endsWith('popgen_family__000001.grm.bin') }).md5
-                    != path(family[1].find { entry -> entry.toString().endsWith('popgen_family__000002.grm.bin') }).md5 },
+                { assert path(family[1].find { entry -> entry.toString().endsWith('popgen_family__000001_group_b.grm.bin') }).md5
+                    != path(family[1].find { entry -> entry.toString().endsWith('popgen_family__000002_group_a.grm.bin') }).md5 },
                 { assert family[0] == [id: 'popgen_family'] },
                 // GCTA's `--make-grm-part` accumulation was measured to be thread-invariant on this fixture
                 // (`--thread-num` 1 and 4 gave one md5), so the family's byte content is snapshot-stable.
@@ -159,7 +161,7 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert workflow.out.grm_family.first()[0] == [id: 'single_family'] },
-                { assert workflow.out.grm_family.first()[2] == ['single_family__000001'] },
+                { assert workflow.out.grm_family.first()[2] == ['single_family__000001_all'] },
                 { assert taskCount(workflow, 'GCTA_MAKEGRMPART') == 2 },
                 { assert taskCount(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                 { assert snapshot(workflow.out).match() },
@@ -188,7 +190,7 @@ nextflow_workflow {
             assertAll(
                 { assert workflow.success },
                 { assert workflow.out.grm_family.first()[0] == [id: 'single_real'] },
-                { assert workflow.out.grm_family.first()[2] == ['single_real__000001'] },
+                { assert workflow.out.grm_family.first()[2] == ['single_real__000001_all'] },
                 { assert taskCount(workflow, 'GCTA_MAKEGRMPART') == 1 },
                 { assert taskCount(workflow, 'CUSTOM_GCTAMERGEGRMPARTS') == 1 },
                 { assert snapshot(workflow.out).match() },
