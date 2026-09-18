@@ -39,9 +39,9 @@ nextflow_workflow {
                 {
                     // Native prediction lists contain task paths; snapshot the public names and identities.
                     assert snapshot(
-                        workflow.out.predictions.collect { [it[0], path(it[1]).name] },
-                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).name }.sort()] },
-                        workflow.out.logs.collect { [it[0], path(it[1]).name] }.sort { it[1] }
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).getFileName().toString() }.sort()] },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[1] }
                     ).match()
                 }
             )
@@ -80,9 +80,9 @@ nextflow_workflow {
                 {
                     // Native prediction lists contain task paths; snapshot the public names and identities.
                     assert snapshot(
-                        workflow.out.predictions.collect { [it[0], path(it[1]).name] },
-                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).name }.sort()] },
-                        workflow.out.logs.collect { [it[0], path(it[1]).name] }.sort { it[1] }
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).getFileName().toString() }.sort()] },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[1] }
                     ).match()
                 }
             )
@@ -121,9 +121,9 @@ nextflow_workflow {
                 {
                     // Native prediction lists contain task paths; snapshot the public names and identities.
                     assert snapshot(
-                        workflow.out.predictions.collect { [it[0], path(it[1]).name] },
-                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).name }.sort()] },
-                        workflow.out.logs.collect { [it[0], path(it[1]).name] }.sort { it[1] }
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).getFileName().toString() }.sort()] },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[1] }
                     ).match()
                 }
             )
@@ -163,9 +163,9 @@ nextflow_workflow {
                 {
                     // Native prediction lists contain task paths; snapshot the public names and identities.
                     assert snapshot(
-                        workflow.out.predictions.collect { [it[0], path(it[1]).name] },
-                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).name }.sort()] },
-                        workflow.out.logs.collect { [it[0], path(it[1]).name] }.sort { it[1] }
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).getFileName().toString() }.sort()] },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[1] }
                     ).match()
                 }
             )
@@ -205,13 +205,43 @@ nextflow_workflow {
                 {
                     // Native prediction lists contain task paths; snapshot the public names and identities.
                     assert snapshot(
-                        workflow.out.predictions.collect { [it[0], path(it[1]).name] },
-                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).name }.sort()] },
-                        workflow.out.logs.collect { [it[0], path(it[1]).name] }.sort { it[1] }
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] },
+                        workflow.out.loco.collect { row -> [row[0], (row[1] instanceof List ? row[1] : [row[1]]).collect { path(it).getFileName().toString() }.sort()] },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[1] }
                     ).match()
                 }
             )
         }
     }
 
+    test("homo_sapiens popgen - mixed per-fit routes") {
+        when {
+            workflow {
+                """
+                def base = params.modules_testdata_base_path + 'genomics/homo_sapiens/popgen/'
+                def fits = [[id: 'standard', single_end: false], [id: 'chunked', single_end: false]]
+                input[0] = channel.fromList(fits).map { meta -> [meta, file(base + 'plink_simulated.bed'), file(base + 'plink_simulated.bim'), file(base + 'plink_simulated.fam')] }
+                input[1] = channel.fromList(fits).map { meta -> [meta, file(base + 'plink_simulated_quantitative_phenoname.phe')] }
+                input[2] = channel.fromList(fits).map { meta -> [meta, []] }
+                input[3] = channel.fromList(fits).map { meta -> [meta, 1000] }
+                input[4] = channel.fromList(fits).map { meta -> [meta, meta.id] }
+                input[5] = channel.of([[id: 'standard'], []], [[id: 'chunked'], 5])
+                """
+            }
+        }
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert workflow.out.predictions.collect { it[0] }.sort { it.id } == [[id: 'chunked', single_end: false], [id: 'standard', single_end: false]] },
+                { assert workflow.out.loco.collect { it[0] }.sort { it.id } == [[id: 'chunked', single_end: false], [id: 'standard', single_end: false]] },
+                { assert workflow.out.logs.countBy { it[0].id } == [standard: 1, chunked: 3] },
+                {
+                    assert snapshot(
+                        workflow.out.predictions.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[0].id },
+                        workflow.out.logs.collect { [it[0], path(it[1]).getFileName().toString()] }.sort { it[0].id + it[1] }
+                    ).match()
+                }
+            )
+        }
+    }
 }

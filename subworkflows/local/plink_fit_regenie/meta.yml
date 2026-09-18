@@ -38,7 +38,8 @@ input:
 output:
   - predictions:
       description: |
-        Complete native prediction list. Structure: [val(meta), path(predictions)].
+        Complete native prediction list. Set native --use-relative-path through ext.args on the fit
+        modules when moving the complete bundle to another location. Structure: [val(meta), path(predictions)].
   - loco:
       description: |
         All companion LOCO prediction files, staged together when consuming the prediction list.

@@ -411,8 +411,8 @@ nextflow_process {
             assertAll(
                 { assert process.success },
                 { assert process.out.results.get(0).get(0).id == 'cohort_alias' },
-                { assert path(process.out.results.get(0).get(1)).fileName.toString() == 'cohort_alias_QuantitativeTrait.regenie.gz' },
-                { assert path(process.out.log.get(0).get(1)).fileName.toString() == 'cohort_alias.log' },
+                { assert path(process.out.results.get(0).get(1)).fileName.toString() == 'cohort_alias.plink_simulated_QuantitativeTrait.regenie.gz' },
+                { assert path(process.out.log.get(0).get(1)).fileName.toString() == 'cohort_alias.plink_simulated.log' },
                 {
                     def stableResults = process.out.results.collect { result ->
                         [result[0], result[1]]

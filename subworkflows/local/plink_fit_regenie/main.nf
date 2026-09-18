@@ -56,6 +56,8 @@ workflow PLINK_FIT_REGENIE {
     }
     REGENIE_SPLITL0(ch_splitl0.genotypes, ch_splitl0.pheno, ch_splitl0.covar, ch_splitl0.bsize, ch_splitl0.n_l0_jobs)
 
+    // Native --run-l0 consumes the job number encoded in each emitted SNP-list name.
+    // Gather completion uses the emitted count because --split-l0 can produce fewer jobs than requested.
     ch_split_jobs = REGENIE_SPLITL0.out.master
         .map { meta, master -> tuple(meta.id, master) }
         .join(REGENIE_SPLITL0.out.snplists.map { meta, snplists -> tuple(meta.id, snplists) }, by: 0, failOnDuplicate: true, failOnMismatch: true)
