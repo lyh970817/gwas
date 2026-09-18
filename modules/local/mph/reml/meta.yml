@@ -16,16 +16,16 @@ tools:
         residual component, for the traits named in `--trait_names`.
 
         The trace estimator is stochastic, so `--seed` and `--num_random_vectors` move the point estimate and
-        not merely its standard error (issue #67). The thread count and `--save_memory` move it in the sixth
-        to seventh significant digit (issue #68). A caller reproducing a fit must hold all four fixed.
+        not merely its standard error. The thread count and `--save_memory` move it in the sixth
+        to seventh significant digit. A caller reproducing a fit must hold all four fixed.
 
-        MPH synthesises an intercept only when no covariate is named (issue #62). A `--covariate_file` given
+        MPH synthesises an intercept only when no covariate is named. A `--covariate_file` given
         with `--covariate_names` fits exactly the named columns and no intercept, so a caller that wants one must
         supply an explicit column of ones and name it. A `--covariate_file` given WITHOUT `--covariate_names`
         is silently ignored, and `--covariate_names` given without a file resolves the names against the
         phenotype file instead, so the two are always passed together or not at all.
 
-        A rank-deficient covariate design is a warning, not an error (issue #65): MPH prunes columns until the
+        A rank-deficient covariate design is a warning, not an error: MPH prunes columns until the
         design has full rank, names none of the columns it dropped, and writes a complete, normal-looking
         result. The column it drops can be the caller's own intercept. Reconciling the `covar` column of
         `.mq.blue.csv` against the requested names is the only way to detect it.
@@ -49,18 +49,14 @@ input:
     - grm_files:
         type: file
         description: |
-          One or more `[.grm.bin, .grm.iid]` MPH matrix bundles staged flat. Every component of one family
+          One or more native MPH `[.grm.bin, .grm.iid]` bundles in caller-declared component order.
+          Prefixes are derived from the staged `.grm.bin` members in that order. Every component of one family
           shares the same `.grm.iid`, whose line order is what MPH indexes the matrix by: a `.grm.iid` that
-          does not match its own `.grm.bin` produces a complete, stable, wrong result at exit 0 (issue #58).
-          GCTA bundles are not accepted either, and MPH does not usefully refuse one (issue #69).
+          does not match its own `.grm.bin` produces a complete, stable, wrong result at exit 0.
+          GCTA bundles are not accepted either, and MPH does not usefully refuse one.
         pattern: "*.grm.{bin,iid}"
         ontologies:
           - edam: "http://edamontology.org/format_2330"
-    - grm_prefixes:
-        type: list
-        description: |
-          The staged matrix prefixes in component order, written one per line to the `--grm_list` file. The
-          list order is the row order of the result, and each prefix appears verbatim as that row's `vc_name`.
   - - meta2:
         type: map
         description: |
@@ -77,7 +73,7 @@ input:
         type: list
         description: |
           The trait columns to fit, in order. Mandatory: omitting `--trait_names` prints an error and exits 0
-          having written nothing but the log (issue #55). A name absent from the header exits 1. More than
+          having written nothing but the log. A name absent from the header exits 1. More than
           one name makes this a multi-trait fit and adds `.mq.cor.csv` to the outputs.
   - - meta3:
         type: map
@@ -88,7 +84,7 @@ input:
         description: |
           Optional comma-separated covariate table with a header whose first column is the IID. Use `[]` for
           absence, which is a different model rather than an empty one: MPH synthesises an intercept only when
-          no covariate is named (issue #62). A sample with an empty covariate cell is dropped from the analysis
+          no covariate is named. A sample with an empty covariate cell is dropped from the analysis
           set.
         pattern: "*.csv"
         ontologies:
@@ -160,7 +156,7 @@ output:
           description: |
             Native genetic correlations for a multi-trait fit: one row per matrix plus `err` and the aggregate
             `G`. Written only when more than one trait is named. The `trait_x`/`trait_y` order is MPH's own and
-            has been observed reversed relative to `--trait_names` (issue #73), so a caller must select by name.
+            has been observed reversed relative to `--trait_names`, so a caller must select by name.
           pattern: "*.mq.cor.csv"
           ontologies:
             - edam: "http://edamontology.org/format_3752"
@@ -174,7 +170,7 @@ output:
           description: |
             Tee'd MPH standard output: the echoed option block including the effective thread count, the
             non-missing analysis set size, the random-vector line, the iteration trace, and the `Warning:` and
-            `Error:` lines MPH prints at exit 0 (issues #55, #65, #66).
+            `Error:` lines MPH prints at exit 0.
           pattern: "*.log"
           ontologies: []
   versions_mph:

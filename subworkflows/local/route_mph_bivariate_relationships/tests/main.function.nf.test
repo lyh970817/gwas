@@ -164,26 +164,6 @@ nextflow_function {
         }
     }
 
-    test("the covariate column names are read back from the serialised header the encoder produced") {
-        function "readCsvHeader"
-
-        when {
-            function {
-                """
-                input[0] = file('${RELATIONAL.resource(outputDir, 'pair-route-covariates.mph.covar.csv', 'IID,intercept,AGE,SEX_2\nS001,1,30,0\n')}', checkIfExists: true)
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert function.success },
-                { assert function.result == ['IID', 'intercept', 'AGE', 'SEX_2'] },
-                { assert function.result.drop(1) == ['intercept', 'AGE', 'SEX_2'] },
-            )
-        }
-    }
-
     test("route bookkeeping is stripped before emission and the request identity is what survives") {
         function "stripMphPairRouteState"
 

@@ -53,7 +53,7 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'CUSTOM_GCTASTRATIFYLDSCORES') == 1 },
                 { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 2 },
                 { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 3 },
-                { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_PREPAREMPHINPUTS') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
@@ -311,7 +311,7 @@ nextflow_pipeline {
             def unchanged = RESUME.rerun(outputDir, [:])
             assertAll(
                 { assert RESUME.statuses(unchanged, 'MPH_REML') == ['CACHED'] },
-                { assert RESUME.statuses(unchanged, 'PREPARE_MPH_INPUTS') == ['CACHED'] },
+                { assert RESUME.statuses(unchanged, 'CUSTOM_PREPAREMPHINPUTS') == ['CACHED'] },
                 { assert new File("${params.outdir}/heritability/individual/mph_reml_ldms/example_pgen_qt/example_pgen_qt.mph_reml_ldms.mq.vc.csv").readLines() == baselineResults },
             )
             def rerun = RESUME.rerun(outputDir, [
@@ -333,7 +333,7 @@ nextflow_pipeline {
                     == baselineResults.collect { line -> line.split(',').take(3) } },
                 // The serializer reruns too, because the route metadata carries the effective settings in its task
                 // identity; the CSVs it writes are byte-identical either way.
-                { assert RESUME.statuses(rerun, 'PREPARE_MPH_INPUTS') == ['COMPLETED'] },
+                { assert RESUME.statuses(rerun, 'CUSTOM_PREPAREMPHINPUTS') == ['COMPLETED'] },
             )
         }
     }
