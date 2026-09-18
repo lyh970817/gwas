@@ -46,8 +46,16 @@ workflow PLINK_ASSOCIATION_REGENIE {
         }
     REGENIE_STEP2(ch_step2.genotypes, ch_step2.predictions, ch_step2.pheno, ch_step2.covar, ch_step2.bsize)
 
+    // The nested fitter reports under the private producer key; restore the caller's metadata as on the
+    // prediction artifact so a fit stage stays diagnosable from this boundary.
+    ch_fit_logs = PLINK_FIT_REGENIE.out.logs
+        .map { meta, log -> tuple(meta.id, log) }
+        .combine(ch_fit_metadata, by: 0)
+        .map { fit_id, log, meta -> tuple(fit_id, meta, log) }
+
     emit:
     predictions = ch_bundles // channel: [ val(fit_id), val(meta), path(predictions), path(loco) ]; once per explicit producer
     results     = REGENIE_STEP2.out.results // channel: [ val(meta), path(results) ]; native files per test event, no chromosome merge
     logs        = REGENIE_STEP2.out.log // channel: [ val(meta), path(log) ]; test-event logs
+    fit_logs    = ch_fit_logs // channel: [ val(fit_id), val(meta), path(log) ]; native logs of every fit stage this call ran
 }
