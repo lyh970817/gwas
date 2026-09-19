@@ -4,6 +4,7 @@ nextflow_workflow {
     workflow "ROUTE_META_ANALYSIS"
     config "./nextflow.config"
     tag "subworkflows"
+    tag "subworkflows_local"
     tag "meta_analysis"
 
     def parents = { directory ->

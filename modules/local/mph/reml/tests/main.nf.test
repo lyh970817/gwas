@@ -6,7 +6,7 @@ nextflow_process {
     process "MPH_REML"
 
     tag "modules"
-    tag "modules_local"
+    tag "modules_nfcore"
     tag "mph"
     tag "mph/reml"
     tag "mph/makegrm"

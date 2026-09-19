@@ -4,6 +4,7 @@ nextflow_workflow {
     workflow "SUMSTATS_HERITABILITY_LDSC"
     config "./nextflow.config"
     tag "subworkflows"
+    tag "subworkflows_nfcore"
     tag "subworkflows/sumstats_heritability_ldsc"
     tag "ldsc/mungesumstats"
     tag "ldsc/h2"

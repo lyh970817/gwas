@@ -4,6 +4,7 @@ nextflow_workflow {
     workflow "SUMSTATS_GENETICCORRELATION_LDSC"
     config "./nextflow.config"
     tag "subworkflows"
+    tag "subworkflows_nfcore"
     tag "subworkflows/sumstats_geneticcorrelation_ldsc"
     tag "ldsc/mungesumstats"
     tag "ldsc/rg"

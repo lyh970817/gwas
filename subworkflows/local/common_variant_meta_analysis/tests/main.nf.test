@@ -6,7 +6,7 @@ nextflow_workflow {
     config "./nextflow.config"
 
     tag "subworkflows"
-    tag "subworkflows_local"
+    tag "subworkflows_nfcore"
     tag "common_variant_meta_analysis"
     tag "subworkflows/common_variant_meta_analysis"
     tag "gwaslab/metaanalyze"

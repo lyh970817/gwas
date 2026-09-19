@@ -4,6 +4,7 @@ nextflow_workflow {
     script "../main.nf"
     workflow "ROUTE_LDAK_DIRECT_HERITABILITY"
     tag "subworkflow"
+    tag "subworkflows_local"
     tag "heritability"
     tag "ldak"
     tag "ldak_fast"

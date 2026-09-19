@@ -4,6 +4,7 @@ nextflow_workflow {
     script "../main.nf"
     workflow "ROUTE_ASSOCIATION_ANALYSES"
     tag "subworkflow"
+    tag "subworkflows_local"
     tag "association"
     tag "regenie"
     tag "ldak"
