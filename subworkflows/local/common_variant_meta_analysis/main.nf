@@ -10,20 +10,13 @@ workflow COMMON_VARIANT_META_ANALYSIS {
     ch_request // channel: [ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models) ]
 
     main:
-    ch_validated = ch_request.map { meta, parents, study_names, input_format, genome_build, trait_type, models ->
-        if (!models.contains('fixed') || models.any { model -> !(model in ['fixed', 'random', 're2', 'mrmega']) }) {
-            error("COMMON_VARIANT_META_ANALYSIS requires fixed and supports only fixed, random, re2 and mrmega models")
-        }
-        [meta, parents, study_names, input_format, genome_build, trait_type, models]
-    }
-
     GWASLAB_METAANALYZE(
-        ch_validated.map { meta, parents, study_names, input_format, genome_build, _trait_type, models ->
+        ch_request.map { meta, parents, study_names, input_format, genome_build, _trait_type, models ->
             [meta, parents, study_names, input_format, genome_build, models.contains('random')]
         }
     )
 
-    ch_selection = ch_validated.map { meta, _parents, study_names, _input_format, _genome_build, trait_type, models ->
+    ch_selection = ch_request.map { meta, _parents, study_names, _input_format, _genome_build, trait_type, models ->
         [meta, study_names, trait_type, models]
     }
 
