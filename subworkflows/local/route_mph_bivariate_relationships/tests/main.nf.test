@@ -141,7 +141,7 @@ nextflow_workflow {
                 { assert workflow.success },
                 // One prepared pair reaches two requests, and each request runs the whole chain once. The
                 // preparation is shared; the fits and the records are not.
-                { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 2 },
+                { assert TRACE.count(workflow, 'CUSTOM_PREPAREMPHINPUTS') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
                 { assert methods == ['mph_bivariate_reml', 'mph_bivariate_reml_ldms'] },
                 // A multi-trait fit produces the correlation result, so every emit is populated for every
@@ -158,7 +158,6 @@ nextflow_workflow {
                 { assert workflow.out.bivariate_results.every { record -> record[0].relationship_id == 'qt_qt2' } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('matrix_key') } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_effective') } },
-                { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_trait_names') } },
                 { assert workflow.out.bivariate_results.every { record -> !record[0].containsKey('mph_estimator') } },
             )
         }
@@ -187,7 +186,7 @@ nextflow_workflow {
             // this controller's work and must produce no task at all rather than an unmatched join.
             assertAll(
                 { assert workflow.success },
-                { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 0 },
+                { assert TRACE.count(workflow, 'CUSTOM_PREPAREMPHINPUTS') == 0 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 0 },
                 { assert workflow.out.bivariate_results.size() == 0 },
             )

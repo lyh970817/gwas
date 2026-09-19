@@ -5,11 +5,7 @@
                 "covariates": [
                     [
                         {
-                            "id": "analysis",
-                            "mph_trait_names": [
-                                "PHENO"
-                            ],
-                            "trait": "QT"
+                            "id": "analysis"
                         },
                         "analysis.mph.covar.csv:md5,48c005b556a48a878a885f3c77943438"
                     ]
@@ -17,17 +13,13 @@
                 "phenotype": [
                     [
                         {
-                            "id": "analysis",
-                            "mph_trait_names": [
-                                "PHENO"
-                            ],
-                            "trait": "QT"
+                            "id": "analysis"
                         },
                         "analysis.mph.pheno.csv:md5,925b449b905d6cd9fe7454d805b55c56"
                     ]
                 ],
                 "versions": [
-                    "versions.yml:md5,5c433fdcf8f13afd6708a2f3c09f4d90"
+                    "versions.yml:md5,76b758b74b20c18b3f0acb6e89bf3346"
                 ]
             }
         ],
@@ -43,11 +35,7 @@
                 "covariates": [
                     [
                         {
-                            "id": "analysis",
-                            "mph_trait_names": [
-                                "PHENO"
-                            ],
-                            "trait": "QT"
+                            "id": "analysis"
                         },
                         "analysis.mph.covar.csv:md5,653f4ca5cb9c5d3069db2f3446e7a8e6"
                     ]
@@ -55,17 +43,13 @@
                 "phenotype": [
                     [
                         {
-                            "id": "analysis",
-                            "mph_trait_names": [
-                                "PHENO"
-                            ],
-                            "trait": "QT"
+                            "id": "analysis"
                         },
                         "analysis.mph.pheno.csv:md5,a047fd81da53d0aa8232a68e9a2d3bb3"
                     ]
                 ],
                 "versions": [
-                    "versions.yml:md5,5c433fdcf8f13afd6708a2f3c09f4d90"
+                    "versions.yml:md5,76b758b74b20c18b3f0acb6e89bf3346"
                 ]
             }
         ],
