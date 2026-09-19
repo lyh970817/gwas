@@ -17,6 +17,8 @@ commands, runtime matrices, stopping gates, evidence, and reporting.
 
 - Module tests use `tests/main.nf.test`; subworkflow tests use the standard `nextflow_workflow` wrapper. Dotted
   infixes may distinguish genuine scenario variants. Snapshots sit beside the matching test.
+- One family tag names the component's track: an upstream-bound suite carries `modules_nfcore` or
+  `subworkflows_nfcore` and a pipeline-owned one carries `modules_local` or `subworkflows_local`, never both.
 - Cover each distinct output type or extension, each real composition route, and every optional-input, selector,
   or skip path that changes behavior. Include representative stub coverage and valid compressed stub files.
 - Tests are deterministic. Do not branch on fixed per-case inputs, rely on timestamps/random IDs/unordered output
