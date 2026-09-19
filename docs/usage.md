@@ -479,7 +479,7 @@ Both MPH routes run on a `linux/amd64` image and only there: the binary is stati
 
 | REGENIE option      | Type and default         | Consumer and constraints                                                                             |
 | ------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `step1_bsize`       | Positive integer; `1000` | Step 1 fitted-model block size; participates in prediction-reuse identity.                           |
+| `step1_bsize`       | Positive integer; `1000` | Block size for the analysis's own Step 1 fit.                                                        |
 | `firth`             | Boolean; `true`          | Binary traits only; enable Firth fallback in Step 2.                                                 |
 | `firth_approx`      | Boolean; `true`          | Binary traits only; requires `firth` when explicitly enabled.                                        |
 | `firth_p_threshold` | Number; `0.01`           | Binary traits only; greater than `0` and at most `1`, and requires `firth` when explicitly supplied. |
