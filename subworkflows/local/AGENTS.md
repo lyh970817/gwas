@@ -10,9 +10,9 @@ upstream-prepared module or reusable subworkflow that satisfies the applicable c
 dependencies may still be prepared local candidates rather than already merged upstream, but submission
 readiness covers the complete dependency graph.
 
-`route_*`, `prepare_cohort_genotypes`, `prepare_relatedness_matrices`, `prepare_relationship_traits`, and
-`utils_nfcore_gwas_pipeline` own pipeline routing, reuse identity, relational-input policy, or pipeline
-utilities. They are not component-library submission candidates and must not appear in the dependency graph of
+`route_*`, `fit_mph_reml`, `prepare_cohort_genotypes`, `prepare_relatedness_matrices`,
+`prepare_relationship_traits`, and `utils_nfcore_gwas_pipeline` own pipeline routing, reuse identity,
+relational-input policy, or pipeline utilities. They are not component-library submission candidates and must not appear in the dependency graph of
 an upstream-bound subworkflow. Keep their policy out of reusable compositions.
 `prepare_relationship_traits` in particular owns relationship de-duplication and endpoint resolution against
 the prepared phenotypes, so it is measured against pipeline architecture rather than the reusable-composition
