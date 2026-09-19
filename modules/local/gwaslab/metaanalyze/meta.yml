@@ -21,7 +21,8 @@ input:
         description: Groovy Map containing the meta-analysis request information
     - sumstats:
         type: file
-        description: Ordered parent GWAS summary-statistics files
+        description: Ordered parent GWAS summary-statistics files. Declaration order defines study order, and parents
+          sharing one basename are supported because each is staged into its own indexed parents?? subdirectory
         pattern: "*.{tsv,tsv.gz}"
         ontologies:
           - edam: "http://edamontology.org/format_3475"

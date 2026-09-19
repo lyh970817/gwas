@@ -8,7 +8,7 @@ keywords:
   - meta-regression of multi-ancestry genetic association studies
 tools:
   - python:
-      description: Repository-authored aligned-summary to MR-MEGA format conversion
+      description: Python programming language interpreter
       homepage: "https://www.python.org/"
       documentation: "https://docs.python.org/3/"
       licence: ["PSF-2.0"]
