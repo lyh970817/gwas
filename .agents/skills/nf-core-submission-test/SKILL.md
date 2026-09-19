@@ -20,7 +20,9 @@ topics only for unresolved upstream detail.
 4. Debug narrowly with `nf-test test <test-file> --profile=docker --verbose`.
 5. Run `nf-core modules lint <component>` or `nf-core subworkflows lint <component>`, then the matching wrapper.
 6. Before PR readiness, run the wrapper under Docker, Singularity, and Conda. Do not use `--once` as final
-   evidence; report a missing local runtime as an incomplete readiness gate.
+   evidence; report a missing local runtime as an incomplete readiness gate. On a host with less RAM than
+   the 15 GB `nf-core/modules` declares per process, pass `host_resources.config` beside this skill as
+   `-c` so the run is admitted; it caps resources and changes no committed resource label.
 7. Update snapshots only when the output change is intentional and understood. Prefer fixing the contract over
    weakening assertions.
 8. Validate with the version of `nf-core` pinned by the target CI and current upstream state. If a merge queue or
