@@ -28,7 +28,7 @@ process GCTA_REMLLDMS {
     def qcovar_param = quant_covariates_file ? "--qcovar \"${quant_covariates_file}\"" : ''
     def covar_param = cat_covariates_file ? "--covar \"${cat_covariates_file}\"" : ''
     """
-    printf '%s\n' ${mgrm_entries} > "${mgrm_file}"
+    printf '%s\\n' ${mgrm_entries} > "${mgrm_file}"
 
     gcta \\
         --reml \\
