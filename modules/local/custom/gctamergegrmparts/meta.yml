@@ -1,6 +1,13 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
 name: "custom_gctamergegrmparts"
-description: Concatenate explicitly ordered row-partitioned GCTA dense GRM files into one bundle
+description: |
+  Concatenate explicitly ordered row-partitioned GCTA dense GRM files into one bundle. `cat` joins three
+  corresponding ordered lists -- GRM values (`.grm.bin`), per-pair marker counts (`.grm.N.bin`) and sample
+  identifiers (`.grm.id`) -- in the order the caller supplies, which is the numeric part order of one GCTA
+  `--make-grm-part` operation and need not be the lexical order of the file names. The module performs no
+  SNP-group planning, cohort selection, normalisation or scientific recomputation, and preserves the
+  incoming metadata. GNU coreutils is the executable owner and version provider; no helper package is
+  required.
 keywords:
   - gcta
   - genome-wide complex trait analysis

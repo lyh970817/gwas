@@ -1,6 +1,14 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
 name: "custom_gctastratifyldscores"
-description: Stratify GCTA individual-SNP LD scores into explicit LD-by-MAF predictor groups
+description: |
+  Stratify GCTA individual-SNP LD scores into explicit LD-by-MAF predictor groups. MAF is
+  `min(freq, 1 - freq)` and the LD boundaries are R type-7 quantiles of the caller's bin count. An
+  interval includes its lower boundary and excludes its upper one, except for the final interval on each
+  axis, which includes both; empty groups are omitted. Both emitted tables carry the same LD-major,
+  MAF-minor row order and name their groups `ld01_maf01`, and the group files partition the scored
+  variants rather than the original genotype bundle. The module owns the R template
+  `templates/gcta_stratify_ldscores.R`, which runs under R 4.2.1, depends on no pipeline metadata, method
+  name or matrix builder, and is versioned independently as `gcta_stratify_ldscores` 1.0.0.
 keywords:
   - gcta
   - genome-wide complex trait analysis
