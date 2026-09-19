@@ -1,12 +1,14 @@
 nextflow_process {
 
-    name "Test Process PREPARE_MRMEGA_INPUT"
+    name "Test Process CUSTOM_PREPAREMRMEGAINPUT"
     script "../main.nf"
-    process "PREPARE_MRMEGA_INPUT"
+    process "CUSTOM_PREPAREMRMEGAINPUT"
+    config "./nextflow.config"
 
     tag "modules"
     tag "modules_local"
-    tag "prepare_mrmega_input"
+    tag "custom"
+    tag "custom/preparemrmegainput"
 
     def aligned = { directory, name ->
         def target = new File(directory.toString(), "${name}.tsv.gz")
@@ -77,7 +79,7 @@ nextflow_process {
         }
     }
 
-    test("stub emits the staged file-list contract") {
+    test("emits the staged file-list contract - stub") {
         options "-stub"
 
         when {

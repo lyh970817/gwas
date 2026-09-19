@@ -1,17 +1,18 @@
 nextflow_process {
 
-    name "Test Process GWASLAB_META_ANALYZE"
+    name "Test Process GWASLAB_METAANALYZE"
     script "../main.nf"
-    process "GWASLAB_META_ANALYZE"
+    process "GWASLAB_METAANALYZE"
     config "./nextflow.config"
 
     tag "modules"
     tag "modules_local"
     tag "gwaslab"
-    tag "gwaslab_meta_analyze"
+    tag "gwaslab_metaanalyze"
 
     def parent = { directory, name, beta ->
         def target = new File(directory.toString(), "${name}.tsv")
+        target.parentFile.mkdirs()
         target.text = 'SNPID\tCHR\tPOS\tEA\tNEA\tSTATUS\tEAF\tBETA\tSE\tP\tN\n' +
             "rs1\t1\t1000\tA\tG\t9999999\t0.25\t${beta}\t0.02\t1e-6\t4000\n" +
             "rs2\t1\t2000\tC\tT\t9999999\t0.40\t0.2\t0.04\t1e-4\t4000\n"
@@ -24,9 +25,9 @@ nextflow_process {
 
     test("GWASLab emits fixed effects and deterministic native adapter products") {
         when {
-            def one = parent(outputDir, 'one', '0.10')
-            def two = parent(outputDir, 'two', '0.14')
-            def three = parent(outputDir, 'three', '0.08')
+            def one = parent(new File(outputDir.toString(), 'one'), 'sumstats', '0.10')
+            def two = parent(new File(outputDir.toString(), 'two'), 'sumstats', '0.14')
+            def three = parent(new File(outputDir.toString(), 'three'), 'sumstats', '0.08')
             process {
                 """
                 input[0] = [
@@ -102,7 +103,7 @@ nextflow_process {
         }
     }
 
-    test("stub preserves random-effect absence") {
+    test("preserves random-effect absence - stub") {
         options "-stub"
 
         when {

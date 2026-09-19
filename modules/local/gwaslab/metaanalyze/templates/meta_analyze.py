@@ -6,9 +6,9 @@ import json
 import os
 import sys
 
-# Programme-level compensation, approved 2026-09-09: importing GWASLab as a non-root
-# container user raises RuntimeError when Numba cache=True targets the read-only package
-# directory (#48). Retire when the bioconda::gwaslab pin moves past the fix.
+# GWASLab 4.1.9 imports with Numba cache=True targeting a read-only package directory
+# for non-root container users. Use writable cache locations so the import succeeds;
+# retire this compensation when the bioconda::gwaslab pin contains the upstream fix.
 os.environ.setdefault("NUMBA_CACHE_DIR", os.path.abspath(".numba_cache"))
 os.environ.setdefault("MPLCONFIGDIR", os.path.abspath(".matplotlib"))
 
@@ -59,9 +59,6 @@ def main():
         objects,
         group_name=prefix,
         build=BUILDS[genome_build],
-        engine="pandas",
-        merge_by_id=False,
-        keep_all_variants=True,
         verbose=False,
     )
     aligned = multi.data.copy()
@@ -84,6 +81,7 @@ def main():
     )
     aligned.insert(0, "META_VARIANT_KEY", key)
 
+    # METASOFT consumes an ordered beta/SE matrix rather than the aligned GWASLab table.
     with open("{}.metasoft.input.txt".format(prefix), "w", encoding="utf-8", newline="\\n") as handle:
         for _, row in aligned.iterrows():
             fields = [str(row["META_VARIANT_KEY"])]
@@ -96,6 +94,7 @@ def main():
                     fields.extend([exact(beta), exact(error)])
             handle.write(" ".join(fields) + "\\n")
 
+    # The portable MR-MEGA exporter consumes this explicit aligned-study schema.
     view_columns = ["META_VARIANT_KEY", "SNPID", "CHR", "POS", "EA", "NEA"]
     for index in range(1, study_count + 1):
         view_columns.extend(
