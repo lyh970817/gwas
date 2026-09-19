@@ -10,7 +10,7 @@ nextflow_process {
     tag "ldsc"
     tag "ldsc_h2"
 
-    def inputs = { outputDir, name, valid = true ->
+    def inputs = { outputDir, name ->
         def root = new File(outputDir.toString(), "fixture_${name}")
         def reference = new File(root, 'reference')
         def weights = new File(root, 'weights')
@@ -42,8 +42,7 @@ nextflow_process {
             writeGzip(new File(weights, "${chromosome}.l2.ldscore.gz"), "CHR\tSNP\tBP\tL2\n${weightRows.join('\n')}\n")
         }
         def sumstats = new File(root, "${name}.sumstats.gz")
-        def body = valid ? "SNP\tA1\tA2\tZ\tN\n${rows.join('\n')}\n" : "SNP\tA1\tA2\tN\nrs1\tA\tG\t10000\n"
-        writeGzip(sumstats, body)
+        writeGzip(sumstats, "SNP\tA1\tA2\tZ\tN\n${rows.join('\n')}\n")
         [sumstats: sumstats, reference: reference, weights: weights]
     }
 

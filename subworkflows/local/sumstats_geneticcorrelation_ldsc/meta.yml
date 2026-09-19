@@ -11,34 +11,43 @@ components:
 input:
   - ch_producers:
       description: |
-        Structure: [ val(meta), path(sumstats), val(meta2), path(merge_alleles) ]
-        Producer meta.id is unique and referenced by at least one request. Producer metadata
-        propagates unchanged to preparation outputs. sumstats is a native association summary
-        table (*.txt, *.tsv, *.csv, or gzipped). meta2 identifies the optional merge-allele
-        resource (*.txt, *.tsv, *.snplist); supply [] as merge_alleles to omit it.
+        Declared summary-statistics endpoints, each munged exactly once even when several pairs
+        share it. Producer meta.id is unique and referenced by at least one pair, and producer
+        metadata propagates unchanged to the preparation outputs. sumstats is a native association
+        summary table; meta2 identifies the merge-allele resource, normally the HapMap3
+        `w_hm3.snplist`, which is optional per producer and omitted by supplying [] as merge_alleles.
+      structure: "[map meta, path sumstats, map meta2, path merge_alleles|[]]"
+      pattern: "*.{txt,tsv,csv,txt.gz,tsv.gz,csv.gz}, *.{txt,tsv,snplist}"
+      ontologies: []
   - ch_pairs:
       description: |
-        Structure: [ val(meta), val(meta2), path(reference_ld_scores), val(meta3), path(regression_weights), val(left_producer_id), val(right_producer_id) ]
-        Focal request metadata is preserved unchanged on the fitted log. Left and right producer ids reference producer meta.id in native RG order; pair meta.id is unique.
-        meta2 identifies the chromosome-prefix reference LD-score directory; meta3 identifies
-        the separate regression-weight directory. Native optional fit arguments belong in
-        task.ext.args. The caller owns reference selection, prevalence, and publication policy.
+        Ordered endpoint pairs, one per focal fit. Pair meta.id is unique, focal pair metadata is
+        preserved unchanged on the fitted log, and the left and right producer ids reference
+        producer meta.id in native `--rg` order. meta2 identifies the reference LD-score directory
+        and meta3 the separate regression-weight directory; each holds per-chromosome `<chr>.l2.*`
+        files at its top level. Native optional fit arguments belong in task.ext.args. The caller
+        owns reference selection, prevalence, and publication policy.
+      structure:
+        "[map meta, map meta2, path reference_ld_scores, map meta3, path regression_weights,
+        string left_producer_id, string right_producer_id]"
+      pattern: "*.l2.{ldscore.gz,M_5_50}"
+      ontologies: []
 output:
   - munged_sumstats:
-      description: |
-        Structure: [ val(meta), path(sumstats) ]
-        One *.sumstats.gz product per declared producer with original producer metadata.
+      description: One LDSC summary-statistics product per declared producer, with producer metadata.
+      structure: [map meta, path sumstats]
       pattern: "*.sumstats.gz"
+      ontologies: []
   - munging_log:
-      description: |
-        Structure: [ val(meta), path(log) ]
-        Native preparation log (*.log) with original producer metadata.
+      description: Native preparation log per declared producer, with producer metadata.
+      structure: [map meta, path log]
       pattern: "*.log"
+      ontologies: []
   - rg_log:
-      description: |
-        Structure: [ val(meta), path(log) ]
-        Native genetic correlation log (*.log) with original focal ordered pair metadata.
+      description: Native genetic correlation log per ordered pair, with the focal pair metadata.
+      structure: [map meta, path log]
       pattern: "*.log"
+      ontologies: []
 authors:
   - "@lyh970817"
 maintainers:
