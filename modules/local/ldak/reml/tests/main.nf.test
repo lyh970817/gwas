@@ -104,6 +104,7 @@ nextflow_process {
     test("explicit sample subset with quantitative and categorical covariates") {
 
         when {
+            params { module_args = '--mpheno 1 --random-seed 7' }
 
             process {
                 """
@@ -127,6 +128,7 @@ nextflow_process {
     test("quantitative phenotype") {
 
         when {
+            params { module_args = '--mpheno 1 --random-seed 7' }
 
             process {
                 """

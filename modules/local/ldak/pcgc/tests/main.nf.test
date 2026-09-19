@@ -51,6 +51,7 @@ nextflow_process {
     test("native operation") {
 
         when {
+            params { module_args = '--mpheno 1 --random-seed 7' }
 
             process {
                 """
@@ -74,6 +75,7 @@ nextflow_process {
     test("explicit sample subset") {
 
         when {
+            params { module_args = '--mpheno 1 --random-seed 7' }
 
             process {
                 """
