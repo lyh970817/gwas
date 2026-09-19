@@ -8,7 +8,7 @@ nextflow_process {
     tag "modules"
     tag "modules_nfcore"
     tag "gwaslab"
-    tag "gwaslab_metaanalyze"
+    tag "gwaslab/metaanalyze"
 
     def parent = { directory, name, beta ->
         def target = new File(directory.toString(), "${name}.tsv")

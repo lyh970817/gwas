@@ -8,7 +8,7 @@ nextflow_process {
     tag "modules"
     tag "modules_nfcore"
     tag "ldsc"
-    tag "ldsc_mungesumstats"
+    tag "ldsc/mungesumstats"
 
     // The reference list is a proper subset of the scored variants, so the two munge cases cannot
     // produce the same file. `--merge-alleles` writes the reference's own rows in the reference's

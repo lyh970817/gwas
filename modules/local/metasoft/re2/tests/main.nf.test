@@ -8,7 +8,7 @@ nextflow_process {
     tag "modules"
     tag "modules_nfcore"
     tag "metasoft"
-    tag "metasoft_re2"
+    tag "metasoft/re2"
 
     def matrix = { directory, name, rows ->
         def target = new File(directory.toString(), "${name}.txt")
