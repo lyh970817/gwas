@@ -55,14 +55,6 @@ process LDAK_REML {
 
     stub:
     def prefix = task.ext.prefix ?: meta.id
-    def liability_outputs = (task.ext.args ?: '').tokenize().contains('--prevalence')
-        ? """
-    touch "${prefix}.reml.liab"
-    touch "${prefix}.coeff.liab"
-    touch "${prefix}.indi.blp.liab"
-    touch "${prefix}.factor"
-    """
-        : ''
     """
     touch "${prefix}.reml"
     touch "${prefix}.coeff"
@@ -73,7 +65,10 @@ process LDAK_REML {
     touch "${prefix}.progress"
     touch "${prefix}.share"
     touch "${prefix}.vars"
+    touch "${prefix}.reml.liab"
+    touch "${prefix}.coeff.liab"
+    touch "${prefix}.indi.blp.liab"
+    touch "${prefix}.factor"
     touch "${prefix}.log"
-    ${liability_outputs}
     """
 }
