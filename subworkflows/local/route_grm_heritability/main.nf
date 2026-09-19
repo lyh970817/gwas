@@ -49,7 +49,9 @@ workflow ROUTE_GRM_HERITABILITY {
     GCTA_REML(ch_greml_inputs.grm, ch_greml_inputs.pheno, ch_greml_inputs.qcovar, ch_greml_inputs.covar)
 
     // GCTA's component order is scientific result identity; order complete staged bundles by the planner's
-    // declared family before the native module derives its MGRM entries from their filenames.
+    // declared family before the native module derives its MGRM entries from their filenames. The declared
+    // family and the staged bundle are two members of one `PLINK_PREPARE_GRM_LDMS_GCTA.out.grm_family`
+    // emission, so every declared prefix has its files here and the ordering never drops a component.
     def ch_ldms_inputs = ch_greml_routes.greml_ldms.multiMap { meta, grm_files, grm_prefixes, estimator, phenotype, quant_covariates, cat_covariates ->
         def route_meta = meta + [gcta_estimator: estimator]
         grm: [route_meta, grm_prefixes.collectMany { grm_prefix -> grm_files.findAll { grm_file -> grm_file.name.startsWith("${grm_prefix}.grm.") } }]
