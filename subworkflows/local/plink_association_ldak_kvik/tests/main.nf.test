@@ -6,6 +6,7 @@ nextflow_workflow {
     tag "subworkflows"
     tag "subworkflows_nfcore"
     tag "plink_association_ldak_kvik"
+    tag "subworkflows/plink_association_ldak_kvik"
     tag "ldak/kvikstep1"
     tag "ldak/kvikstep2"
     tag "ldak/thincommon"
