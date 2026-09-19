@@ -1,5 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
-name: custom_preparemphinputs
+name: prepare_mph_inputs
 description: Convert FID/IID sample tables and a declared covariate design to ordered IID-keyed MPH CSVs
 keywords:
 - mph
@@ -132,4 +131,4 @@ containers:
       https: https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/18/1841daa69f98a0b0ffcb8f545070c8350a75febb167202136eab0990131d31c0/data
   conda:
     linux/amd64:
-      lock_file: modules/local/custom/preparemphinputs/.conda-lock/linux_amd64-bd-dc8358b3c5eeb927_1.txt
+      lock_file: modules/local/prepare_mph_inputs/.conda-lock/linux_amd64-bd-dc8358b3c5eeb927_1.txt

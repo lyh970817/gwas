@@ -25,7 +25,7 @@ MISSING_TOKENS = frozenset(value.strip().lower() for value in json.loads($missin
 
 
 def fail(message):
-    sys.exit("preparemphinputs: sample set '{}': {}".format(ANALYSIS_ID, message))
+    sys.exit("prepare_mph_inputs: sample set '{}': {}".format(ANALYSIS_ID, message))
 
 
 def is_missing(value):

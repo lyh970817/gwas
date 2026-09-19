@@ -1,16 +1,16 @@
 nextflow_workflow {
-    name "Test Subworkflow GRM_FIT_MPH"
+    name "Test Subworkflow FIT_MPH_REML"
     script "../main.nf"
-    workflow "GRM_FIT_MPH"
+    workflow "FIT_MPH_REML"
     config "./nextflow.config"
 
     tag "subworkflows"
     tag "subworkflows_local"
-    tag "grm_fit_mph"
-    tag "subworkflows/grm_fit_mph"
+    tag "fit_mph_reml"
+    tag "subworkflows/fit_mph_reml"
     tag "mph/reml"
     tag "mph/makegrm"
-    tag "custom/preparemphinputs"
+    tag "prepare_mph_inputs"
     tag "mph"
 
     setup {

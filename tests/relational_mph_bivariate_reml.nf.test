@@ -105,7 +105,7 @@ nextflow_pipeline {
                 { assert TRACE.count(workflow, 'CUSTOM_MPHSNPINFO') == 2 },
                 { assert TRACE.count(workflow, 'MPH_MAKEGRM') == 3 },
                 { assert TRACE.count(workflow, 'PREPARE_BIVARIATE_TRAITS') == 1 },
-                { assert TRACE.count(workflow, 'CUSTOM_PREPAREMPHINPUTS') == 2 },
+                { assert TRACE.count(workflow, 'PREPARE_MPH_INPUTS') == 2 },
                 { assert TRACE.count(workflow, 'MPH_REML') == 2 },
                 { assert TRACE.count(workflow, 'GCTA_MAKEGRMPART') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_CALCKINS') == 0 },
@@ -368,7 +368,7 @@ nextflow_pipeline {
                 { assert RESUME.statuses(rerun, 'MPH_REML') == ['COMPLETED'] },
                 // The serializer reruns too, because the route metadata carries the effective settings in its task
                 // identity; the CSVs it writes are byte-identical either way.
-                { assert RESUME.statuses(rerun, 'CUSTOM_PREPAREMPHINPUTS') == ['COMPLETED'] },
+                { assert RESUME.statuses(rerun, 'PREPARE_MPH_INPUTS') == ['COMPLETED'] },
             )
         }
     }

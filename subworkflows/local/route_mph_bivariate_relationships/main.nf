@@ -2,8 +2,8 @@
 // The pipeline supplies the shared pair tables, selects the matrix family, and preserves request identity.
 // Trait orientation, missing-value spellings, native options, and publication remain caller-owned.
 
-// SUBWORKFLOW: Consisting of local upstream-bound components
-include { GRM_FIT_MPH                     } from '../grm_fit_mph/main'
+// SUBWORKFLOW: Pipeline-owned composition of local components
+include { FIT_MPH_REML                    } from '../fit_mph_reml/main'
 
 // FUNCTION: Local to the pipeline
 include { getMethodTokensWithCapabilities } from '../validate_gwas_input/method_registry'
@@ -78,14 +78,14 @@ workflow ROUTE_MPH_BIVARIATE_RELATIONSHIPS {
         }
         [route_meta, ordered_grm_files, phenotype, quant_covariates, cat_covariates, fam, mphTraitNames(route_meta), ['', 'na', 'nan', '-9']]
     }
-    GRM_FIT_MPH(ch_fit_inputs)
+    FIT_MPH_REML(ch_fit_inputs)
 
     emit:
-    bivariate_results      = GRM_FIT_MPH.out.variance_components.map { meta, variance_components -> [stripMphPairRouteState(meta), variance_components] } // channel: [ val(meta), path(mq.vc.csv) ], one per request
-    bivariate_correlations = GRM_FIT_MPH.out.correlations.map { meta, correlations -> [stripMphPairRouteState(meta), correlations] } // channel: [ val(meta), path(mq.cor.csv) ]
-    bivariate_fixed        = GRM_FIT_MPH.out.fixed_effects.map { meta, fixed_effects -> [stripMphPairRouteState(meta), fixed_effects] } // channel: [ val(meta), path(mq.blue.csv) ]
-    bivariate_iterations   = GRM_FIT_MPH.out.iterations.map { meta, iterations -> [stripMphPairRouteState(meta), iterations] } // channel: [ val(meta), path(mq.iter.csv) ]
-    bivariate_log          = GRM_FIT_MPH.out.native_log.map { meta, native_log -> [stripMphPairRouteState(meta), native_log] } // channel: [ val(meta), path(log) ]
+    bivariate_results      = FIT_MPH_REML.out.variance_components.map { meta, variance_components -> [stripMphPairRouteState(meta), variance_components] } // channel: [ val(meta), path(mq.vc.csv) ], one per request
+    bivariate_correlations = FIT_MPH_REML.out.correlations.map { meta, correlations -> [stripMphPairRouteState(meta), correlations] } // channel: [ val(meta), path(mq.cor.csv) ]
+    bivariate_fixed        = FIT_MPH_REML.out.fixed_effects.map { meta, fixed_effects -> [stripMphPairRouteState(meta), fixed_effects] } // channel: [ val(meta), path(mq.blue.csv) ]
+    bivariate_iterations   = FIT_MPH_REML.out.iterations.map { meta, iterations -> [stripMphPairRouteState(meta), iterations] } // channel: [ val(meta), path(mq.iter.csv) ]
+    bivariate_log          = FIT_MPH_REML.out.native_log.map { meta, native_log -> [stripMphPairRouteState(meta), native_log] } // channel: [ val(meta), path(log) ]
 }
 
 /*

@@ -1,4 +1,4 @@
-process CUSTOM_PREPAREMPHINPUTS {
+process PREPARE_MPH_INPUTS {
     tag "${meta.id}"
     label 'process_single'
 

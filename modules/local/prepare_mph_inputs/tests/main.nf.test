@@ -1,14 +1,13 @@
 nextflow_process {
 
-    name "Test Process CUSTOM_PREPAREMPHINPUTS"
+    name "Test Process PREPARE_MPH_INPUTS"
     script "../main.nf"
-    process "CUSTOM_PREPAREMPHINPUTS"
+    process "PREPARE_MPH_INPUTS"
     config "./nextflow.config"
 
     tag "modules"
-    tag "custom"
     tag "modules_local"
-    tag "custom/preparemphinputs"
+    tag "prepare_mph_inputs"
 
     // Twelve samples is enough for every rule this module owns, and a hand-written cohort is the only way to
     // spell the inputs the rules exist for: an IID the matrix does not list, a matrix sample the table does not

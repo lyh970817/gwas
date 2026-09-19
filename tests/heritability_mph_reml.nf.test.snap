@@ -9,9 +9,6 @@
                 "CUSTOM_MPHSNPINFO": {
                     "python": "3.14.5"
                 },
-                "CUSTOM_PREPAREMPHINPUTS": {
-                    "python": "3.14.5"
-                },
                 "GCTA_CALCULATELDSCORES": {
                     "gcta": "1.94.1"
                 },
@@ -27,6 +24,9 @@
                 "PREPARE_GENOTYPE_SOURCE": {
                     "python": "3.14.5"
                 },
+                "PREPARE_MPH_INPUTS": {
+                    "python": "3.14.5"
+                },
                 "PREPARE_PHENOTYPE_INPUTS": {
                     "python": "3.14.5"
                 },
@@ -35,7 +35,7 @@
                 }
             }
         ],
-        "timestamp": "2026-09-18T23:48:29.668216882",
+        "timestamp": "2026-09-19T08:49:22.366966372",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

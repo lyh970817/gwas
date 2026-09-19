@@ -9,7 +9,7 @@ keywords:
   - variance components
   - route
 components:
-  - grm_fit_mph
+  - fit_mph_reml
 input:
   - ch_mph_dense_matrices:
       description: |

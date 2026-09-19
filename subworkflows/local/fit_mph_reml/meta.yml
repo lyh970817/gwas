@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
-name: grm_fit_mph
+name: fit_mph_reml
 description: Prepare IID-keyed trait and covariate designs and fit ordered native MPH relationship matrices.
   No integration selector is mandatory; configure MPH_REML `ext.args` for optional native fit options.
 keywords:
@@ -9,7 +9,7 @@ keywords:
 - phenotype
 - covariates
 components:
-- custom/preparemphinputs
+- prepare_mph_inputs
 - mph/reml
 input:
 - ch_inputs:

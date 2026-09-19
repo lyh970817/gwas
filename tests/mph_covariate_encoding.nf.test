@@ -1,14 +1,14 @@
 nextflow_process {
 
-    name "Test Process CUSTOM_PREPAREMPHINPUTS"
-    script "../modules/local/custom/preparemphinputs/main.nf"
-    process "CUSTOM_PREPAREMPHINPUTS"
+    name "Test Process PREPARE_MPH_INPUTS"
+    script "../modules/local/prepare_mph_inputs/main.nf"
+    process "PREPARE_MPH_INPUTS"
 
     tag "pipeline"
     tag "modules"
     tag "mph_covariate_encoding"
 
-    // What this file pins, and the only thing it pins: `CUSTOM_PREPAREMPHINPUTS` and
+    // What this file pins, and the only thing it pins: `PREPARE_MPH_INPUTS` and
     // `PREPARE_PHENOTYPE_INPUTS` encode the same covariate design from the same headered tables. The pipeline
     // encodes covariates twice for two consumers -- MPH's named CSV design and LDAK's matrix-adjustment table
     // -- so the rule is duplicated and this is the only place the two copies are held against each other. It
