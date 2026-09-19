@@ -31,7 +31,6 @@ input:
         description: Ordered GRM bundles; each .grm.bin determines one entry in the task-local MGRM manifest, preserving input order. Companion .grm.N.bin and .grm.id files must share its basename
         pattern: "*.grm.*"
         ontologies: []
-
   - - meta2:
         type: map
         description: |

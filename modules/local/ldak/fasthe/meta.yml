@@ -22,7 +22,6 @@ input:
         type: file
         description: Headerless phenotype file passed to `--pheno`
         ontologies: []
-
   - - meta2:
         type: map
         description: |
