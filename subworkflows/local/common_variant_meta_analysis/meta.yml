@@ -58,6 +58,6 @@ output:
       type: channel
       description: "`[ val(meta), path('*.log') ]` native MR-MEGA log when selected"
 authors:
-  - "@andongni"
+  - "@lyh970817"
 maintainers:
-  - "@andongni"
+  - "@lyh970817"

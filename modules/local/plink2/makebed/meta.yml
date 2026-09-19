@@ -110,9 +110,9 @@ topics:
           type: eval
           description: The command used to retrieve the PLINK 2 version
 authors:
-  - "@andongni"
+  - "@lyh970817"
 maintainers:
-  - "@andongni"
+  - "@lyh970817"
 containers:
   conda:
     linux/amd64:

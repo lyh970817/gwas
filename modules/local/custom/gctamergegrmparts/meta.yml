@@ -86,6 +86,6 @@ containers:
       name: "oras://community.wave.seqera.io/library/coreutils_grep_gzip_lbzip2_pruned:2f90c612c8e49f19"
       https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/52/52ccce28d2ab928ab862e25aae26314d69c8e38bd41ca9431c67ef05221348aa/data"
 authors:
-  - "@andongni"
+  - "@lyh970817"
 maintainers:
-  - "@andongni"
+  - "@lyh970817"

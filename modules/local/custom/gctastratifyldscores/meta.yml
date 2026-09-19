@@ -107,6 +107,6 @@ containers:
       name: "oras://community.wave.seqera.io/library/r-base:4.2.1--c5658ade82adbaf6"
       https: "https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/48/483e9d9b3b07e5658792d579e230ad40ed18daf7b9ebfb4323c08570f92fd1d5/data"
 authors:
-  - "@andongni"
+  - "@lyh970817"
 maintainers:
-  - "@andongni"
+  - "@lyh970817"

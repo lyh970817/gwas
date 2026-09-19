@@ -76,6 +76,6 @@ output:
       pattern: "*.{regenie.gz,tsv,fastGWA}"
       ontologies: []
 authors:
-  - "@andongni"
+  - "@lyh970817"
 maintainers:
-  - "@andongni"
+  - "@lyh970817"
