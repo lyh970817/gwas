@@ -29,10 +29,10 @@ process CUSTOM_GCTASTRATIFYLDSCORES {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    printf 'stub_snp1\n' > "${prefix}_snp_group_ld01_maf01.txt"
-    printf 'stub_snp2\n' > "${prefix}_snp_group_ld02_maf01.txt"
-    printf 'model_key\tstratum_key\tld_lower\tld_upper\tmaf_lower\tmaf_upper\tpredictor_count\tgroup_filename\nldms\tld01_maf01\t0\t1\t0\t0.5\t1\t${prefix}_snp_group_ld01_maf01.txt\nldms\tld02_maf01\t1\t2\t0\t0.5\t1\t${prefix}_snp_group_ld02_maf01.txt\n' > "${prefix}.strata.tsv"
-    printf 'group_id\tgroup_filename\nld01_maf01\t${prefix}_snp_group_ld01_maf01.txt\nld02_maf01\t${prefix}_snp_group_ld02_maf01.txt\n' > "${prefix}.groups.tsv"
+    printf 'stub_snp1\\n' > "${prefix}_snp_group_ld01_maf01.txt"
+    printf 'stub_snp2\\n' > "${prefix}_snp_group_ld02_maf01.txt"
+    printf 'model_key\\tstratum_key\\tld_lower\\tld_upper\\tmaf_lower\\tmaf_upper\\tpredictor_count\\tgroup_filename\\nldms\\tld01_maf01\\t0\\t1\\t0\\t0.5\\t1\\t${prefix}_snp_group_ld01_maf01.txt\\nldms\\tld02_maf01\\t1\\t2\\t0\\t0.5\\t1\\t${prefix}_snp_group_ld02_maf01.txt\\n' > "${prefix}.strata.tsv"
+    printf 'group_id\\tgroup_filename\\nld01_maf01\\t${prefix}_snp_group_ld01_maf01.txt\\nld02_maf01\\t${prefix}_snp_group_ld02_maf01.txt\\n' > "${prefix}.groups.tsv"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
