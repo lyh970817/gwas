@@ -29,9 +29,7 @@ workflow PLINK_PREPARE_GRM_LDAK {
     LDAK_CALCKINS(ch_calckins_inputs.genotypes, ch_calckins_inputs.weights)
 
     def ch_base_grm = LDAK_CALCKINS.out.ldak_grm
-        .map { meta, grm_bin, grm_id, grm_details, grm_adjust ->
-            [meta.id, meta, [grm_bin, grm_id, grm_details, grm_adjust]]
-        }
+        .map { meta, grm_files -> [meta.id, meta, grm_files] }
         .join(
             ch_genotypes.map { meta, _bed, _bim, _fam, _power, producer_ref -> [meta.id, producer_ref] },
             by: 0,

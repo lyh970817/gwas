@@ -8,10 +8,10 @@
                             "id": "base_a"
                         },
                         [
+                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5",
                             "base_a.grm.bin:md5,ffcc9a23d394873683e7ff084c074a58",
-                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f",
                             "base_a.grm.details:md5,82c37b3e673a1c85eb312d690b1ad931",
-                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5"
+                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f"
                         ],
                         "producer-a"
                     ],
@@ -20,10 +20,10 @@
                             "id": "base_b"
                         },
                         [
+                            "base_b.grm.adjust:md5,a8f828676577fac03660b1eacf8903e5",
                             "base_b.grm.bin:md5,da042bab3ad6b3d599ed7d9193ec8a34",
-                            "base_b.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f",
                             "base_b.grm.details:md5,13739b92c6718f40ba2e3a423a1d74fd",
-                            "base_b.grm.adjust:md5,a8f828676577fac03660b1eacf8903e5"
+                            "base_b.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f"
                         ],
                         "producer-b"
                     ]
@@ -84,7 +84,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:49:20.565888775",
+        "timestamp": "2026-09-19T09:39:55.673760773",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -99,26 +99,26 @@
                             "id": "base_a"
                         },
                         [
+                            "base_a.grm.adjust:md5,d41d8cd98f00b204e9800998ecf8427e",
                             "base_a.grm.bin:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "base_a.grm.id:md5,d41d8cd98f00b204e9800998ecf8427e",
                             "base_a.grm.details:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "base_a.grm.adjust:md5,d41d8cd98f00b204e9800998ecf8427e"
+                            "base_a.grm.id:md5,d41d8cd98f00b204e9800998ecf8427e"
                         ],
                         "producer-a"
                     ]
                 ],
                 "filtered_list": [
-
+                    
                 ],
                 "maxrel": [
-
+                    
                 ],
                 "subset_grm": [
-
+                    
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:48:57.24889873",
+        "timestamp": "2026-09-19T09:39:38.737365128",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -133,26 +133,26 @@
                             "id": "base_a"
                         },
                         [
+                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5",
                             "base_a.grm.bin:md5,ffcc9a23d394873683e7ff084c074a58",
-                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f",
                             "base_a.grm.details:md5,82c37b3e673a1c85eb312d690b1ad931",
-                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5"
+                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f"
                         ],
                         "producer-a"
                     ]
                 ],
                 "filtered_list": [
-
+                    
                 ],
                 "maxrel": [
-
+                    
                 ],
                 "subset_grm": [
-
+                    
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:48:48.610918336",
+        "timestamp": "2026-09-19T09:39:32.270579802",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
@@ -167,10 +167,10 @@
                             "id": "base_a"
                         },
                         [
+                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5",
                             "base_a.grm.bin:md5,ffcc9a23d394873683e7ff084c074a58",
-                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f",
                             "base_a.grm.details:md5,82c37b3e673a1c85eb312d690b1ad931",
-                            "base_a.grm.adjust:md5,faa0f169d0e1c28a45c1576c7f598bf5"
+                            "base_a.grm.id:md5,aa346d8df9251f28144e8a6aa3912c5f"
                         ],
                         "producer-a"
                     ]
@@ -231,7 +231,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-18T22:49:07.802938995",
+        "timestamp": "2026-09-19T09:39:46.323407134",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

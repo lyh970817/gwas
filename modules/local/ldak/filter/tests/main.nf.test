@@ -26,7 +26,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [[id:'derived'], [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { _meta, grm_files -> [[id:'derived'], grm_files] }
                 """
             }
         }
@@ -58,7 +58,7 @@ nextflow_process {
             }
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [[id:'derived'], [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { _meta, grm_files -> [[id:'derived'], grm_files] }
                 """
             }
         }
@@ -89,7 +89,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [[id:'derived'], [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { _meta, grm_files -> [[id:'derived'], grm_files] }
                 """
             }
         }

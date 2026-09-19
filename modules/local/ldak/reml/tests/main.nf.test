@@ -85,7 +85,7 @@ nextflow_process {
             process {
                 """
                 input[0] = GAWK_BINARY_PHENO.out.output.map { _meta, phenotype -> [[id: 'reml_analysis'], phenotype] }
-                input[1] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[1] = LDAK_CALCKINS.out.ldak_grm
                 input[2] = [[id: 'keep'], []]
                 input[3] = [[id: 'qcovar'], []]
                 input[4] = [[id: 'factors'], []]
@@ -109,7 +109,7 @@ nextflow_process {
             process {
                 """
                 input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[id: 'reml_analysis'], phenotype] }
-                input[1] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[1] = LDAK_CALCKINS.out.ldak_grm
                 input[2] = GAWK_KEEP.out.output
                 input[3] = GAWK_COVAR.out.output
                 input[4] = GAWK_FACTORS.out.output
@@ -133,7 +133,7 @@ nextflow_process {
             process {
                 """
                 input[0] = GAWK_QUANT_PHENO.out.output.map { _meta, phenotype -> [[id: 'reml_analysis'], phenotype] }
-                input[1] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[1] = LDAK_CALCKINS.out.ldak_grm
                 input[2] = [[id: 'keep'], []]
                 input[3] = [[id: 'qcovar'], []]
                 input[4] = [[id: 'factors'], []]
@@ -156,7 +156,7 @@ nextflow_process {
             process {
                 """
                 input[0] = GAWK_BINARY_PHENO.out.output.map { _meta, phenotype -> [[id: 'reml_analysis'], phenotype] }
-                input[1] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[1] = LDAK_CALCKINS.out.ldak_grm
                 input[2] = [[id: 'keep'], []]
                 input[3] = [[id: 'qcovar'], []]
                 input[4] = [[id: 'factors'], []]

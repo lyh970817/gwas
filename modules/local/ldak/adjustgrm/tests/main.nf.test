@@ -64,7 +64,7 @@ nextflow_process {
 
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm
                 input[1] = GAWK_BINARY_PHENO.out.output
                 input[2] = GAWK_KEEP.out.output
                 input[3] = GAWK_COVAR.out.output
@@ -85,7 +85,7 @@ nextflow_process {
 
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm
                 input[1] = [[id: 'phenotype'], []]
                 input[2] = [[id: 'keep'], []]
                 input[3] = GAWK_COVAR.out.output
@@ -106,7 +106,7 @@ nextflow_process {
 
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [meta, [bin, ids, details, adjust]] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm
                 input[1] = GAWK_BINARY_PHENO.out.output
                 input[2] = [[id: 'keep'], []]
                 input[3] = GAWK_COVAR.out.output

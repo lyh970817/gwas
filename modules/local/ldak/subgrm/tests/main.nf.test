@@ -27,10 +27,10 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust ->
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { _meta, grm_files ->
                     def keep = file('samples.keep')
-                    keep.text = ids.readLines().take(10).join('\\n') + '\\n'
-                    [[id:'base'], [bin, ids, details, adjust], keep]
+                    keep.text = grm_files.find { grm_file -> grm_file.name.endsWith('.grm.id') }.readLines().take(10).join('\\n') + '\\n'
+                    [[id:'base'], grm_files, keep]
                 }
                 """
             }
@@ -62,7 +62,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = LDAK_CALCKINS.out.ldak_grm.map { meta, bin, ids, details, adjust -> [[id:'base'], [bin, ids, details, adjust], ids] }
+                input[0] = LDAK_CALCKINS.out.ldak_grm.map { _meta, grm_files -> [[id:'base'], grm_files, grm_files.find { grm_file -> grm_file.name.endsWith('.grm.id') }] }
                 """
             }
         }
