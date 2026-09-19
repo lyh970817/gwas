@@ -88,6 +88,15 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
 - Note: none of the three demonstrates a deprecated-param shim. There is no convention to inherit here —
   if one is needed, take it from the current `nf-core/tools` template rather than from these pipelines.
 
+- **[MUST]** Place each setting by what it controls. Scientific specification — what is estimated and
+  under which model — belongs in the analysis manifest's `method_options`, never in a pipeline param.
+  Execution strategy — partitioning, execution modes, job counts, block sizes and low-memory modes —
+  belongs in `conf/execution.config`, included from `nextflow.config` immediately after
+  `conf/base.config`. Task resources (cpus, memory, time) belong in process configuration
+  (`conf/base.config`). Translation of any of these into a native command line belongs in the relevant
+  `conf/modules/*.config`. Execution params are declared as one `execution_options` schema group, not
+  one group per tool.
+
 ## 3. `conf/base.config`
 
 - **[MUST]** No `check_max()` function. It is fully retired — verified absent from all three.
