@@ -86,7 +86,7 @@ maintainers:
 containers:
   conda:
     linux/amd64:
-      lock_file: modules/local/ldak/thincommon/.conda-lock/linux-64-452828f72b3c9129_1.txt
+      lock_file: modules/local/ldak/thincommon/.conda-lock/linux_amd64-bd-452828f72b3c9129_1.txt
   docker:
     linux/amd64:
       name: community.wave.seqera.io/library/ldak6_r-base:452828f72b3c9129

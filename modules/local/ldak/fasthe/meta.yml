@@ -233,7 +233,7 @@ topics:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/nf-core/ldak/fasthe/.conda-lock/linux-64-452828f72b3c9129_1.txt"
+      lock_file: "modules/local/ldak/fasthe/.conda-lock/linux_amd64-bd-452828f72b3c9129_1.txt"
   docker:
     linux/amd64:
       build_id: "bd-452828f72b3c9129_1"

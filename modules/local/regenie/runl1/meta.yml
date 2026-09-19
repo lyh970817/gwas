@@ -164,7 +164,7 @@ maintainers:
 containers:
   conda:
     linux/amd64:
-      lock_file: "modules/nf-core/regenie/runl1/.conda-lock/linux_amd64-bd-5d361f9fcb2f85cf_1.txt"
+      lock_file: "modules/local/regenie/runl1/.conda-lock/linux_amd64-bd-5d361f9fcb2f85cf_1.txt"
   docker:
     linux/amd64:
       build_id: "bd-5d361f9fcb2f85cf_1"
