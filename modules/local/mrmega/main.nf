@@ -7,7 +7,7 @@ process MRMEGA {
         : 'quay.io/loukas_moutsianas/mrmega@sha256:1143b7f016f00f0f32cbc6ad72b4a571e2f824e440a0b7fecf4ec4c8334ae1e8'}"
 
     input:
-    tuple val(meta), path(study_files, stageAs: 'studies/*'), path(filelist)
+    tuple val(meta), path(study_files, stageAs: 'studies/*'), path(filelist), val(trait_type)
 
     output:
     tuple val(meta), path("${prefix}.result"), emit: result
@@ -20,6 +20,8 @@ process MRMEGA {
     script:
     def args = task.ext.args ?: ''
     prefix = task.ext.prefix ?: meta.id
+    // --qt selects the quantitative input-column mode (BETA, SE); MR-MEGA's default mode reads OR, OR_95L, OR_95U.
+    def quantitative_flag = trait_type.toString() == 'quantitative' ? '--qt' : ''
     """
     # The native list must reference staged files so a caller can pass results from another task.
     : > "${prefix}.mrmega.in"
@@ -29,6 +31,7 @@ process MRMEGA {
 
     /MR-MEGA/MR-MEGA \
         -i "${prefix}.mrmega.in" \
+        ${quantitative_flag} \
         ${args} \
         -o "${prefix}"
 
@@ -40,7 +43,8 @@ process MRMEGA {
 
     stub:
     prefix = task.ext.prefix ?: meta.id
-    def coefficients = (0..4).collect { index -> "beta_${index}\tse_${index}" }.join('\t')
+    // MR-MEGA emits one intercept plus one coefficient pair per axis; --pc is optional with a documented default of 3.
+    def coefficients = (0..3).collect { index -> "beta_${index}\tse_${index}" }.join('\t')
     def stub_header = [
         'MarkerName\tChromosome\tPosition\tEA\tNEA\tEAF\tNsample\tNcohort\tEffects',
         coefficients,

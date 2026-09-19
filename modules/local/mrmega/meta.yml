@@ -1,5 +1,5 @@
 name: "mrmega"
-description: Run one genome-wide MR-MEGA meta-regression
+description: Run one genome-wide MR-MEGA meta-regression; optional native settings such as --pc use task.ext.args
 keywords:
   - gwas
   - genome-wide association study
@@ -25,9 +25,12 @@ input:
         ontologies: []
     - filelist:
         type: file
-        description: Ordered list of study paths; basenames must identify the supplied study_files. Optional --pc and --qt use task.ext.args
+        description: Ordered list of study paths; basenames must identify the supplied study_files
         pattern: "*.filelist.txt"
         ontologies: []
+    - trait_type:
+        type: string
+        description: Native input-column mode; 'quantitative' selects --qt with BETA and SE, any other value selects MR-MEGA's default OR, OR_95L and OR_95U columns
 output:
   result:
     - - meta:

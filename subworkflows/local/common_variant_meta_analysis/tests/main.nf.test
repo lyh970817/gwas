@@ -24,7 +24,7 @@ nextflow_workflow {
         target
     }
 
-    def request = { outputDir, id, models, trait = 'quantitative' ->
+    def request = { outputDir, id, models ->
         def files = (0..<5).collect { index -> parent(outputDir, "${id}_${index}", index * 0.05d) }
         def staged = files.collect { file -> "file('${file}', checkIfExists: true)" }.join(', ')
         """
@@ -34,7 +34,7 @@ nextflow_workflow {
             ['one', 'two', 'three', 'four', 'five'],
             'gwaslab',
             'GRCh37',
-            '${trait}',
+            'quantitative',
             ${groovy.json.JsonOutput.toJson(models)},
         ])
         """
@@ -88,7 +88,7 @@ nextflow_workflow {
     test("MR-MEGA selection runs one genome-wide native invocation") {
 
         when {
-            params { mrmega_args = '--pc 1 --qt' }
+            params { mrmega_args = '--pc 1' }
             workflow {
                 request(outputDir, 'mrmega', ['fixed', 'mrmega'])
             }
@@ -107,9 +107,9 @@ nextflow_workflow {
             )
         }
     }
-    test("mixed traits configure native modes by preserved caller identity") {
+    test("declared trait type selects each native MR-MEGA input-column mode") {
         when {
-            params { mrmega_args_by_id = [binary: '--pc 1', quantitative: '--pc 1 --qt'] }
+            params { mrmega_args = '--pc 1' }
             def files = (0..<5).collect { index -> parent(outputDir, "mixed_${index}", index * 0.05d) }
             def staged = files.collect { file -> "file('${file}', checkIfExists: true)" }.join(', ')
             workflow {
@@ -133,6 +133,7 @@ nextflow_workflow {
                     results.each { id, result ->
                         def rows = new File(result.toString()).readLines()
                         def header = rows[0].split('\t').toList()
+                        // MR-MEGA fits every one of the 30 fixture markers, which all five studies observe.
                         assert rows.size() == 31
                         assert rows[1].split('\t')[header.indexOf('P-value_association')] != 'NA'
                     }

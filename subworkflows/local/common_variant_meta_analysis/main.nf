@@ -36,8 +36,13 @@ workflow COMMON_VARIANT_META_ANALYSIS {
         }
     )
 
+    // One trait_type selects both the exported effect columns and MR-MEGA's native input-column mode.
     MRMEGA(
-        CUSTOM_PREPAREMRMEGAINPUT.out.study_files.join(CUSTOM_PREPAREMRMEGAINPUT.out.filelist, failOnDuplicate: true, failOnMismatch: true)
+        CUSTOM_PREPAREMRMEGAINPUT.out.study_files.join(CUSTOM_PREPAREMRMEGAINPUT.out.filelist, failOnDuplicate: true, failOnMismatch: true).join(
+            ch_mrmega.map { meta, _aligned, _study_names, trait_type, _models -> [meta, trait_type] },
+            failOnDuplicate: true,
+            failOnMismatch: true,
+        )
     )
 
     emit:

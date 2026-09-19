@@ -19,7 +19,7 @@ input:
       description: |
         One genome-wide request as
         `[ val(meta), path(parents), val(study_names), val(input_format), val(genome_build), val(trait_type), val(models) ]`.
-        Fixed is required. Random, RE2, and MR-MEGA are optional explicit selections. MR-MEGA optional flags, including --pc and --qt, are supplied with task.ext.args; see nextflow.config.
+        Fixed is required. Random, RE2, and MR-MEGA are optional explicit selections. The trait type selects both the exported effect columns and MR-MEGA's native input-column mode. Optional MR-MEGA settings such as --pc are supplied with task.ext.args.
       structure:
         - type: map
           description: Request metadata
@@ -32,7 +32,7 @@ input:
         - type: string
           description: Shared genome build
         - type: string
-          description: Quantitative or binary trait type
+          description: Quantitative or binary trait type, applied to the MR-MEGA export and the native MR-MEGA mode
         - type: list
           description: Selected fixed, random, re2, and mrmega models
 output:
