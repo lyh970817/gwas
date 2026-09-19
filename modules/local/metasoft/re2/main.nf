@@ -42,8 +42,8 @@ process METASOFT_RE2 {
     printf 'stub\\n' > "${prefix}.metasoft.log"
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        metasoft: \$(metasoft --version)
-        java: \$(java -version 2>&1 | sed -n 's/.*version "\\([^" ]*\\)".*/\\1/p')
+        metasoft: 2.0.1
+        java: 17.0.20.1
     END_VERSIONS
     """
 }
