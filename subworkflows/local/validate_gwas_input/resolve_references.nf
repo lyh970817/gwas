@@ -71,15 +71,65 @@ def readReferenceCatalog(reference_catalog) {
             def role_fields = family == 'ldsc'
                 ? ['hapmap3_snplist', 'reference_ld_scores', 'regression_weights']
                 : ['tagging_file']
-            def resources = role_fields.collectEntries { field ->
-                def resource = file(definition[field])
-                if (!resource.exists()) {
-                    fail.call(bundle_id, field, "resource path '${definition[field]}' does not exist")
+            // LDSC's `--ref-ld-chr` and `--w-ld-chr` take a stem, not a directory: LDSC appends
+            // `<chr>.l2.ldscore` plus its compression to it, and `<chr>.l2.M_5_50` for the reference set.
+            // The catalog records
+            // the text a person would type — `/refs/eur_w_ld_chr/` or `/refs/baseline/baselineLD.` — and the
+            // split at the last `/` recovers the directory the pipeline stages and the file-name prefix the
+            // LDSC modules hand back to the tool. The declared text is authoritative; nothing is inferred
+            // from the directory listing.
+            def stem_fields = family == 'ldsc' ? ['reference_ld_scores', 'regression_weights'] : []
+            def resources = [:]
+            def stem_prefixes = [:]
+            def role_names = [:]
+            role_fields.each { field ->
+                def declared = definition[field].toString()
+                if (field in stem_fields) {
+                    def separator = declared.lastIndexOf('/')
+                    def directory_text = separator < 0 ? '.' : separator == 0 ? '/' : declared.substring(0, separator)
+                    def prefix = separator < 0 ? declared : declared.substring(separator + 1)
+                    def directory = file(directory_text)
+                    if (!directory.exists()) {
+                        fail.call(bundle_id, field, "stem '${declared}' names directory '${directory_text}', which does not exist")
+                    }
+                    if (!directory.toFile().isDirectory()) {
+                        fail.call(bundle_id, field, "stem '${declared}' names directory '${directory_text}', which must be a directory")
+                    }
+                    // LDSC opens the chromosome-1 LD scores through `ldscore.parse.which_compression`, which
+                    // probes `<stem>1.l2.ldscore.bz2`, then `<stem>1.l2.ldscore.gz`, then the bare
+                    // `<stem>1.l2.ldscore`, and raises only when none of the three is readable. Measured on
+                    // the pinned image ghcr.io/lyh970817/gwas/ldsc:3.0.2-cbiit-6c67395
+                    // @sha256:77fbb697c16a559c3fe75204b1e7ab6a0202afcf10b8a8629bcc98592b0e412b. The stem is
+                    // accepted when any one of them exists, in that same order, so the preflight admits every
+                    // layout the tool itself reads.
+                    def ldscore_candidates = ['.bz2', '.gz', ''].collect { compression ->
+                        directory.resolve("${prefix}1.l2.ldscore${compression}".toString())
+                    }
+                    if (!ldscore_candidates.any { candidate -> candidate.exists() }) {
+                        def named_candidates = ldscore_candidates.collect { candidate -> "'${candidate}'" }.join(', ')
+                        fail.call(bundle_id, field, "stem '${declared}' does not resolve chromosome 1; expected one of ${named_candidates}")
+                    }
+                    if (field == 'reference_ld_scores') {
+                        def variant_counts = directory.resolve("${prefix}1.l2.M_5_50".toString())
+                        if (!variant_counts.exists()) {
+                            fail.call(bundle_id, field, "stem '${declared}' does not resolve chromosome 1; expected '${variant_counts}'")
+                        }
+                    }
+                    resources[field] = directory
+                    stem_prefixes[field] = prefix
+                    role_names[field] = "${directory.name}/${prefix}".toString()
                 }
-                if (field in ['hapmap3_snplist', 'tagging_file'] && !resource.toFile().isFile()) {
-                    fail.call(bundle_id, field, "resource path '${definition[field]}' must be a file")
+                else {
+                    def resource = file(declared)
+                    if (!resource.exists()) {
+                        fail.call(bundle_id, field, "resource path '${declared}' does not exist")
+                    }
+                    if (!resource.toFile().isFile()) {
+                        fail.call(bundle_id, field, "resource path '${declared}' must be a file")
+                    }
+                    resources[field] = resource
+                    role_names[field] = resource.name
                 }
-                [(field): resource]
             }
             resolved[bundle_id] = [
                 id: bundle_id,
@@ -88,8 +138,9 @@ def readReferenceCatalog(reference_catalog) {
                 ancestry: definition.ancestry,
                 variant_id_system: definition.variant_id_system,
                 model: family == 'ldak' ? definition.model : null,
-                role_names: role_fields.collectEntries { field -> [(field): resources[field].name] },
+                role_names: role_names,
                 resources: resources,
+                stem_prefixes: stem_prefixes,
             ]
         }
     }
