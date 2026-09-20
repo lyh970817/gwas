@@ -68,6 +68,13 @@ When any workstream, route, or capability is deferred, postponed, or descoped, f
 lyh970817/gwas without being asked: the decision, its rationale, the evidence, a minimal reproducer where a
 defect is involved, and a checkable resumption condition. A deferral is complete only when its issue exists.
 
+When the implementation an issue on lyh970817/gwas asks for is finished and verified, update or close that
+issue in the same piece of work, without being asked: post a comment naming the implementing commits, files
+and tests, distinguish what is implemented in the pipeline from what is only prepared for upstream, and close
+the issue unless its own text still owes something. When later work makes an open issue's body or latest
+status stale, post a dated status comment recording what changed. A task that finishes an issue is complete
+only when the issue reflects it.
+
 During multi-workstream programmes, maintain a numbered queue of decisions that need the user, with stable
 numbers so answers can arrive by number. Surface new decisions as they arise, and print the full outstanding
 queue plus what is still running on request. Never silently block a workstream on an unrecorded decision.
