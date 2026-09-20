@@ -5,7 +5,7 @@ include { LDSC_RG            } from '../../../modules/local/ldsc/rg/main'
 workflow SUMSTATS_GENETICCORRELATION_LDSC {
     take:
     ch_producers // channel: [ val(meta), path(sumstats), val(meta2), path(merge_alleles) ]; optional merge_alleles: []
-    ch_pairs // channel: [ val(meta), val(meta2), path(reference_ld_scores), val(meta3), path(regression_weights), val(left_producer_id), val(right_producer_id) ]
+    ch_pairs // channel: [ val(meta), val(meta2), path(reference_ld_scores), val(reference_prefix), val(meta3), path(regression_weights), val(weights_prefix), val(left_producer_id), val(right_producer_id) ]
 
     main:
     def ch_munge = ch_producers.multiMap { meta, sumstats, meta2, merge_alleles ->
@@ -17,25 +17,25 @@ workflow SUMSTATS_GENETICCORRELATION_LDSC {
     def ch_munged = LDSC_MUNGESUMSTATS.out.munged_sumstats.map { meta, sumstats -> [meta.id, sumstats] }
     // Resolve both roles together so each producer joins once even when it is shared by several pairs.
     def ch_endpoints = ch_pairs
-        .flatMap { meta, meta2, reference_ld_scores, meta3, regression_weights, left_producer_id, right_producer_id ->
+        .flatMap { meta, meta2, reference_ld_scores, reference_prefix, meta3, regression_weights, weights_prefix, left_producer_id, right_producer_id ->
             [[left_producer_id, 0], [right_producer_id, 1]].collect { producer_id, ordinal ->
-                [producer_id, [meta, meta2, reference_ld_scores, meta3, regression_weights, ordinal]]
+                [producer_id, [meta, meta2, reference_ld_scores, reference_prefix, meta3, regression_weights, weights_prefix, ordinal]]
             }
         }
         .groupTuple()
         .join(ch_munged, failOnMismatch: true, failOnDuplicate: true)
         .flatMap { _producer_id, endpoints, sumstats ->
-            endpoints.collect { meta, meta2, reference_ld_scores, meta3, regression_weights, ordinal ->
-                [groupKey(meta.id, 2), [meta, meta2, reference_ld_scores, meta3, regression_weights, ordinal, sumstats]]
+            endpoints.collect { meta, meta2, reference_ld_scores, reference_prefix, meta3, regression_weights, weights_prefix, ordinal ->
+                [groupKey(meta.id, 2), [meta, meta2, reference_ld_scores, reference_prefix, meta3, regression_weights, weights_prefix, ordinal, sumstats]]
             }
         }
     def ch_fits = ch_endpoints
         .groupTuple()
-        .map { _pair_key, endpoints -> endpoints.sort { endpoint -> endpoint[5] } }
+        .map { _pair_key, endpoints -> endpoints.sort { endpoint -> endpoint[7] } }
         .multiMap { left, right ->
-            sumstats: [left[0], left[6], right[6]]
-            reference: [left[1], left[2]]
-            weights: [left[3], left[4]]
+            sumstats: [left[0], left[8], right[8]]
+            reference: [left[1], left[2], left[3]]
+            weights: [left[4], left[5], left[6]]
         }
     LDSC_RG(ch_fits.sumstats, ch_fits.reference, ch_fits.weights)
 
