@@ -133,12 +133,13 @@ PY
       # NXF_JVM_ARGS still wins, so a one-off can measure or override it.
       export NXF_JVM_ARGS="''${NXF_JVM_ARGS:-${nfTestJvmArgs}}"
 
-      # Every fixture-backed test resolves its inputs from GWAS_TEST_FIXTURES, and there is no working
-      # remote fallback: the published bundle 404s. An unset variable used to produce a run that looked
-      # healthy and then failed every fixture-backed case on schema validation -- 211 of 776 in one
-      # merge-gate run, three hours in. Materialize it here, exactly as tests/fixtures/nf-test.sh does
-      # for a focused run, so the variable is never the thing that is missing. Only `nf-test test`
-      # needs it, and materialization is a content-addressed no-op once the bundle is cached.
+      # Every fixture-backed test resolves its inputs from GWAS_TEST_FIXTURES rather than fetching the
+      # published nf-core/test-datasets branch per case, so an unset variable is a hard error in the
+      # tests. It used to be a silent one: a run looked healthy and then failed every fixture-backed
+      # case on schema validation -- 211 of 776 in one merge-gate run, three hours in. Materialize it
+      # here, exactly as tests/fixtures/nf-test.sh does for a focused run, so the variable is never the
+      # thing that is missing. Only `nf-test test` needs it, and materialization is a content-addressed
+      # no-op once the bundle is cached. GWAS_FIXTURE_SOURCE overrides the published source root.
       if [[ "''${1:-}" == test && -z "''${GWAS_TEST_FIXTURES:-}" && -x tests/fixtures/materialize.sh ]]; then
         fixture_profile=docker
         fixture_args=("$@")
@@ -271,9 +272,9 @@ PY
       shard_root="''${NFT_SHARD_ROOT:-.nf-test-shards}"
 
       # Materialize once here rather than letting six shards each do it: the bundle is
-      # content-addressed and flock-guarded so concurrent calls would be safe, just wasteful. Aborting
-      # before any shard starts is the point -- a broad run that discovers a fixture problem per shard
-      # wastes the whole run.
+      # content-addressed and flock-guarded so concurrent calls would be safe, just wasteful -- each
+      # one fetches the 23 published fixtures again. Aborting before any shard starts is the point --
+      # a broad run that discovers a fixture problem per shard wastes the whole run.
       if [[ -z "''${GWAS_TEST_FIXTURES:-}" && -x tests/fixtures/materialize.sh ]]; then
         if ! fixture_root="$(tests/fixtures/materialize.sh --profile "''${profile#+}")"; then
           echo "nf-test-parallel: fixture materialization failed; no shard was started" >&2

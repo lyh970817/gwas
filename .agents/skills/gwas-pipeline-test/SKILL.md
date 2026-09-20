@@ -16,8 +16,9 @@ Two variables, and they are not interchangeable:
   (`tests/lib/FIXTURES.groovy`, `conf/route_profile_resolver.config`). Every fixture-backed test needs it.
   It is not an optional override.
 - **`GWAS_FIXTURE_SOURCE`** is the canonical source `tests/fixtures/materialize.sh` builds that root _from_.
-  Leave it unset to let the script discover `.references/test-datasets-gwas`, including through its
-  worktrees; set it to pin an unmerged source without committing a machine-specific path.
+  Leave it unset to fetch the published `nf-core/test-datasets` `gwas` branch; set it to a URL root or a
+  local checkout to pin an unmerged source without committing a machine-specific path. There is no
+  auto-discovery of `.references/test-datasets-gwas` — name it here if you want it.
 
 Build the root once per shell and export it:
 
@@ -26,17 +27,26 @@ export GWAS_TEST_FIXTURES=$(tests/fixtures/materialize.sh --profile docker)
 ```
 
 The script prints the root on stdout and its progress on stderr; it is content-addressed and `flock`-guarded,
-so a second call on a warm cache is a sub-second no-op. Pass the profile you will test with. The dev-shell
+so a second call on a warm cache is a sub-second no-op. The dev-shell
 `nf-test` and `nf-test-parallel` wrappers do this for you when the variable is unset and abort if it fails,
 so the export matters most when driving the jar directly. `tests/fixtures/nf-test.sh` is the same thing
 wrapped around a single focused run.
 
-There is no working remote fallback. The published bundle at
-`raw.githubusercontent.com/nf-core/test-datasets/gwas/` returns 404, and until this was made a hard error an
-unset variable produced a run that started normally and then failed every fixture-backed case on schema
-validation — 211 of 776 cases, three hours in. It now fails in about three seconds naming the variable and
-the command. A modified fixture copy is not a drop-in either: `validateMaterializedRoot` checksums every file
-against `.complete.sha256`, so regenerate that manifest or materialize from a pinned `GWAS_FIXTURE_SOURCE`.
+The tests do not fall back to the published branch per case. `-profile test` does resolve its manifests
+from `raw.githubusercontent.com/nf-core/test-datasets/gwas/` for a standalone `nextflow run`, but hundreds of
+nf-test cases each fetching it would be slow and non-hermetic, so an unset `GWAS_TEST_FIXTURES` is a hard
+error in `FIXTURES.base`. Before it was one, an unset variable produced a run that started normally and then
+failed every fixture-backed case on schema validation — 211 of 776 cases, three hours in. It now fails in
+about three seconds naming the variable and the command. A modified fixture copy is not a drop-in either:
+`validateMaterializedRoot` checksums every file against `.complete.sha256`, so regenerate that manifest or
+materialize from a pinned `GWAS_FIXTURE_SOURCE`.
+
+The bundle is the 23 files published on the `gwas` branch plus the bivariate method-options document
+`materialize.sh` copies in from `assets/examples/relational`. Nothing is derived locally any more, so the
+`--profile` argument is accepted and ignored. The nine PLINK derivatives
+(`example_all.{pgen,psam,pvar,bed,bim,fam}`, `example_chr1.{pgen,psam,pvar}`) resolve over the network only
+once the follow-up `nf-core/test-datasets` PR adding them to the branch has merged; until then set
+`GWAS_FIXTURE_SOURCE` to a checkout of that branch.
 
 ## Invocation environment and durations
 
