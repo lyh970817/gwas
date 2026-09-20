@@ -41,10 +41,10 @@ about three seconds naming the variable and the command. A modified fixture copy
 `validateMaterializedRoot` checksums every file against `.complete.sha256`, so regenerate that manifest or
 materialize from a pinned `GWAS_FIXTURE_SOURCE`.
 
-The bundle is the 23 files published on the `gwas` branch plus the bivariate method-options document
+The bundle is the 20 files published on the `gwas` branch plus the bivariate method-options document
 `materialize.sh` copies in from `assets/examples/relational`. Nothing is derived locally any more, so the
-`--profile` argument is accepted and ignored. The nine PLINK derivatives
-(`example_all.{pgen,psam,pvar,bed,bim,fam}`, `example_chr1.{pgen,psam,pvar}`) resolve over the network only
+`--profile` argument is accepted and ignored. The six PLINK derivatives
+(`example_all.{pgen,psam,pvar,bed,bim,fam}`) resolve over the network only
 once the follow-up `nf-core/test-datasets` PR adding them to the branch has merged; until then set
 `GWAS_FIXTURE_SOURCE` to a checkout of that branch.
 
