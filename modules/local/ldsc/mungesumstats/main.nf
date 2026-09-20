@@ -29,8 +29,10 @@ process LDSC_MUNGESUMSTATS {
     export PYTHONUNBUFFERED=1
 
     # The pinned munge_sumstats.py cannot read gzip input: read_header calls bytes.rstrip with a
-    # string. Decompression lets the native programme consume valid compressed summary tables.
-    # Retire this pinned-version adaptation when the source implements a text-mode gzip reader.
+    # string (#46), and every pipeline LDSC input is a gzipped GWASLab table. Decompression lets the
+    # native programme consume valid compressed summary tables. Programme-level compensation approved
+    # 2026-09-09 by the owner. Retire this pinned-version adaptation when the source implements a
+    # text-mode gzip reader.
     sumstats_input="${sumstats}"
     if [[ "${sumstats}" == *.gz ]]; then
         gzip --decompress --stdout "${sumstats}" > ldsc_munge_input.tsv

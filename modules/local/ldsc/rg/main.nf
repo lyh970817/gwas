@@ -31,8 +31,9 @@ process LDSC_RG {
     export MKL_NUM_THREADS="${task.cpus}"
 
     # This LDSC release writes the complete native analysis log to stdout. Retain that stream under the
-    # declared result name; the file it opens at the same name is empty. Retire this pinned-version
-    # adaptation when the CBIIT ldsc39 --out .log carries the estimates.
+    # declared result name; the file it opens at the same name is empty (#45). Programme-level
+    # compensation approved 2026-09-09 by the owner. Retire this pinned-version adaptation when the
+    # CBIIT ldsc39 --out .log carries the estimates.
     ldsc.py \
         --rg "${left_sumstats},${right_sumstats}" \
         --ref-ld-chr "reference_ld_scores/" \
