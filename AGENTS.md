@@ -146,15 +146,17 @@ the exact boundary.
 depend on it. Use a private copy for modified fixtures. The live resolver mechanisms own exact source
 resolution; `gwas-pipeline-test` owns test selection, execution, evidence, and reporting.
 
-The public remote fixture fallback is dead (404), and is no longer reachable as a fallback: an unset
-`GWAS_TEST_FIXTURES` now fails immediately instead of resolving dead URLs. Every nf-test invocation runs with
-`GWAS_TEST_FIXTURES` set from `tests/fixtures/materialize.sh`, and the dev-shell `nf-test` and
-`nf-test-parallel` wrappers materialize it automatically when it is unset, aborting rather than starting a run
-without it. Materialize fixtures from the local `.references/test-datasets-gwas` resolver or an explicitly
-pinned `GWAS_FIXTURE_SOURCE`; a portable upstream PR checkout has no working fallback and needs
-`GWAS_FIXTURE_SOURCE` supplied. Automatic `.references/test-datasets-gwas`
-discovery is personal-track behavior. Run local compact-fixture benchmarks on the personal track, or explicitly
-pin and verify the local source.
+The public `nf-core/test-datasets` `gwas` branch under `params.pipelines_testdata_base_path` is the canonical
+fixture source. `-profile test` resolves its manifests straight from that branch, so
+`nextflow run . -profile test,docker --outdir out` works from a clean clone with no environment variable and no
+side script. The nf-test suite does not read the branch per case: every nf-test invocation runs with
+`GWAS_TEST_FIXTURES` set from `tests/fixtures/materialize.sh`, which fetches the branch once into a
+checksum-verified cache entry, and the dev-shell `nf-test` and `nf-test-parallel` wrappers materialize it
+automatically when it is unset, aborting rather than starting a run without it. `GWAS_FIXTURE_SOURCE` pins
+another source root — a URL or a local checkout — which is how an unmerged fixture branch is tested without
+committing a machine-specific path. There is no auto-discovery of `.references/test-datasets-gwas`; point
+`GWAS_FIXTURE_SOURCE` at it explicitly. Run local compact-fixture benchmarks on the personal track, or
+explicitly pin and verify the local source.
 
 `nf-test-parallel` derives its default shard count from `MemTotal` as `min(6, max(1, floor(GB / 4)))`, because
 shards contend for memory rather than cores: six shards need at least 24 GB, and this machine derives 3. Pass

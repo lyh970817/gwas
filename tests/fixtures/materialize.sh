@@ -40,72 +40,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-source_has_canonical_files() {
-    local candidate=$1
-    [[ -f "$candidate/results/fixtures/genotypes/example_all.vcf.gz" ]] &&
-        [[ -f "$candidate/results/fixtures/pheno_cov/example.pheno" ]] &&
-        [[ -f "$candidate/results/fixtures/pheno_cov/example.qcovar" ]] &&
-        [[ -f "$candidate/results/fixtures/pheno_cov/example.catcovar" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/cohort_manifest.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_quantitative.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_binary.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_association_only.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_heritability_only.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/analysis_manifest_heterogeneous.csv" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/method_options_heterogeneous.json" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/resources/gcta_grm_extract.txt" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/resources/ldak_predictor_extract.txt" ]] &&
-        [[ -f "$candidate/results/fixtures/relational/resources/ldak_weights.txt" ]]
-}
-
-source_is_compact_canonical() {
-    local candidate=$1
-    source_has_canonical_files "$candidate" || return 1
-    [[ $(find "$candidate/results/fixtures" -type f | wc -l) -eq 14 ]]
-}
-
-compact_source_from_worktrees() {
-    local repository=$1
-    local line
-    local candidate
-    git -C "$repository" rev-parse --git-common-dir >/dev/null 2>&1 || return 1
-    while IFS= read -r line; do
-        [[ "$line" == worktree\ * ]] || continue
-        candidate=${line#worktree }
-        if source_is_compact_canonical "$candidate"; then
-            printf '%s\n' "$candidate"
-            return 0
-        fi
-    done < <(git -C "$repository" worktree list --porcelain)
-    return 1
-}
-
-# Personal development discovers the existing project-local fixture checkout as the canonical source.
-# An explicit --source-root or GWAS_FIXTURE_SOURCE still takes precedence, and public behavior remains
-# unchanged after the source has been materialized into the verified runtime-root contract below.
-if [[ -z "$source_root" ]]; then
-    search_root=$project_dir
-    while [[ "$search_root" != / ]]; do
-        candidate="$search_root/.references/test-datasets-gwas"
-        if source_is_compact_canonical "$candidate"; then
-            source_root=$candidate
-            break
-        fi
-        source_root=$(compact_source_from_worktrees "$candidate" || true)
-        [[ -z "$source_root" ]] || break
-        search_root=$(dirname "$search_root")
-    done
-fi
-if [[ -z "$source_root" ]]; then
-    for candidate in "$project_dir/../test-datasets" "$project_dir/../test-datasets-gwas"; do
-        if source_is_compact_canonical "$candidate"; then
-            source_root=$candidate
-            break
-        fi
-        source_root=$(compact_source_from_worktrees "$candidate" || true)
-        [[ -z "$source_root" ]] || break
-    done
-fi
+# Every fixture is published, so nothing is derived here and --profile no longer selects a container
+# runtime for a derivation step. It is still accepted, and ignored, because the dev-shell wrappers, the
+# CI action and tests/fixtures/nf-test.sh all pass the profile they are about to test with.
 
 worker_root=${NFT_WORKDIR:-"$project_dir/.nf-test"}
 case "$worker_root" in
@@ -116,24 +53,37 @@ cache_dir=${cache_dir:-"$worker_root/gwas-fixtures"}
 mkdir -p "$cache_dir"
 cache_dir=$(cd "$cache_dir" && pwd -P)
 
+# The nf-core/test-datasets `gwas` branch is the canonical source. GWAS_FIXTURE_SOURCE or --source-root
+# overrides it with another URL root or a local checkout, which is how an unmerged fixture branch is
+# tested without committing a machine-specific path.
 canonical_root=${source_root:-https://raw.githubusercontent.com/nf-core/test-datasets/gwas/}
 canonical_root=${canonical_root%/}
 
 download_root=$(mktemp -d "${TMPDIR:-/tmp}/gwas-fixture-source.XXXXXX")
-run_root=
 published_root=
 invalid_root=
 
 cleanup() {
     rm -rf -- "$download_root"
-    [[ -z "$run_root" ]] || rm -rf -- "$run_root"
     [[ -z "$published_root" ]] || rm -rf -- "$published_root"
     [[ -z "$invalid_root" ]] || rm -rf -- "$invalid_root"
 }
 trap cleanup EXIT
 
+# The complete published bundle. The nine PLINK derivatives resolve over the network only once the
+# follow-up nf-core/test-datasets PR adding them to the `gwas` branch has merged; until then reach them
+# through GWAS_FIXTURE_SOURCE pointed at that branch's checkout.
 canonical_files=(
     results/fixtures/genotypes/example_all.vcf.gz
+    results/fixtures/genotypes/example_all.pgen
+    results/fixtures/genotypes/example_all.psam
+    results/fixtures/genotypes/example_all.pvar
+    results/fixtures/genotypes/example_all.bed
+    results/fixtures/genotypes/example_all.bim
+    results/fixtures/genotypes/example_all.fam
+    results/fixtures/genotypes/example_chr1.pgen
+    results/fixtures/genotypes/example_chr1.psam
+    results/fixtures/genotypes/example_chr1.pvar
     results/fixtures/pheno_cov/example.pheno
     results/fixtures/pheno_cov/example.qcovar
     results/fixtures/pheno_cov/example.catcovar
@@ -181,12 +131,6 @@ sha256_value() {
 
 contract_files=(
     "$script_dir/materialize.sh"
-    "$script_dir/materialize.nf"
-    "$script_dir/materialize.config"
-    "$project_dir/modules/local/plink2/vcf/main.nf"
-    "$project_dir/modules/local/plink2/vcf/environment.yml"
-    "$project_dir/modules/local/plink2/makebed/main.nf"
-    "$project_dir/modules/local/plink2/makebed/environment.yml"
     "$project_dir/assets/examples/relational/method_options_heterogeneous_bivariate.json"
 )
 
@@ -197,28 +141,18 @@ done
 for contract_file in "${contract_files[@]}"; do
     sha256_value "$contract_file" >> "$digest_input"
 done
-printf '%s\n' "$profile" >> "$digest_input"
 printf '%s\n' "$cache_dir" >> "$digest_input"
 digest=$(sha256_value "$digest_input")
 rm -f -- "$digest_input"
 
 final_root="$cache_dir/$digest"
 manifest_name=.complete.sha256
-required_derivatives=(
-    results/fixtures/genotypes/example_all.pgen
-    results/fixtures/genotypes/example_all.psam
-    results/fixtures/genotypes/example_all.pvar
-    results/fixtures/genotypes/example_chr1.pgen
-    results/fixtures/genotypes/example_chr1.psam
-    results/fixtures/genotypes/example_chr1.pvar
-    results/fixtures/genotypes/example_all.bed
-    results/fixtures/genotypes/example_all.bim
-    results/fixtures/genotypes/example_all.fam
-)
 
-fixture_files=("${canonical_files[@]}" "${required_derivatives[@]}")
+# The bivariate method-options document stays a pipeline asset rather than a published fixture, because
+# the standalone `-profile test` route reads it from the repository. It is published into the bundle so
+# that a declared GWAS_TEST_FIXTURES root is checksum-complete on its own.
 bivariate_options=results/fixtures/relational/method_options_heterogeneous_bivariate.json
-fixture_files+=("$bivariate_options")
+fixture_files=("${canonical_files[@]}" "$bivariate_options")
 
 verify_fixture_root() {
     local root=$1
@@ -262,7 +196,6 @@ if cache_is_complete; then
 fi
 
 published_root=$(mktemp -d "$cache_dir/.$digest.publish.XXXXXX")
-run_root=$(mktemp -d "$cache_dir/.$digest.run.XXXXXX")
 
 for relative_path in "${canonical_files[@]}"; do
     mkdir -p "$(dirname "$published_root/$relative_path")"
@@ -270,55 +203,13 @@ for relative_path in "${canonical_files[@]}"; do
 done
 cp "$project_dir/assets/examples/relational/method_options_heterogeneous_bivariate.json" "$published_root/$bivariate_options"
 
-# The documents remain the static nf-core/test-datasets examples. During tests against an unmerged fixture
-# source, relocate their canonical root so every embedded input and resource resolves from the same verified
-# cache entry. Cohort rows use the PGEN derivatives built below; analysis and method selections are unchanged.
+# The documents remain the static nf-core/test-datasets examples, whose cells name the published branch.
+# Relocate that canonical root to this verified cache entry so the offline suite reads local copies only,
+# whether the source was the published branch or an unmerged checkout of it.
 canonical_url=https://raw.githubusercontent.com/nf-core/test-datasets/gwas/results/fixtures
 local_url="$final_root/results/fixtures"
 for document in "$published_root"/results/fixtures/relational/*.csv "$published_root"/results/fixtures/relational/*.json; do
     sed -i "s|$canonical_url|$local_url|g" "$document"
-done
-
-# Canonical fixture storage is VCF; pipeline cohort ingress consumes the materialized PLINK 2 bundle.
-python3 - "$published_root/results/fixtures/relational/cohort_manifest.csv" <<'PYTHON'
-import csv
-import re
-import sys
-from pathlib import Path
-
-manifest = Path(sys.argv[1])
-with manifest.open(newline="") as handle:
-    reader = csv.DictReader(handle)
-    columns = [column for column in reader.fieldnames if column != "vcf"]
-    rows = list(reader)
-for row in rows:
-    vcf = row.pop("vcf")
-    if vcf:
-        stem = re.sub(r"\.vcf(?:\.gz|\.bgz)?$", "", vcf)
-        for extension in ("pgen", "psam", "pvar"):
-            row[extension] = f"{stem}.{extension}"
-with manifest.open("w", newline="") as handle:
-    writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
-    writer.writeheader()
-    writer.writerows(rows)
-PYTHON
-
-(
-    cd "$project_dir"
-    nextflow -log "$run_root/nextflow.log" run "$script_dir/materialize.nf" \
-        -c "$script_dir/materialize.config" \
-        -profile "$profile" \
-        -work-dir "$run_root/work" \
-        --fixture_source_vcf "$published_root/results/fixtures/genotypes/example_all.vcf.gz" \
-        --fixture_output_dir "$published_root/results/fixtures/genotypes" \
-        -ansi-log false
-) >&2
-
-for relative_path in "${required_derivatives[@]}"; do
-    [[ -f "$published_root/$relative_path" ]] || {
-        printf 'Materializer did not publish %s\n' "$relative_path" >&2
-        exit 1
-    }
 done
 
 (
