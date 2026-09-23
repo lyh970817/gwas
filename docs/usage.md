@@ -48,6 +48,33 @@ Populate exactly one complete genotype representation on each row, and give the 
 
 The supplied representation is preserved. A PLINK 1 or PLINK 2 cohort is used exactly as given and nothing is converted for it. A PLINK 1 BED/BIM/FAM view is derived from a PGEN cohort once, and only when a selected method reads PLINK 1 — the LDAK estimators, LDAK-KVIK, the LD- and MAF-stratified GCTA routes and the MPH routes. That projection takes hard calls at an explicit `--hard-call-threshold 0.1` and drops dosage and phase; every cohort's `genotypes/<cohort_id>/<cohort_id>.genotype_view.json` records which of these applied to it.
 
+### Mounted VCZ cohorts
+
+A cohort stored as [VCF Zarr](https://github.com/sgkit-dev/vcf-zarr-spec) can be analysed without writing a PLINK 1 copy to disk. The host-side launcher `nf-core-gwas-biofuse`, shipped in `launcher/biofuse/`, mounts the store as a virtual BED/BIM/FAM trio with [BioFuse](https://github.com/sgkit-dev/biofuse), writes a one-row cohort manifest that points at it, runs your `nextflow run` command, and removes the mount when the run ends. It runs outside the pipeline because the trio must exist before Nextflow validates the manifest and stages any input. Install it from `launcher/biofuse/environment.yml`, then wrap the run:
+
+```bash
+nf-core-gwas-biofuse run \
+    --vcz ./cohort.vcz \
+    --cohort-id cohort_a --genome-build GRCh38 --ancestry EUR \
+    --autosomes-only \
+    -- nextflow run nf-core/gwas \
+        -profile single_node,apptainer \
+        --cohort_manifest '{cohort_manifest}' \
+        --analysis_manifest ./analyses.csv \
+        --outdir ./results
+```
+
+The launcher replaces `{cohort_manifest}` with the path of the manifest it generated. That manifest declares `genotype_view_id` as `biofuse:` followed by a SHA-256 over the store's content, the BioFuse and vcztools versions and every selection option, so the pipeline never reads the mounted trio to identify the cohort and every reuse key follows the view's content. The launcher also writes `<cohort_id>.biofuse_view.json`, the view record that the published `genotype_view.json` joins on that identity.
+
+A mounted cohort has these limits:
+
+- Tasks must run in Apptainer or Singularity; rootful Docker cannot read the mount.
+- The launcher installs on x86-64 Linux only.
+- The mount is visible only on the host that made it, so run the whole pipeline there, for example with the [`single_node` profile](#-profile) inside one allocation. One launcher serves one cohort, and every analysis row must name it.
+- The view serves biallelic hard calls on autosomes 1-22; a store with other contigs needs `--autosomes-only`. Dosage and phase are not carried, and FAM columns 3-6 and the BIM centimorgan column are placeholders, so supply sex and phenotypes through the phenotype and covariate files.
+
+See the [BioFuse launcher runbook](dev/biofuse_launcher.md) for every option, the view identity contract, a Slurm example and recovery from a stuck mount.
+
 ### Analysis manifest fields
 
 | Column                  | Required | Description                                                                                                                                                                |
@@ -620,7 +647,7 @@ The generic software profiles include `docker`, `singularity`, `apptainer`, `pod
 
 The pipeline also loads institutional profiles from [nf-core/configs](https://github.com/nf-core/configs#documentation).
 
-The `single_node` profile runs the whole pipeline with the local executor inside one compute allocation, instead of submitting each task to the scheduler. Use it when the run's inputs are only visible on the node the pipeline is launched from, as with a host-mounted view that no other node can see. Inside a Slurm allocation it sizes the run from `SLURM_CPUS_ON_NODE` and `SLURM_MEM_PER_NODE` (MB); outside one, or under `--mem=0`, it falls back to every core the host reports and to 8 GB. It selects no container engine, so stack it with one: `-profile single_node,apptainer` or `-profile single_node,singularity`.
+The `single_node` profile runs the whole pipeline with the local executor inside one compute allocation, instead of submitting each task to the scheduler. Use it when the run's inputs are only visible on the node the pipeline is launched from, as with a [mounted VCZ cohort](#mounted-vcz-cohorts) that no other node can see. Inside a Slurm allocation it sizes the run from `SLURM_CPUS_ON_NODE` and `SLURM_MEM_PER_NODE` (MB); outside one, or under `--mem=0`, it falls back to every core the host reports and to 8 GB. It selects no container engine, so stack it with one: `-profile single_node,apptainer` or `-profile single_node,singularity`.
 
 ### `-resume`
 

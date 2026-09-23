@@ -353,6 +353,8 @@ Preparation preserves the representation a cohort was supplied in. A PLINK 1 or 
 
 </details>
 
+A cohort served by the BioFuse launcher (see [Mounted VCZ cohorts](usage.md#mounted-vcz-cohorts)) declares a `biofuse:` identity, so its record shows `source.identity` as `{"mode": "declared", "value": "biofuse:<hex>"}` and no member digests. That value is the `genotype_view_id` of the launcher's own `<cohort_id>.biofuse_view.json`, which the launcher writes to its `--record-dir` rather than the pipeline to `--outdir`; join the two records on it. The launcher's record holds what the pipeline's cannot: the store revision and selection options the identity was taken over, the runtime versions, and the information the PLINK 1 view of the store dropped.
+
 The view record is what explains every other published key of that cohort. A relatedness matrix, a REGENIE Step 1 fit and an LDAK thin-common artifact are shared by every cohort whose genotypes are byte-identical in the same representation, and their published directories are named by the artifact key rather than by a cohort — so when two `cohort_id`s name the same files, one directory serves both, and the two view records show why.
 
 ### Prepared phenotypes and covariates
