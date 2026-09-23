@@ -226,9 +226,18 @@ The first run on a production Slurm cluster is the remaining acceptance step of 
 - [ ] The view record `<cohort_id>.biofuse_view.json`, with `runtime.libfuse3.version` at 3.18.3 or later.
 - [ ] Nextflow's `pipeline_info/execution_trace_*.txt`, showing every task `COMPLETED` and no `PREPARE_GENOTYPE_SOURCE` task for the declared cohort.
 - [ ] `genotypes/<cohort_id>/<cohort_id>.genotype_view.json`, whose `source.identity.value` equals the record's `genotype_view_id`.
-- [ ] A result comparison against the control: the same analysis manifest run on the trio materialised from the same store with `vcztools view-plink`, the same selection options and `--max-alleles 2`, declared through an ordinary cohort manifest. Report the trio `sha256` sums on both sides and whether each published native result is byte-identical; name any file that differs only by timestamps, such as the MultiQC report.
+- [ ] A result comparison against the control: the same analysis manifest run on the trio materialised from the same store with `vcztools view-plink`, the same selection options and `--max-alleles 2`, declared through an ordinary cohort manifest. Report the trio `sha256` sums on both sides and whether each published native result is byte-identical; name any file that differs only by timestamps, such as the MultiQC report. Materialise the trio with the following command, where `-o` takes the output stem verbatim and writes `<stem>.bed`, `<stem>.bim` and `<stem>.fam`; for a run with `--autosomes-only`, pass `--targets` with the store's own names for autosomes 1-22, which is what the launcher gives the daemon:
+
+  ```bash
+  vcztools view-plink --max-alleles 2 [same selection options] -o '<stem>' '<cohort.vcz>'
+  ```
+
 - [ ] The versions around the run: `apptainer --version`, `uname -r` and the `libfuse3` path and version from the record, plus the Nextflow version and pipeline revision.
 
 ## Tests
 
-The launcher's own tests live in `launcher/biofuse/tests/`, outside nf-test discovery and CI. Run the local test tier with `launcher/biofuse/tests/run_local_tier.sh`.
+The launcher's own tests live in `launcher/biofuse/tests/`, outside nf-test discovery and CI. Run the local test tier from the repository root with the fixture bundle materialised; without `GWAS_TEST_FIXTURES` it exits 0 printing `SKIPPED`:
+
+```bash
+GWAS_TEST_FIXTURES=$(tests/fixtures/materialize.sh) launcher/biofuse/tests/run_local_tier.sh
+```

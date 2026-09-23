@@ -35,7 +35,7 @@ autosomes 1-22 needs `--autosomes-only`. Cancel a backgrounded launcher with `SI
 Other subcommands:
 
 - `nf-core-gwas-biofuse identity --vcz ...` prints the identity and its preimage without mounting anything.
-- `nf-core-gwas-biofuse reap-stale` tears down views whose launcher is gone.
+- `nf-core-gwas-biofuse reap-stale [--state-root DIR]` tears down views whose launcher is gone.
 
 ## View identity
 
