@@ -52,6 +52,28 @@ pipeline digests the trio through the mount instead.
 
 ## Tests
 
-`pip install -e 'launcher/biofuse[test]'`, then `pytest launcher/biofuse/tests` for the pure tier. The FUSE tier,
-`VCZ=/path/to/store.vcz launcher/biofuse/tests/lifecycle_matrix.sh`, needs `/dev/fuse`, this environment and
-Apptainer; it exits 0 with `SKIPPED: <reason>` when the host cannot run it.
+`pip install -e 'launcher/biofuse[test]'`, then `pytest launcher/biofuse/tests` for the pure tier.
+
+The local FUSE tier runs on a host with `/dev/fuse`, this environment, Apptainer and Nextflow, and never in CI:
+
+```bash
+GWAS_TEST_FIXTURES=$(tests/fixtures/materialize.sh) launcher/biofuse/tests/run_local_tier.sh
+```
+
+It runs five steps one after another and prints PASS or FAIL for each: `lifecycle_matrix.sh` (every way a run
+ends leaves no mount, process or wedged connection), `parity_check.sh` (the mounted trio is byte-identical to the
+fixture's `example_all.{bed,bim,fam}` and `plink2 --missing --freq` agrees on both), `e2e_parity.sh`
+(`-profile test,apptainer` through the view in declared and digest mode against a run on the fixture trio,
+compared by `compare_results.sh`), `concurrency_ladder.sh` (1, 2, 4 and 8 concurrent `plink2 --freq` readers of
+one mount) and `benchmark.sh` (mount readiness, E2E wall time, daemon peak RSS and I/O amplification, printed as a
+table). It exits 0 with `SKIPPED: <reason>` when `/dev/fuse`, the launcher, `biofuse`, `apptainer`, `nextflow` or
+`GWAS_TEST_FIXTURES` is missing. Each script also runs on its own. The variables it reads:
+
+- `GWAS_TEST_FIXTURES`, the materialized fixture bundle (required).
+- `VCZ`, a store converted from the fixture's `example_all.vcf.gz`. Without it the tier builds one with
+  `vcf2zarr`, which needs `tabix` (htslib) on `PATH` and the `[test]` extra for bio2zarr's VCF reader.
+- `LOCAL_TIER_ROOT`, where the mounts, runs and logs go (default: a new directory under `TMPDIR`).
+- `NXF_APPTAINER_CACHEDIR`, passed to Nextflow and searched for the PLINK 2 image; `PLINK2_SIF` names that image
+  directly.
+- `STEPS`, a subset of `lifecycle parity e2e ladder benchmark`; `NXF_PROFILE`, `LEVELS` and `CONSUMER_TIMEOUT`
+  as the scripts describe.

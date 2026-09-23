@@ -22,7 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "jsonschema>=4"]
+# bio2zarr's vcf extra is cyvcf2, which vcf2zarr needs to read the VCF the local FUSE tier builds its store from.
+test = ["pytest>=8", "jsonschema>=4", "bio2zarr[vcf]==0.2.1"]
 
 [project.scripts]
 nf-core-gwas-biofuse = "nf_core_gwas_biofuse.cli:main"
