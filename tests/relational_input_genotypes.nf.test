@@ -164,8 +164,9 @@ nextflow_pipeline {
             def rendered = commands(outputDir)
             assertAll(
                 { assert workflow.success },
-                // This is the cohort the BioFuse launcher hands the pipeline: a PLINK 1 trio under a declared
-                // identity. A PLINK 1 consumer reads it as supplied, so no task opens, digests or rewrites it.
+                // This is the cohort a mounted view (for example one served by the nf-biofuse plugin) hands the
+                // pipeline: a PLINK 1 trio under a declared identity. A PLINK 1 consumer reads it as supplied, so
+                // no task opens, digests or rewrites it.
                 { assert TRACE.count(workflow, 'PREPARE_GENOTYPE_SOURCE') == 0 },
                 { assert TRACE.count(workflow, 'PLINK2_MAKEBED') == 0 },
                 { assert TRACE.count(workflow, 'LDAK_KVIKSTEP2') == 1 },
