@@ -50,30 +50,11 @@ The supplied representation is preserved. A PLINK 1 or PLINK 2 cohort is used ex
 
 ### Mounted VCZ cohorts
 
-A cohort stored as [VCF Zarr](https://github.com/sgkit-dev/vcf-zarr-spec) can be analysed without writing a PLINK 1 copy to disk. The host-side launcher `nf-core-gwas-biofuse`, shipped in `launcher/biofuse/`, mounts the store as a virtual BED/BIM/FAM trio with [BioFuse](https://github.com/sgkit-dev/biofuse), writes a one-row cohort manifest that points at it, runs your `nextflow run` command, and removes the mount when the run ends. It runs outside the pipeline because the trio must exist before Nextflow validates the manifest and stages any input. Install it from `launcher/biofuse/environment.yml`, then wrap the run:
+A cohort stored as [VCF Zarr](https://github.com/sgkit-dev/vcf-zarr-spec) can be served to the pipeline as an ordinary PLINK 1 BED/BIM/FAM trio by [BioFuse](https://github.com/sgkit-dev/biofuse), which mounts the store as virtual files without writing a copy to disk. The recommended way to do this is the `nf-biofuse` Nextflow plugin, which is planned but not yet published. The pipeline itself knows nothing about the mount: list the mounted `bed`, `bim` and `fam` in the cohort manifest like any other PLINK 1 files.
 
-```bash
-nf-core-gwas-biofuse run \
-    --vcz ./cohort.vcz \
-    --cohort-id cohort_a --genome-build GRCh38 --ancestry EUR \
-    --autosomes-only \
-    -- nextflow run nf-core/gwas \
-        -profile single_node,apptainer \
-        --cohort_manifest '{cohort_manifest}' \
-        --analysis_manifest ./analyses.csv \
-        --outdir ./results
-```
+Optionally declare `genotype_view_id` for the mounted cohort. The pipeline then skips hashing the genotype bytes, which through a mount costs a full decode of the store.
 
-The launcher replaces `{cohort_manifest}` with the path of the manifest it generated. That manifest declares `genotype_view_id` as `biofuse:` followed by a SHA-256 over the store's content, the BioFuse and vcztools versions and every selection option, so the pipeline never reads the mounted trio to identify the cohort and every reuse key follows the view's content. The launcher also writes `<cohort_id>.biofuse_view.json`, the view record that the published `genotype_view.json` joins on that identity.
-
-A mounted cohort has these limits:
-
-- Tasks must run in Apptainer or Singularity; rootful Docker cannot read the mount.
-- The launcher installs on x86-64 Linux only.
-- The mount is visible only on the host that made it, so run the whole pipeline there, for example with the [`single_node` profile](#-profile) inside one allocation. One launcher serves one cohort, and every analysis row must name it.
-- The view serves biallelic hard calls on autosomes 1-22; a store with other contigs needs `--autosomes-only`. Dosage and phase are not carried, and FAM columns 3-6 and the BIM centimorgan column are placeholders, so supply sex and phenotypes through the phenotype and covariate files.
-
-See the [BioFuse launcher runbook](dev/biofuse_launcher.md) for every option, the view identity contract, a Slurm example and recovery from a stuck mount.
+Every task that reads the mount must run on the host that made it, in Apptainer or Singularity: rootful Docker cannot read a FUSE mount that was not made with `allow_other`. The [`single_node` profile](#-profile) runs the whole pipeline on one node for this case.
 
 ### Analysis manifest fields
 
