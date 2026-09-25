@@ -273,7 +273,7 @@ PY
 
       # Materialize once here rather than letting six shards each do it: the bundle is
       # content-addressed and flock-guarded so concurrent calls would be safe, just wasteful -- each
-      # one fetches the 23 published fixtures again. Aborting before any shard starts is the point --
+      # one fetches the 20 published fixtures again. Aborting before any shard starts is the point --
       # a broad run that discovers a fixture problem per shard wastes the whole run.
       if [[ -z "''${GWAS_TEST_FIXTURES:-}" && -x tests/fixtures/materialize.sh ]]; then
         if ! fixture_root="$(tests/fixtures/materialize.sh --profile "''${profile#+}")"; then

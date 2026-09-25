@@ -43,10 +43,9 @@ materialize from a pinned `GWAS_FIXTURE_SOURCE`.
 
 The bundle is the 20 files published on the `gwas` branch plus the bivariate method-options document
 `materialize.sh` copies in from `assets/examples/relational`. Nothing is derived locally any more, so the
-`--profile` argument is accepted and ignored. The six PLINK derivatives
-(`example_all.{pgen,psam,pvar,bed,bim,fam}`) resolve over the network only
-once the follow-up `nf-core/test-datasets` PR adding them to the branch has merged; until then set
-`GWAS_FIXTURE_SOURCE` to a checkout of that branch.
+`--profile` argument is accepted and ignored. The branch carries all 20, including the PLINK 2 and PLINK 1
+bundles `example_all.{pgen,psam,pvar,bed,bim,fam}` (nf-core/test-datasets#2282, merged 2026-09-24), so an
+unset `GWAS_FIXTURE_SOURCE` is complete; CI sets none either.
 
 ## Invocation environment and durations
 
