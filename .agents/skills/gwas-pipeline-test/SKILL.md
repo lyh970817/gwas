@@ -150,8 +150,13 @@ ci-local --all nf-test                               # every case
 which reads fixtures from the source CI does -- the published `gwas` branch, or a `fixture_source` that
 `nf-test.yml` pins -- unless a fixture variable is already set. Every selected stage runs,
 the summary prints PASS/FAIL/WARN/SKIP, and any FAIL exits nonzero; logs go under `~/.cache/gwas-ci-local/`.
-The hooks and lint's auto-fixes rewrite files in place, as they do in CI's throwaway checkout; the summary
-names them so they are reviewed rather than committed by accident. A changed-since run on
+The three lint stages run in a temporary copy under `~/.cache/gwas-ci-local/`, removed on exit, never in the
+checkout: a local checkout carries ignored content CI never sees -- `nf-core pipelines lint` walks
+`.references/modules` and fails `plugin_includes` on its `nf-validation` imports. The copy is `HEAD` by
+default, which is what CI lints, and the run prints which tree it linted; `--worktree` lints the uncommitted
+working tree instead (tracked files as edited, plus untracked files that are not ignored). The hooks' and
+lint's auto-fixes land in the copy only: the summary names them as "would rewrite" and saves them as
+`lint-rewrites.patch` in the log directory, to apply with `git apply` if wanted. A changed-since run on
 the PR branch selects nearly the whole suite: treat it as one heavy job. The PR branch carries no
 `shell.nix`, so from its worktree run `nix-shell <personal checkout>/shell.nix --run ci-local`.
 
