@@ -1,6 +1,6 @@
 ---
 name: gwas-pipeline-test
-description: Run or debug this nf-core/gwas pipeline's fixture-backed nf-test routes or full local suite. Use for tests under tests/, GWAS_TEST_FIXTURES, nf-test-parallel, native sharding, snapshot-staleness, or pipeline-behavior validation. Do not use for upstream component submission tests.
+description: Run or debug this nf-core/gwas pipeline's fixture-backed nf-test routes or full local suite, or mirror its PR checks locally. Use for tests under tests/, GWAS_TEST_FIXTURES, nf-test-parallel, ci-local, native sharding, snapshot-staleness, or pipeline-behavior validation. Do not use for upstream component submission tests.
 ---
 
 # Test the GWAS pipeline
@@ -118,6 +118,39 @@ the selected cases against the intended scope before treating the result as evid
 The type filter omits route-level and `-resume` coverage supplied by pipeline tests. Select those cases
 explicitly when they cover the changed behavior; a tier pass alone does not establish that coverage. Follow
 the canonical local-suite policy for intermediate merges and keep the final gate visibly pending.
+
+## Mirror the PR checks before pushing
+
+The dev shell's `ci-local` runs what GitHub runs on a pipeline PR to `dev`, against the checkout in the
+current directory, reading each pin from the file CI reads it from:
+
+| Stage              | Mirrors                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| `pre-commit`       | `linting.yml` pre-commit job: `prek run --all-files`, every hook but `nextflow-lint`  |
+| `nextflow-lint`    | the same job's `nextflow-lint` hook, split out so a failure names it                  |
+| `nf-core-lint`     | `linting.yml` nf-core job at `.nf-core.yml`'s `nf_core_version`, in a private uvx env |
+| `template-version` | `template-version-comment.yml`; informational, never fails                            |
+| `nf-test`          | `nf-test.yml`: `--ci --changed-since <merge base>` through `nf-test-parallel`         |
+
+```console
+ci-local lint                                        # every stage but nf-test
+ci-local nf-test                                     # changed since upstream/dev, docker
+ci-local --shards 1 nf-test -- tests/<route>.nf.test # explicit paths
+ci-local --all nf-test                               # every case
+```
+
+`--base` (or `CI_LOCAL_BASE`) names the PR target; a `master`/`main` target switches on CI's release mode
+(`lint --release`, conda/docker/singularity). `--profile`, `--shards` and `--tag` shape the nf-test stage,
+which uses CI's pinned `fixture_source` unless a fixture variable is already set. Every selected stage runs,
+the summary prints PASS/FAIL/WARN/SKIP, and any FAIL exits nonzero; logs go under `~/.cache/gwas-ci-local/`.
+The hooks and lint's auto-fixes rewrite files in place, as they do in CI's throwaway checkout; the summary
+names them so they are reviewed rather than committed by accident. A changed-since run on
+the PR branch selects nearly the whole suite: treat it as one heavy job. The PR branch carries no
+`shell.nix`, so from its worktree run `nix-shell <personal checkout>/shell.nix --run ci-local`.
+
+Not mirrored: the non-blocking `latest-everything` Nextflow leg (the shell's pinned Nextflow stands in for
+setup-nextflow's latest-stable), the jobs that only act on GitHub state (branch protection, PR comments,
+fix-linting, stale clean-up), and the release-only download, AWS and announcement workflows.
 
 ## Close the final integration and snapshot gate
 

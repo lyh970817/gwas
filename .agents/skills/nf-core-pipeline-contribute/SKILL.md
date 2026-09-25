@@ -32,7 +32,8 @@ synchronization in this repository.
 8. Before closing the linked issue, when practical, delete issue-specific generated audit and evidence documents
    without an ongoing named consumer.
 9. Request review only after the applicable CI and local gates are green and the user authorizes the external
-   action.
+   action. Before pushing, `ci-local` in the dev shell runs the PR's CI checks locally (see
+   `gwas-pipeline-test`).
 10. Close the linked origin issue after the contribution is integrated into every intended track and its required
     verification is complete.
 

@@ -326,6 +326,379 @@ PY
     '';
   };
 
+  # `ci-local` runs the checks a pipeline PR to dev gets on GitHub, before pushing. It operates on the
+  # checkout in the current directory, not on the one holding this shell.nix, so a PR-branch worktree
+  # (which carries no shell.nix) is checked with `nix-shell <personal>/shell.nix --run ci-local`.
+  #
+  # Each stage mirrors one job and reads its pins from the same file CI does: the prek hooks and their
+  # revisions from .pre-commit-config.yaml, the nf-core/tools release from `.nf-core.yml`
+  # `nf_core_version` (a private uvx environment, never the tools@dev `nf-core` above), and the fixture
+  # source from nf-test.yml's `fixture_source`. What it cannot mirror, and why, is listed in the
+  # gwas-pipeline-test skill. Deliberate differences: Nextflow is this shell's pinned version, where the
+  # lint job takes setup-nextflow's latest-stable and nf-test also runs a non-blocking latest-everything
+  # leg; prek is nixpkgs' release, where prek-action installs the latest; and shards come from
+  # nf-test-parallel's memory-derived count rather than CI's seven runners.
+  ciLocal = pkgs.writeShellApplication {
+    name = "ci-local";
+    runtimeInputs = [
+      nfTestCli
+      nfTestParallel
+      nextflowCli
+      pkgs.jdk17_headless
+      pkgs.prek
+      pkgs.uv
+      pkgs.git
+      pkgs.curl
+      pkgs.jq
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.gnused
+      pkgs.gnugrep
+    ];
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: ci-local [options] [stage...] [-- nf-test paths...]
+
+      Run the checks GitHub runs on a pipeline PR to dev, against the checkout in the current directory.
+
+      Stages (default: all, in this order):
+        pre-commit        linting.yml pre-commit job: every prek hook except nextflow-lint
+        nextflow-lint     linting.yml pre-commit job: the nextflow-lint hook on its own
+        nf-core-lint      linting.yml nf-core job: `nf-core pipelines lint` at the .nf-core.yml version
+        template-version  template-version-comment.yml: informational, never fails
+        nf-test           nf-test.yml: sharded `nf-test test --ci --changed-since <merge-base>`
+        lint              alias for the four stages before nf-test
+
+      Options:
+        --base REF        PR target the change is measured against (default: $CI_LOCAL_BASE or upstream/dev).
+                          A master/main target switches on CI's release mode: `lint --release` and the
+                          conda,docker,singularity nf-test matrix.
+        --profile LIST    nf-test profiles, comma-separated (default: docker, or the release matrix)
+        --shards N        nf-test shards per profile (default: nf-test-parallel's memory-derived count,
+                          capped at CI's maximum of 7 and at the selected test count)
+        --tag TAG         pass --tag TAG to nf-test, as the nf-test action's `tags` input does
+        --all             run every nf-test case instead of those changed since the merge base
+        -h, --help        show this help
+
+      Everything after `--` is handed to nf-test as explicit test paths.
+      Logs go to $CI_LOCAL_OUT (default: $XDG_CACHE_HOME/gwas-ci-local/<checkout>-<hash>).
+      EOF
+      }
+
+      # CI's pinned inputs that are not read from a repository file. Keep them in step with
+      # .github/workflows/linting.yml (python-version) and .github/workflows/nf-test.yml (get-shards max_shards).
+      ci_python="3.14"
+      ci_max_shards=7
+
+      base="''${CI_LOCAL_BASE:-upstream/dev}"
+      profiles=""
+      shards=""
+      tag=""
+      run_all=""
+      stages=()
+      test_paths=()
+
+      while (( $# > 0 )); do
+        case "$1" in
+          --base) base="''${2:?--base needs a ref}"; shift 2 ;;
+          --base=*) base="''${1#--base=}"; shift ;;
+          --profile) profiles="''${2:?--profile needs a value}"; shift 2 ;;
+          --profile=*) profiles="''${1#--profile=}"; shift ;;
+          --shards) shards="''${2:?--shards needs a count}"; shift 2 ;;
+          --shards=*) shards="''${1#--shards=}"; shift ;;
+          --tag) tag="''${2:?--tag needs a value}"; shift 2 ;;
+          --tag=*) tag="''${1#--tag=}"; shift ;;
+          --all) run_all=1; shift ;;
+          -h|--help) usage; exit 0 ;;
+          --) shift; test_paths=("$@"); break ;;
+          lint) stages+=(pre-commit nextflow-lint nf-core-lint template-version); shift ;;
+          pre-commit|nextflow-lint|nf-core-lint|template-version|nf-test) stages+=("$1"); shift ;;
+          *) echo "ci-local: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+        esac
+      done
+
+      if (( ''${#stages[@]} == 0 )); then
+        stages=(pre-commit nextflow-lint nf-core-lint template-version nf-test)
+      fi
+
+      if [[ -n "$shards" && ! "$shards" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ci-local: --shards must be a positive integer" >&2
+        exit 2
+      fi
+
+      if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+        echo "ci-local: run from inside the pipeline checkout" >&2
+        exit 2
+      fi
+      if [[ ! -f "$root/.nf-core.yml" || ! -f "$root/nf-test.config" ]]; then
+        echo "ci-local: $root is not the pipeline root (.nf-core.yml or nf-test.config missing)" >&2
+        exit 2
+      fi
+      cd "$root"
+
+      if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+        echo "ci-local: base '$base' does not resolve; fetch it or pass --base" >&2
+        exit 2
+      fi
+      merge_base="$(git merge-base "$base" HEAD)"
+
+      # CI keys release mode on the PR's base branch name, not on the remote that carries it.
+      base_branch="''${base##*/}"
+      release=""
+      if [[ "$base_branch" == master || "$base_branch" == main ]]; then
+        release=1
+      fi
+      if [[ -z "$profiles" ]]; then
+        if [[ -n "$release" ]]; then
+          profiles="conda,docker,singularity"
+        else
+          profiles="docker"
+        fi
+      fi
+
+      # Logs and shard work dirs stay out of the synced checkout and out of every tracked ignore file.
+      out="''${CI_LOCAL_OUT:-''${XDG_CACHE_HOME:-$HOME/.cache}/gwas-ci-local/$(basename "$root")-$(printf '%s' "$root" | sha1sum | cut -c1-8)}"
+      mkdir -p "$out"
+
+      stage_names=()
+      stage_results=()
+      stage_notes=()
+
+      record() {
+        stage_names+=("$1")
+        stage_results+=("$2")
+        stage_notes+=("$3")
+      }
+
+      banner() {
+        printf '\n==> ci-local: %s\n' "$1"
+      }
+
+      run_logged() {
+        # Tee a stage's output to its log while keeping the command's own exit status.
+        local log="$1"
+        shift
+        "$@" 2>&1 | tee "$log"
+        return "''${PIPESTATUS[0]}"
+      }
+
+      tree_state() {
+        # Content fingerprint of every tracked file that differs from HEAD, to name what a stage rewrote.
+        local path
+        git diff --name-only HEAD | while IFS= read -r path; do
+          printf '%s %s\n' "$path" "$(git hash-object -- "$path" 2>/dev/null || echo deleted)"
+        done | sort
+      }
+
+      rewritten_since() {
+        comm -13 <(printf '%s\n' "$1") <(tree_state) | cut -d' ' -f1 | paste -sd' ' -
+      }
+
+      stage_pre_commit() {
+        banner "pre-commit (prek run --all-files, nextflow-lint skipped)"
+        local log="$out/pre-commit.log" before rewritten
+        before="$(tree_state)"
+        if run_logged "$log" env SKIP=nextflow-lint prek run --show-diff-on-failure --color=always --all-files; then
+          record pre-commit PASS "$log"
+        else
+          rewritten="$(rewritten_since "$before")"
+          record pre-commit FAIL "$log''${rewritten:+; hooks rewrote: $rewritten}"
+        fi
+      }
+
+      stage_nextflow_lint() {
+        banner "nextflow-lint (prek run nextflow-lint --all-files, $(nextflow -version 2>/dev/null | sed -n 's/.*version \([^ ]*\) build.*/Nextflow \1/p'))"
+        local log="$out/nextflow-lint.log"
+        if run_logged "$log" prek run nextflow-lint --show-diff-on-failure --color=always --all-files; then
+          record nextflow-lint PASS "$log"
+        else
+          record nextflow-lint FAIL "$log"
+        fi
+      }
+
+      pinned_nf_core_version() {
+        # linting.yml reads this key from .nf-core.yml and installs exactly that release.
+        sed -n 's/^nf_core_version:[[:space:]]*//p' .nf-core.yml | tr -d "\"' \r" | head -1
+      }
+
+      stage_nf_core_lint() {
+        local version
+        version="''${CI_LOCAL_NF_CORE_VERSION:-$(pinned_nf_core_version)}"
+        if [[ -z "$version" ]]; then
+          record nf-core-lint FAIL "no nf_core_version in .nf-core.yml"
+          return
+        fi
+        local mode=()
+        if [[ -n "$release" ]]; then
+          mode=(--release)
+        fi
+        banner "nf-core-lint (nf-core==$version on Python $ci_python''${release:+, --release})"
+        local log="$out/nf-core-lint.log"
+
+        # nf-core caches `nextflow config` output in $NXF_HOME/nf-core/, keyed only by a hash of the
+        # pipeline's main.nf and config files. 4.0.3 stores `config -flat` keys there, 4.1 stores nested
+        # `config -o json`, and each misreads the other's entry: the lint template that files_unchanged
+        # renders hashes the same across releases, so a cache left by the dev shell's tools@dev nf-core
+        # crashes 4.0.3 with KeyError 'manifest.name'. CI starts from an empty home, so give each nf-core
+        # version its own cache and link every other entry (framework, plugins, secrets) to the real home.
+        local real_home="''${NXF_HOME:-$HOME/.nextflow}"
+        local lint_home="''${XDG_CACHE_HOME:-$HOME/.cache}/gwas-ci-local/nxf-home-nf-core-$version"
+        mkdir -p "$real_home" "$lint_home/nf-core"
+        local entry
+        while IFS= read -r -d "" entry; do
+          if [[ ! -e "$lint_home/''${entry##*/}" && ! -L "$lint_home/''${entry##*/}" ]]; then
+            ln -s "$entry" "$lint_home/''${entry##*/}"
+          fi
+        done < <(find "$real_home" -mindepth 1 -maxdepth 1 ! -name nf-core -print0)
+
+        # A private uv environment at the version CI installs, never the dev shell's nf-core. The dev
+        # shell's PYTHONPATH carries its own Python's site-packages and breaks this interpreter, and the
+        # GitHub variables are cleared so lint can never post a PR comment from here.
+        local before rewritten status=PASS
+        before="$(tree_state)"
+        if ! run_logged "$log" env -u PYTHONPATH -u GITHUB_TOKEN -u GITHUB_COMMENTS_URL -u GITHUB_PR_COMMIT \
+            NXF_HOME="$lint_home" \
+            uvx --python "$ci_python" --from "nf-core==$version" \
+            nf-core -l "$out/nf-core-lint.debug.log" pipelines lint "''${mode[@]}" \
+            --dir "$root" --markdown "$out/lint_results.md"; then
+          status=FAIL
+        fi
+        # Lint applies its own auto-fixes (the RO-Crate description, for one) in place; CI discards them
+        # with the runner, so name them here rather than leave them to be committed by accident.
+        rewritten="$(rewritten_since "$before")"
+        record nf-core-lint "$status" "$out/lint_results.md''${rewritten:+; lint rewrote: $rewritten}"
+      }
+
+      stage_template_version() {
+        banner "template-version"
+        local pinned latest
+        pinned="$(pinned_nf_core_version)"
+        # CI compares against `nf-core --version` after an unpinned install, i.e. the latest PyPI release.
+        latest="$(curl -fsSL --max-time 20 https://pypi.org/pypi/nf-core/json 2>/dev/null | jq -r '.info.version // empty' || true)"
+        if [[ -z "$latest" ]]; then
+          record template-version WARN "could not read the latest nf-core release from PyPI"
+        elif [[ "$pinned" != "$latest" ]]; then
+          record template-version WARN "template $pinned, latest nf-core $latest: CI posts an outdated-template comment (non-blocking)"
+        else
+          record template-version PASS "template $pinned is the latest nf-core"
+        fi
+      }
+
+      only_ignored_changes() {
+        # nf-test.yml's paths-ignore: a PR touching only these paths never starts the workflow.
+        local path any=""
+        while IFS= read -r path; do
+          [[ -z "$path" ]] && continue
+          any=1
+          case "$path" in
+            docs/*|*.md|*.png|*.svg|meta.yml|*/meta.yml) ;;
+            *) return 1 ;;
+          esac
+        done < <({ git diff --name-only "$merge_base"; git ls-files --others --exclude-standard; } | sort -u)
+        [[ -n "$any" ]]
+      }
+
+      stage_nf_test() {
+        local selection=(--ci --verbose)
+        local scope
+        if [[ ''${#test_paths[@]} -gt 0 ]]; then
+          scope="explicit paths: ''${test_paths[*]}"
+        elif [[ -n "$run_all" ]]; then
+          scope="all tests"
+        else
+          scope="changed since $base (merge base ''${merge_base:0:12})"
+          selection+=(--changed-since "$merge_base")
+          if only_ignored_changes; then
+            banner "nf-test"
+            record nf-test SKIP "every change matches nf-test.yml paths-ignore"
+            return
+          fi
+        fi
+        if [[ -n "$tag" ]]; then
+          selection+=(--tag "$tag")
+        fi
+
+        # CI reads the fixtures from the source nf-test.yml pins, so do the same unless the caller already
+        # chose a source or a materialized root.
+        if [[ -z "''${GWAS_TEST_FIXTURES:-}" && -z "''${GWAS_FIXTURE_SOURCE:-}" ]]; then
+          local pinned_source
+          pinned_source="$(sed -n 's/^[[:space:]]*fixture_source:[[:space:]]*\([^[:space:]#]*\).*/\1/p' .github/workflows/nf-test.yml | head -1)"
+          if [[ -n "$pinned_source" ]]; then
+            export GWAS_FIXTURE_SOURCE="$pinned_source"
+          fi
+        fi
+
+        local profile
+        local -a profile_list
+        IFS=, read -r -a profile_list <<<"$profiles"
+        for profile in "''${profile_list[@]}"; do
+          banner "nf-test ($profile, $scope''${GWAS_FIXTURE_SOURCE:+, fixtures from $GWAS_FIXTURE_SOURCE})"
+          local dry_log="$out/nf-test-$profile.dry-run.log"
+          # The same discovery get-shards runs: a dry run decides whether anything is selected and how many.
+          if ! run_logged "$dry_log" nf-test test --profile="+$profile" --dry-run "''${selection[@]}" "''${test_paths[@]}" >/dev/null; then
+            record "nf-test:$profile" FAIL "dry-run discovery failed: $dry_log"
+            continue
+          fi
+          if grep -q 'No tests to execute' "$dry_log"; then
+            record "nf-test:$profile" PASS "no tests selected"
+            continue
+          fi
+          local selected
+          selected="$(sed -n 's/.*Executed \([0-9]*\) tests.*/\1/p' "$dry_log" | tail -1)"
+          local count="$shards"
+          # nf-test-parallel's own memory-derived default, computed here so it can also be capped the way
+          # get-shards caps CI's matrix: at seven, and at the number of selected cases.
+          if [[ -z "$count" ]]; then
+            local mem_kb
+            mem_kb="$(sed -n 's/^MemTotal:[[:space:]]*\([0-9]*\).*/\1/p' /proc/meminfo 2>/dev/null)"
+            count=$(( ''${mem_kb:-0} / 1024 / 1024 / 4 ))
+            if (( count > 6 )); then count=6; fi
+            if (( count < 1 )); then count=1; fi
+          fi
+          if (( count > ci_max_shards )); then count=$ci_max_shards; fi
+          if [[ -n "$selected" ]] && (( selected > 0 && count > selected )); then
+            count=$selected
+          fi
+          echo "ci-local: ''${selected:-?} tests selected, $count shard(s)"
+          local log="$out/nf-test-$profile.log"
+          local shard_root="$out/nf-test-shards-$profile"
+          if run_logged "$log" env NFT_PROFILE="+$profile" NFT_SHARD_ROOT="$shard_root" \
+              nf-test-parallel "$count" "''${selection[@]}" "''${test_paths[@]}"; then
+            record "nf-test:$profile" PASS "''${selected:-?} tests, $count shard(s); logs in $shard_root"
+          else
+            grep -h -E "SUCCESS:|FAILURE:" "$shard_root"/shard-*.log 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g; s/^/  /' || true
+            record "nf-test:$profile" FAIL "shard logs in $shard_root"
+          fi
+        done
+      }
+
+      echo "ci-local: checkout $root at $(git rev-parse --short HEAD)$(git diff --quiet HEAD 2>/dev/null || echo ' (with uncommitted changes)')"
+      echo "ci-local: base $base, merge base ''${merge_base:0:12}''${release:+, release mode}"
+      echo "ci-local: logs in $out"
+
+      for stage in "''${stages[@]}"; do
+        case "$stage" in
+          pre-commit) stage_pre_commit ;;
+          nextflow-lint) stage_nextflow_lint ;;
+          nf-core-lint) stage_nf_core_lint ;;
+          template-version) stage_template_version ;;
+          nf-test) stage_nf_test ;;
+        esac
+      done
+
+      status=0
+      printf '\n==> ci-local summary\n'
+      for index in "''${!stage_names[@]}"; do
+        printf '  %-4s  %-18s %s\n' "''${stage_results[index]}" "''${stage_names[index]}" "''${stage_notes[index]}"
+        if [[ "''${stage_results[index]}" == FAIL ]]; then
+          status=1
+        fi
+      done
+      exit "$status"
+    '';
+  };
+
   condaCli = pkgs.writeShellApplication {
     name = "conda";
     runtimeInputs = [ pkgs.micromamba pkgs.python3 ];
@@ -395,9 +768,11 @@ pkgs.mkShell {
     nfCoreCli
     nfTestCli
     nfTestParallel
+    ciLocal
     condaCli
     pkgs.apptainer
     pkgs.pre-commit
+    pkgs.prek
     pkgs.python3Packages.cairosvg
     waveCli
   ];
