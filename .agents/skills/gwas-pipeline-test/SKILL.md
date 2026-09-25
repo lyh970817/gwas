@@ -92,8 +92,13 @@ repository folder (default `.nf-test-shards`). The shard count defaults to `min(
 nf-test JVM, a Nextflow head JVM and their Docker tasks. Six shards therefore need at least 24 GB, and this
 machine (12.5 GB) derives 3 — running six here exhausted memory and froze the box mid-suite. The wrapper
 announces a derived count as `nf-test-parallel: N shards (memory-derived; pass an explicit count to
-override)`; an explicit first argument wins in either direction. Otherwise run the native shards with
-`nf-test test --profile=+docker --shard i/N`, distinct `NFT_WORKDIR` values, and aggregated exit statuses.
+override)`; an explicit first argument wins in either direction. nf-test installs the plugins
+`nf-test.config` loads into `.nf-test/plugins` under the launch directory, not under `NFT_WORKDIR`, so every
+shard shares that directory; when a declared plugin is missing there, as in a fresh worktree, the wrapper
+runs `nf-test update-plugins` once before starting any shard, announcing it, instead of letting the shards
+race on the download. Without the wrapper, run the native shards with
+`nf-test test --profile=+docker --shard i/N`, distinct `NFT_WORKDIR` values, and aggregated exit statuses,
+after one single-process nf-test command has installed the plugins.
 
 ## Select a broader tier when needed
 
@@ -106,12 +111,13 @@ nf-test-parallel --filter=process,workflow,function --verbose
 
 `--filter` selects on the test type each file declares, so the same command selects the same cases on any
 checkout and a mistake shows up as a changed count rather than as silence. Counted by `--dry-run` discovery,
-which is the authoritative figure, the suite is 700 cases: 593 selected by `process,workflow,function`
-(function 404, process 105, workflow 84) and 107 by `pipeline`, summing exactly. Do not confuse that with
-the `test(` blocks in the sources — many are generated in `.each` loops, so one block yields several cases
-— nor with counts measured on older commits: the suite was 828 cases before the validation-rejection and
-stub-twin collapse, and 777 when issue #113 first measured it. Re-measure with `--dry-run` rather than
-quoting any of them. `--related-tests` and `--changed-since` narrow further but choose from a diff, so a wrong
+which is the authoritative figure, the suite was 810 cases on 2026-09-25: 701 selected by
+`process,workflow,function` (function 404, process 176, workflow 121) and 109 by `pipeline`, summing
+exactly. Do not confuse that with the `test(` blocks in the sources — many are generated in `.each` loops,
+so one block yields several cases — nor with counts measured on older commits: the suite was 828 cases
+before the validation-rejection and stub-twin collapse, 777 when issue #113 first measured it, and 700
+when this paragraph was first written. Re-measure with `--dry-run` rather than quoting any of
+them. `--related-tests` and `--changed-since` narrow further but choose from a diff, so a wrong
 base quietly selects nothing and still reports success. If using them, inspect `--dry-run` discovery and verify
 the selected cases against the intended scope before treating the result as evidence.
 
