@@ -287,6 +287,25 @@ PY
       # The JVM tuning and the warm-cache-guarded NXF_OFFLINE now live in the nf-test wrapper this
       # calls, so every shard inherits them and a plain `nf-test` run gets them too.
 
+      # nf-test 0.9.5 installs the plugins nf-test.config loads into `.nf-test/plugins` relative to the
+      # launch directory -- a fixed location, not under NFT_WORKDIR -- so every shard reads and, on a
+      # cold cache, downloads into the same directory. In a fresh worktree the shards race on that
+      # download and die. Install them once, before any shard starts, when a declared plugin is
+      # missing; `update-plugins` re-downloads unconditionally, so a warm cache is left alone.
+      plugins_missing=""
+      while read -r plugin_name plugin_version; do
+        if [[ -z "$(ls -A ".nf-test/plugins/$plugin_name/$plugin_version" 2>/dev/null)" ]]; then
+          plugins_missing+=" $plugin_name@$plugin_version"
+        fi
+      done < <(sed -n 's/^[[:space:]]*load[[:space:]]*"\([^"@]*\)@\([^"]*\)".*/\1 \2/p' nf-test.config)
+      if [[ -n "$plugins_missing" ]]; then
+        echo "nf-test-parallel: installing nf-test plugins before the shards start:$plugins_missing"
+        if ! nf-test update-plugins; then
+          echo "nf-test-parallel: nf-test plugin installation failed; no shard was started" >&2
+          exit 1
+        fi
+      fi
+
       rm -rf "''${shard_root:?}"/shard-*
       mkdir -p "$shard_root"
 
@@ -299,11 +318,6 @@ PY
       for shard in $(seq 1 "$shards"); do
         workdir="$shard_root/shard-$shard"
         mkdir -p "$workdir"
-        # nf-test caches nft-utils under its work dir, so a fresh per-shard dir
-        # would re-fetch the same plugin once per shard. Seed it instead.
-        if [[ -d .nf-test/plugins ]]; then
-          cp -r .nf-test/plugins "$workdir/plugins"
-        fi
         NFT_WORKDIR="$workdir" nf-test test \
           --profile="$profile" \
           --shard "$shard/$shards" \

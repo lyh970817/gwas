@@ -32,6 +32,7 @@ topics only for unresolved upstream detail.
    ```
 
    It caps resources and changes no committed resource label.
+
 7. Update snapshots only when the output change is intentional and understood. Prefer fixing the contract over
    weakening assertions.
 8. Validate with the version of `nf-core` pinned by the target CI and current upstream state. If a merge queue or
