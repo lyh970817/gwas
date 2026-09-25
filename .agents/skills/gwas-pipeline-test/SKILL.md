@@ -141,7 +141,8 @@ ci-local --all nf-test                               # every case
 
 `--base` (or `CI_LOCAL_BASE`) names the PR target; a `master`/`main` target switches on CI's release mode
 (`lint --release`, conda/docker/singularity). `--profile`, `--shards` and `--tag` shape the nf-test stage,
-which uses CI's pinned `fixture_source` unless a fixture variable is already set. Every selected stage runs,
+which reads fixtures from the source CI does -- the published `gwas` branch, or a `fixture_source` that
+`nf-test.yml` pins -- unless a fixture variable is already set. Every selected stage runs,
 the summary prints PASS/FAIL/WARN/SKIP, and any FAIL exits nonzero; logs go under `~/.cache/gwas-ci-local/`.
 The hooks and lint's auto-fixes rewrite files in place, as they do in CI's throwaway checkout; the summary
 names them so they are reviewed rather than committed by accident. A changed-since run on

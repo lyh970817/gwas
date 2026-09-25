@@ -333,7 +333,8 @@ PY
   # Each stage mirrors one job and reads its pins from the same file CI does: the prek hooks and their
   # revisions from .pre-commit-config.yaml, the nf-core/tools release from `.nf-core.yml`
   # `nf_core_version` (a private uvx environment, never the tools@dev `nf-core` above), and the fixture
-  # source from nf-test.yml's `fixture_source`. What it cannot mirror, and why, is listed in the
+  # source from nf-test.yml's `fixture_source` when it pins one -- unpinned, as now, the materializer's
+  # default published branch applies, as in CI. What it cannot mirror, and why, is listed in the
   # gwas-pipeline-test skill. Deliberate differences: Nextflow is this shell's pinned version, where the
   # lint job takes setup-nextflow's latest-stable and nf-test also runs a non-blocking latest-everything
   # leg; prek is nixpkgs' release, where prek-action installs the latest; and shards come from
@@ -620,7 +621,8 @@ PY
         fi
 
         # CI reads the fixtures from the source nf-test.yml pins, so do the same unless the caller already
-        # chose a source or a materialized root.
+        # chose a source or a materialized root. With no pin, leave GWAS_FIXTURE_SOURCE unset so the
+        # materializer's default published branch applies, as it does in CI.
         if [[ -z "''${GWAS_TEST_FIXTURES:-}" && -z "''${GWAS_FIXTURE_SOURCE:-}" ]]; then
           local pinned_source
           pinned_source="$(sed -n 's/^[[:space:]]*fixture_source:[[:space:]]*\([^[:space:]#]*\).*/\1/p' .github/workflows/nf-test.yml | head -1)"
