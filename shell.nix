@@ -353,6 +353,12 @@ PY
   # lint job takes setup-nextflow's latest-stable and nf-test also runs a non-blocking latest-everything
   # leg; prek is nixpkgs' release, where prek-action installs the latest; and shards come from
   # nf-test-parallel's memory-derived count rather than CI's seven runners.
+  #
+  # The lint stages run in a throwaway copy of the tree, never in the checkout: CI's checkout holds only
+  # the pushed commit, while a local checkout also carries ignored content -- the `.references/modules`
+  # companion checkout above all -- that `nf-core pipelines lint` walks (its plugin_includes test fails on
+  # nf-validation imports there). The copy is HEAD by default, which is what CI lints; `--worktree` copies
+  # the working tree's tracked and untracked-unignored files instead, i.e. what the next commit would carry.
   ciLocal = pkgs.writeShellApplication {
     name = "ci-local";
     runtimeInputs = [
@@ -369,6 +375,7 @@ PY
       pkgs.findutils
       pkgs.gnused
       pkgs.gnugrep
+      pkgs.gnutar
     ];
     text = ''
       usage() {
@@ -394,7 +401,14 @@ PY
                           capped at CI's maximum of 7 and at the selected test count)
         --tag TAG         pass --tag TAG to nf-test, as the nf-test action's `tags` input does
         --all             run every nf-test case instead of those changed since the merge base
+        --worktree        lint the working tree (tracked files as edited, plus untracked files that are not
+                          ignored) instead of HEAD
         -h, --help        show this help
+
+      The lint stages run in a temporary copy of the tree, so ignored local content (.references/, build
+      output) is never linted and nothing in the checkout is rewritten. The copy is HEAD by default, which
+      is what CI lints; with --worktree it is the uncommitted working tree. Hook and lint auto-fixes land
+      in the copy only: the summary names them as "would rewrite" and saves them as a patch in the logs.
 
       Everything after `--` is handed to nf-test as explicit test paths.
       Logs go to $CI_LOCAL_OUT (default: $XDG_CACHE_HOME/gwas-ci-local/<checkout>-<hash>).
@@ -411,6 +425,7 @@ PY
       shards=""
       tag=""
       run_all=""
+      lint_worktree=""
       stages=()
       test_paths=()
 
@@ -425,6 +440,7 @@ PY
           --tag) tag="''${2:?--tag needs a value}"; shift 2 ;;
           --tag=*) tag="''${1#--tag=}"; shift ;;
           --all) run_all=1; shift ;;
+          --worktree) lint_worktree=1; shift ;;
           -h|--help) usage; exit 0 ;;
           --) shift; test_paths=("$@"); break ;;
           lint) stages+=(pre-commit nextflow-lint nf-core-lint template-version); shift ;;
@@ -498,34 +514,91 @@ PY
         return "''${PIPESTATUS[0]}"
       }
 
+      # The lint copy: a temporary directory under the ci-local cache, removed on exit. It is its own git
+      # repository with the copied tree as its single commit, because prek selects files through git.
+      lint_tmp=""
+      lint_root=""
+      lint_subject=""
+      # shellcheck disable=SC2329 # invoked through the EXIT trap
+      cleanup() {
+        if [[ -n "$lint_tmp" ]]; then
+          rm -rf -- "$lint_tmp"
+        fi
+      }
+      trap cleanup EXIT
+
+      prepare_lint_tree() {
+        local cache="''${XDG_CACHE_HOME:-$HOME/.cache}/gwas-ci-local"
+        mkdir -p "$cache"
+        lint_tmp="$(mktemp -d "$cache/lint-tree.XXXXXX")"
+        lint_root="$lint_tmp/$(basename "$root")"
+        mkdir -p "$lint_root"
+        if [[ -n "$lint_worktree" ]]; then
+          # What the next commit would carry: tracked files as edited, and untracked files not ignored.
+          local path
+          git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d "" path; do
+            if [[ -e "$path" || -L "$path" ]]; then
+              printf '%s\0' "$path"
+            fi
+          done | sort -zu | tar --null -T - -cf - | tar -xf - -C "$lint_root"
+          lint_subject="the working tree of $root (uncommitted edits and untracked, unignored files included)"
+        else
+          # HEAD exactly as a CI checkout materializes it, through a private index so the checkout's own
+          # index and worktree list are untouched.
+          GIT_INDEX_FILE="$lint_tmp/index" git read-tree HEAD
+          GIT_INDEX_FILE="$lint_tmp/index" git checkout-index -a -f --prefix="$lint_root/"
+          lint_subject="HEAD $(git rev-parse --short HEAD) of $root$(git diff --quiet HEAD 2>/dev/null || echo ', uncommitted edits excluded (--worktree lints them)')"
+        fi
+        git -C "$lint_root" init -q
+        git -C "$lint_root" add -A -f
+        git -C "$lint_root" -c user.name=ci-local -c user.email=ci-local@localhost -c commit.gpgsign=false \
+          commit -q --no-verify -m "ci-local lint copy"
+      }
+
       tree_state() {
-        # Content fingerprint of every tracked file that differs from HEAD, to name what a stage rewrote.
+        # Content fingerprint of every file in the lint copy that differs from its commit, to name what a
+        # stage rewrote.
         local path
-        git diff --name-only HEAD | while IFS= read -r path; do
-          printf '%s %s\n' "$path" "$(git hash-object -- "$path" 2>/dev/null || echo deleted)"
-        done | sort
+        { git -C "$lint_root" diff --name-only HEAD; git -C "$lint_root" ls-files --others --exclude-standard; } \
+          | sort -u | while IFS= read -r path; do
+            printf '%s %s\n' "$path" "$(git -C "$lint_root" hash-object -- "$path" 2>/dev/null || echo deleted)"
+          done | sort
       }
 
       rewritten_since() {
         comm -13 <(printf '%s\n' "$1") <(tree_state) | cut -d' ' -f1 | paste -sd' ' -
       }
 
+      save_rewrites() {
+        # Every auto-fix the stages made to the lint copy, as a patch against the linted tree.
+        local patch="$out/lint-rewrites.patch"
+        rm -f "$patch"
+        if [[ -z "$lint_root" ]]; then
+          return
+        fi
+        git -C "$lint_root" add -A -f
+        if ! git -C "$lint_root" diff --cached --quiet HEAD; then
+          git -C "$lint_root" diff --cached --binary HEAD >"$patch"
+          echo "ci-local: auto-fixes the checkout would receive are saved in $patch"
+        fi
+      }
+
       stage_pre_commit() {
         banner "pre-commit (prek run --all-files, nextflow-lint skipped)"
         local log="$out/pre-commit.log" before rewritten
         before="$(tree_state)"
-        if run_logged "$log" env SKIP=nextflow-lint prek run --show-diff-on-failure --color=always --all-files; then
+        if run_logged "$log" env -C "$lint_root" SKIP=nextflow-lint prek run --show-diff-on-failure --color=always --all-files; then
           record pre-commit PASS "$log"
         else
           rewritten="$(rewritten_since "$before")"
-          record pre-commit FAIL "$log''${rewritten:+; hooks rewrote: $rewritten}"
+          record pre-commit FAIL "$log''${rewritten:+; hooks would rewrite: $rewritten}"
         fi
       }
 
       stage_nextflow_lint() {
         banner "nextflow-lint (prek run nextflow-lint --all-files, $(nextflow -version 2>/dev/null | sed -n 's/.*version \([^ ]*\) build.*/Nextflow \1/p'))"
         local log="$out/nextflow-lint.log"
-        if run_logged "$log" prek run nextflow-lint --show-diff-on-failure --color=always --all-files; then
+        if run_logged "$log" env -C "$lint_root" prek run nextflow-lint --show-diff-on-failure --color=always --all-files; then
           record nextflow-lint PASS "$log"
         else
           record nextflow-lint FAIL "$log"
@@ -534,7 +607,7 @@ PY
 
       pinned_nf_core_version() {
         # linting.yml reads this key from .nf-core.yml and installs exactly that release.
-        sed -n 's/^nf_core_version:[[:space:]]*//p' .nf-core.yml | tr -d "\"' \r" | head -1
+        sed -n 's/^nf_core_version:[[:space:]]*//p' "''${lint_root:-$root}/.nf-core.yml" | tr -d "\"' \r" | head -1
       }
 
       stage_nf_core_lint() {
@@ -576,13 +649,13 @@ PY
             NXF_HOME="$lint_home" \
             uvx --python "$ci_python" --from "nf-core==$version" \
             nf-core -l "$out/nf-core-lint.debug.log" pipelines lint "''${mode[@]}" \
-            --dir "$root" --markdown "$out/lint_results.md"; then
+            --dir "$lint_root" --markdown "$out/lint_results.md"; then
           status=FAIL
         fi
-        # Lint applies its own auto-fixes (the RO-Crate description, for one) in place; CI discards them
-        # with the runner, so name them here rather than leave them to be committed by accident.
+        # Lint applies its own auto-fixes (the RO-Crate description, for one) in place; here they land in
+        # the copy, so name them rather than let them pass unseen.
         rewritten="$(rewritten_since "$before")"
-        record nf-core-lint "$status" "$out/lint_results.md''${rewritten:+; lint rewrote: $rewritten}"
+        record nf-core-lint "$status" "$out/lint_results.md''${rewritten:+; lint would rewrite: $rewritten}"
       }
 
       stage_template_version() {
@@ -695,6 +768,16 @@ PY
 
       for stage in "''${stages[@]}"; do
         case "$stage" in
+          pre-commit|nextflow-lint|nf-core-lint)
+            prepare_lint_tree
+            echo "ci-local: linting a copy of $lint_subject"
+            break
+            ;;
+        esac
+      done
+
+      for stage in "''${stages[@]}"; do
+        case "$stage" in
           pre-commit) stage_pre_commit ;;
           nextflow-lint) stage_nextflow_lint ;;
           nf-core-lint) stage_nf_core_lint ;;
@@ -702,6 +785,8 @@ PY
           nf-test) stage_nf_test ;;
         esac
       done
+
+      save_rewrites
 
       status=0
       printf '\n==> ci-local summary\n'
