@@ -358,7 +358,8 @@ PY
   # the pushed commit, while a local checkout also carries ignored content -- the `.references/modules`
   # companion checkout above all -- that `nf-core pipelines lint` walks (its plugin_includes test fails on
   # nf-validation imports there). The copy is HEAD by default, which is what CI lints; `--worktree` copies
-  # the working tree's tracked and untracked-unignored files instead, i.e. what the next commit would carry.
+  # the working tree's tracked and untracked-unignored files instead, i.e. what the next commit would carry;
+  # `--rev` and `--staged` copy a given commit and the index, which is how the git hooks below call it.
   ciLocal = pkgs.writeShellApplication {
     name = "ci-local";
     runtimeInputs = [
@@ -403,12 +404,16 @@ PY
         --all             run every nf-test case instead of those changed since the merge base
         --worktree        lint the working tree (tracked files as edited, plus untracked files that are not
                           ignored) instead of HEAD
+        --rev REV         lint the tree of commit REV instead of HEAD (the pre-push hook's mode)
+        --staged          lint the index, i.e. what `git commit` would record, and run the prek stages on
+                          the staged changes only rather than --all-files (the pre-commit hook's mode)
         -h, --help        show this help
 
       The lint stages run in a temporary copy of the tree, so ignored local content (.references/, build
       output) is never linted and nothing in the checkout is rewritten. The copy is HEAD by default, which
-      is what CI lints; with --worktree it is the uncommitted working tree. Hook and lint auto-fixes land
-      in the copy only: the summary names them as "would rewrite" and saves them as a patch in the logs.
+      is what CI lints; --worktree, --rev and --staged choose another tree, and nf-test always runs in the
+      checkout itself. Hook and lint auto-fixes land in the copy only: the summary names them as "would
+      rewrite" and saves them as a patch in the logs.
 
       Everything after `--` is handed to nf-test as explicit test paths.
       Logs go to $CI_LOCAL_OUT (default: $XDG_CACHE_HOME/gwas-ci-local/<checkout>-<hash>).
@@ -425,9 +430,18 @@ PY
       shards=""
       tag=""
       run_all=""
-      lint_worktree=""
+      lint_source="head"
+      lint_rev=""
       stages=()
       test_paths=()
+
+      set_lint_source() {
+        if [[ "$lint_source" != head && "$lint_source" != "$1" ]]; then
+          echo "ci-local: --worktree, --rev and --staged each choose the lint tree; pass one" >&2
+          exit 2
+        fi
+        lint_source="$1"
+      }
 
       while (( $# > 0 )); do
         case "$1" in
@@ -440,7 +454,10 @@ PY
           --tag) tag="''${2:?--tag needs a value}"; shift 2 ;;
           --tag=*) tag="''${1#--tag=}"; shift ;;
           --all) run_all=1; shift ;;
-          --worktree) lint_worktree=1; shift ;;
+          --worktree) set_lint_source worktree; shift ;;
+          --rev) set_lint_source rev; lint_rev="''${2:?--rev needs a commit}"; shift 2 ;;
+          --rev=*) set_lint_source rev; lint_rev="''${1#--rev=}"; shift ;;
+          --staged) set_lint_source staged; shift ;;
           -h|--help) usage; exit 0 ;;
           --) shift; test_paths=("$@"); break ;;
           lint) stages+=(pre-commit nextflow-lint nf-core-lint template-version); shift ;;
@@ -466,13 +483,41 @@ PY
         echo "ci-local: $root is not the pipeline root (.nf-core.yml or nf-test.config missing)" >&2
         exit 2
       fi
+      # Run from a git hook, git exports GIT_DIR (in a linked worktree) and GIT_INDEX_FILE (pre-commit; a
+      # temporary index under `commit -a` or `commit <paths>`). Every git call on the lint copy below, and
+      # prek's and nf-core's own, would inherit them and act on this checkout instead of the copy. Keep the
+      # index the caller named for --staged and drop the rest: from the checkout root git rediscovers the
+      # same repository. A relative GIT_INDEX_FILE is relative to the hook's directory, the checkout root.
+      source_index=""
+      if [[ -n "''${GIT_INDEX_FILE:-}" ]]; then
+        source_index="$GIT_INDEX_FILE"
+        if [[ "$source_index" != /* ]]; then
+          source_index="$PWD/$source_index"
+        fi
+      fi
+      unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
       cd "$root"
 
-      if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-        echo "ci-local: base '$base' does not resolve; fetch it or pass --base" >&2
-        exit 2
+      lint_commit=""
+      if [[ "$lint_source" == rev ]]; then
+        if ! lint_commit="$(git rev-parse --verify --quiet "$lint_rev^{commit}")"; then
+          echo "ci-local: --rev '$lint_rev' is not a commit here" >&2
+          exit 2
+        fi
       fi
-      merge_base="$(git merge-base "$base" HEAD)"
+
+      # Only nf-test's --changed-since needs the base to resolve; release mode is read from its name. The
+      # hooks lint without it, so a clone with no upstream remote can still commit and push.
+      merge_base=""
+      for stage in "''${stages[@]}"; do
+        if [[ "$stage" == nf-test ]]; then
+          if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+            echo "ci-local: base '$base' does not resolve; fetch it or pass --base" >&2
+            exit 2
+          fi
+          merge_base="$(git merge-base "$base" HEAD)"
+        fi
+      done
 
       # CI keys release mode on the PR's base branch name, not on the remote that carries it.
       base_branch="''${base##*/}"
@@ -519,6 +564,7 @@ PY
       lint_tmp=""
       lint_root=""
       lint_subject=""
+      staged_files=()
       # shellcheck disable=SC2329 # invoked through the EXIT trap
       cleanup() {
         if [[ -n "$lint_tmp" ]]; then
@@ -533,22 +579,42 @@ PY
         lint_tmp="$(mktemp -d "$cache/lint-tree.XXXXXX")"
         lint_root="$lint_tmp/$(basename "$root")"
         mkdir -p "$lint_root"
-        if [[ -n "$lint_worktree" ]]; then
-          # What the next commit would carry: tracked files as edited, and untracked files not ignored.
-          local path
-          git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d "" path; do
-            if [[ -e "$path" || -L "$path" ]]; then
-              printf '%s\0' "$path"
+        case "$lint_source" in
+          worktree)
+            # What the next commit would carry: tracked files as edited, and untracked files not ignored.
+            local path
+            git ls-files -z --cached --others --exclude-standard | while IFS= read -r -d "" path; do
+              if [[ -e "$path" || -L "$path" ]]; then
+                printf '%s\0' "$path"
+              fi
+            done | sort -zu | tar --null -T - -cf - | tar -xf - -C "$lint_root"
+            lint_subject="the working tree of $root (uncommitted edits and untracked, unignored files included)"
+            ;;
+          staged)
+            # Exactly what `git commit` records: the index the hook names -- a temporary one under
+            # `commit -a` or `commit <paths>` -- whose blobs git has already written. The prek stages then
+            # check only the paths it adds or changes against HEAD.
+            local index_env=()
+            if [[ -n "$source_index" ]]; then
+              index_env=(env GIT_INDEX_FILE="$source_index")
             fi
-          done | sort -zu | tar --null -T - -cf - | tar -xf - -C "$lint_root"
-          lint_subject="the working tree of $root (uncommitted edits and untracked, unignored files included)"
-        else
-          # HEAD exactly as a CI checkout materializes it, through a private index so the checkout's own
-          # index and worktree list are untouched.
-          GIT_INDEX_FILE="$lint_tmp/index" git read-tree HEAD
-          GIT_INDEX_FILE="$lint_tmp/index" git checkout-index -a -f --prefix="$lint_root/"
-          lint_subject="HEAD $(git rev-parse --short HEAD) of $root$(git diff --quiet HEAD 2>/dev/null || echo ', uncommitted edits excluded (--worktree lints them)')"
-        fi
+            "''${index_env[@]}" git checkout-index -a -f --prefix="$lint_root/"
+            mapfile -d "" -t staged_files < <("''${index_env[@]}" git diff --cached --name-only -z --diff-filter=d)
+            lint_subject="the index of $root (what the commit records; prek stages on ''${#staged_files[@]} staged path(s))"
+            ;;
+          *)
+            # A commit exactly as a CI checkout materializes it, through a private index so the
+            # checkout's own index and worktree list are untouched: HEAD, or --rev.
+            local commit="''${lint_commit:-HEAD}"
+            GIT_INDEX_FILE="$lint_tmp/index" git read-tree "$commit"
+            GIT_INDEX_FILE="$lint_tmp/index" git checkout-index -a -f --prefix="$lint_root/"
+            if [[ -n "$lint_commit" ]]; then
+              lint_subject="commit $(git rev-parse --short "$lint_commit") of $root"
+            else
+              lint_subject="HEAD $(git rev-parse --short HEAD) of $root$(git diff --quiet HEAD 2>/dev/null || echo ', uncommitted edits excluded (--worktree lints them)')"
+            fi
+            ;;
+        esac
         git -C "$lint_root" init -q
         git -C "$lint_root" add -A -f
         git -C "$lint_root" -c user.name=ci-local -c user.email=ci-local@localhost -c commit.gpgsign=false \
@@ -583,11 +649,26 @@ PY
         fi
       }
 
+      # The files the prek stages run on: CI's --all-files, or under --staged the staged paths only. An
+      # empty --files list would not mean "none" to prek, so the caller skips the stage instead.
+      prek_scope=(--all-files)
+      prek_label="--all-files"
+      set_prek_scope() {
+        if [[ "$lint_source" == staged ]]; then
+          prek_scope=(--files "''${staged_files[@]}")
+          prek_label="staged files"
+        fi
+      }
+
       stage_pre_commit() {
-        banner "pre-commit (prek run --all-files, nextflow-lint skipped)"
+        banner "pre-commit (prek run $prek_label, nextflow-lint skipped)"
+        if [[ "$lint_source" == staged && ''${#staged_files[@]} -eq 0 ]]; then
+          record pre-commit SKIP "no added or changed path is staged"
+          return
+        fi
         local log="$out/pre-commit.log" before rewritten
         before="$(tree_state)"
-        if run_logged "$log" env -C "$lint_root" SKIP=nextflow-lint prek run --show-diff-on-failure --color=always --all-files; then
+        if run_logged "$log" env -C "$lint_root" SKIP=nextflow-lint prek run --show-diff-on-failure --color=always "''${prek_scope[@]}"; then
           record pre-commit PASS "$log"
         else
           rewritten="$(rewritten_since "$before")"
@@ -596,9 +677,13 @@ PY
       }
 
       stage_nextflow_lint() {
-        banner "nextflow-lint (prek run nextflow-lint --all-files, $(nextflow -version 2>/dev/null | sed -n 's/.*version \([^ ]*\) build.*/Nextflow \1/p'))"
+        banner "nextflow-lint (prek run nextflow-lint $prek_label, $(nextflow -version 2>/dev/null | sed -n 's/.*version \([^ ]*\) build.*/Nextflow \1/p'))"
+        if [[ "$lint_source" == staged && ''${#staged_files[@]} -eq 0 ]]; then
+          record nextflow-lint SKIP "no added or changed path is staged"
+          return
+        fi
         local log="$out/nextflow-lint.log"
-        if run_logged "$log" env -C "$lint_root" prek run nextflow-lint --show-diff-on-failure --color=always --all-files; then
+        if run_logged "$log" env -C "$lint_root" prek run nextflow-lint --show-diff-on-failure --color=always "''${prek_scope[@]}"; then
           record nextflow-lint PASS "$log"
         else
           record nextflow-lint FAIL "$log"
@@ -763,13 +848,14 @@ PY
       }
 
       echo "ci-local: checkout $root at $(git rev-parse --short HEAD)$(git diff --quiet HEAD 2>/dev/null || echo ' (with uncommitted changes)')"
-      echo "ci-local: base $base, merge base ''${merge_base:0:12}''${release:+, release mode}"
+      echo "ci-local: base $base''${merge_base:+, merge base ''${merge_base:0:12}}''${release:+, release mode}"
       echo "ci-local: logs in $out"
 
       for stage in "''${stages[@]}"; do
         case "$stage" in
           pre-commit|nextflow-lint|nf-core-lint)
             prepare_lint_tree
+            set_prek_scope
             echo "ci-local: linting a copy of $lint_subject"
             break
             ;;
