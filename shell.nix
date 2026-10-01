@@ -886,6 +886,123 @@ PY
     '';
   };
 
+  # `ci-hooks` points this repository's git hooks at the tracked `.githooks/` of its main checkout. Hooks
+  # live in the shared `.git` and fire in every linked worktree -- the public PR worktree with no
+  # shell.nix, agent worktrees on older branches -- so the path is the main checkout's (which stays on
+  # `personal`), never the worktree that happened to enter the shell: one set of hooks, beside the
+  # shell.nix whose ci-local they run, for every worktree. The shellHook calls `install --quiet` on every
+  # entry; it reads the config and writes it only when it changes, never replaces a core.hooksPath set to
+  # anything else, and does nothing while the main checkout carries no .githooks.
+  ciHooks = pkgs.writeShellApplication {
+    name = "ci-hooks";
+    runtimeInputs = [ pkgs.git pkgs.coreutils pkgs.gnused ];
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: ci-hooks [--checkout DIR] [--quiet] [--force] install|uninstall|status
+
+      Point this repository's core.hooksPath at the main checkout's tracked .githooks/:
+        pre-commit  ci-local --staged pre-commit nextflow-lint   (the repo's prek hooks on the staged changes)
+        pre-push    ci-local --rev <sha> pre-commit nextflow-lint nf-core-lint, once per pushed tree
+
+      Both lint a throwaway copy under ~/.cache, never the checkout. The dev shell installs them on entry.
+
+        install     set core.hooksPath (repository config) unless it is already set to something else
+        uninstall   unset core.hooksPath if it is the value install sets
+        status      show the current core.hooksPath and whether it is this one
+        --checkout  the checkout whose repository is configured (default: the current directory)
+        --quiet     print only changes and conflicts (the shellHook's mode)
+        --force     replace a core.hooksPath set to something else
+
+      Bypass for one command with `git commit --no-verify` / `git push --no-verify`; see AGENTS.md for when
+      that is acceptable.
+      EOF
+      }
+
+      checkout="$PWD"
+      quiet=""
+      force=""
+      action=""
+      while (( $# > 0 )); do
+        case "$1" in
+          --checkout) checkout="''${2:?--checkout needs a directory}"; shift 2 ;;
+          --checkout=*) checkout="''${1#--checkout=}"; shift ;;
+          --quiet) quiet=1; shift ;;
+          --force) force=1; shift ;;
+          -h|--help) usage; exit 0 ;;
+          install|uninstall|status) action="$1"; shift ;;
+          *) echo "ci-hooks: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+        esac
+      done
+      if [[ -z "$action" ]]; then
+        usage >&2
+        exit 2
+      fi
+
+      # Inside a git hook these name the hook's repository and index; --checkout names the repository here.
+      unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR
+
+      if ! git -C "$checkout" rev-parse --git-dir >/dev/null 2>&1; then
+        if [[ -n "$quiet" ]]; then
+          exit 0
+        fi
+        echo "ci-hooks: $checkout is not inside a git checkout" >&2
+        exit 2
+      fi
+      main="$(git -C "$checkout" worktree list --porcelain | sed -n '1s/^worktree //p')"
+      hooks="$main/.githooks"
+      current="$(git -C "$checkout" config --get core.hooksPath || true)"
+      scope="$(git -C "$checkout" config --show-scope --get core.hooksPath | cut -f1 || true)"
+
+      case "$action" in
+        status)
+          if [[ -z "$current" ]]; then
+            echo "ci-hooks: core.hooksPath is unset (git runs .git/hooks); ci-hooks install sets $hooks"
+          elif [[ "$current" == "$hooks" ]]; then
+            echo "ci-hooks: installed: core.hooksPath = $hooks ($scope config)"
+          else
+            echo "ci-hooks: core.hooksPath = $current ($scope config), not this repository's $hooks"
+          fi
+          ;;
+        install)
+          if [[ ! -x "$hooks/pre-commit" || ! -x "$hooks/pre-push" ]]; then
+            if [[ -z "$quiet" ]]; then
+              echo "ci-hooks: $main carries no executable .githooks/pre-commit and pre-push (another branch checked out there?); nothing installed" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          if [[ "$current" == "$hooks" ]]; then
+            if [[ -z "$quiet" ]]; then
+              echo "ci-hooks: already installed: core.hooksPath = $hooks"
+            fi
+            exit 0
+          fi
+          if [[ -n "$current" && -z "$force" ]]; then
+            echo "ci-hooks: core.hooksPath is already $current ($scope config); left alone, so the pipeline's hooks do not run. 'ci-hooks --force install' replaces it for this repository." >&2
+            if [[ -n "$quiet" ]]; then
+              exit 0
+            fi
+            exit 1
+          fi
+          git -C "$checkout" config --local core.hooksPath "$hooks"
+          echo "ci-hooks: core.hooksPath = $hooks (pre-commit and pre-push lint hooks; see ci-hooks --help)"
+          ;;
+        uninstall)
+          if [[ "$current" == "$hooks" && "$scope" == local ]]; then
+            git -C "$checkout" config --local --unset core.hooksPath
+            echo "ci-hooks: core.hooksPath unset. The dev shell reinstalls it on its next entry; to keep the hooks off, set core.hooksPath to another directory, which install never replaces."
+          elif [[ -z "$current" ]]; then
+            echo "ci-hooks: core.hooksPath is not set"
+          else
+            echo "ci-hooks: core.hooksPath is $current ($scope config), not set by ci-hooks; left alone" >&2
+            exit 1
+          fi
+          ;;
+      esac
+    '';
+  };
+
   condaCli = pkgs.writeShellApplication {
     name = "conda";
     runtimeInputs = [ pkgs.micromamba pkgs.python3 ];
@@ -956,6 +1073,7 @@ pkgs.mkShell {
     nfTestCli
     nfTestParallel
     ciLocal
+    ciHooks
     condaCli
     pkgs.apptainer
     pkgs.pre-commit
@@ -969,6 +1087,13 @@ pkgs.mkShell {
     # nf-test wrapper above, which is the only `nf-test` on this shell's PATH, so nothing is missed;
     # exporting it shell-wide would additionally apply a C1-only JIT and a 1 GB heap to a bare
     # `nextflow run`, where both are wrong -- a long production run wants C2 and its own heap.
+
+    # The git hooks run this shell's ci-local directly only when the shell was built from the very
+    # shell.nix beside them, compared by content; any other environment -- a plain agent shell, a stale
+    # direnv capture, an older worktree's shell -- makes them enter that shell.nix with nix-shell instead.
+    export GWAS_DEV_SHELL_SHA256="${builtins.hashFile "sha256" ./shell.nix}"
+    ci-hooks --checkout "${toString ./.}" --quiet install || true
+
     if [[ $- == *i* && -z "''${DIRENV_IN_ENVRC:-}" && "''${SHELL:-}" != */bash ]]; then
       exec bash
     fi

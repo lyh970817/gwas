@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# The repository's pre-commit (prek) hooks on exactly what this commit records: the staged paths of the
+# index git commits, linted in a throwaway copy under ~/.cache so the checkout is never rewritten. CI runs
+# the same hooks with --all-files; the pre-push hook does that for every pushed commit.
+set -euo pipefail
+
+hook_name=pre-commit
+# shellcheck source=dev-shell.bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/dev-shell.bash"
+
+status=0
+run_in_dev_shell ci-local --staged pre-commit nextflow-lint </dev/null || status=$?
+if ((status != 0)); then
+    cat >&2 <<'EOF'
+
+pre-commit: commit refused by the lint above. Fix the staged files and commit again. Any auto-fixes the
+hooks made are saved as lint-rewrites.patch in the ci-local log directory named above; `git apply` it,
+then `git add` the files. Bypass with `git commit --no-verify` only as AGENTS.md allows.
+EOF
+fi
+exit "$status"

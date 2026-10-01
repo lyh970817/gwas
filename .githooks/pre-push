@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# The PR's lint jobs on exactly what is pushed: `ci-local --rev <sha>` with the pre-commit, nextflow-lint and
+# nf-core-lint stages, once per distinct pushed tree, each in a throwaway copy under ~/.cache. A deleted ref,
+# a tag on a non-commit and a tree without .nf-core.yml are not linted. template-version (a non-failing
+# PyPI lookup) and nf-test (tens of minutes) are left to the PR procedure in
+# .agents/skills/nf-core-pipeline-contribute/SKILL.md.
+set -euo pipefail
+
+hook_name=pre-push
+# shellcheck source=dev-shell.bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/dev-shell.bash"
+
+remote="${1:-}"
+
+# A tree that passed with this exact shell.nix passes again, so a push retried after a network failure, or
+# the same commit pushed to a second remote, is not linted twice.
+passed_dir="${XDG_CACHE_HOME:-$HOME/.cache}/gwas-ci-hooks/pre-push-passed"
+shell_key="$(sha256sum "$dev_shell" 2>/dev/null | cut -c1-16 || true)"
+
+declare -A seen=()
+commits=()
+labels=()
+while read -r local_ref local_sha remote_ref _remote_sha; do
+    if [[ "$local_sha" =~ ^0+$ ]]; then
+        echo "pre-push: $remote_ref is being deleted; nothing to lint"
+        continue
+    fi
+    if ! commit="$(git rev-parse --verify --quiet "$local_sha^{commit}")"; then
+        echo "pre-push: $local_ref is not a commit; not linted"
+        continue
+    fi
+    if ! git cat-file -e "$commit:.nf-core.yml" 2>/dev/null; then
+        echo "pre-push: $local_ref has no .nf-core.yml, so it is not a pipeline tree; not linted"
+        continue
+    fi
+    tree="$(git rev-parse "$commit^{tree}")"
+    if [[ -n "${seen[$tree]:-}" ]]; then
+        continue
+    fi
+    seen[$tree]=1
+    commits+=("$commit")
+    labels+=("$local_ref -> ${remote:-?} $remote_ref")
+done
+
+status=0
+for index in "${!commits[@]}"; do
+    commit="${commits[index]}"
+    tree="$(git rev-parse "$commit^{tree}")"
+    stamp="$passed_dir/$tree-$shell_key"
+    echo "pre-push: ${labels[index]} at ${commit:0:12}"
+    if [[ -n "$shell_key" && -e "$stamp" ]]; then
+        echo "pre-push: this tree already passed ci-local lint with this shell.nix; not linted again"
+        continue
+    fi
+    if run_in_dev_shell ci-local --rev "$commit" pre-commit nextflow-lint nf-core-lint </dev/null; then
+        if [[ -n "$shell_key" ]]; then
+            mkdir -p "$passed_dir"
+            : >"$stamp"
+        fi
+    else
+        status=1
+        echo "pre-push: ${labels[index]} (${commit:0:12}) fails ci-local lint" >&2
+    fi
+done
+
+if ((status != 0)); then
+    cat >&2 <<'EOF'
+
+pre-push: push refused. Fix the findings above in new commits and push again; `ci-local --rev <sha> lint`
+reproduces this check. Never bypass with `git push --no-verify` without the owner's approval (AGENTS.md).
+EOF
+fi
+exit "$status"

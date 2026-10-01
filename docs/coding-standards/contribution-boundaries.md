@@ -39,10 +39,11 @@ from `upstream/dev`.
 
 Classify every changed hunk exactly once:
 
-- Personal-only: `.agents/**`, `.claude/**`, `.codex/**`, `.omp/**`, `.scratch/**`, `.workflow/**`,
-  `.references/**`, `.worktrees/**`, `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `docs/agents/**`,
-  `docs/coding-standards/**`, Nix/development-shell files, `.envrc`, local fixture discovery, private trackers,
-  orchestration, and machine-specific configuration.
+- Personal-only: `.agents/**`, `.claude/**`, `.codex/**`, `.githooks/**`, `.omp/**`, `.scratch/**`,
+  `.workflow/**`, `.references/**`, `.worktrees/**`, `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`,
+  `docs/agents/**`, `docs/coding-standards/**`, Nix/development-shell files, `.envrc`, local fixture discovery,
+  private trackers, orchestration, and machine-specific configuration. The personal-only git hooks are not the
+  template's `.pre-commit-config.yaml`, which stays portable and is never extended with personal tooling.
 - Portable pipeline: pipeline code and composition, schemas, public assets/examples, method configuration,
   tests and CI using public or committed inputs, and reviewer-facing `README.md`, `CHANGELOG.md`,
   `CITATIONS.md`, and public documentation.
