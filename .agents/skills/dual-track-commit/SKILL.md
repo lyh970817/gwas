@@ -44,6 +44,8 @@ Read the track classification and public boundary in
 Verify clean worktrees, per-commit and aggregate `git diff --check`, public patch equivalence, the public
 changed-file/text boundary, logical branch ordering, and relevant portable validation. Push only when authorized;
 use `--force-with-lease` only for explicitly authorized history rewriting after recording the remote tip.
+Before pushing the public PR branch, apply "Push a PR branch" in `nf-core-pipeline-contribute`; the pre-push
+hook lints every pushed commit on either track.
 
 Report starting/final tips, commit mapping, hunk classification, equivalence evidence, validation scope, clean
 state, unpushed commits, and every unresolved gate.

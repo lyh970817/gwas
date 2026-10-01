@@ -128,6 +128,23 @@ Bash `timeout` is capped at 600000 ms; larger values are silently truncated. Nev
 task or subagent — launch long runs (nf-test shards, container builds) with `run_in_background: true` and act
 on the completion notification. If polling is unavoidable, sleep at most 240 s per call.
 
+## Git hooks and pull requests
+
+Entering the dev shell points `core.hooksPath` at the main checkout's tracked `.githooks/` (`ci-hooks status`
+reports it), so the hooks fire in every worktree of this repository, including the public PR worktree. They lint
+throwaway copies under `~/.cache` and never rewrite the checkout. `pre-commit` runs the repository's
+pre-commit hooks on the staged changes (`ci-local --staged`); `pre-push` runs the `pre-commit`, `nextflow-lint`
+and `nf-core-lint` stages of `ci-local` on each pushed commit (`--rev`), about a minute per tree. Outside the
+matching dev shell each hook first enters the main checkout's `shell.nix`, a few seconds more.
+
+Fix a finding rather than bypass it. Use `git commit --no-verify` only when the hook cannot run for an
+environmental reason, such as nix or the network being unavailable, and report that; the pre-push hook still
+lints the result. Use `git push --no-verify` only with the owner's explicit approval for that push.
+
+Before pushing a branch that creates or updates an `nf-core/gwas` PR, follow "Push a PR branch" in
+[`nf-core-pipeline-contribute`](.agents/skills/nf-core-pipeline-contribute/SKILL.md): it owns the nf-test
+gates the hooks leave out.
+
 ## Generated development documents
 
 Commit issue-specific generated audit and evidence documents while they are needed for review or historical

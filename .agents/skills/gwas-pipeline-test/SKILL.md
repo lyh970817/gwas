@@ -143,6 +143,7 @@ ci-local lint                                        # every stage but nf-test
 ci-local nf-test                                     # changed since upstream/dev, docker
 ci-local --shards 1 nf-test -- tests/<route>.nf.test # explicit paths
 ci-local --all nf-test                               # every case
+ci-local --rev <sha> lint                            # lint a given commit, as the pre-push hook does
 ```
 
 `--base` (or `CI_LOCAL_BASE`) names the PR target; a `master`/`main` target switches on CI's release mode
@@ -154,11 +155,17 @@ The three lint stages run in a temporary copy under `~/.cache/gwas-ci-local/`, r
 checkout: a local checkout carries ignored content CI never sees -- `nf-core pipelines lint` walks
 `.references/modules` and fails `plugin_includes` on its `nf-validation` imports. The copy is `HEAD` by
 default, which is what CI lints, and the run prints which tree it linted; `--worktree` lints the uncommitted
-working tree instead (tracked files as edited, plus untracked files that are not ignored). The hooks' and
+working tree instead (tracked files as edited, plus untracked files that are not ignored), `--rev <sha>` a
+given commit, and `--staged` the index, with the two prek stages checking only the staged paths. The hooks' and
 lint's auto-fixes land in the copy only: the summary names them as "would rewrite" and saves them as
 `lint-rewrites.patch` in the log directory, to apply with `git apply` if wanted. A changed-since run on
 the PR branch selects nearly the whole suite: treat it as one heavy job. The PR branch carries no
 `shell.nix`, so from its worktree run `nix-shell <personal checkout>/shell.nix --run ci-local`.
+
+The git hooks under `.githooks/` call the lint stages through those two modes on every commit and push; the
+dev shell installs them (`ci-hooks`), and root `AGENTS.md` says when they may be bypassed. nf-test stays out
+of the hooks: the PR push procedure in `nf-core-pipeline-contribute` decides which `ci-local nf-test` run a
+push needs.
 
 Not mirrored: the non-blocking `latest-everything` Nextflow leg (the shell's pinned Nextflow stands in for
 setup-nextflow's latest-stable), the jobs that only act on GitHub state (branch protection, PR comments,
