@@ -46,6 +46,7 @@ nextflow_pipeline {
 
         then {
             def native_result = new File("${params.outdir}/association/gcta_fastgwa/fastgwa_supplied/fastgwa_supplied.gcta_fastgwa.fastGWA")
+            def versions = new File("${params.outdir}/pipeline_info/nf_core_gwas_software_mqc_versions.yml")
             def command = new File(new File(outputDir.toString()).parentFile, 'work').listFiles()
                 .collectMany { stage -> stage.listFiles()?.toList() ?: [] }
                 .collect { task -> new File(task, '.command.sh') }
@@ -64,6 +65,7 @@ nextflow_pipeline {
                 { assert !new File("${params.outdir}/quality_control/relatedness_matrices").exists() },
                 { assert native_result.isFile() },
                 { assert snapshot(path(native_result.toString())).match('fastgwa_supplied') },
+                { assert snapshot(removeNextflowVersion(versions.toString())).match('versions') },
             )
         }
     }
