@@ -1,0 +1,12 @@
+{
+    "fastgwa_supplied": {
+        "content": [
+            "fastgwa_supplied.gcta_fastgwa.fastGWA:md5,d756c893ac9fc977735a6dc3b7ba4dd7"
+        ],
+        "timestamp": "2026-10-18T20:14:27.777144666",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

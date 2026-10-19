@@ -92,8 +92,11 @@ arm64, emulate_amd64, singularity, podman, shifter, charliecloud, apptainer, wav
   under which model — belongs in the analysis manifest's `method_options`, never in a pipeline param.
   Execution strategy — partitioning, execution modes, job counts, block sizes and low-memory modes —
   belongs in `conf/execution.config`, included from `nextflow.config` immediately after
-  `conf/base.config`. Task resources (cpus, memory, time) belong in process configuration
-  (`conf/base.config`). Translation of any of these into a native command line belongs in the relevant
+  `conf/base.config`. Task resources (cpus, memory, time) belong in process configuration:
+  label tiers in `conf/base.config`, kept at the template values, and per-process resources that no tier
+  expresses, such as dense-matrix memory computed from the sample count, in `conf/resources.config`,
+  included immediately after `conf/execution.config` with bare `withName` selectors so a user's `-c`
+  config can replace them. Translation of any of these into a native command line belongs in the relevant
   `conf/modules/*.config`. Execution params are declared as one `execution_options` schema group, not
   one group per tool.
 
