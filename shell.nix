@@ -886,6 +886,259 @@ PY
     '';
   };
 
+  # `ci-watch` watches every GitHub Actions workflow run behind a pull request and reports them all, so a
+  # push is judged on the whole of its CI. `gh pr checks` is not enough: it lists only the check runs
+  # attached to the head commit, and so misses the workflows a push sets off indirectly -- `workflow_run`
+  # runs such as nf-core/gwas's "Post PR comment", `issue_comment` reactions, and a PR's `merge_group` runs
+  # in the nf-core/modules queue, whose head is the queue's merge commit, not the PR's.
+  #
+  # Each poll reads three sets from the REST API: the workflow runs whose head_sha is the head commit; the
+  # repository's other runs created since the head commit's committer date (or --since); and the head
+  # commit's check runs from apps other than GitHub Actions, with its commit statuses. Ref-bound runs in the
+  # window (pull_request*, push, merge_group, create, delete) are kept only when they belong to the PR --
+  # its number, its `gh-readonly-queue/<base>/pr-<n>-` queue branch, or its head branch at a later commit --
+  # so other PRs' CI stays out. `workflow_run`, `issue_comment`, `schedule` and dispatch runs carry no field
+  # tying them to a PR, so every one in the window is reported. The repository is never inferred from the
+  # current directory: this checkout's origin is the owner's fork. It is read-only and posts nothing.
+  ciWatch = pkgs.writeShellApplication {
+    name = "ci-watch";
+    runtimeInputs = [ pkgs.gh pkgs.jq pkgs.git pkgs.coreutils ];
+    text = ''
+      usage() {
+        cat <<'EOF'
+      Usage: ci-watch [-R owner/repo] [--since ISO-8601] [--no-wait] [--timeout MINUTES] <pr-number | 40-hex sha>
+
+      Watch every GitHub Actions workflow run behind a pull request's head commit and report them all, not only
+      the check runs `gh pr checks` lists. Read-only: it never posts, re-runs or edits anything.
+
+      Each poll collects:
+        direct    workflow runs whose head_sha is the head commit (pull_request, pull_request_target, push, ...)
+        indirect  other runs in the repository created at or after --since: workflow_run, issue_comment,
+                  schedule and dispatch runs, which no API field ties to a PR; this PR's merge_group runs; and
+                  runs on the same head branch at a later commit. Runs another PR or branch set off are left out.
+        checks    the head commit's check runs from apps other than GitHub Actions, and its commit statuses
+
+      Options:
+        -R, --repo REPO   the repository the PR is on (default: $GH_REPO). Required when GH_REPO is unset: the
+                          current directory's repository is never assumed, because this checkout's origin is the
+                          owner's fork, not nf-core/gwas.
+        --since TIME      start of the indirect-run window (default: the head commit's committer date on GitHub)
+        --no-wait         report the current state once instead of polling
+        --timeout MIN     minutes to poll before giving up (default: 120)
+        -h, --help        show this help
+
+      It polls every 60 s, printing a line whenever a run changes state, until the head commit has runs, nothing
+      is queued or running, and one further poll finds nothing new; then it prints the report. Exit 1 when any
+      run or check failed, was cancelled, timed out, needs action, failed to start or went stale, or when the
+      timeout was hit; skipped and neutral are not failures.
+      EOF
+      }
+
+      repo="''${GH_REPO:-}"
+      since=""
+      wait=1
+      timeout_min=120
+      target=""
+      while (( $# > 0 )); do
+        case "$1" in
+          -R|--repo) repo="''${2:?$1 needs owner/repo}"; shift 2 ;;
+          --repo=*) repo="''${1#--repo=}"; shift ;;
+          --since) since="''${2:?--since needs an ISO-8601 time}"; shift 2 ;;
+          --since=*) since="''${1#--since=}"; shift ;;
+          --no-wait) wait=""; shift ;;
+          --timeout) timeout_min="''${2:?--timeout needs minutes}"; shift 2 ;;
+          --timeout=*) timeout_min="''${1#--timeout=}"; shift ;;
+          -h|--help) usage; exit 0 ;;
+          -*) echo "ci-watch: unknown option '$1'" >&2; usage >&2; exit 2 ;;
+          *)
+            if [[ -n "$target" ]]; then
+              echo "ci-watch: one PR number or sha only (got '$target' and '$1')" >&2
+              exit 2
+            fi
+            target="$1"; shift ;;
+        esac
+      done
+      if [[ -z "$target" ]]; then
+        usage >&2
+        exit 2
+      fi
+      if [[ -z "$repo" ]]; then
+        echo "ci-watch: name the repository with -R owner/repo (or set GH_REPO)" >&2
+        exit 2
+      fi
+      if [[ ! "$timeout_min" =~ ^[0-9]+$ ]]; then
+        echo "ci-watch: --timeout takes whole minutes, not '$timeout_min'" >&2
+        exit 2
+      fi
+
+      pr=""
+      head_branch=""
+      head_repo=""
+      if [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then
+        sha="$target"
+        echo "ci-watch: $repo commit $sha"
+      elif [[ "$target" =~ ^[0-9]+$ ]]; then
+        pr="$target"
+        pr_json="$(gh pr view "$pr" -R "$repo" --json headRefOid,headRefName,baseRefName,url,isDraft,headRepository,headRepositoryOwner)"
+        sha="$(jq -r .headRefOid <<<"$pr_json")"
+        head_branch="$(jq -r .headRefName <<<"$pr_json")"
+        head_repo="$(jq -r '.headRepositoryOwner.login + "/" + .headRepository.name' <<<"$pr_json")"
+        jq -r '"ci-watch: \(.url)\(if .isDraft then " (draft)" else "" end), \(.headRepositoryOwner.login)/\(.headRepository.name):\(.headRefName) -> \(.baseRefName), head \(.headRefOid)"' <<<"$pr_json"
+      else
+        echo "ci-watch: '$target' is neither a PR number nor a 40-hex commit sha" >&2
+        exit 2
+      fi
+      if [[ -z "$since" ]]; then
+        since="$(gh api "repos/$repo/commits/$sha" --jq .commit.committer.date)"
+      fi
+      sha7="''${sha:0:7}"
+
+      work="$(mktemp -d)"
+      trap 'rm -rf "$work"' EXIT
+
+      run_fields='{id, event, name, branch: .head_branch, head_repo: .head_repository.full_name, prs: [.pull_requests[].number], status, conclusion, url: .html_url, created: .created_at}'
+
+      # One row per run or check: kind, key, event, name, branch, status, conclusion, url. Kinds: direct and
+      # indirect runs, check (a non-Actions check run or a commit status) and actions-check (an Actions job's check
+      # run, consulted only to know whether the head commit is still being checked).
+      poll() {
+        gh api "repos/$repo/actions/runs?head_sha=$sha&per_page=100" --paginate \
+          --jq ".workflow_runs[] | $run_fields" >"$work/direct.json"
+        gh api "repos/$repo/actions/runs?created=%3E%3D''${since//+/%2B}&per_page=100" --paginate \
+          --jq ".workflow_runs[] | $run_fields" >"$work/window.json"
+        gh api "repos/$repo/commits/$sha/check-runs?per_page=100" --paginate \
+          --jq '.check_runs[] | {name, app: .app.slug, status, conclusion, url: .html_url}' >"$work/checks.json"
+        gh api "repos/$repo/commits/$sha/status?per_page=100" \
+          --jq '.statuses[] | {name: .context, app: "status", status: (if .state == "pending" then "pending" else "completed" end), conclusion: (if .state == "pending" then null else .state end), url: .target_url}' \
+          >>"$work/checks.json"
+        jq -rn --arg pr "$pr" --arg branch "$head_branch" --arg hrepo "$head_repo" \
+          --slurpfile direct "$work/direct.json" --slurpfile window "$work/window.json" \
+          --slurpfile checks "$work/checks.json" '
+          def row(kind; key): [kind, key, .event, .name, (.branch // "-"), .status, (.conclusion // "-"), (.url // "-")] | @tsv;
+          def refbound: .event | IN("pull_request", "pull_request_target", "pull_request_review",
+            "pull_request_review_comment", "push", "merge_group", "create", "delete");
+          ($direct | map(.id)) as $ids
+          | ($direct | map(.created) | min) as $first
+          | ([$direct[] | [.head_repo, .branch]] + (if $branch == "" then [] else [[$hrepo, $branch]] end) | unique) as $refs
+          | ($direct | unique_by(.id) | sort_by(.created, .name) | .[] | row("direct"; .id | tostring)),
+            ($window
+              | map(select(.id as $id | $ids | index($id) | not)
+                | select((refbound | not)
+                  or ($pr != "" and .event == "merge_group" and (.branch // "" | contains("/pr-" + $pr + "-")))
+                  or ((($pr != "" and any(.prs[]; . == ($pr | tonumber))) or ([.head_repo, .branch] as $r | any($refs[]; . == $r)))
+                      and ($first == null or .created >= $first))))
+              | unique_by(.id) | sort_by(.created, .name) | .[] | row("indirect"; .id | tostring)),
+            ($checks[] | . + {event: .app, branch: null}
+              | row(if .app == "github-actions" then "actions-check" else "check" end; .app + ":" + .name))'
+      }
+
+      is_failure() {
+        case "$1" in
+          failure|cancelled|timed_out|action_required|startup_failure|stale|error) return 0 ;;
+          *) return 1 ;;
+        esac
+      }
+
+      declare -A seen=()
+      start=$SECONDS
+      timed_out=""
+      settled=""
+      while :; do
+        mapfile -t rows < <(poll)
+        pending=0
+        runs=0
+        for line in "''${rows[@]}"; do
+          IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
+          if [[ "$status" != completed ]]; then
+            pending=$(( pending + 1 ))
+          fi
+          if [[ "$kind" == direct || "$kind" == check ]]; then
+            runs=$(( runs + 1 ))
+          fi
+          if [[ -n "$wait" && "$kind" != actions-check && "''${seen[$kind:$key]:-}" != "$status/$conclusion" ]]; then
+            seen[$kind:$key]="$status/$conclusion"
+            printf '[%s] %s %s %s: %s/%s\n' "$(date +%H:%M:%S)" "$event" "$name" "$branch" "$status" "$conclusion"
+          fi
+        done
+        if [[ -z "$wait" ]]; then
+          break
+        fi
+        if (( pending == 0 && runs > 0 )); then
+          if [[ "$settled" == "''${#rows[@]}" ]]; then
+            break
+          fi
+          settled="''${#rows[@]}"
+        else
+          settled=""
+        fi
+        if (( SECONDS - start >= timeout_min * 60 )); then
+          timed_out=1
+          break
+        fi
+        sleep 60
+      done
+
+      # Report: direct then indirect runs, then non-Actions checks, in columns sized to their content.
+      w_event=5; w_name=8; w_branch=6; w_state=17
+      for line in "''${rows[@]}"; do
+        IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
+        [[ "$kind" == actions-check ]] && continue
+        state="$status/$conclusion"
+        (( ''${#event} > w_event )) && w_event=''${#event}
+        (( ''${#name} > w_name )) && w_name=''${#name}
+        (( ''${#branch} > w_branch )) && w_branch=''${#branch}
+        (( ''${#state} > w_state )) && w_state=''${#state}
+      done
+      print_row() {
+        printf "%-''${w_event}s | %-''${w_name}s | %-''${w_branch}s | %-''${w_state}s | %s\n" "$@"
+      }
+
+      n_direct=0; n_indirect=0; n_checks=0; failed=0
+      for section in direct indirect check; do
+        case "$section" in
+          direct) title="Workflow runs for $sha7" ;;
+          indirect) title="Indirect workflow runs since $since" ;;
+          check) title="Checks from other apps and commit statuses on $sha7" ;;
+        esac
+        printed=""
+        for line in "''${rows[@]}"; do
+          IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
+          [[ "$kind" == "$section" ]] || continue
+          if [[ -z "$printed" ]]; then
+            printf '\n%s\n' "$title"
+            if [[ "$section" == check ]]; then
+              print_row app check - status/conclusion url
+            else
+              print_row event workflow branch status/conclusion url
+            fi
+            printed=1
+          fi
+          print_row "$event" "$name" "$branch" "$status/$conclusion" "$url"
+          case "$section" in
+            direct) n_direct=$(( n_direct + 1 )) ;;
+            indirect) n_indirect=$(( n_indirect + 1 )) ;;
+            check) n_checks=$(( n_checks + 1 )) ;;
+          esac
+          if is_failure "$conclusion"; then
+            failed=$(( failed + 1 ))
+          fi
+        done
+        if [[ -z "$printed" && "$section" != check ]]; then
+          printf '\n%s: none\n' "$title"
+        fi
+      done
+
+      printf '\nci-watch: %d runs for %s, %d indirect runs since %s; %d failed\n' "$n_direct" "$sha7" "$n_indirect" "$since" "$failed"
+      if [[ -n "$timed_out" ]]; then
+        echo "ci-watch: timed out after $timeout_min min with $pending runs or checks still incomplete" >&2
+        exit 1
+      fi
+      if (( failed > 0 )); then
+        exit 1
+      fi
+    '';
+  };
+
   # `ci-hooks` points this repository's git hooks at the tracked `.githooks/` of its main checkout. Hooks
   # live in the shared `.git` and fire in every linked worktree -- the public PR worktree with no
   # shell.nix, agent worktrees on older branches -- so the path is the main checkout's (which stays on
@@ -1074,6 +1327,7 @@ pkgs.mkShell {
     nfTestParallel
     ciLocal
     ciHooks
+    ciWatch
     condaCli
     pkgs.apptainer
     pkgs.pre-commit

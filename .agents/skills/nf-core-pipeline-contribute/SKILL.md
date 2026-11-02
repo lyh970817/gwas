@@ -63,6 +63,11 @@ PR comment, still needs the owner's explicit approval per item (root `AGENTS.md`
    and start it again with `sudo -n systemctl start yandex-disk.service` when the run ends, pass or fail.
 6. Push without `--no-verify`. When the hook refuses the push, fix the finding in a new commit. Report each
    stage's result, the nf-test selection and pass counts, and the pushed SHA.
+7. Launch `ci-watch -R nf-core/gwas <pr>` with `run_in_background` as soon as the push lands, and act on its
+   report before reporting the push done, requesting review, or ticking the PR checklist. `gh pr checks` is not
+   evidence: it misses the `workflow_run`, `pull_request_target` and `issue_comment` runs the push sets off. Fix
+   any failed, cancelled or timed-out run, or report it when it is an indirect run that is not ours. The report
+   of a push names every workflow run and its conclusion, not an nf-test count alone.
 
 Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
 wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;

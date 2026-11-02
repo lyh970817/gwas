@@ -158,6 +158,15 @@ Before pushing a branch that creates or updates an `nf-core/gwas` PR, follow "Pu
 [`nf-core-pipeline-contribute`](.agents/skills/nf-core-pipeline-contribute/SKILL.md): it owns the nf-test
 gates the hooks leave out.
 
+After every push that creates or updates a pull request on `nf-core/gwas` or `nf-core/modules`, and before
+reporting the push done, requesting review, or ticking a PR checklist, watch the whole of the PR's GitHub Actions
+with `ci-watch -R <repo> <pr>` launched with `run_in_background`, and act on its report. `gh pr checks` alone is
+not evidence: it lists only the check runs attached to the head commit and misses the workflows the push sets
+off indirectly (`workflow_run`, `pull_request_target`, `merge_group`, `issue_comment`). Any run that failed, was
+cancelled or timed out is a finding to fix, or, for an indirect run that is not ours, to report, before the PR is
+declared green. When the owner points at a failed action, identify the run by its URL and say whether a later run
+on the same PR superseded it.
+
 ## Generated development documents
 
 Commit issue-specific generated audit and evidence documents while they are needed for review or historical

@@ -33,6 +33,11 @@ master, so newer lint rules or an unreachable shallow merge base can evict a PR 
 Diagnose an eviction from the `merge_group` workflow run, not only the green `pull_request` checks. Bring the
 component to the current standard and restore branch currency before requeueing.
 
+Before ticking checklist boxes or reporting the PR ready, and after every push or requeue, watch all of its
+workflow runs, `labeler`, GPU and `merge_group` runs included, with `ci-watch -R nf-core/modules <pr>` from the
+gwas dev shell (`nix-shell <gwas checkout>/shell.nix --run 'ci-watch -R nf-core/modules <pr>'`), launched with
+`run_in_background`; `gh pr checks` lists only the head commit's check runs.
+
 ## Commit and public-text procedure
 
 - Inspect the effective Git identity before committing and use the user's real configured identity. Commit
