@@ -87,6 +87,19 @@ freely without asking, respecting inter-issue dependencies.
 This is an `nf-core/gwas` pipeline checkout. `.references/modules` is a read-only companion checkout of
 `nf-core/modules`, not a submission workspace or an ancestry source for this repository's branches.
 
+The owner's `bioconda-recipes` fork checkout lives beside this repository at `../bioconda-recipes`, with one linked
+worktree per recipe branch under its `.worktrees/`. It holds the Bioconda recipes for the tools this pipeline wires
+(MPH, MR-MEGA, LDAK, ldsc-rs, GWASLab) and has its own `AGENTS.md`. Consult it when a container directive,
+`environment.yml`, or upstream-submission question depends on a tool's Bioconda status; never post on
+bioconda/bioconda-recipes without the owner's per-item approval.
+
+The owner's nf-core/modules submission workspace lives beside this repository at `../modules`: a clone of
+nf-core/modules with one linked worktree per component branch under its `.worktrees/` (named after the module or
+subworkflow, `<tool>-<subcommand>`), and its own `AGENTS.md` (the upstream nf-core/modules rules). The pinned
+Nextflow and nf-test binaries its component tests use live in `../gwas-modules-ci-tools/`. Prepare every module or
+subworkflow submission there, never in `.references/modules`, and open or update a PR on nf-core/modules only with
+the owner's per-item approval.
+
 [`CODING_STANDARDS.md`](CODING_STANDARDS.md) indexes the canonical tracked standards. Skills under
 `.agents/skills/` own task procedures, gates, evidence, and reporting; they do not override stable contracts in
 the canonical standards.
