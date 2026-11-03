@@ -898,8 +898,13 @@ PY
   # window (pull_request*, push, merge_group, create, delete) are kept only when they belong to the PR --
   # its number, its `gh-readonly-queue/<base>/pr-<n>-` queue branch, or its head branch at a later commit --
   # so other PRs' CI stays out. `workflow_run`, `issue_comment`, `schedule` and dispatch runs carry no field
-  # tying them to a PR, so every one in the window is reported. The repository is never inferred from the
-  # current directory: this checkout's origin is the owner's fork. It is read-only and posts nothing.
+  # tying them to a PR, and on nf-core/modules strangers' comment-triggered runs arrive dozens a day, so
+  # one is counted only on evidence: its title, name or head sha cites the PR number or head sha, or, when
+  # it did not succeed, its logs (first 2 MB, read once) cite the PR number, head sha or head branch. The
+  # rest get one uncounted summary line (--show-unrelated lists them), and the poll waits only on those
+  # still running that were created within 30 minutes after the newest direct run started, which may be
+  # the PR's own workflow_run follow-ups. The repository is never inferred from the current directory:
+  # this checkout's origin is the owner's fork. It is read-only and posts nothing.
   #
   # A green conclusion is not the whole story either: a step with `continue-on-error`, such as the
   # nf-core template's latest-everything Nextflow matrix leg, fails while its job still concludes success.
@@ -911,21 +916,27 @@ PY
   # update time beside the head commit's runs.
   ciWatch = pkgs.writeShellApplication {
     name = "ci-watch";
-    runtimeInputs = [ pkgs.gh pkgs.jq pkgs.git pkgs.coreutils ];
+    runtimeInputs = [ pkgs.gh pkgs.jq pkgs.git pkgs.coreutils pkgs.gnugrep ];
     text = ''
       usage() {
         cat <<'EOF'
-      Usage: ci-watch [-R owner/repo] [--since ISO-8601] [--no-wait] [--strict] [--timeout MINUTES]
-                      <pr-number | 40-hex sha>
+      Usage: ci-watch [-R owner/repo] [--since ISO-8601] [--no-wait] [--strict] [--show-unrelated]
+                      [--timeout MINUTES] <pr-number | 40-hex sha>
 
       Watch every GitHub Actions workflow run behind a pull request's head commit and report them all, not only
       the check runs `gh pr checks` lists. Read-only: it never posts, re-runs or edits anything.
 
       Each poll collects:
         direct    workflow runs whose head_sha is the head commit (pull_request, pull_request_target, push, ...)
-        indirect  other runs in the repository created at or after --since: workflow_run, issue_comment,
-                  schedule and dispatch runs, which no API field ties to a PR; this PR's merge_group runs; and
-                  runs on the same head branch at a later commit. Runs another PR or branch set off are left out.
+        indirect  other runs created at or after --since that are tied to the PR: by branch or number (this
+                  PR's number on the run, its merge_group queue branch, its head branch at a later commit), or,
+                  for workflow_run, issue_comment, schedule and dispatch runs, which no API field ties to a PR,
+                  by evidence: the run's title, name or head sha cites the PR (#N, pull/N, pr-N, pr_number N)
+                  or the head sha, or, for one that did not succeed, its logs (first 2 MB) cite the PR, the
+                  head sha or the head branch. Runs another PR or branch set off are left out, and so are untied
+                  runs without evidence: they get one summary line, are never counted, and are waited on only
+                  when still running and created within 30 minutes after the newest direct run started (they
+                  may be this PR's own workflow_run follow-ups). --show-unrelated lists them.
         checks    the head commit's check runs from apps other than GitHub Actions, and its commit statuses
 
       Once every run has finished it also reads what a non-blocking leg (continue-on-error, such as a
@@ -941,9 +952,12 @@ PY
         -R, --repo REPO   the repository the PR is on (default: $GH_REPO). Required when GH_REPO is unset: the
                           current directory's repository is never assumed, because this checkout's origin is the
                           owner's fork, not nf-core/gwas.
-        --since TIME      start of the indirect-run window (default: the head commit's committer date on GitHub)
+        --since TIME      start of the indirect-run window (default: the head commit's committer date on GitHub).
+                          The API returns only the newest 1000 runs of a window, so keep it recent on a busy
+                          repository.
         --no-wait         report the current state once instead of polling
         --strict          also exit 1 when there are warnings
+        --show-unrelated  list the untied runs not attributed to the PR instead of only counting them
         --timeout MIN     minutes to poll before giving up (default: 120)
         -h, --help        show this help
 
@@ -958,6 +972,7 @@ PY
       since=""
       wait=1
       strict=""
+      show_unrelated=""
       timeout_min=120
       target=""
       while (( $# > 0 )); do
@@ -968,6 +983,7 @@ PY
           --since=*) since="''${1#--since=}"; shift ;;
           --no-wait) wait=""; shift ;;
           --strict) strict=1; shift ;;
+          --show-unrelated) show_unrelated=1; shift ;;
           --timeout) timeout_min="''${2:?--timeout needs minutes}"; shift 2 ;;
           --timeout=*) timeout_min="''${1#--timeout=}"; shift ;;
           -h|--help) usage; exit 0 ;;
@@ -1018,11 +1034,13 @@ PY
       work="$(mktemp -d)"
       trap 'rm -rf "$work"' EXIT
 
-      run_fields='{id, event, name, branch: .head_branch, head_repo: .head_repository.full_name, prs: [.pull_requests[].number], status, conclusion, url: .html_url, created: .created_at}'
+      run_fields='{id, event, name, title: .display_title, sha: .head_sha, branch: .head_branch, head_repo: .head_repository.full_name, prs: [.pull_requests[].number], status, conclusion, url: .html_url, created: .created_at}'
 
-      # One row per run or check: kind, key, event, name, branch, status, conclusion, url. Kinds: direct and
-      # indirect runs, check (a non-Actions check run or a commit status) and actions-check (an Actions job's check
-      # run, consulted only to know whether the head commit is still being checked).
+      # One row per run or check: kind, key, event, name, branch, status, conclusion, url, created. Kinds: direct
+      # and indirect runs, untied (a run no API field ties to a PR and whose title does not cite it; attribute()
+      # turns it into indirect, awaiting or unrelated), check (a non-Actions check run or a commit status) and
+      # actions-check (an Actions job's check run, consulted only to know whether the head commit is still being
+      # checked).
       poll() {
         gh api "repos/$repo/actions/runs?head_sha=$sha&per_page=100" --paginate \
           --jq ".workflow_runs[] | $run_fields" >"$work/direct.json"
@@ -1033,10 +1051,14 @@ PY
         gh api "repos/$repo/commits/$sha/status?per_page=100" \
           --jq '.statuses[] | {name: .context, app: "status", status: (if .state == "pending" then "pending" else "completed" end), conclusion: (if .state == "pending" then null else .state end), url: .target_url}' \
           >>"$work/checks.json"
-        jq -rn --arg pr "$pr" --arg branch "$head_branch" --arg hrepo "$head_repo" \
+        jq -rn --arg pr "$pr" --arg sha "$sha" --arg branch "$head_branch" --arg hrepo "$head_repo" \
           --slurpfile direct "$work/direct.json" --slurpfile window "$work/window.json" \
           --slurpfile checks "$work/checks.json" '
-          def row(kind; key): [kind, key, .event, .name, (.branch // "-"), .status, (.conclusion // "-"), (.url // "-")] | @tsv;
+          def row(kind; key): [kind, key, .event, .name, (.branch // "-"), .status, (.conclusion // "-"), (.url // "-"),
+            (.created // "-")] | @tsv;
+          def cites: ($pr != "" and ((.title // "") + " " + (.name // "")
+              | test("(#|pull/|pr-)" + $pr + "([^0-9]|$)|pr_number[ :=]*" + $pr + "([^0-9]|$)")))
+            or .sha == $sha or ((.title // "") | contains($sha));
           def refbound: .event | IN("pull_request", "pull_request_target", "pull_request_review",
             "pull_request_review_comment", "push", "merge_group", "create", "delete");
           ($direct | map(.id)) as $ids
@@ -1044,12 +1066,15 @@ PY
           | ([$direct[] | [.head_repo, .branch]] + (if $branch == "" then [] else [[$hrepo, $branch]] end) | unique) as $refs
           | ($direct | unique_by(.id) | sort_by(.created, .name) | .[] | row("direct"; .id | tostring)),
             ($window
-              | map(select(.id as $id | $ids | index($id) | not)
-                | select((refbound | not)
-                  or ($pr != "" and .event == "merge_group" and (.branch // "" | contains("/pr-" + $pr + "-")))
-                  or ((($pr != "" and any(.prs[]; . == ($pr | tonumber))) or ([.head_repo, .branch] as $r | any($refs[]; . == $r)))
-                      and ($first == null or .created >= $first))))
-              | unique_by(.id) | sort_by(.created, .name) | .[] | row("indirect"; .id | tostring)),
+              | map(select(.id as $id | $ids | index($id) | not))
+              | unique_by(.id) | sort_by(.created, .name) | .[]
+              | if refbound then
+                  select(($pr != "" and .event == "merge_group" and (.branch // "" | contains("/pr-" + $pr + "-")))
+                    or ((($pr != "" and any(.prs[]; . == ($pr | tonumber))) or ([.head_repo, .branch] as $r | any($refs[]; . == $r)))
+                        and ($first == null or .created >= $first)))
+                  | row("indirect"; .id | tostring)
+                elif cites then row("indirect"; .id | tostring)
+                else row("untied"; .id | tostring) end),
             ($checks[] | . + {event: .app, branch: null}
               | row(if .app == "github-actions" then "actions-check" else "check" end; .app + ":" + .name))'
       }
@@ -1061,23 +1086,88 @@ PY
         esac
       }
 
+      # Whether a finished, unsuccessful untied run's logs cite the PR number, the head sha or the head branch.
+      log_cites() {
+        local log
+        log="$(gh run view "$1" -R "$repo" --log 2>/dev/null | head -c 2000000 || true)"
+        if [[ -z "$log" ]]; then
+          return 1
+        fi
+        if [[ -n "$pr" ]] && grep -Eq "(#|pull/|pr-)$pr([^0-9]|\$)|pr_number[ :=]*$pr([^0-9]|\$)" <<<"$log"; then
+          return 0
+        fi
+        if grep -Fq "$sha" <<<"$log"; then
+          return 0
+        fi
+        [[ -n "$scan_branch" ]] && grep -Fq "$scan_branch" <<<"$log"
+      }
+
+      # Settle each untied row: a successful one is unrelated; a finished unsuccessful one is indirect when its
+      # logs cite the PR (decided once per run), else unrelated; a running one is awaiting when created within 30
+      # minutes after the newest direct run started, else unrelated.
+      declare -A verdict=()
+      attribute() {
+        local index line kind key event name branch status conclusion url created newest="" start_epoch=0 epoch
+        scan_branch="$head_branch"
+        for line in "''${rows[@]}"; do
+          IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
+          if [[ "$kind" == direct ]]; then
+            if [[ "$created" > "$newest" ]]; then
+              newest="$created"
+            fi
+            if [[ -z "$scan_branch" && "$branch" != - ]]; then
+              scan_branch="$branch"
+            fi
+          fi
+        done
+        if [[ -n "$newest" ]]; then
+          start_epoch="$(date -u -d "$newest" +%s)"
+        fi
+        for index in "''${!rows[@]}"; do
+          IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"''${rows[index]}"
+          if [[ "$kind" != untied ]]; then
+            continue
+          fi
+          kind=unrelated
+          if [[ "$status" != completed ]]; then
+            if [[ -n "$newest" ]]; then
+              epoch="$(date -u -d "$created" +%s)"
+              if (( epoch >= start_epoch && epoch <= start_epoch + 1800 )); then
+                kind=awaiting
+              fi
+            fi
+          elif [[ "$conclusion" != success && "$conclusion" != skipped && "$conclusion" != neutral ]]; then
+            if [[ -z "''${verdict[$key]:-}" ]]; then
+              verdict[$key]=unrelated
+              if log_cites "$key"; then
+                verdict[$key]=indirect
+              fi
+            fi
+            kind="''${verdict[$key]}"
+          fi
+          rows[index]="$kind"$'\t'"''${rows[index]#*$'\t'}"
+        done
+      }
+
       declare -A seen=()
+      scan_branch=""
       start=$SECONDS
       timed_out=""
       settled=""
       while :; do
         mapfile -t rows < <(poll)
+        attribute
         pending=0
         runs=0
         for line in "''${rows[@]}"; do
-          IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
-          if [[ "$status" != completed ]]; then
+          IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
+          if [[ "$status" != completed && "$kind" != unrelated ]]; then
             pending=$(( pending + 1 ))
           fi
           if [[ "$kind" == direct || "$kind" == check ]]; then
             runs=$(( runs + 1 ))
           fi
-          if [[ -n "$wait" && "$kind" != actions-check && "''${seen[$kind:$key]:-}" != "$status/$conclusion" ]]; then
+          if [[ -n "$wait" && "$kind" != actions-check && "$kind" != unrelated && "''${seen[$kind:$key]:-}" != "$status/$conclusion" ]]; then
             seen[$kind:$key]="$status/$conclusion"
             printf '[%s] %s %s %s: %s/%s\n' "$(date +%H:%M:%S)" "$event" "$name" "$branch" "$status" "$conclusion"
           fi
@@ -1103,8 +1193,9 @@ PY
       # Report: direct then indirect runs, then non-Actions checks, in columns sized to their content.
       w_event=5; w_name=8; w_branch=6; w_state=17
       for line in "''${rows[@]}"; do
-        IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
+        IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
         [[ "$kind" == actions-check ]] && continue
+        [[ "$kind" == unrelated || "$kind" == awaiting ]] && [[ -z "$show_unrelated" ]] && continue
         state="$status/$conclusion"
         (( ''${#event} > w_event )) && w_event=''${#event}
         (( ''${#name} > w_name )) && w_name=''${#name}
@@ -1124,7 +1215,7 @@ PY
         esac
         printed=""
         for line in "''${rows[@]}"; do
-          IFS=$'\t' read -r kind key event name branch status conclusion url <<<"$line"
+          IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
           [[ "$kind" == "$section" ]] || continue
           if [[ -z "$printed" ]]; then
             printf '\n%s\n' "$title"
@@ -1149,6 +1240,30 @@ PY
           printf '\n%s: none\n' "$title"
         fi
       done
+
+      # Untied runs without evidence: one line, never counted; the table only on request.
+      unrelated=()
+      n_unsuccessful=0
+      for line in "''${rows[@]}"; do
+        IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
+        if [[ "$kind" == unrelated || "$kind" == awaiting ]]; then
+          unrelated+=("$line")
+          if [[ "$status" != completed || ( "$conclusion" != success && "$conclusion" != skipped && "$conclusion" != neutral ) ]]; then
+            n_unsuccessful=$(( n_unsuccessful + 1 ))
+          fi
+        fi
+      done
+      if (( ''${#unrelated[@]} > 0 )); then
+        printf '\n%d other repository runs since %s not tied to this PR (%d not successful; not counted) — see --show-unrelated\n' \
+          "''${#unrelated[@]}" "$since" "$n_unsuccessful"
+        if [[ -n "$show_unrelated" ]]; then
+          print_row event workflow branch status/conclusion url
+          for line in "''${unrelated[@]}"; do
+            IFS=$'\t' read -r kind key event name branch status conclusion url created <<<"$line"
+            print_row "$event" "$name" "$branch" "$status/$conclusion" "$url"
+          done
+        fi
+      fi
 
       # Annotations: a continue-on-error step leaves its job concluding success, so its failure shows only here.
       warnings=0

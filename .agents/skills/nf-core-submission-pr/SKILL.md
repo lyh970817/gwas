@@ -36,7 +36,9 @@ component to the current standard and restore branch currency before requeueing.
 Before ticking checklist boxes or reporting the PR ready, and after every push or requeue, watch all of its
 workflow runs, `labeler`, GPU and `merge_group` runs included, with `ci-watch -R nf-core/modules <pr>` from the
 gwas dev shell (`nix-shell <gwas checkout>/shell.nix --run 'ci-watch -R nf-core/modules <pr>'`), launched with
-`run_in_background`; `gh pr checks` lists only the head commit's check runs. A non-blocking leg
+`run_in_background`; `gh pr checks` lists only the head commit's check runs. `ci-watch` counts only runs tied to
+the PR by branch, PR number or log evidence, so strangers' comment-triggered runs stay in its uncounted summary
+line; open a reported failure by its URL and confirm it is the PR's before treating it as ours. A non-blocking leg
 (`continue-on-error`) concludes success and reports its failure only through annotations and bot comments, which
 `ci-watch` lists as warnings: read and explain every warning in the report, never ignore it.
 

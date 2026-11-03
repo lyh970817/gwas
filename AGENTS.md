@@ -161,13 +161,15 @@ gates the hooks leave out.
 After every push that creates or updates a pull request on `nf-core/gwas` or `nf-core/modules`, and before
 reporting the push done, requesting review, or ticking a PR checklist, watch the whole of the PR's GitHub Actions
 with `ci-watch -R <repo> <pr>` launched with `run_in_background`, and act on its report. `gh pr checks` alone is
-not evidence: it lists only the check runs attached to the head commit and misses the workflows the push sets
-off indirectly (`workflow_run`, `pull_request_target`, `merge_group`, `issue_comment`). Any run that failed, was
-cancelled or timed out is a finding to fix, or, for an indirect run that is not ours, to report, before the PR is
-declared green. A non-blocking leg (`continue-on-error`, such as the latest-everything Nextflow matrix) fails
-while its job still concludes success, and reports the failure only through annotations and bot comments;
-`ci-watch` lists those as warnings. Read and explain every warning in the push report; never ignore one. When the
-owner points at a failed action, identify the run by its URL and say whether a later run on the same PR
+not evidence: it lists only the check runs attached to the head commit and misses the workflows the push sets off
+indirectly (`workflow_run`, `pull_request_target`, `merge_group`, `issue_comment`). `ci-watch` counts only runs
+tied to the PR by branch, PR number or log evidence, and summarizes the repository's other runs in one uncounted
+line. Any counted run that failed, was cancelled or timed out is a finding to fix, or, for an indirect run that is
+not ours, to report, before the PR is declared green; open a reported failure by its URL and confirm it belongs to
+the PR before treating it as ours. A non-blocking leg (`continue-on-error`, such as the latest-everything Nextflow
+matrix) fails while its job still concludes success, and reports the failure only through annotations and bot
+comments; `ci-watch` lists those as warnings. Read and explain every warning in the push report; never ignore one.
+When the owner points at a failed action, identify the run by its URL and say whether a later run on the same PR
 superseded it.
 
 ## Generated development documents
