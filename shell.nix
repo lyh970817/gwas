@@ -900,13 +900,23 @@ PY
   # so other PRs' CI stays out. `workflow_run`, `issue_comment`, `schedule` and dispatch runs carry no field
   # tying them to a PR, so every one in the window is reported. The repository is never inferred from the
   # current directory: this checkout's origin is the owner's fork. It is read-only and posts nothing.
+  #
+  # A green conclusion is not the whole story either: a step with `continue-on-error`, such as the
+  # nf-core template's latest-everything Nextflow matrix leg, fails while its job still concludes success.
+  # What it leaves behind is generic, so once every run has finished ci-watch reads it without knowing any
+  # workflow's text: the failure and warning annotations of every check run on the head commit (a failure
+  # annotation counts as a failure only on a job that itself failed, else it is a warning), and, for a PR,
+  # bot comments whose first line holds an X mark or whose body says "failed". Both are warnings, which
+  # --strict turns into a non-zero exit; a bot comment may be a stale sticky one, so the report prints its
+  # update time beside the head commit's runs.
   ciWatch = pkgs.writeShellApplication {
     name = "ci-watch";
     runtimeInputs = [ pkgs.gh pkgs.jq pkgs.git pkgs.coreutils ];
     text = ''
       usage() {
         cat <<'EOF'
-      Usage: ci-watch [-R owner/repo] [--since ISO-8601] [--no-wait] [--timeout MINUTES] <pr-number | 40-hex sha>
+      Usage: ci-watch [-R owner/repo] [--since ISO-8601] [--no-wait] [--strict] [--timeout MINUTES]
+                      <pr-number | 40-hex sha>
 
       Watch every GitHub Actions workflow run behind a pull request's head commit and report them all, not only
       the check runs `gh pr checks` lists. Read-only: it never posts, re-runs or edits anything.
@@ -918,25 +928,36 @@ PY
                   runs on the same head branch at a later commit. Runs another PR or branch set off are left out.
         checks    the head commit's check runs from apps other than GitHub Actions, and its commit statuses
 
+      Once every run has finished it also reads what a non-blocking leg (continue-on-error, such as a
+      latest-everything Nextflow matrix) leaves behind while its job still concludes success:
+        annotations   the failure and warning annotations of every check run on the head commit. A failure
+                      annotation on a job that itself failed counts as a failure; one on a job that concluded
+                      success, and every warning annotation, is a non-blocking warning.
+        bot comments  (PR number only) comments by github-actions or another [bot] login whose first line holds
+                      an X mark or whose body says "failed". Sticky comments are edited in place, so each one
+                      is a warning, never a failure: compare its update time with the head commit's runs.
+
       Options:
         -R, --repo REPO   the repository the PR is on (default: $GH_REPO). Required when GH_REPO is unset: the
                           current directory's repository is never assumed, because this checkout's origin is the
                           owner's fork, not nf-core/gwas.
         --since TIME      start of the indirect-run window (default: the head commit's committer date on GitHub)
         --no-wait         report the current state once instead of polling
+        --strict          also exit 1 when there are warnings
         --timeout MIN     minutes to poll before giving up (default: 120)
         -h, --help        show this help
 
       It polls every 60 s, printing a line whenever a run changes state, until the head commit has runs, nothing
       is queued or running, and one further poll finds nothing new; then it prints the report. Exit 1 when any
       run or check failed, was cancelled, timed out, needs action, failed to start or went stale, or when the
-      timeout was hit; skipped and neutral are not failures.
+      timeout was hit, or with --strict when there are warnings; skipped and neutral are not failures.
       EOF
       }
 
       repo="''${GH_REPO:-}"
       since=""
       wait=1
+      strict=""
       timeout_min=120
       target=""
       while (( $# > 0 )); do
@@ -946,6 +967,7 @@ PY
           --since) since="''${2:?--since needs an ISO-8601 time}"; shift 2 ;;
           --since=*) since="''${1#--since=}"; shift ;;
           --no-wait) wait=""; shift ;;
+          --strict) strict=1; shift ;;
           --timeout) timeout_min="''${2:?--timeout needs minutes}"; shift 2 ;;
           --timeout=*) timeout_min="''${1#--timeout=}"; shift ;;
           -h|--help) usage; exit 0 ;;
@@ -1007,7 +1029,7 @@ PY
         gh api "repos/$repo/actions/runs?created=%3E%3D''${since//+/%2B}&per_page=100" --paginate \
           --jq ".workflow_runs[] | $run_fields" >"$work/window.json"
         gh api "repos/$repo/commits/$sha/check-runs?per_page=100" --paginate \
-          --jq '.check_runs[] | {name, app: .app.slug, status, conclusion, url: .html_url}' >"$work/checks.json"
+          --jq '.check_runs[] | {id, name, app: .app.slug, status, conclusion, url: .html_url, annotations: .output.annotations_count}' >"$work/checks.json"
         gh api "repos/$repo/commits/$sha/status?per_page=100" \
           --jq '.statuses[] | {name: .context, app: "status", status: (if .state == "pending" then "pending" else "completed" end), conclusion: (if .state == "pending" then null else .state end), url: .target_url}' \
           >>"$work/checks.json"
@@ -1128,12 +1150,66 @@ PY
         fi
       done
 
-      printf '\nci-watch: %d runs for %s, %d indirect runs since %s; %d failed\n' "$n_direct" "$sha7" "$n_indirect" "$since" "$failed"
+      # Annotations: a continue-on-error step leaves its job concluding success, so its failure shows only here.
+      warnings=0
+      annotation_failures=()
+      annotation_warnings=()
+      while IFS=$'\t' read -r check_id check_name check_conclusion; do
+        while IFS=$'\t' read -r level message; do
+          if [[ "$level" == failure ]] && is_failure "$check_conclusion"; then
+            annotation_failures+=("$check_name | failure | $message")
+          elif [[ "$level" == failure ]]; then
+            annotation_warnings+=("$check_name | failure, job $check_conclusion | $message")
+          else
+            annotation_warnings+=("$check_name | $level | $message")
+          fi
+        done < <(gh api "repos/$repo/check-runs/$check_id/annotations?per_page=100" --paginate \
+          --jq '.[] | select(.annotation_level == "failure" or .annotation_level == "warning")
+            | [.annotation_level, (.message | gsub("\\s+"; " ") | .[0:160])] | @tsv')
+      done < <(jq -r 'select(.status == "completed" and (.annotations // 0) > 0 and .id != null)
+        | [.id, .name, (.conclusion // "-")] | @tsv' "$work/checks.json")
+      if (( ''${#annotation_failures[@]} > 0 )); then
+        printf '\nFailure annotations on failed jobs of %s\n' "$sha7"
+        printf '%s\n' "''${annotation_failures[@]}"
+        failed=$(( failed + ''${#annotation_failures[@]} ))
+      fi
+      if (( ''${#annotation_warnings[@]} > 0 )); then
+        printf '\nNon-blocking warnings: warning annotations, and failure annotations on jobs that did not fail\n'
+        printf '%s\n' "''${annotation_warnings[@]}"
+        warnings=$(( warnings + ''${#annotation_warnings[@]} ))
+      fi
+
+      # Bot comments: a workflow that tolerates a failure often reports it in a sticky PR comment instead.
+      if [[ -n "$pr" ]]; then
+        mapfile -t comments < <(gh api "repos/$repo/issues/$pr/comments?per_page=100" --paginate \
+          --jq '.[] | select(.user.login == "github-actions" or (.user.login | endswith("[bot]")))
+            | select((.body | split("\n")[0] | test("❌|:x:")) or (.body | contains("failed")))
+            | [.created_at, .updated_at, .html_url, .user.login, (.body | split("\n")[0] | gsub("\r"; "") | .[0:160])]
+            | @tsv')
+        if (( ''${#comments[@]} > 0 )); then
+          printf '\nBot comments reporting failures (warnings: compare each update time with the head commit'"'"'s runs above)\n'
+          for line in "''${comments[@]}"; do
+            IFS=$'\t' read -r created updated url login first <<<"$line"
+            age=""
+            if [[ "$updated" < "$since" ]]; then
+              age=" -- last updated before $since, so it may predate this head"
+            fi
+            printf '%s: %s\n  created %s, updated %s%s\n  %s\n' "$login" "$first" "$created" "$updated" "$age" "$url"
+          done
+          warnings=$(( warnings + ''${#comments[@]} ))
+        fi
+      fi
+
+      printf '\nci-watch: %d runs for %s, %d indirect runs since %s; %d failed, %d warnings\n' \
+        "$n_direct" "$sha7" "$n_indirect" "$since" "$failed" "$warnings"
       if [[ -n "$timed_out" ]]; then
         echo "ci-watch: timed out after $timeout_min min with $pending runs or checks still incomplete" >&2
         exit 1
       fi
       if (( failed > 0 )); then
+        exit 1
+      fi
+      if [[ -n "$strict" ]] && (( warnings > 0 )); then
         exit 1
       fi
     '';

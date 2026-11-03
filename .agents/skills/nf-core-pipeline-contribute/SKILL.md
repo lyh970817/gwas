@@ -66,8 +66,11 @@ PR comment, still needs the owner's explicit approval per item (root `AGENTS.md`
 7. Launch `ci-watch -R nf-core/gwas <pr>` with `run_in_background` as soon as the push lands, and act on its
    report before reporting the push done, requesting review, or ticking the PR checklist. `gh pr checks` is not
    evidence: it misses the `workflow_run`, `pull_request_target` and `issue_comment` runs the push sets off. Fix
-   any failed, cancelled or timed-out run, or report it when it is an indirect run that is not ours. The report
-   of a push names every workflow run and its conclusion, not an nf-test count alone.
+   any failed, cancelled or timed-out run, or report it when it is an indirect run that is not ours. A
+   non-blocking leg (`continue-on-error`, such as the latest-everything Nextflow matrix) concludes success and
+   reports its failure only through annotations and bot comments, which `ci-watch` lists as warnings; read and
+   explain every warning, never ignore it. The report of a push names every workflow run and its conclusion and
+   every warning, not an nf-test count alone.
 
 Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
 wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;
