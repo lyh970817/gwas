@@ -910,10 +910,10 @@ PY
   # nf-core template's latest-everything Nextflow matrix leg, fails while its job still concludes success.
   # What it leaves behind is generic, so once every run has finished ci-watch reads it without knowing any
   # workflow's text: the failure and warning annotations of every check run on the head commit (a failure
-  # annotation counts as a failure only on a job that itself failed, else it is a warning), and, for a PR,
-  # bot comments whose first line holds an X mark or whose body says "failed". Both are warnings, which
-  # --strict turns into a non-zero exit; a bot comment may be a stale sticky one, so the report prints its
-  # update time beside the head commit's runs.
+  # annotation on a job that itself failed is only listed, since its run already counts; else it is a
+  # warning), and, for a PR, bot comments whose first line holds an X mark or whose body says "failed".
+  # Both are warnings, which --strict turns into a non-zero exit; a bot comment may be a stale sticky one,
+  # so the report prints its update time beside the head commit's runs.
   ciWatch = pkgs.writeShellApplication {
     name = "ci-watch";
     runtimeInputs = [ pkgs.gh pkgs.jq pkgs.git pkgs.coreutils pkgs.gnugrep ];
@@ -942,8 +942,9 @@ PY
       Once every run has finished it also reads what a non-blocking leg (continue-on-error, such as a
       latest-everything Nextflow matrix) leaves behind while its job still concludes success:
         annotations   the failure and warning annotations of every check run on the head commit. A failure
-                      annotation on a job that itself failed counts as a failure; one on a job that concluded
-                      success, and every warning annotation, is a non-blocking warning.
+                      annotation on a job that itself failed is listed under that run's failure, which is
+                      what counts; one on a job that concluded success, and every warning annotation, is a
+                      non-blocking warning.
         bot comments  (PR number only) comments by github-actions or another [bot] login whose first line holds
                       an X mark or whose body says "failed". Sticky comments are edited in place, so each one
                       is a warning, never a failure: compare its update time with the head commit's runs.
@@ -1286,7 +1287,6 @@ PY
       if (( ''${#annotation_failures[@]} > 0 )); then
         printf '\nFailure annotations on failed jobs of %s\n' "$sha7"
         printf '%s\n' "''${annotation_failures[@]}"
-        failed=$(( failed + ''${#annotation_failures[@]} ))
       fi
       if (( ''${#annotation_warnings[@]} > 0 )); then
         printf '\nNon-blocking warnings: warning annotations, and failure annotations on jobs that did not fail\n'
