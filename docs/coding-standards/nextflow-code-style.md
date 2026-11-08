@@ -19,16 +19,22 @@ marked "measured" were verified directly against the checked-out sources, not in
 
   Review the evidence that this command ran, not each mechanically repairable instance.
 
-  Requires Nextflow 26.04.6, which the pipeline now declares as its floor. On 25.10.4 this command emitted
+  Requires Nextflow 26.10.3, which the pipeline now declares as its floor. On 25.10.4 this command emitted
   code Nextflow itself could not parse: it dropped the parentheses from computed map keys, turning
   `[(row[0].id): x]` into `[row[0].id: x]`, and it rewrote `catch (Exception e)` into the v2-only
-  `catch (e: Exception)` while 25.10.4 still defaulted to the v1 parser. Both hazards are resolved at
-  26.04.6 — the map-key rewrite is fixed, and the typed-`catch` form is valid because the v2 parser is now
-  the default.
+  `catch (e: Exception)` while 25.10.4 still defaulted to the v1 parser. Both hazards were resolved at
+  26.04.6 — the map-key rewrite is fixed, and the typed-`catch` form is valid because the v2 parser is the
+  default.
 
-  Two formatter defects remain at 26.04.6, so read the diff rather than committing it blind: comments
-  inside map and list literals are **stripped**, and multi-line method chains are collapsed onto a single
-  long line. Restore anything the formatter destroys that the surrounding code depends on.
+  Re-checked at 26.10.3 over the whole tree. The comment stripping measured at 26.04.6 is fixed: comments inside
+  map and list literals, on `take:` continuation lines, at the end of config blocks and inside the `output {}`
+  block now survive. One 26.04.6 defect remains: multi-line method chains are collapsed onto a single long line.
+  26.10.3 adds one defect that breaks the code — it rewrites `new ArrayList(x)` to `new List(x)`, which
+  `nextflow lint` then rejects because `java.util.List` is abstract — and three cosmetic rewrites: block
+  comments lose their indentation, which flattens the section banners and indents the closing `*/` by one space;
+  `as int` and `as boolean` become `as Integer` and `as Boolean`; and trailing `//` comments on `take:` and
+  `emit:` lines are aligned into a column. Read the diff rather than committing it blind, and restore anything
+  the formatter destroys that the surrounding code depends on.
 
 - **[SHOULD]** No enforced maximum line length for `.nf` files. Prettier's `printWidth: 120` does not apply —
   Prettier has no Nextflow parser and never touches `.nf`. Break multi-argument process calls one argument
