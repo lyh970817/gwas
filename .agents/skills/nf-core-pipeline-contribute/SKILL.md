@@ -73,6 +73,13 @@ PR comment, still needs the owner's explicit approval per item (root `AGENTS.md`
    reports its failure only through annotations and bot comments, which `ci-watch` lists as warnings; read and
    explain every warning, never ignore it. The report of a push names every workflow run and its conclusion and
    every warning, not an nf-test count alone.
+8. Before marking a PR ready for review, requesting review, or reporting a PR as done, every item of the PR
+   template checklist must have actually been performed and ticked; an unticked item is a blocker, not a note.
+   The debug-mode item is a real run of `-profile debug,test,<engine>` on CREATE as a Slurm job (singularity
+   stands in for docker there; say so in the PR if asked), with every warning read and classified, never
+   ticked from memory. The test-datasets item is ticked only when the companion PR on the
+   `nf-core/test-datasets` `gwas` branch exists or the PR description states why none is needed; a description
+   that promises a follow-up PR leaves the item unticked until that PR exists.
 
 Report repository, branch and target; which procedure steps applied or were inapplicable; actual installed,
 wired, schema, config, documentation, or changelog changes; fallback topics consulted; exact validation results;

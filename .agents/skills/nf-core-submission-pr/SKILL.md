@@ -20,7 +20,9 @@ Before treating a submission as ready:
    including an organization default when applicable. Select the contribution-specific template; do not invent
    a checklist when none exists.
 5. Tick only checks proven in the current branch state. Keep the body concise and apply the canonical public
-   reviewer boundary.
+   reviewer boundary. Before marking the PR ready or requesting review, every item of the template checklist,
+   including the Docker, Singularity and Conda test runs, must have been performed by us and ticked; an unticked
+   item is a blocker, not a note.
 6. Do not push, open, edit, label, assign, or merge a PR without the user's explicit request. Review/CI merge
    requirements remain external gates.
 

@@ -158,6 +158,10 @@ Before pushing a branch that creates or updates an `nf-core/gwas` PR, follow "Pu
 [`nf-core-pipeline-contribute`](.agents/skills/nf-core-pipeline-contribute/SKILL.md): it owns the nf-test
 gates the hooks leave out.
 
+Before a PR on `nf-core/gwas` or `nf-core/modules` is marked ready for review, sent for review, or reported done,
+every item of its PR template checklist must have been performed and ticked, such as the debug-mode run or the
+container test runs; an unticked item is a blocker, not a note. The skill owns the procedure.
+
 After every push that creates or updates a pull request on `nf-core/gwas` or `nf-core/modules`, and before
 reporting the push done, requesting review, or ticking a PR checklist, watch the whole of the PR's GitHub Actions
 with `ci-watch -R <repo> <pr>` launched with `run_in_background`, and act on its report. `gh pr checks` alone is
