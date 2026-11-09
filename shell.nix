@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> {} }:
 let
-  nextflowVersion = "26.04.6";
-  nextflowLanguageServerVersion = "26.04.3";
+  nextflowVersion = "26.10.3";
+  nextflowLanguageServerVersion = "26.10.2";
   nfCoreSource = "git+https://github.com/nf-core/tools.git@dev";
   waveVersion = "1.8.1";
   # nixpkgs still ships 0.9.3. 0.9.4 added strict-syntax support, which Nextflow
@@ -14,16 +14,16 @@ let
   # must be updated with it. It exists because NXF_OFFLINE aborts the run outright when a required
   # plugin is absent, and nf-tower is required: measured on a cache holding only nf-schema@2.8.0, an
   # offline run dies with `Plugin with id nf-tower not found in any repository`. Matching the exact
-  # version matters -- a glob would accept a stale nf-tower-1.11.2 as proof that 1.28.2 is cached.
+  # version matters -- a glob would accept a stale nf-tower-1.28.2 as proof that 1.32.1 is cached.
   # Drift is safe in one direction only: a wrong pin makes the probe answer "cold" and run online.
-  nfTowerVersion = "1.28.2";
+  nfTowerVersion = "1.32.1";
 
   nextflowCli = pkgs.stdenvNoCC.mkDerivation {
     pname = "nextflow";
     version = nextflowVersion;
     src = pkgs.fetchurl {
       url = "https://github.com/nextflow-io/nextflow/releases/download/v${nextflowVersion}/nextflow";
-      sha256 = "10c2jqc17rcm8b6gyvadd8pilj38mxknqflgasxwyhyppvnmb9v1";
+      sha256 = "15h8ah2md6cayw5ihswc01372mdnlw0lv9p089210qpbqill16sz";
     };
     dontUnpack = true;
     installPhase = ''
@@ -33,7 +33,7 @@ let
 
   nextflowLanguageServerJar = pkgs.fetchurl {
     url = "https://github.com/nextflow-io/language-server/releases/download/v${nextflowLanguageServerVersion}/language-server-all.jar";
-    hash = "sha256-IM+jT24gLWuLq9jXhiAs4A4NObcMzsMpDiqz+9ArwBY=";
+    hash = "sha256-IDJneGUcXF5fQKVwwiddH1IEGZQWJDhqKxoRHx36SyY=";
   };
 
   nextflowLanguageServer = pkgs.writeShellApplication {
